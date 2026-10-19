@@ -33,7 +33,7 @@ interface OaiUsage {
 function usageOf(u: OaiUsage | undefined, inputText: number, out: string, streamed = false): Usage {
   const est = estimateTokens(out);
   return {
-    inputTokens: u?.prompt_tokens ?? inputText,
+    inputTokens: streamed ? u?.prompt_tokens || inputText : (u?.prompt_tokens ?? inputText),
     // A cut-short stream may report fewer completion tokens than were already delivered.
     outputTokens: streamed ? Math.max(u?.completion_tokens ?? 0, est) : (u?.completion_tokens ?? est),
   };
