@@ -1,0 +1,37 @@
+id: templates-and-parts
+title: Templates and template parts
+minutes: 12
+sources:
+  - title: Templates
+    url: https://developer.wordpress.org/themes/templates/
+beats:
+  - id: files
+    goal: Know where block templates live.
+    content: |
+      Templates are HTML files in the `templates/` folder.
+  - id: parts
+    goal: Reuse a header as a template part.
+    content: |
+      Template parts live in `parts/` and are included with the template-part block.
+starterFiles:
+  theme.json: |
+    {
+      "version": 3,
+      "settings": { "color": { "palette": [] } }
+    }
+checkpoint:
+  id: cp-theme-json-code
+  question: Set the schema version in theme.json to 3 and add one palette colour.
+  kind: code
+  rubric: theme.json has version 3 and at least one palette entry.
+  file: theme.json
+  checks:
+    - { type: json, file: theme.json, pointer: /version, equals: 3, message: Set version to 3. }
+    - { type: contains, file: theme.json, value: '"slug"', message: Add a colour with a slug. }
+  branches:
+    - { outcome: advance, to: patterns, message: Your theme.json looks right. }
+    - { outcome: review, to: theme-json-basics, message: Let's revisit theme.json. }
+    - { outcome: skip, to: patterns, message: Moving on to patterns. }
+  fallback:
+    - { label: Show me the answer, outcome: review }
+    - { label: Skip this one, outcome: skip }

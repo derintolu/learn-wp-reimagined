@@ -1,0 +1,73 @@
+import { cpSync, mkdtempSync, readFileSync, writeFileSync } from 'node:fs';
+import { tmpdir } from 'node:os';
+import { join } from 'node:path';
+import { describe, expect, it } from 'vitest';
+import { buildContent } from '../../scripts/build-content';
+
+const FIXTURE = join(__dirname, '../fixtures/content');
+
+function copyFixture(): string {
+  const dir = mkdtempSync(join(tmpdir(), 'content-'));
+  cpSync(FIXTURE, dir, { recursive: true });
+  return dir;
+}
+
+function edit(file: string, from: string | RegExp, to: string) {
+  const text = readFileSync(file, 'utf8');
+  const next = text.replace(from, to);
+  if (next === text) throw new Error('edit did not change ' + file);
+  writeFileSync(file, next);
+}
+
+describe('buildContent', () => {
+  it('builds the fixture with lessons keyed by id', () => {
+    const b = buildContent(FIXTURE);
+    expect(Object.keys(b.lessons).sort()).toEqual(['patterns', 'templates-and-parts', 'theme-json-basics']);
+    expect(b.lessons['patterns'].pathId).toBe('block-theme');
+    expect(b.paths['block-theme'].id).toBe('block-theme');
+    expect(b.paths.learner.status).toBe('coming-soon');
+    expect(b.paths.learner.lessons).toEqual([]);
+    expect(b.lessons['patterns'].bug?.file).toBe('patterns/hero.php');
+  });
+
+  it('preserves lesson order from NN- filenames', () => {
+    expect(buildContent(FIXTURE).paths['block-theme'].lessons).toEqual([
+      'theme-json-basics',
+      'templates-and-parts',
+      'patterns',
+    ]);
+  });
+
+  it('throws naming the file when a branch targets an unknown lesson', () => {
+    const dir = copyFixture();
+    edit(join(dir, 'paths/block-theme/01-theme-json.yaml'), 'outcome: advance, to: templates-and-parts', 'outcome: advance, to: nope');
+    expect(() => buildContent(dir)).toThrow(/01-theme-json\.yaml/);
+    expect(() => buildContent(dir)).toThrow(/nope/);
+  });
+
+  it('throws when a checkpoint lacks a required outcome branch', () => {
+    const dir = copyFixture();
+    edit(join(dir, 'paths/block-theme/01-theme-json.yaml'), /\n    - \{ outcome: skip[^\n]*/, '');
+    expect(() => buildContent(dir)).toThrow(/01-theme-json\.yaml/);
+  });
+
+  it('throws when a live path has fewer than 2 checkpoints', () => {
+    const dir = copyFixture();
+    edit(join(dir, 'paths/block-theme/02-templates.yaml'), /checkpoint:[\s\S]*$/, '');
+    expect(() => buildContent(dir)).toThrow(/checkpoint/i);
+  });
+
+  it('throws when lesson files are malformed', () => {
+    const dir = copyFixture();
+    for (const f of ['01-theme-json', '02-templates', '03-patterns']) {
+      writeFileSync(join(dir, `paths/block-theme/${f}.yaml`), '');
+    }
+    expect(() => buildContent(dir)).toThrow();
+  });
+
+  it('throws on duplicate lesson ids', () => {
+    const dir = copyFixture();
+    edit(join(dir, 'paths/block-theme/03-patterns.yaml'), 'id: patterns\n', 'id: theme-json-basics\n');
+    expect(() => buildContent(dir)).toThrow(/duplicate/i);
+  });
+});

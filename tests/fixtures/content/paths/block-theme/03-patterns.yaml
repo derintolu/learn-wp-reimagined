@@ -1,0 +1,33 @@
+id: patterns
+title: Block patterns
+minutes: 8
+sources:
+  - title: Patterns
+    url: https://developer.wordpress.org/themes/patterns/
+beats:
+  - id: register
+    goal: Register a pattern from a PHP file.
+    content: |
+      Files in `patterns/` are registered automatically from their header comment.
+starterFiles:
+  patterns/hero.php: |
+    <?php
+    /**
+     * Title: Hero
+     * Slug: demo/hero
+     */
+    ?>
+    <!-- wp:heading --><h2>Hello</h2><!-- /wp:heading -->
+bug:
+  id: bug-pattern-slug
+  file: patterns/hero.php
+  code: |
+    <?php
+    /**
+     * Title: Hero
+     * Slug: hero
+     */
+    ?>
+  explanation: Pattern slugs must be namespaced like theme/name, otherwise they can collide.
+  fixChecks:
+    - { type: regex, file: patterns/hero.php, pattern: 'Slug:\s*\w+/\w+', message: Namespace the slug. }
