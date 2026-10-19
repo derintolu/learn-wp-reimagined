@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, afterEach } from 'vitest';
-import { getStatus, judge, placement, codeFeedback, tutorStream } from '../../src/ai/client';
+import { getStatus, judge, placement, codeFeedback, tutorStream, JSON_TIMEOUT_MS } from '../../src/ai/client';
 
 afterEach(() => vi.unstubAllGlobals());
 
@@ -107,5 +107,86 @@ describe('ai client', () => {
     ctl.abort();
     await expect(p).rejects.toThrow();
     expect(f.mock.calls[0][1].signal).toBe(ctl.signal);
+  });
+});
+
+describe('ai client timeouts (R20)', () => {
+  /** A fetch that only settles when its signal aborts, like a server that never answers. */
+  function hangingFetch() {
+    const f = vi.fn(
+      (_url: string, init?: RequestInit) =>
+        new Promise<Response>((_, rej) => {
+          const s = init?.signal;
+          if (!s) return;
+          s.addEventListener('abort', () => rej(new DOMException('aborted', 'AbortError')));
+        }),
+    );
+    vi.stubGlobal('fetch', f);
+    return f;
+  }
+  afterEach(() => vi.useRealTimers());
+
+  it('exports an ~8s timeout', () => {
+    expect(JSON_TIMEOUT_MS).toBeGreaterThanOrEqual(5000);
+    expect(JSON_TIMEOUT_MS).toBeLessThanOrEqual(10000);
+  });
+
+  it('getStatus gives up after the timeout and reports off', async () => {
+    vi.useFakeTimers();
+    const f = hangingFetch();
+    const p = getStatus();
+    await vi.advanceTimersByTimeAsync(JSON_TIMEOUT_MS + 10);
+    expect(await p).toMatchObject({ ai: 'off' });
+    expect(f.mock.calls[0][1]?.signal).toBeInstanceOf(AbortSignal);
+  });
+
+  it.each([
+    ['judge', () => judge('l', 'a')],
+    ['placement', () => placement([])],
+    ['codeFeedback', () => codeFeedback({ lessonId: 'l', file: 'f', code: 'c', passed: true, failedMessages: [] })],
+  ])('%s maps a timeout to fallback', async (_name, run) => {
+    vi.useFakeTimers();
+    hangingFetch();
+    const p = run();
+    let settled = false;
+    p.then(() => (settled = true));
+    await vi.advanceTimersByTimeAsync(JSON_TIMEOUT_MS - 100);
+    expect(settled).toBe(false);
+    await vi.advanceTimersByTimeAsync(200);
+    expect(await p).toMatchObject({ ok: false, fallback: true, reason: 'timeout' });
+  });
+
+  it('a caller signal aborts a JSON call early and still maps to fallback', async () => {
+    hangingFetch();
+    const ctl = new AbortController();
+    const p = judge('l', 'a', ctl.signal);
+    ctl.abort();
+    expect(await p).toMatchObject({ ok: false, fallback: true });
+  });
+
+  it('getStatus honours a caller signal', async () => {
+    hangingFetch();
+    const ctl = new AbortController();
+    const p = getStatus(ctl.signal);
+    ctl.abort();
+    expect(await p).toMatchObject({ ai: 'off' });
+  });
+
+  it('a slow body after headers also times out', async () => {
+    vi.useFakeTimers();
+    vi.stubGlobal(
+      'fetch',
+      vi.fn(async (_u: string, init?: RequestInit) => {
+        const body = new ReadableStream({
+          start(c) {
+            init?.signal?.addEventListener('abort', () => c.error(new DOMException('aborted', 'AbortError')));
+          },
+        });
+        return new Response(body, { status: 200 });
+      }),
+    );
+    const p = judge('l', 'a');
+    await vi.advanceTimersByTimeAsync(JSON_TIMEOUT_MS + 10);
+    expect(await p).toMatchObject({ ok: false, fallback: true });
   });
 });

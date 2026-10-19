@@ -22,38 +22,74 @@ async function failure(res: Response): Promise<{ ok: false; fallback: true; reas
   }
 }
 
-async function call<T>(url: string, body: unknown): Promise<AiResult<T>> {
+/** How long a JSON call (or the status check) waits before falling back. */
+export const JSON_TIMEOUT_MS = 8000;
+
+/**
+ * A signal that aborts after JSON_TIMEOUT_MS or when the caller's signal aborts.
+ * Uses setTimeout rather than AbortSignal.timeout so it is cancellable and testable.
+ */
+function withTimeout(signal?: AbortSignal): { signal: AbortSignal; timedOut: () => boolean; done: () => void } {
+  const ctl = new AbortController();
+  let timedOut = false;
+  const timer = setTimeout(() => {
+    timedOut = true;
+    ctl.abort();
+  }, JSON_TIMEOUT_MS);
+  const onAbort = () => ctl.abort();
+  if (signal?.aborted) ctl.abort();
+  else signal?.addEventListener('abort', onAbort, { once: true });
+  return {
+    signal: ctl.signal,
+    timedOut: () => timedOut,
+    done: () => {
+      clearTimeout(timer);
+      signal?.removeEventListener('abort', onAbort);
+    },
+  };
+}
+
+async function call<T>(url: string, body: unknown, signal?: AbortSignal): Promise<AiResult<T>> {
+  const t = withTimeout(signal);
   try {
     const res = await fetch(url, {
       method: 'POST',
       headers: { 'content-type': 'application/json' },
       body: JSON.stringify(body),
+      signal: t.signal,
     });
     if (!res.ok) return await failure(res);
     return { ok: true, data: (await res.json()) as T };
   } catch {
-    return { ok: false, fallback: true };
+    return t.timedOut() ? { ok: false, fallback: true, reason: 'timeout' } : { ok: false, fallback: true };
+  } finally {
+    t.done();
   }
 }
 
-export async function getStatus(): Promise<{ ai: 'on' | 'capped' | 'off'; reason?: string }> {
+export async function getStatus(signal?: AbortSignal): Promise<{ ai: 'on' | 'capped' | 'off'; reason?: string }> {
+  const t = withTimeout(signal);
   try {
-    const res = await fetch('/api/status');
+    const res = await fetch('/api/status', { signal: t.signal });
     if (!res.ok) throw new Error('status');
     return await res.json();
   } catch {
-    return { ai: 'off', reason: 'not-configured' };
+    return { ai: 'off', reason: t.timedOut() ? 'timeout' : 'not-configured' };
+  } finally {
+    t.done();
   }
 }
 
-export const placement = (messages: ChatMessage[]) =>
-  call<{ reply: string; placement?: Placement }>('/api/placement', { messages });
+export const placement = (messages: ChatMessage[], signal?: AbortSignal) =>
+  call<{ reply: string; placement?: Placement }>('/api/placement', { messages }, signal);
 
-export const judge = (lessonId: string, answer: string) =>
-  call<{ outcome: Outcome; to: string; message: string; feedback: string }>('/api/checkpoint', { lessonId, answer });
+export const judge = (lessonId: string, answer: string, signal?: AbortSignal) =>
+  call<{ outcome: Outcome; to: string; message: string; feedback: string }>('/api/checkpoint', { lessonId, answer }, signal);
 
-export const codeFeedback = (req: { lessonId: string; file: string; code: string; passed: boolean; failedMessages: string[] }) =>
-  call<{ feedback: string }>('/api/code-feedback', req);
+export const codeFeedback = (
+  req: { lessonId: string; file: string; code: string; passed: boolean; failedMessages: string[] },
+  signal?: AbortSignal,
+) => call<{ feedback: string }>('/api/code-feedback', req, signal);
 
 /** Streams the tutor reply, calling onText for each chunk. Rejects with AiFallbackError on any failure. */
 export async function tutorStream(req: TutorRequest, onText: (t: string) => void, signal?: AbortSignal): Promise<void> {
