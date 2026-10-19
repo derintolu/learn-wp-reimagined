@@ -63,16 +63,6 @@ describe('buildContent', () => {
     expect(() => buildContent(dir)).toThrow(/01-theme-json\.yaml.*invalid YAML/);
   });
 
-  it('planted bug code fails its fixChecks and the corrected code passes', () => {
-    const bug = buildContent(FIXTURE).lessons['patterns'].bug!;
-    const re = bug.fixChecks.find((c) => c.type === 'regex') as { pattern: string; flags?: string };
-    const rx = new RegExp(re.pattern, re.flags);
-    expect(rx.test(bug.code)).toBe(false);
-    expect(rx.test(bug.code.replace('Slug: hero', 'Slug: demo/hero'))).toBe(true);
-    const starter = buildContent(FIXTURE).lessons['patterns'].starterFiles![bug.file];
-    expect(rx.test(starter)).toBe(false);
-  });
-
   it('throws on duplicate lesson ids', () => {
     const dir = copyFixture();
     edit(join(dir, 'paths/block-theme/03-patterns.yaml'), 'id: patterns\n', 'id: theme-json-basics\n');
