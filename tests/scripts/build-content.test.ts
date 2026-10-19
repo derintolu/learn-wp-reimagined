@@ -48,21 +48,29 @@ describe('buildContent', () => {
   it('throws when a checkpoint lacks a required outcome branch', () => {
     const dir = copyFixture();
     edit(join(dir, 'paths/block-theme/01-theme-json.yaml'), /\n    - \{ outcome: skip[^\n]*/, '');
-    expect(() => buildContent(dir)).toThrow(/01-theme-json\.yaml/);
+    expect(() => buildContent(dir)).toThrow(/01-theme-json\.yaml.*missing branch for outcome "skip"/);
   });
 
   it('throws when a live path has fewer than 2 checkpoints', () => {
     const dir = copyFixture();
     edit(join(dir, 'paths/block-theme/02-templates.yaml'), /checkpoint:[\s\S]*$/, '');
-    expect(() => buildContent(dir)).toThrow(/checkpoint/i);
+    expect(() => buildContent(dir)).toThrow(/block-theme[\\/]path\.yaml.*at least 2 checkpoints.*found 1/);
   });
 
-  it('throws when lesson files are malformed', () => {
+  it('throws naming the file when a lesson file is malformed YAML', () => {
     const dir = copyFixture();
-    for (const f of ['01-theme-json', '02-templates', '03-patterns']) {
-      writeFileSync(join(dir, `paths/block-theme/${f}.yaml`), '');
-    }
-    expect(() => buildContent(dir)).toThrow();
+    writeFileSync(join(dir, 'paths/block-theme/01-theme-json.yaml'), 'title: [unclosed\n');
+    expect(() => buildContent(dir)).toThrow(/01-theme-json\.yaml.*invalid YAML/);
+  });
+
+  it('planted bug code fails its fixChecks and the corrected code passes', () => {
+    const bug = buildContent(FIXTURE).lessons['patterns'].bug!;
+    const re = bug.fixChecks.find((c) => c.type === 'regex') as { pattern: string; flags?: string };
+    const rx = new RegExp(re.pattern, re.flags);
+    expect(rx.test(bug.code)).toBe(false);
+    expect(rx.test(bug.code.replace('Slug: hero', 'Slug: demo/hero'))).toBe(true);
+    const starter = buildContent(FIXTURE).lessons['patterns'].starterFiles![bug.file];
+    expect(rx.test(starter)).toBe(false);
   });
 
   it('throws on duplicate lesson ids', () => {

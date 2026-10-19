@@ -14,7 +14,7 @@ starterFiles:
     <?php
     /**
      * Title: Hero
-     * Slug: demo/hero
+     * Slug: hero
      */
     ?>
     <!-- wp:heading --><h2>Hello</h2><!-- /wp:heading -->
