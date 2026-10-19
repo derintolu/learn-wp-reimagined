@@ -16,12 +16,14 @@ export interface ChatOptions {
   maxTokens: number;
   /** JSON schema the reply must satisfy. */
   json?: object;
+  signal?: AbortSignal;
 }
 
 export interface StreamOptions {
   model: string;
   messages: ChatMessage[];
   maxTokens: number;
+  signal?: AbortSignal;
 }
 
 export interface Provider {

@@ -37,6 +37,23 @@ const msgs = [
 ];
 afterEach(() => vi.unstubAllGlobals());
 
+/** SSE response that emits `chunks` then errors the body. */
+function sseThenError(chunks: string[]): Response {
+  return new Response(
+    new ReadableStream({
+      start(c) {
+        for (const s of chunks) c.enqueue(enc.encode(s));
+      },
+      pull(c) {
+        c.error(new Error('boom'));
+      },
+    }),
+  );
+}
+const cfDelta = (t: string) => `data: {"choices":[{"delta":{"content":"${t}"}}]}\n\n`;
+const anDelta = (t: string) =>
+  `event: content_block_delta\ndata: {"type":"content_block_delta","index":0,"delta":{"type":"text_delta","text":"${t}"}}\n\n`;
+
 describe('workers-ai adapter', () => {
   const cf = () => createWorkersAi('acct1', 'tok1');
   it('chat sends URL, bearer auth, json schema; returns text+usage', async () => {
@@ -65,7 +82,9 @@ describe('workers-ai adapter', () => {
   });
   it('throws on HTTP error without leaking the token', async () => {
     mockFetch(new Response('nope', { status: 500 }));
-    await expect(cf().chat({ model: 'm', messages: msgs, maxTokens: 5 })).rejects.toThrow(/500/);
+    const err = await cf().chat({ model: 'm', messages: msgs, maxTokens: 5 }).catch((e) => e);
+    expect(err.message).toMatch(/500/);
+    expect(err.message).not.toContain('tok1');
   });
   it('stream yields deltas across split chunks and resolves usage', async () => {
     const f = mockFetch(
@@ -131,6 +150,142 @@ describe('anthropic adapter', () => {
   });
 });
 
+describe('stream robustness', () => {
+  const cf = () => createWorkersAi('a', 'tok1');
+  const an = () => createAnthropic('sk-test');
+  const args = { model: 'm', messages: msgs, maxTokens: 9 };
+
+  it('workers-ai: upstream error mid-stream settles usage and errors the body', async () => {
+    mockFetch(sseThenError([cfDelta('abcd')]));
+    const s = await cf().stream(args);
+    await expect(drain(s.body)).rejects.toThrow();
+    expect((await s.usage).outputTokens).toBe(1);
+  });
+  it('anthropic: upstream error mid-stream settles usage and errors the body', async () => {
+    mockFetch(sseThenError([anDelta('abcdefgh')]));
+    const s = await an().stream(args);
+    await expect(drain(s.body)).rejects.toThrow();
+    expect((await s.usage).outputTokens).toBe(2);
+  });
+  it('workers-ai: error chunk errors the body without echoing the message', async () => {
+    mockFetch(sse([cfDelta('hi'), 'data: {"error":{"type":"overloaded","message":"SECRET-DETAIL"}}\n\n']));
+    const s = await cf().stream(args);
+    const err = await drain(s.body).catch((e) => e);
+    expect(err.message).toBe('workers-ai stream error: overloaded');
+    expect(err.message).not.toContain('SECRET');
+    await s.usage;
+  });
+  it('anthropic: error event errors the body without echoing the message', async () => {
+    mockFetch(
+      sse([
+        anDelta('hi'),
+        'event: error\ndata: {"type":"error","error":{"type":"overloaded_error","message":"SECRET-DETAIL"}}\n\n',
+      ]),
+    );
+    const s = await an().stream(args);
+    const err = await drain(s.body).catch((e) => e);
+    expect(err.message).toBe('anthropic stream error: overloaded_error');
+    expect(err.message).not.toContain('SECRET');
+    await s.usage;
+  });
+  it('handles CRLF line endings and explicit [DONE]', async () => {
+    mockFetch(sse(['data: {"choices":[{"delta":{"content":"A"}}]}\r\n\r\ndata: {"choices":[{"delta":{"content":"B"}}]}\r\n\r\ndata: [DONE]\r\n\r\n']));
+    const s = await cf().stream(args);
+    expect(await drain(s.body)).toEqual(['A', 'B']);
+    await s.usage;
+  });
+  it('anthropic: split mid-JSON and CRLF', async () => {
+    const full = anDelta('Hello').replace(/\n/g, '\r\n');
+    const cut = full.indexOf('text_delta') + 3;
+    mockFetch(sse([full.slice(0, cut), full.slice(cut)]));
+    const s = await an().stream(args);
+    expect(await drain(s.body)).toEqual(['Hello']);
+  });
+  it('consumer cancel resolves usage', async () => {
+    mockFetch(sse([cfDelta('abcdefgh'), cfDelta('more')]));
+    const s = await cf().stream(args);
+    const r = s.body.getReader();
+    await r.read();
+    await r.cancel();
+    expect((await s.usage).outputTokens).toBe(2);
+  });
+  it('anthropic: consumer cancel resolves usage', async () => {
+    mockFetch(sse([anDelta('abcd'), anDelta('more')]));
+    const s = await an().stream(args);
+    const r = s.body.getReader();
+    await r.read();
+    await r.cancel();
+    expect((await s.usage).outputTokens).toBe(1);
+  });
+  it('non-200 rejects stream() and anthropic chat, without leaking keys', async () => {
+    mockFetch(new Response('no', { status: 429 }));
+    await expect(cf().stream(args)).rejects.toThrow(/429/);
+    mockFetch(new Response('no', { status: 401 }));
+    const e1 = await an().stream(args).catch((e) => e);
+    expect(e1.message).toMatch(/401/);
+    mockFetch(new Response('no', { status: 529 }));
+    const e2 = await an().chat(args).catch((e) => e);
+    expect(e2.message).toMatch(/529/);
+    expect(e2.message).not.toContain('sk-test');
+  });
+  it('passes the abort signal to fetch', async () => {
+    const f = mockFetch(Response.json({ choices: [{ message: { content: 'x' } }] }));
+    const ac = new AbortController();
+    await cf().chat({ ...args, signal: ac.signal });
+    expect((f.mock.calls[0] as unknown as [string, RequestInit])[1].signal).toBe(ac.signal);
+    const f2 = mockFetch(Response.json({ content: [] }));
+    await an().chat({ ...args, signal: ac.signal });
+    expect((f2.mock.calls[0] as unknown as [string, RequestInit])[1].signal).toBe(ac.signal);
+  });
+});
+
+describe('AI_ROUTES validation', () => {
+  const env = (r: unknown): Env => ({
+    DB: {} as Env['DB'],
+    CF_ACCOUNT_ID: 'a',
+    CF_AI_TOKEN: 't',
+    ANTHROPIC_API_KEY: 'k',
+    AI_ROUTES: JSON.stringify({ tutor: r }),
+  });
+  const bad: [string, unknown][] = [
+    ['unknown provider', { provider: 'openai' }],
+    ['model not in PRICES', { model: 'gpt-unpriced' }],
+    ['empty model', { model: '' }],
+    ['non-string model', { model: 5 }],
+    ['maxTokens zero', { maxTokens: 0 }],
+    ['maxTokens too big', { maxTokens: 4001 }],
+    ['maxTokens fractional', { maxTokens: 10.5 }],
+    ['maxTokens string', { maxTokens: '500' }],
+    ['non-object', 'oops'],
+  ];
+  for (const [name, r] of bad) {
+    it(`ignores and warns: ${name}`, () => {
+      const warn = vi.spyOn(console, 'warn').mockImplementation(() => {});
+      const rt = routeFor('tutor', env(r))!;
+      expect(rt.model).toBe('@cf/openai/gpt-oss-120b');
+      expect(rt.maxTokens).toBe(700);
+      expect(rt.provider.id).toBe('workers-ai');
+      expect(warn).toHaveBeenCalledTimes(1);
+      expect(String(warn.mock.calls[0][0])).toContain('tutor');
+      expect(String(warn.mock.calls[0][0])).not.toMatch(/\bt\b.*k/);
+      warn.mockRestore();
+    });
+  }
+  it('accepts a valid override', () => {
+    const rt = routeFor('tutor', env({ model: 'claude-sonnet-5-5', maxTokens: 4000, provider: 'anthropic' }))!;
+    expect(rt).toMatchObject({ model: 'claude-sonnet-5-5', maxTokens: 4000 });
+    expect(rt.provider.id).toBe('anthropic');
+  });
+  it('warns when override provider key is missing', () => {
+    const warn = vi.spyOn(console, 'warn').mockImplementation(() => {});
+    const e = env({ provider: 'anthropic', model: 'claude-haiku-5-5', maxTokens: 5 });
+    delete e.ANTHROPIC_API_KEY;
+    expect(routeFor('tutor', e)!.provider.id).toBe('workers-ai');
+    expect(warn).toHaveBeenCalledTimes(1);
+    warn.mockRestore();
+  });
+});
+
 describe('routeFor', () => {
   const base = { DB: {} as Env['DB'] };
   it('returns null with nothing configured', () => {
@@ -162,7 +317,7 @@ describe('routeFor', () => {
   it('ignores the anthropic route without a key', () => {
     const env: Env = {
       ...base,
-      AI_ROUTES: JSON.stringify({ tutor: { provider: 'anthropic', model: 'x', maxTokens: 5 } }),
+      AI_ROUTES: JSON.stringify({ tutor: { provider: 'anthropic', model: 'claude-haiku-5-5', maxTokens: 5 } }),
     };
     expect(routeFor('tutor', env)).toBeNull();
     expect(routeFor('tutor', { ...env, CF_ACCOUNT_ID: 'a', CF_AI_TOKEN: 't' })!.provider.id).toBe('workers-ai');

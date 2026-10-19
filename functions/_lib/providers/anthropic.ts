@@ -45,9 +45,12 @@ export function createAnthropic(apiKey: string): Provider {
     'anthropic-version': VERSION,
     'content-type': 'application/json',
   };
-  async function call(body: object): Promise<Response> {
-    const res = await fetch(URL, { method: 'POST', headers, body: JSON.stringify(body) });
-    if (!res.ok) throw new Error(`anthropic request failed: ${res.status}`);
+  async function call(body: object, signal?: AbortSignal): Promise<Response> {
+    const res = await fetch(URL, { method: 'POST', headers, body: JSON.stringify(body), signal });
+    if (!res.ok) {
+      await res.body?.cancel().catch(() => {});
+      throw new Error(`anthropic request failed: ${res.status}`);
+    }
     return res;
   }
 
@@ -56,7 +59,7 @@ export function createAnthropic(apiKey: string): Provider {
     async chat(o: ChatOptions) {
       const body = payload(o);
       if (o.json) body.output_config = { format: { type: 'json_schema', schema: o.json } };
-      const data = (await (await call(body)).json()) as {
+      const data = (await (await call(body, o.signal)).json()) as {
         content?: { type: string; text?: string }[];
         usage?: { input_tokens?: number; output_tokens?: number };
       };
@@ -73,7 +76,7 @@ export function createAnthropic(apiKey: string): Provider {
       };
     },
     async stream(o: StreamOptions) {
-      const res = await call({ ...payload(o), stream: true });
+      const res = await call({ ...payload(o), stream: true }, o.signal);
       const events = sseData(res).getReader();
       let text = '';
       let inTok: number | undefined;
@@ -87,35 +90,43 @@ export function createAnthropic(apiKey: string): Provider {
         });
       const body = new ReadableStream<string>({
         async pull(ctl) {
-          for (;;) {
-            const { done, value } = await events.read();
-            if (done) {
-              settle();
-              ctl.close();
-              return;
+          try {
+            for (;;) {
+              const { done, value } = await events.read();
+              if (done) {
+                settle();
+                ctl.close();
+                return;
+              }
+              let j: {
+                type?: string;
+                message?: { usage?: { input_tokens?: number; output_tokens?: number } };
+                delta?: { type?: string; text?: string };
+                usage?: { input_tokens?: number; output_tokens?: number };
+                error?: { type?: string };
+              };
+              try {
+                j = JSON.parse(value);
+              } catch {
+                continue;
+              }
+              if (j.type === 'error') {
+                throw new Error(`anthropic stream error: ${j.error?.type ?? 'unknown'}`);
+              } else if (j.type === 'message_start') {
+                inTok = j.message?.usage?.input_tokens ?? inTok;
+                outTok = j.message?.usage?.output_tokens ?? outTok;
+              } else if (j.type === 'message_delta') {
+                inTok = j.usage?.input_tokens ?? inTok;
+                outTok = j.usage?.output_tokens ?? outTok; // cumulative
+              } else if (j.type === 'content_block_delta' && j.delta?.type === 'text_delta' && j.delta.text) {
+                text += j.delta.text;
+                ctl.enqueue(j.delta.text);
+                return;
+              }
             }
-            let j: {
-              type?: string;
-              message?: { usage?: { input_tokens?: number; output_tokens?: number } };
-              delta?: { type?: string; text?: string };
-              usage?: { input_tokens?: number; output_tokens?: number };
-            };
-            try {
-              j = JSON.parse(value);
-            } catch {
-              continue;
-            }
-            if (j.type === 'message_start') {
-              inTok = j.message?.usage?.input_tokens ?? inTok;
-              outTok = j.message?.usage?.output_tokens ?? outTok;
-            } else if (j.type === 'message_delta') {
-              inTok = j.usage?.input_tokens ?? inTok;
-              outTok = j.usage?.output_tokens ?? outTok; // cumulative
-            } else if (j.type === 'content_block_delta' && j.delta?.type === 'text_delta' && j.delta.text) {
-              text += j.delta.text;
-              ctl.enqueue(j.delta.text);
-              return;
-            }
+          } catch (e) {
+            settle();
+            ctl.error(e);
           }
         },
         cancel() {

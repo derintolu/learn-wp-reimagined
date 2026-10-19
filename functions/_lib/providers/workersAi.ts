@@ -41,9 +41,12 @@ export function createWorkersAi(accountId: string, token: string): Provider {
   const url = `https://api.cloudflare.com/client/v4/accounts/${accountId}/ai/v1/chat/completions`;
   const headers = { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' };
 
-  async function call(body: object): Promise<Response> {
-    const res = await fetch(url, { method: 'POST', headers, body: JSON.stringify(body) });
-    if (!res.ok) throw new Error(`workers-ai request failed: ${res.status}`);
+  async function call(body: object, signal?: AbortSignal): Promise<Response> {
+    const res = await fetch(url, { method: 'POST', headers, body: JSON.stringify(body), signal });
+    if (!res.ok) {
+      await res.body?.cancel().catch(() => {});
+      throw new Error(`workers-ai request failed: ${res.status}`);
+    }
     return res;
   }
 
@@ -61,7 +64,7 @@ export function createWorkersAi(accountId: string, token: string): Provider {
           json_schema: { name: 'reply', schema: o.json },
         };
       }
-      const data = (await (await call(body)).json()) as {
+      const data = (await (await call(body, o.signal)).json()) as {
         choices?: { message?: { content?: string | null } }[];
         usage?: OaiUsage;
       };
@@ -75,7 +78,7 @@ export function createWorkersAi(accountId: string, token: string): Provider {
         max_tokens: o.maxTokens,
         stream: true,
         stream_options: { include_usage: true },
-      });
+      }, o.signal);
       const events = sseData(res).getReader();
       const inputEst = estimateInputTokens(o.messages);
       let text = '';
@@ -84,27 +87,40 @@ export function createWorkersAi(accountId: string, token: string): Provider {
       const usage = new Promise<Usage>((r) => (resolveUsage = r));
       const body = new ReadableStream<string>({
         async pull(ctl) {
-          for (;;) {
-            const { done, value } = await events.read();
-            if (done) {
-              resolveUsage(usageOf(reported, inputEst, text));
-              ctl.close();
-              return;
+          try {
+            for (;;) {
+              const { done, value } = await events.read();
+              if (done) {
+                resolveUsage(usageOf(reported, inputEst, text));
+                ctl.close();
+                return;
+              }
+              if (value === '[DONE]') continue;
+              let j: {
+                choices?: { delta?: { content?: string | null } }[];
+                usage?: OaiUsage;
+                error?: { type?: string; code?: string | number };
+              };
+              try {
+                j = JSON.parse(value);
+              } catch {
+                continue;
+              }
+              if (j.error) {
+                const kind = String(j.error.type ?? j.error.code ?? 'unknown');
+                throw new Error(`workers-ai stream error: ${kind}`);
+              }
+              if (j.usage) reported = j.usage;
+              const d = j.choices?.[0]?.delta?.content;
+              if (d) {
+                text += d;
+                ctl.enqueue(d);
+                return;
+              }
             }
-            if (value === '[DONE]') continue;
-            let j: { choices?: { delta?: { content?: string | null } }[]; usage?: OaiUsage };
-            try {
-              j = JSON.parse(value);
-            } catch {
-              continue;
-            }
-            if (j.usage) reported = j.usage;
-            const d = j.choices?.[0]?.delta?.content;
-            if (d) {
-              text += d;
-              ctl.enqueue(d);
-              return;
-            }
+          } catch (e) {
+            resolveUsage(usageOf(reported, inputEst, text));
+            ctl.error(e);
           }
         },
         cancel() {
