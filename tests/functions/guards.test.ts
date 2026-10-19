@@ -15,7 +15,7 @@ describe('readJsonCapped', () => {
   it('413 over the limit', async () => {
     const err = await readJsonCapped(post(JSON.stringify({ a: 'x'.repeat(200) })), 100).catch((e: HttpError) => e);
     expect(err).toBeInstanceOf(HttpError);
-    expect(err.status).toBe(413);
+    expect((err as HttpError).status).toBe(413);
   });
   it('413 when content-length lies low but body is large', async () => {
     const req = new Request('http://x/', {
@@ -25,7 +25,7 @@ describe('readJsonCapped', () => {
     });
     const err = await readJsonCapped(req, 100).catch((e: HttpError) => e);
     expect(err).toBeInstanceOf(HttpError);
-    expect(err.status).toBe(413);
+    expect((err as HttpError).status).toBe(413);
   });
   it('400 on invalid JSON', async () => {
     await expect(readJsonCapped(post('{nope'), 100)).rejects.toMatchObject({ status: 400 });
