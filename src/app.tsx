@@ -12,10 +12,17 @@ import { FinalePage, LessonPage, NotFound, PathPage } from './pages/routes';
 function HashTarget() {
   const { url } = useLocation();
   useEffect(() => {
-    const hash = url.split('#')[1];
+    // preact-iso's url drops the hash on first load, so read it from location.
+    const hash = location.hash.slice(1);
     if (!hash) return;
+    let target = hash;
+    try {
+      target = decodeURIComponent(hash);
+    } catch {
+      // A malformed escape like "%E0%A4%A": look the hash up as written.
+    }
     const id = requestAnimationFrame(() => {
-      const el = document.getElementById(decodeURIComponent(hash));
+      const el = document.getElementById(target);
       if (!el) return;
       el.scrollIntoView();
       if (el.tabIndex >= 0 || el.hasAttribute('tabindex')) el.focus({ preventScroll: true });

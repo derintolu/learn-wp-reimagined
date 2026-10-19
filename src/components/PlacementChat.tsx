@@ -22,8 +22,12 @@ type AiState = 'loading' | 'on' | 'capped' | 'off';
 type Mode = 'chat' | 'placed' | 'choose';
 
 const anyLive = () => PATH_ORDER.some((id) => content.paths[id].status === 'live');
-/** Models sometimes emit odd Unicode spaces; show them as plain spaces. */
-const tidy = (t: string) => t.replace(/[\u00A0\u2000-\u200B\u202F\u205F\u3000]/g, ' ');
+/** How long "Start here" waits for the record to save before navigating anyway. */
+export const SAVE_TIMEOUT_MS = 3000;
+
+/** Models sometimes emit odd Unicode spaces: show them as plain spaces and drop invisible ones. */
+export const tidy = (t: string) =>
+  t.replace(/[\u200B\u2060\uFEFF]/g, '').replace(/[\u00A0\u2000-\u200A\u202F\u205F\u3000]/g, ' ');
 const lessonTitle = (id: string) => content.lessons[id]?.title ?? id;
 
 export function PlacementChat() {
@@ -36,9 +40,16 @@ export function PlacementChat() {
   const [result, setResult] = useState<Placement | null>(null);
   const [note, setNote] = useState<string | null>(null);
   const [leaving, setLeaving] = useState(false);
+  const leavingRef = useRef(false);
+  const modeRef = useRef<Mode>(mode);
+  modeRef.current = mode;
   const logRef = useRef<HTMLDivElement>(null);
+  const inputRef = useRef<HTMLTextAreaElement>(null);
   const focusRef = useRef<HTMLElement>(null);
   const alive = useRef(true);
+  const rootRef = useRef<HTMLDivElement>(null);
+  // Preact may run effect cleanups after an unmount has already removed the DOM, so check both.
+  const mounted = () => alive.current && Boolean(rootRef.current?.isConnected);
   const moveFocus = useRef(false);
   const inFlight = useRef(false);
 
@@ -78,14 +89,20 @@ export function PlacementChat() {
     setMessages(history);
     setDraft('');
     setPending(true);
+    // Keep keyboard focus in the box: Send is about to be disabled and would drop focus to <body>.
+    inputRef.current?.focus();
     // Tutor replies can run to 800 characters; the server takes 600 a message.
     const res = await askPlacement(history.map((m) => ({ role: m.role, content: m.content.slice(0, MAX_CHARS) })));
     inFlight.current = false;
-    if (!alive.current) return;
+    if (!mounted()) return;
     setPending(false);
+    // The learner skipped to the chooser while we waited: the late reply must not override that.
+    if (modeRef.current !== 'chat') return;
     moveFocus.current = true;
     if (!res.ok || typeof res.data?.reply !== 'string' || !res.data.reply.trim()) {
-      setNote("The tutor can't answer right now, so let's do this the quick way. Pick the path that sounds most like you.");
+      setNote(
+        "The tutor can't answer right now, so let's do this the quick way. Pick the path that sounds most like you.",
+      );
       setMode('choose');
       return;
     }
@@ -101,13 +118,24 @@ export function PlacementChat() {
   }
 
   async function accept(p: Placement) {
-    if (leaving) return;
+    if (leavingRef.current) return;
+    leavingRef.current = true;
     setLeaving(true);
+    let timer: ReturnType<typeof setTimeout> | undefined;
     try {
-      await getRecordManager().dispatch({ type: 'placed', placement: p });
+      // A slow or failed save must not strand the learner on the home page; go to the lesson anyway.
+      await Promise.race([
+        getRecordManager().dispatch({ type: 'placed', placement: p }),
+        new Promise<void>((r) => (timer = setTimeout(r, SAVE_TIMEOUT_MS))),
+      ]);
     } catch {
-      // A failed save must not strand the learner on the home page; take them to the lesson anyway.
+      // fall through to navigation
+    } finally {
+      clearTimeout(timer);
     }
+    if (!mounted()) return;
+    leavingRef.current = false;
+    setLeaving(false);
     route(`/learn/${p.startLessonId}`);
     document.getElementById('main')?.focus();
   }
@@ -125,9 +153,11 @@ export function PlacementChat() {
   }
 
   const capped = ai === 'capped' || ai === 'off';
+  // Hold the chat until the status is known, so it never flashes the input and then swaps to the chooser.
+  const ready = ai !== 'loading';
 
   return (
-    <div class="placement">
+    <div class="placement" ref={rootRef}>
       <div class="hero__chat-head">
         <SketchIcon name="tutor" class="hero__avatar" />
         <span>
@@ -141,32 +171,49 @@ export function PlacementChat() {
         )}
       </div>
 
-      <div class="chat placement__log" role="log" aria-live="polite" aria-label="Conversation with the tutor" ref={logRef}>
-        {!capped && <Bubble from="tutor">{GREETING}</Bubble>}
-        {messages.map((m, i) => (
-          <Bubble from={m.role === 'user' ? 'learner' : 'tutor'} key={i}>
-            {m.content}
-          </Bubble>
-        ))}
-        {pending && (
-          <div class="bubble bubble--tutor bubble--thinking">
-            <span class="visually-hidden">The tutor is thinking…</span>
-            <span class="thinking" aria-hidden="true">
-              <span />
-              <span />
-              <span />
-            </span>
-          </div>
-        )}
-      </div>
+      {!ready && (
+        <div class="placement__loading" role="status">
+          <span class="visually-hidden">Connecting to the tutor…</span>
+          <span class="placement__skeleton placement__skeleton--bubble" aria-hidden="true" />
+          <span class="placement__skeleton placement__skeleton--field" aria-hidden="true" />
+        </div>
+      )}
 
-      {mode === 'chat' && (
+      {ready && (
+        <div
+          class="chat placement__log"
+          role="log"
+          aria-live="polite"
+          aria-label="Conversation with the tutor"
+          ref={logRef}
+        >
+          {!capped && <Bubble from="tutor">{GREETING}</Bubble>}
+          {messages.map((m, i) => (
+            <Bubble from={m.role === 'user' ? 'learner' : 'tutor'} key={i}>
+              {m.content}
+            </Bubble>
+          ))}
+          {pending && (
+            <div class="bubble bubble--tutor bubble--thinking">
+              <span class="visually-hidden">The tutor is thinking…</span>
+              <span class="thinking" aria-hidden="true">
+                <span />
+                <span />
+                <span />
+              </span>
+            </div>
+          )}
+        </div>
+      )}
+
+      {ready && mode === 'chat' && (
         <form class="placement__form" onSubmit={send}>
           <label class="placement__label" for="placement-input">
             Your message
           </label>
           <div class="placement__field">
             <textarea
+              ref={inputRef}
               id="placement-input"
               class="placement__input"
               rows={2}
@@ -189,7 +236,10 @@ export function PlacementChat() {
                 ? 'Press Enter to send, Shift+Enter for a new line.'
                 : `${MAX_TURNS - turns} more ${MAX_TURNS - turns === 1 ? 'message' : 'messages'} at most.`}
             </span>
-            <span id="placement-count" class={draft.length > MAX_CHARS - 60 ? 'placement__count is-near' : 'placement__count'}>
+            <span
+              id="placement-count"
+              class={draft.length > MAX_CHARS - 60 ? 'placement__count is-near' : 'placement__count'}
+            >
               {draft.length} / {MAX_CHARS}
             </span>
           </div>
@@ -199,7 +249,7 @@ export function PlacementChat() {
         </form>
       )}
 
-      {mode === 'placed' && result && (
+      {ready && mode === 'placed' && result && (
         <PlacementCard
           placement={result}
           headingRef={focusRef}
@@ -213,14 +263,14 @@ export function PlacementChat() {
         />
       )}
 
-      {mode === 'choose' && (
+      {ready && mode === 'choose' && (
         <div class="placement__choose">
           {capped && <CapNotice state={ai === 'capped' ? 'capped' : 'off'} />}
           {note && <p class="placement__note">{note}</p>}
           <div class="choices" role="group" aria-labelledby="choose-title">
-            <h3 id="choose-title" class="choices__title" tabIndex={-1} ref={focusRef as never}>
+            <h2 id="choose-title" class="choices__title" tabIndex={-1} ref={focusRef as never}>
               Choose your path
-            </h3>
+            </h2>
             {PATH_ORDER.map((id) => {
               const p = content.paths[id];
               const live = p.status === 'live' && p.lessons.length > 0;
@@ -261,9 +311,9 @@ function PlacementCard({
         <SketchIcon name={p.pathId} class="placement-card__icon" />
         Your path
       </p>
-      <h3 class="placement-card__title" tabIndex={-1} ref={headingRef as never}>
+      <h2 class="placement-card__title" tabIndex={-1} ref={headingRef as never}>
         <Swipe>{path.title}</Swipe>
-      </h3>
+      </h2>
       <blockquote class="placement-card__reason">
         <p>{p.reason}</p>
       </blockquote>

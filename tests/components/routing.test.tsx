@@ -45,6 +45,29 @@ describe('routing', () => {
   });
 });
 
+const nextFrame = () => new Promise((r) => requestAnimationFrame(() => r(null)));
+
+describe('hash links', () => {
+  it('scrolls to the target of a hash URL', async () => {
+    const scroll = vi.spyOn(Element.prototype, 'scrollIntoView').mockImplementation(() => {});
+    history.replaceState(null, '', '/#paths');
+    render(<App />);
+    await nextFrame();
+    await nextFrame();
+    expect(scroll).toHaveBeenCalled();
+    expect((scroll.mock.contexts[0] as Element).id).toBe('paths');
+    scroll.mockRestore();
+  });
+
+  it('survives a malformed hash', async () => {
+    history.replaceState(null, '', '/#%E0%A4%A');
+    render(<App />);
+    await nextFrame();
+    await nextFrame();
+    expect((await screen.findByRole('heading', { level: 1 })).textContent).toBe('Learn WordPress, your way.');
+  });
+});
+
 describe('useRecord', () => {
   it('shares one app-wide manager unless a test injects its own', () => {
     const a = getRecordManager();

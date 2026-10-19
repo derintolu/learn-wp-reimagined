@@ -1,6 +1,6 @@
 // @vitest-environment happy-dom
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import { cleanup, fireEvent, render, screen, waitFor, within } from '@testing-library/preact';
+import { act, cleanup, fireEvent, render, screen, waitFor, within } from '@testing-library/preact';
 
 vi.mock('../../src/content', async () => {
   const { buildContent } = await import('../../scripts/build-content');
@@ -10,6 +10,7 @@ vi.mock('../../src/ai/client', () => ({ getStatus: vi.fn(), placement: vi.fn() }
 
 import { App } from '../../src/app';
 import { PathCards } from '../../src/components/PathCards';
+import { tidy } from '../../src/components/PlacementChat';
 import { getStatus, placement } from '../../src/ai/client';
 import { content } from '../../src/content';
 import { setRecordManager } from '../../src/record/useRecord';
@@ -43,15 +44,24 @@ afterEach(() => {
 });
 
 const input = () => screen.getByLabelText('Your message') as HTMLTextAreaElement;
-function send(text: string) {
+const sendButton = () => screen.getByRole('button', { name: 'Send' }) as HTMLButtonElement;
+/** Waits for the chat to be ready (status known), then types and clicks Send. */
+async function send(text: string) {
+  await screen.findByLabelText('Your message');
   fireEvent.input(input(), { target: { value: text } });
-  fireEvent.click(screen.getByRole('button', { name: 'Send' }));
+  fireEvent.click(sendButton());
 }
+function deferred<T>() {
+  let resolve!: (v: T) => void;
+  const promise = new Promise<T>((r) => (resolve = r));
+  return { promise, resolve };
+}
+type PlaceResult = Awaited<ReturnType<typeof placement>>;
 
 describe('PlacementChat (AI on)', () => {
   it('has a labelled input with the authored placeholder and a polite chat log', async () => {
     render(<App />);
-    await waitFor(() => expect(status).toHaveBeenCalled());
+    await screen.findByLabelText('Your message');
     expect(input().getAttribute('placeholder')).toBe("Not sure where to start? Tell me what you're building.");
     const log = screen.getByRole('log');
     expect(log.getAttribute('aria-live')).toBe('polite');
@@ -60,27 +70,83 @@ describe('PlacementChat (AI on)', () => {
   it('shows the learner bubble and then the tutor reply', async () => {
     place.mockResolvedValue({ ok: true, data: { reply: 'Lovely. Have you edited theme files before?' } });
     render(<App />);
-    send('A portfolio for my pottery. I know a little CSS.');
+    await send('A portfolio for my pottery. I know a little CSS.');
     const log = screen.getByRole('log');
     expect(log.querySelector('.bubble--learner')?.textContent).toContain('A portfolio for my pottery.');
     await screen.findByText('Lovely. Have you edited theme files before?');
     expect(place).toHaveBeenCalledWith([{ role: 'user', content: 'A portfolio for my pottery. I know a little CSS.' }]);
   });
 
-  it('shows a thinking indicator and disables Send while waiting', async () => {
-    let resolve!: (v: Awaited<ReturnType<typeof placement>>) => void;
-    place.mockReturnValue(new Promise((r) => (resolve = r)));
+  it('shows a thinking indicator and disables Send while waiting, even with a new draft', async () => {
+    const d = deferred<PlaceResult>();
+    place.mockReturnValue(d.promise);
     render(<App />);
-    send('Hello');
+    await send('Hello');
     expect(screen.getByText(/thinking/i)).toBeTruthy();
-    expect((screen.getByRole('button', { name: 'Send' }) as HTMLButtonElement).disabled).toBe(true);
-    resolve({ ok: true, data: { reply: 'Hi there.' } });
+    fireEvent.input(input(), { target: { value: 'A second message' } });
+    expect(input().value).toBe('A second message');
+    expect(sendButton().disabled).toBe(true);
+    d.resolve({ ok: true, data: { reply: 'Hi there.' } });
     await screen.findByText('Hi there.');
     expect(screen.queryByText(/thinking/i)).toBeNull();
+    expect(sendButton().disabled).toBe(false);
+  });
+
+  it('sends only once when Enter is pressed again while a request is in flight', async () => {
+    const d = deferred<PlaceResult>();
+    place.mockReturnValue(d.promise);
+    render(<App />);
+    await screen.findByLabelText('Your message');
+    fireEvent.input(input(), { target: { value: 'one' } });
+    fireEvent.keyDown(input(), { key: 'Enter' });
+    fireEvent.input(input(), { target: { value: 'two' } });
+    fireEvent.keyDown(input(), { key: 'Enter' });
+    expect(place).toHaveBeenCalledTimes(1);
+    d.resolve({ ok: true, data: { reply: 'ok' } });
+    await screen.findByText('ok');
+    expect(place).toHaveBeenCalledTimes(1);
+  });
+
+  it('ignores a reply that arrives after the chat has unmounted', async () => {
+    const d = deferred<PlaceResult>();
+    place.mockReturnValue(d.promise);
+    const errors = vi.spyOn(console, 'error').mockImplementation(() => {});
+    const { unmount } = render(<App />);
+    await send('Hello');
+    unmount();
+    d.resolve({ ok: true, data: { reply: 'Too late.', placement: PLACED } });
+    await new Promise((r) => setTimeout(r, 0));
+    expect(errors).not.toHaveBeenCalled();
+    expect(location.pathname).toBe('/');
+    errors.mockRestore();
+  });
+
+  it('returns focus to the message box after sending from the Send button', async () => {
+    place.mockResolvedValue({ ok: true, data: { reply: 'Noted.' } });
+    render(<App />);
+    await screen.findByLabelText('Your message');
+    fireEvent.input(input(), { target: { value: 'Hello' } });
+    sendButton().focus();
+    fireEvent.click(sendButton());
+    await screen.findByText('Noted.');
+    expect(document.activeElement).toBe(input());
+  });
+
+  it('ignores a late reply once the learner has skipped to the chooser', async () => {
+    const d = deferred<PlaceResult>();
+    place.mockReturnValue(d.promise);
+    render(<App />);
+    await send('Hello');
+    fireEvent.click(screen.getByRole('button', { name: 'Skip the chat and choose a path' }));
+    d.resolve({ ok: true, data: { reply: 'Got it.', placement: PLACED } });
+    await new Promise((r) => setTimeout(r, 0));
+    expect(screen.getByRole('group', { name: 'Choose your path' })).toBeTruthy();
+    expect(screen.queryByRole('region', { name: /your path/i })).toBeNull();
   });
 
   it('caps a message at 600 characters with a visible counter', async () => {
     render(<App />);
+    await screen.findByLabelText('Your message');
     expect(input().maxLength).toBe(600);
     fireEvent.input(input(), { target: { value: 'x'.repeat(42) } });
     expect(screen.getByText('42 / 600')).toBeTruthy();
@@ -90,10 +156,10 @@ describe('PlacementChat (AI on)', () => {
     place.mockResolvedValueOnce({ ok: true, data: { reply: 'y'.repeat(800) } });
     place.mockResolvedValueOnce({ ok: true, data: { reply: 'ok' } });
     render(<App />);
-    send('one');
+    await send('one');
     await waitFor(() => expect(place).toHaveBeenCalledTimes(1));
     await screen.findByText('y'.repeat(800));
-    send('two');
+    await send('two');
     await waitFor(() => expect(place).toHaveBeenCalledTimes(2));
     const sent = place.mock.calls[1][0];
     expect(sent).toHaveLength(3);
@@ -103,7 +169,7 @@ describe('PlacementChat (AI on)', () => {
   it('shows a placement card with the path, the reason, the skipped lessons and both choices', async () => {
     place.mockResolvedValue({ ok: true, data: { reply: 'Got it.', placement: PLACED } });
     render(<App />);
-    send('I build sites with CSS');
+    await send('I build sites with CSS');
     const card = await screen.findByRole('region', { name: /your path/i });
     const c = within(card);
     expect(c.getByText('Block theme developer')).toBeTruthy();
@@ -118,7 +184,7 @@ describe('PlacementChat (AI on)', () => {
   it('accepting dispatches placed and navigates to the start lesson', async () => {
     place.mockResolvedValue({ ok: true, data: { reply: 'Got it.', placement: PLACED } });
     render(<App />);
-    send('I build sites with CSS');
+    await send('I build sites with CSS');
     fireEvent.click(await screen.findByRole('button', { name: 'Start here' }));
     await waitFor(() => expect(manager.dispatch).toHaveBeenCalledWith({ type: 'placed', placement: PLACED }));
     await waitFor(() => expect(location.pathname).toBe('/learn/templates-and-parts'));
@@ -126,10 +192,65 @@ describe('PlacementChat (AI on)', () => {
     await screen.findByText(/templates-and-parts/);
   });
 
+  it('a double click on "Start here" dispatches placed only once', async () => {
+    place.mockResolvedValue({ ok: true, data: { reply: 'Got it.', placement: PLACED } });
+    render(<App />);
+    await send('I build sites with CSS');
+    const start = await screen.findByRole('button', { name: 'Start here' });
+    fireEvent.click(start);
+    fireEvent.click(start);
+    await waitFor(() => expect(location.pathname).toBe('/learn/templates-and-parts'));
+    expect(manager.dispatch).toHaveBeenCalledTimes(1);
+  });
+
+  it('navigates anyway when saving the placement takes longer than 3 seconds', async () => {
+    place.mockResolvedValue({ ok: true, data: { reply: 'Got it.', placement: PLACED } });
+    vi.mocked(manager.dispatch).mockReturnValue(new Promise(() => {}));
+    render(<App />);
+    await send('I build sites with CSS');
+    const start = await screen.findByRole('button', { name: 'Start here' });
+    vi.useFakeTimers({ toFake: ['setTimeout', 'clearTimeout'] });
+    try {
+      fireEvent.click(start);
+      await act(async () => {
+        await vi.advanceTimersByTimeAsync(2900);
+      });
+      expect(location.pathname).toBe('/');
+      await act(async () => {
+        await vi.advanceTimersByTimeAsync(200);
+      });
+      expect(location.pathname).toBe('/learn/templates-and-parts');
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  it('navigates anyway when saving the placement fails', async () => {
+    place.mockResolvedValue({ ok: true, data: { reply: 'Got it.', placement: PLACED } });
+    vi.mocked(manager.dispatch).mockRejectedValue(new Error('disk full'));
+    render(<App />);
+    await send('I build sites with CSS');
+    fireEvent.click(await screen.findByRole('button', { name: 'Start here' }));
+    await waitFor(() => expect(location.pathname).toBe('/learn/templates-and-parts'));
+  });
+
+  it('does not navigate if the chat unmounts while the placement is saving', async () => {
+    place.mockResolvedValue({ ok: true, data: { reply: 'Got it.', placement: PLACED } });
+    const d = deferred<void>();
+    vi.mocked(manager.dispatch).mockReturnValue(d.promise);
+    const { unmount } = render(<App />);
+    await send('I build sites with CSS');
+    fireEvent.click(await screen.findByRole('button', { name: 'Start here' }));
+    unmount();
+    d.resolve();
+    await new Promise((r) => setTimeout(r, 0));
+    expect(location.pathname).toBe('/');
+  });
+
   it('"Choose a different path" swaps the card for the path chooser', async () => {
     place.mockResolvedValue({ ok: true, data: { reply: 'Got it.', placement: PLACED } });
     render(<App />);
-    send('I build sites with CSS');
+    await send('I build sites with CSS');
     fireEvent.click(await screen.findByRole('button', { name: 'Choose a different path' }));
     expect(screen.getByRole('group', { name: 'Choose your path' })).toBeTruthy();
     expect(manager.dispatch).not.toHaveBeenCalled();
@@ -138,7 +259,7 @@ describe('PlacementChat (AI on)', () => {
   it('falls back to the chooser after a fallback response', async () => {
     place.mockResolvedValue({ ok: false, fallback: true });
     render(<App />);
-    send('Hello');
+    await send('Hello');
     expect(await screen.findByRole('group', { name: 'Choose your path' })).toBeTruthy();
     expect(screen.queryByLabelText('Your message')).toBeNull();
   });
@@ -146,7 +267,7 @@ describe('PlacementChat (AI on)', () => {
   it('treats a 200 response without a reply as a fallback', async () => {
     place.mockResolvedValue({ ok: true, data: {} as never });
     render(<App />);
-    send('Hello');
+    await send('Hello');
     expect(await screen.findByRole('group', { name: 'Choose your path' })).toBeTruthy();
   });
 
@@ -154,12 +275,34 @@ describe('PlacementChat (AI on)', () => {
     place.mockResolvedValue({ ok: true, data: { reply: 'Tell me more.' } });
     render(<App />);
     for (let i = 1; i <= 4; i++) {
-      send(`turn ${i}`);
+      await send(`turn ${i}`);
       await waitFor(() => expect(place).toHaveBeenCalledTimes(i));
       await waitFor(() => expect(screen.getAllByText('Tell me more.')).toHaveLength(i));
     }
     expect(await screen.findByRole('group', { name: 'Choose your path' })).toBeTruthy();
     expect(screen.queryByLabelText('Your message')).toBeNull();
+  });
+});
+
+describe('PlacementChat (status not known yet)', () => {
+  it('shows a loading state, not the greeting and input, until the status arrives', async () => {
+    const d = deferred<{ ai: 'on' | 'capped' | 'off' }>();
+    status.mockReturnValue(d.promise);
+    render(<App />);
+    expect(screen.queryByLabelText('Your message')).toBeNull();
+    expect(screen.queryByText(/I'm your tutor/)).toBeNull();
+    expect(screen.getByText(/Connecting to the tutor/)).toBeTruthy();
+    d.resolve({ ai: 'off' });
+    expect(await screen.findByRole('group', { name: 'Choose your path' })).toBeTruthy();
+    expect(screen.queryByText(/Connecting to the tutor/)).toBeNull();
+  });
+});
+
+describe('tidy', () => {
+  it('turns odd Unicode spaces into plain spaces and strips invisible joiners', () => {
+    expect(tidy('Theme\u202FJSON and\u2009Parts\u00A0here')).toBe('Theme JSON and Parts here');
+    expect(tidy('\uFEFFTemp\u2060lates\u200B!')).toBe('Templates!');
+    expect(tidy('plain text')).toBe('plain text');
   });
 });
 
@@ -218,7 +361,7 @@ describe('PathCards', () => {
 describe('Home', () => {
   it('renders the spec bands in order', async () => {
     render(<App />);
-    const titles = Array.from(document.querySelectorAll('main section > .wrap h1, main section > .wrap h2')).map(
+    const titles = Array.from(document.querySelectorAll('main > section h1, main > section .split__title')).map(
       (h) => h.textContent,
     );
     expect(titles[0]).toBe('Learn WordPress, your way.');
@@ -227,6 +370,15 @@ describe('Home', () => {
       'Continue in the agent you already use',
       'How this works',
     ]);
+  });
+
+  it('never skips a heading level inside the hero card', async () => {
+    place.mockResolvedValue({ ok: true, data: { reply: 'Got it.', placement: PLACED } });
+    render(<App />);
+    await send('I build sites with CSS');
+    await screen.findByRole('button', { name: 'Start here' });
+    expect(document.querySelector('.hero h3')).toBeNull();
+    expect(document.querySelector('.placement-card h2')).toBeTruthy();
     await waitFor(() => expect(status).toHaveBeenCalled());
   });
 });

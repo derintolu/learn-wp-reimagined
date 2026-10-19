@@ -215,8 +215,8 @@
   padding: 1.1rem 1.25rem;
   background: var(--tint);
   color: var(--ink);
-  border-left: 3px solid var(--wp-blue);
-  border-radius: 0 4px 4px 0;
+  border: 1px solid #DCE3FD;
+  border-radius: 0.75rem;
 }
 .cap-notice__icon { grid-row: span 3; width: 2.25rem; height: 2.25rem; color: var(--wp-blue); }
 .cap-notice__title { font-weight: 600; margin: 0; }
@@ -503,6 +503,21 @@
 .choice__title { font-weight: 600; }
 .choice__meta { font-size: var(--step--1); color: var(--on-dark-muted); }
 
+/* Holding state until /api/status answers */
+.placement__loading { display: grid; gap: 1rem; padding-block: 0.25rem 0.5rem; }
+.placement__skeleton {
+  display: block;
+  border-radius: var(--radius-bubble);
+  background: linear-gradient(90deg, #2C3338 0%, #3C434A 50%, #2C3338 100%) 0 0 / 200% 100%;
+  animation: skeleton 1.4s ease-in-out infinite;
+}
+.placement__skeleton--bubble { width: 78%; height: 4.6rem; border-bottom-left-radius: 0.3rem; }
+.placement__skeleton--field { height: 3.6rem; margin-top: 1.9rem; border-radius: 1rem; }
+@keyframes skeleton {
+  from { background-position: 100% 0; }
+  to { background-position: -100% 0; }
+}
+
 /* The result card: the "AI changed your path, and here's why" moment */
 .placement-card {
   position: relative;
@@ -544,15 +559,23 @@
 .placement-card__title:focus-visible { outline: none; } /* a focus target only, not a control */
 .placement-card__title .swipe { --swipe: var(--wp-blue-light); color: var(--ink); white-space: normal; }
 .placement-card__title .swipe__mark { animation-delay: 380ms; }
+/* The model's reason as a pull-quote: Garamond italic with a hanging blue opening mark */
 .placement-card__reason {
-  margin: 0 0 1rem;
-  padding: 0.1rem 0 0.1rem 0.95rem;
-  border-left: 3px solid var(--wp-blue);
-  font-size: var(--step-0);
-  line-height: 1.5;
+  position: relative;
+  margin: 0 0 1.1rem;
+  padding: 0 0 0 1.55rem;
+  font: italic 400 var(--step-1) / 1.35 var(--font-display);
+  color: var(--ink);
 }
-.placement-card__reason p::before { content: '“'; }
-.placement-card__reason p::after { content: '”'; }
+.placement-card__reason p::before {
+  content: '“';
+  position: absolute;
+  left: -0.05rem;
+  top: -0.12em;
+  font: normal 500 3.1rem / 1 var(--font-display);
+  color: var(--wp-blue);
+}
+.placement-card__reason p::after { content: '”'; color: var(--wp-blue); }
 .placement-card__plan {
   display: grid;
   gap: 0.45rem;
@@ -574,6 +597,7 @@
   .placement-card,
   .placement-card > * { animation: none; }
   .thinking span { animation: none; opacity: 0.7; }
+  .placement__skeleton { animation: none; }
 }
 
 /* ---------- Home: path cards ---------- */
