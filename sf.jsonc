@@ -1,5 +1,7 @@
 {
+  "$schema": "https://spacefast.com/schemas/sf.json",
   "space": "learn-wp-reimagined",
   "meta": { "title": "Learn WordPress, reimagined" },
-  "spa": { "fallback": "index.html" }
+  "index": "index.html",
+  "fallback": { "path": "index.html", "status": 200 }
 }
