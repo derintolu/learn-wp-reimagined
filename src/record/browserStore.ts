@@ -109,10 +109,15 @@ async function openIdb(): Promise<Backend> {
 
 /**
  * Tries OPFS, then IndexedDB, then memory. Never throws. A failing operation
- * is retried once on the same tier, then the store degrades to the next tier,
- * best-effort deletes the stale copy it left behind, and keeps the latest
- * record in memory. Operations run one at a time so a double failure cannot
- * skip a tier. `kind` always reports where data really is.
+ * is retried once on the same tier, then the store degrades to the next tier
+ * and keeps the latest record in memory. Operations run one at a time so a
+ * double failure cannot skip a tier. `kind` always reports where data really is.
+ *
+ * Deletion rule: a tier that failed a SAVE is deleted only after a later save
+ * succeeds in another persistent tier. If everything degrades to memory,
+ * nothing is deleted, so the last persisted copy survives a reload.
+ * Known trade-off: after a LOAD failure the old tier's copy is kept, never
+ * deleted, even though it may shadow newer progress on the next load.
  */
 export async function createBrowserStore(): Promise<RecordStore> {
   let kind: Tier = 'memory';
@@ -201,7 +206,7 @@ export async function createBrowserStore(): Promise<RecordStore> {
       serial(async () => {
         last = r;
         const res = await attempt((b) => b.save(r), true);
-        if (res.ok || !backend) await flushStale();
+        if (res.ok) await flushStale();
       }),
   };
 }

@@ -313,14 +313,15 @@ describe('mid-session degradation', () => {
     expect(s.kind).toBe('opfs');
   });
 
-  it('removes the stale copy, flips persistent and notifies subscribers', async () => {
+  it('degrading to memory flips persistent, notifies, and keeps the old copy', async () => {
     const root = new FakeDir();
     stubStorage({ getDirectory: async () => root });
     vi.stubGlobal('indexedDB', { open: () => { throw new Error('denied'); } });
     const store = await createBrowserStore();
     const m = new RecordManager(store, c);
     await m.dispatch({ type: 'lessonCompleted', lessonId }); // saved to OPFS
-    expect(root.flat()['learn-wp-record.json']).toBeDefined();
+    const persisted = root.flat()['learn-wp-record.json'];
+    expect(persisted).toBeDefined();
     expect(m.persistent).toBe(true);
     let notified = 0;
     m.subscribe(() => { notified++; });
@@ -328,8 +329,22 @@ describe('mid-session degradation', () => {
     await m.dispatch({ type: 'fileEdited', file: 'a', content: '1' });
     expect(m.persistent).toBe(false);
     expect(notified).toBeGreaterThanOrEqual(2); // the dispatch itself plus the tier change
-    expect(root.flat()['learn-wp-record.json']).toBeUndefined();
+    expect(root.flat()['learn-wp-record.json']).toBe(persisted); // last persisted copy survives
     expect(await store.load()).toEqual(m.record);
+  });
+
+  it('deletes the stale copy only after a successful save in the new tier', async () => {
+    const root = new FakeDir();
+    stubStorage({ getDirectory: async () => root });
+    const store = await createBrowserStore();
+    await store.save(newRecord());
+    expect(root.flat()['learn-wp-record.json']).toBeDefined();
+    root.failWrites = true;
+    const r = newRecord();
+    await store.save(r);
+    expect(store.kind).toBe('indexeddb');
+    expect(root.flat()['learn-wp-record.json']).toBeUndefined();
+    expect(await store.load()).toEqual(r);
   });
 });
 
