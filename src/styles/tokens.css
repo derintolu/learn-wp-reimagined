@@ -1,0 +1,38 @@
+:root {
+  /* Brand (spec section 6, verbatim) */
+  --wp-blue: #3858E9;
+  --wp-blue-light: #9FB1FF;
+  --charcoal: #1E1E1E;
+  --charcoal-2: #23282D;
+  --paper: #FFFFFF;
+  --font-display: 'EB Garamond', 'Iowan Old Style', Georgia, serif;
+  --font-ui: 'Inter', system-ui, -apple-system, 'Segoe UI', sans-serif;
+
+  /* Supporting neutrals (WordPress admin greys) */
+  --ink: var(--charcoal);
+  --ink-muted: #50575E;      /* 7.4:1 on white */
+  --on-dark: #F0F0F1;
+  --on-dark-muted: #C3C4C7;  /* 10.9:1 on #1E1E1E */
+  --rule: #DCDCDE;
+  --rule-dark: #3C434A;
+  --wp-blue-dark: #2145E6;   /* hover on white */
+  --tint: #F0F3FF;           /* pale blue wash */
+
+  /* Type scale (perfect fourth, 1.333) */
+  --step--1: 0.875rem;
+  --step-0: 1rem;
+  --step-1: 1.333rem;
+  --step-2: 1.777rem;
+  --step-3: clamp(1.9rem, 1.4rem + 2vw, 2.369rem);
+  --step-4: clamp(2.3rem, 1.6rem + 3vw, 3.157rem);
+  --step-5: clamp(3.15rem, 2rem + 5vw, 5.61rem);
+
+  /* Space */
+  --gutter: clamp(1rem, 0.5rem + 2.5vw, 2.5rem);
+  --band-y: clamp(3.5rem, 2rem + 6vw, 7.5rem);
+  --measure: 66ch;
+  --wide: 1280px;
+
+  --radius-bubble: 1.25rem;
+  --ease-out: cubic-bezier(0.22, 1, 0.36, 1);
+}
