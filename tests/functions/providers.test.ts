@@ -209,6 +209,34 @@ describe('stream robustness', () => {
     await r.cancel();
     expect((await s.usage).outputTokens).toBe(2);
   });
+  it('workers-ai: live usage shape (first chunk has the prompt, later chunks are per-chunk deltas) is not under-counted when cut short', async () => {
+    // Observed on the live API: every chunk carries `usage`; only the final chunk is cumulative.
+    mockFetch(
+      sse([
+        'data: {"choices":[{"delta":{"content":""}}],"usage":{"prompt_tokens":74,"completion_tokens":0}}\n\n',
+        'data: {"choices":[{"delta":{"content":"abcdefgh"}}],"usage":{"prompt_tokens":0,"completion_tokens":1}}\n\n',
+        'data: {"choices":[{"delta":{"content":"abcdefgh"}}],"usage":{"prompt_tokens":0,"completion_tokens":1}}\n\n',
+      ]),
+    );
+    const s = await cf().stream(args);
+    const r = s.body.getReader();
+    await r.read();
+    await r.read();
+    await r.cancel();
+    expect(await s.usage).toEqual({ inputTokens: 74, outputTokens: 4 });
+  });
+  it('workers-ai: the final cumulative usage chunk wins after per-chunk deltas', async () => {
+    mockFetch(
+      sse([
+        'data: {"choices":[{"delta":{"content":"hi"}}],"usage":{"prompt_tokens":74,"completion_tokens":0}}\n\n',
+        'data: {"choices":[{"delta":{"content":"yo"}}],"usage":{"prompt_tokens":0,"completion_tokens":1}}\n\n',
+        'data: {"choices":[],"usage":{"prompt_tokens":74,"completion_tokens":112}}\n\ndata: [DONE]\n\n',
+      ]),
+    );
+    const s = await cf().stream(args);
+    await drain(s.body);
+    expect(await s.usage).toEqual({ inputTokens: 74, outputTokens: 112 });
+  });
   it('anthropic: consumer cancel resolves usage', async () => {
     mockFetch(sse([anDelta('abcd'), anDelta('more')]));
     const s = await an().stream(args);

@@ -30,10 +30,12 @@ interface OaiUsage {
   completion_tokens?: number;
 }
 
-function usageOf(u: OaiUsage | undefined, inputText: number, out: string): Usage {
+function usageOf(u: OaiUsage | undefined, inputText: number, out: string, streamed = false): Usage {
+  const est = estimateTokens(out);
   return {
     inputTokens: u?.prompt_tokens ?? inputText,
-    outputTokens: u?.completion_tokens ?? estimateTokens(out),
+    // A cut-short stream may report fewer completion tokens than were already delivered.
+    outputTokens: streamed ? Math.max(u?.completion_tokens ?? 0, est) : (u?.completion_tokens ?? est),
   };
 }
 
@@ -91,7 +93,7 @@ export function createWorkersAi(accountId: string, token: string): Provider {
             for (;;) {
               const { done, value } = await events.read();
               if (done) {
-                resolveUsage(usageOf(reported, inputEst, text));
+                resolveUsage(usageOf(reported, inputEst, text, true));
                 ctl.close();
                 return;
               }
@@ -110,7 +112,15 @@ export function createWorkersAi(accountId: string, token: string): Provider {
                 const kind = String(j.error.type ?? j.error.code ?? 'unknown');
                 throw new Error(`workers-ai stream error: ${kind}`);
               }
-              if (j.usage) reported = j.usage;
+              // Live API: every chunk carries `usage`; only the first (prompt) and last (cumulative) are
+              // meaningful, the rest are per-chunk deltas. Keep the per-field maximum so a stream that
+              // is cut short is never settled at 0 input tokens.
+              if (j.usage) {
+                reported = {
+                  prompt_tokens: Math.max(reported?.prompt_tokens ?? 0, j.usage.prompt_tokens ?? 0),
+                  completion_tokens: Math.max(reported?.completion_tokens ?? 0, j.usage.completion_tokens ?? 0),
+                };
+              }
               const d = j.choices?.[0]?.delta?.content;
               if (d) {
                 text += d;
@@ -119,12 +129,12 @@ export function createWorkersAi(accountId: string, token: string): Provider {
               }
             }
           } catch (e) {
-            resolveUsage(usageOf(reported, inputEst, text));
+            resolveUsage(usageOf(reported, inputEst, text, true));
             ctl.error(e);
           }
         },
         cancel() {
-          resolveUsage(usageOf(reported, inputEst, text));
+          resolveUsage(usageOf(reported, inputEst, text, true));
           return events.cancel();
         },
       });
