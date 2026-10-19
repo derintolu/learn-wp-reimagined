@@ -57,6 +57,7 @@ export class RecordManager {
         this.emit();
       }
     })();
+    this.initP.catch(() => { this.initP = null; });
     return this.initP;
   }
 

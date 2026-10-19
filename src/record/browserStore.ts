@@ -133,7 +133,6 @@ export async function createBrowserStore(): Promise<RecordStore> {
   };
 
   const advance = async () => {
-    const old = backend;
     const oldKind = kind;
     backend = null;
     kind = 'memory';
@@ -147,11 +146,20 @@ export async function createBrowserStore(): Promise<RecordStore> {
         // try the next tier
       }
     }
-    if (old) await old.remove().catch(() => {});
     if (kind !== oldKind) for (const fn of listeners) fn();
   };
 
-  const attempt = async <T>(run: (b: Backend) => Promise<T>): Promise<{ ok: true; value: T } | { ok: false }> => {
+  // Copies left behind by a failed SAVE. They are deleted only once the record
+  // is safely elsewhere. A failed LOAD never queues anything: the unreadable
+  // record may be the learner's only copy.
+  let stale: Backend[] = [];
+  const flushStale = async () => {
+    const old = stale;
+    stale = [];
+    for (const b of old) await b.remove().catch(() => {});
+  };
+
+  const attempt = async <T>(run: (b: Backend) => Promise<T>, fromSave = false): Promise<{ ok: true; value: T } | { ok: false }> => {
     while (backend) {
       const b = backend;
       for (let i = 0; i < 2; i++) {
@@ -162,6 +170,7 @@ export async function createBrowserStore(): Promise<RecordStore> {
         }
       }
       await advance();
+      if (fromSave) stale.push(b);
     }
     return { ok: false };
   };
@@ -191,7 +200,8 @@ export async function createBrowserStore(): Promise<RecordStore> {
     save: (r) =>
       serial(async () => {
         last = r;
-        await attempt((b) => b.save(r));
+        const res = await attempt((b) => b.save(r), true);
+        if (res.ok || !backend) await flushStale();
       }),
   };
 }

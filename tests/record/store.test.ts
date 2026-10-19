@@ -332,3 +332,32 @@ describe('mid-session degradation', () => {
     expect(await store.load()).toEqual(m.record);
   });
 });
+
+describe('failed reads never delete the stored record', () => {
+  it('keeps the original when quarantining fails during load', async () => {
+    const root = new FakeDir();
+    const bad = JSON.stringify({ ...newRecord(), version: 2 });
+    seed(root, bad);
+    stubStorage({ getDirectory: async () => root });
+    const s = await createBrowserStore();
+    root.failNext = 2; // both load attempts fail while writing the quarantine copy
+    await s.load();
+    expect(s.kind).toBe('indexeddb');
+    expect(root.flat()['learn-wp-record.json']).toBe(bad);
+  });
+});
+
+describe('init retry', () => {
+  it('a rejected init can be retried', async () => {
+    let n = 0;
+    const flaky: RecordStore = {
+      kind: 'opfs',
+      load: async () => { if (n++ === 0) throw new Error('boom'); return progressed('2026-01-01T00:00:00.000Z'); },
+      save: async () => {},
+    };
+    const m = new RecordManager(flaky, c);
+    await expect(m.init()).rejects.toThrow('boom');
+    await m.init();
+    expect(m.record.completedLessons).toEqual([lessonId]);
+  });
+});
