@@ -290,7 +290,7 @@ describe('AI_ROUTES validation', () => {
     it(`ignores and warns: ${name}`, () => {
       const warn = vi.spyOn(console, 'warn').mockImplementation(() => {});
       const rt = routeFor('tutor', env(r))!;
-      expect(rt.model).toBe('@cf/openai/gpt-oss-120b');
+      expect(rt.model).toBe('@cf/meta/llama-4-scout-17b-16e-instruct');
       expect(rt.maxTokens).toBe(700);
       expect(rt.provider.id).toBe('workers-ai');
       expect(warn).toHaveBeenCalledTimes(1);
