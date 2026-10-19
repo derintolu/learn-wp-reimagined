@@ -1,0 +1,28 @@
+{
+  "name": "learn-wp-reimagined",
+  "private": true,
+  "version": "0.0.0",
+  "type": "module",
+  "license": "GPL-2.0-or-later",
+  "scripts": {
+    "content": "tsx scripts/build-content.ts",
+    "predev": "npm run content",
+    "dev": "vite",
+    "prebuild": "npm run content",
+    "build": "tsx scripts/assemble.ts",
+    "pretest": "npm run content",
+    "test": "vitest run"
+  },
+  "dependencies": {
+    "preact": "11.0.1"
+  },
+  "devDependencies": {
+    "@preact/preset-vite": "2.10.6",
+    "@spacefast/vite-plugin": "0.8.0",
+    "@types/node": "26.6.5",
+    "tsx": "4.23.15",
+    "typescript": "7.0.2",
+    "vite": "8.3.4",
+    "vitest": "5.0.5"
+  }
+}

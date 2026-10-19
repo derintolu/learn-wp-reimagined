@@ -1,0 +1,5 @@
+{
+  "space": "learn-wp-reimagined",
+  "meta": { "title": "Learn WordPress, reimagined" },
+  "spa": { "fallback": "index.html" }
+}
