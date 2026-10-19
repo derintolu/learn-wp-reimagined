@@ -1,5 +1,5 @@
 import { Sticker } from './Sticker';
-import { REPO_URL } from './Header';
+import { REPO_URL } from '../config';
 
 export function Footer() {
   return (

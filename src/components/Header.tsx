@@ -1,6 +1,5 @@
+import { REPO_URL } from '../config';
 import { Sticker } from './Sticker';
-
-export const REPO_URL = 'https://github.com/derintolu/learn-wp-reimagined';
 
 export function Header() {
   return (

@@ -1,5 +1,5 @@
 // @vitest-environment happy-dom
-import { afterEach, describe, expect, it } from 'vitest';
+import { afterEach, describe, expect, it, vi } from 'vitest';
 import { cleanup, render, screen } from '@testing-library/preact';
 import { Header } from '../../src/components/Header';
 import { Footer } from '../../src/components/Footer';
@@ -7,6 +7,8 @@ import { CapNotice } from '../../src/components/CapNotice';
 import { Bubble } from '../../src/components/Bubble';
 import { Swipe } from '../../src/components/Swipe';
 import { App } from '../../src/app';
+
+vi.mock('../../src/ai/client', () => ({ getStatus: vi.fn(async () => ({ ai: 'off' })), placement: vi.fn() }));
 
 afterEach(cleanup);
 

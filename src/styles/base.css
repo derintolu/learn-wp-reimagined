@@ -50,6 +50,7 @@ a:hover { color: var(--wp-blue-dark); text-decoration-thickness: 2px; }
   border-radius: 2px;
 }
 .band--dark :focus-visible,
+.band--dark-2 :focus-visible,
 .site-header :focus-visible,
 .site-footer :focus-visible { outline-color: var(--wp-blue-light); }
 
