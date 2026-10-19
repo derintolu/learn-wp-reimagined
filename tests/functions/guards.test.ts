@@ -13,7 +13,7 @@ describe('readJsonCapped', () => {
     expect(await readJsonCapped(post('{"a":1}'), 100)).toEqual({ a: 1 });
   });
   it('413 over the limit', async () => {
-    const err = await readJsonCapped(post(JSON.stringify({ a: 'x'.repeat(200) })), 100).catch((e) => e);
+    const err = await readJsonCapped(post(JSON.stringify({ a: 'x'.repeat(200) })), 100).catch((e: HttpError) => e);
     expect(err).toBeInstanceOf(HttpError);
     expect(err.status).toBe(413);
   });
@@ -23,7 +23,7 @@ describe('readJsonCapped', () => {
       body: 'x'.repeat(500),
       headers: { 'content-length': '5' },
     });
-    const err = await readJsonCapped(req, 100).catch((e) => e);
+    const err = await readJsonCapped(req, 100).catch((e: HttpError) => e);
     expect(err).toBeInstanceOf(HttpError);
     expect(err.status).toBe(413);
   });
