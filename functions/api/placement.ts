@@ -27,8 +27,8 @@ export const POST: Handler = (req, { env }) =>
     if (out instanceof Response) return out;
     const parsed = parseObject(out.text);
     if (!parsed || typeof parsed.reply !== 'string' || !parsed.reply) return fallback('invalid-response');
-    const result: { reply: string; placement?: unknown } = { reply: parsed.reply };
-    if (parsed.placement !== undefined) {
+    const result: { reply: string; placement?: unknown } = { reply: parsed.reply.slice(0, 800) };
+    if (parsed.done === true && parsed.placement !== undefined) {
       const v = validatePlacement(c, parsed.placement);
       if (v.ok) result.placement = v.placement;
     }

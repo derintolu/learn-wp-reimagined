@@ -70,4 +70,42 @@ describe('ai client', () => {
       tutorStream({ lessonId: 'l', beatIndex: 0, mode: 'deliver', messages: [] }, () => {}),
     ).rejects.toThrow();
   });
+
+  const REQ = { lessonId: 'l', beatIndex: 0, mode: 'deliver' as const, messages: [] };
+
+  it('tutorStream rejects when the stream ends without [DONE]', async () => {
+    stubFetch(sseResponse(['data: {"t":"a"}\n\n']));
+    const got: string[] = [];
+    await expect(tutorStream(REQ, (t) => got.push(t))).rejects.toThrow(/truncated/);
+    expect(got).toEqual(['a']);
+  });
+
+  it('tutorStream cancels the reader after [DONE]', async () => {
+    const cancel = vi.fn();
+    stubFetch(
+      new Response(
+        new ReadableStream({
+          start(c) {
+            c.enqueue(enc.encode('data: [DONE]\n\n'));
+          },
+          cancel,
+        }),
+      ),
+    );
+    await tutorStream(REQ, () => {});
+    expect(cancel).toHaveBeenCalled();
+  });
+
+  it('tutorStream passes the signal and aborting rejects', async () => {
+    const ctl = new AbortController();
+    const f = vi.fn(
+      (_url: string, init: RequestInit) =>
+        new Promise<Response>((_, rej) => init.signal!.addEventListener('abort', () => rej(new Error('abort')))),
+    );
+    vi.stubGlobal('fetch', f);
+    const p = tutorStream(REQ, () => {}, ctl.signal);
+    ctl.abort();
+    await expect(p).rejects.toThrow();
+    expect(f.mock.calls[0][1].signal).toBe(ctl.signal);
+  });
 });

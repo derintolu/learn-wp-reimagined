@@ -94,7 +94,7 @@ export async function callChat(
   } catch {
     return fallback('provider-error');
   } finally {
-    await settle(db, r.reservation, route.model, usage);
+    await settle(db, r.reservation, route.model, usage).catch((e) => console.error('settle failed', (e as Error)?.message));
   }
 }
 

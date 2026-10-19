@@ -41,7 +41,7 @@ export const POST: Handler = (req, { env }) =>
     const settleOnce = async (usage: Usage) => {
       if (settled) return;
       settled = true;
-      await settle(db, r.reservation, route.model, usage);
+      await settle(db, r.reservation, route.model, usage).catch((e) => console.error('settle failed', (e as Error)?.message));
     };
 
     let started: Awaited<ReturnType<typeof route.provider.stream>>;
@@ -82,6 +82,6 @@ export const POST: Handler = (req, { env }) =>
       },
     });
     return new Response(body, {
-      headers: { 'content-type': 'text/event-stream; charset=utf-8', 'cache-control': 'no-store' },
+      headers: { 'content-type': 'text/event-stream; charset=utf-8', 'cache-control': 'no-store', 'x-accel-buffering': 'no' },
     });
   });

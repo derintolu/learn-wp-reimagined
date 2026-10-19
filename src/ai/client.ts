@@ -56,13 +56,14 @@ export const codeFeedback = (req: { lessonId: string; file: string; code: string
   call<{ feedback: string }>('/api/code-feedback', req);
 
 /** Streams the tutor reply, calling onText for each chunk. Rejects with AiFallbackError on any failure. */
-export async function tutorStream(req: TutorRequest, onText: (t: string) => void): Promise<void> {
+export async function tutorStream(req: TutorRequest, onText: (t: string) => void, signal?: AbortSignal): Promise<void> {
   let res: Response;
   try {
     res = await fetch('/api/tutor', {
       method: 'POST',
       headers: { 'content-type': 'application/json' },
       body: JSON.stringify(req),
+      signal,
     });
   } catch {
     throw new AiFallbackError('network');
@@ -90,12 +91,21 @@ export async function tutorStream(req: TutorRequest, onText: (t: string) => void
     if (typeof j.t === 'string') onText(j.t);
     return false;
   };
-  for (;;) {
-    const { done, value } = await reader.read();
-    buf += dec.decode(value, { stream: !done });
-    const parts = buf.split(/\r?\n\r?\n/);
-    buf = done ? '' : (parts.pop() ?? '');
-    for (const p of parts) if (handle(p)) return;
-    if (done) return;
+  try {
+    for (;;) {
+      let chunk: ReadableStreamReadResult<Uint8Array>;
+      try {
+        chunk = await reader.read();
+      } catch {
+        throw new AiFallbackError('network');
+      }
+      buf += dec.decode(chunk.value, { stream: !chunk.done });
+      const parts = buf.split(/\r?\n\r?\n/);
+      buf = chunk.done ? '' : (parts.pop() ?? '');
+      for (const p of parts) if (handle(p)) return;
+      if (chunk.done) throw new AiFallbackError('truncated');
+    }
+  } finally {
+    await reader.cancel().catch(() => {});
   }
 }

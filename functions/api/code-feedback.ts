@@ -11,12 +11,17 @@ export const POST: Handler = (req, { env }) =>
     const b = await readJsonCapped<Record<string, unknown>>(req, 64_000);
     const lesson = lessonOf(b?.lessonId);
     const file = checkText(b?.file, 200, 'file name');
+    const cp = lesson.checkpoint;
+    const files = new Set([...Object.keys(lesson.starterFiles ?? {}), cp?.file, lesson.bug?.file].filter((f): f is string => !!f));
+    if (!files.has(file)) throw new HttpError(400, 'unknown-file', 'That file is not part of this lesson.');
     const code = checkText(b?.code, 8000, 'code');
     if (typeof b?.passed !== 'boolean') throw new HttpError(400, 'bad-request', 'passed must be true or false.');
     if (!Array.isArray(b.failedMessages) || b.failedMessages.length > 20) {
       throw new HttpError(400, 'bad-request', 'failedMessages must be a short list.');
     }
-    const failed = b.failedMessages.map((m) => checkText(m, 300, 'message'));
+    // Client text never reaches the model: keep only messages that exactly match an authored check.
+    const authored = new Set([...(cp?.checks ?? []), ...(lesson.bug?.fixChecks ?? [])].map((c) => c.message));
+    const failed = b.failedMessages.filter((m): m is string => typeof m === 'string' && authored.has(m));
     const out = await callChat(pre, [
       { role: 'system', content: feedbackPrompt(lesson, file) },
       {

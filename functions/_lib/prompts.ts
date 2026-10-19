@@ -9,7 +9,7 @@ const SCOPE =
 
 /** Wraps learner text as data. A closing tag typed by the learner is neutralised so they cannot escape the wrapper. */
 export function wrapLearner(text: string): string {
-  const safe = text.replace(/<\s*\/\s*learner_input\s*>/gi, '&lt;/learner_input&gt;');
+  const safe = text.replace(/<\s*\/?\s*learner_input[^>]*>/gi, '[tag removed]');
   return `<learner_input>${safe}</learner_input>`;
 }
 
