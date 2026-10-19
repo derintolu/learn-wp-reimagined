@@ -2,13 +2,13 @@
 
 ## Decision: xAPI target
 
-Statements target **IEEE 9274.1.1-2023 (xAPI 2.0)**, with statement `version` `"2.0.0"`.
+Statements target **IEEE 9274.1.1-2023 (xAPI 2.0)**. Statements omit the optional `version` property: an LRS sets it itself, and a 1.0.x LRS rejects `"2.0.0"`.
 
 - The ADL xAPI-Spec repository (master) still documents 1.0.3 (revision of 2016-09-21); xAPI became a published IEEE standard (9274.1.1-2023) on 2023-10-10, and ADL LRS v2.0.0 implements it. Sources: https://github.com/adlnet/xAPI-Spec, https://adlnet.gov/news/2023/11/22/xAPI-Officially-Becomes-a-Published-IEEE-Standard, https://github.com/adlnet/ADL_LRS/releases.
-- Caveat: the 1.0.3 text says an LRS must reject statement versions not starting with `1.0.`. The IEEE 2.0 text was not freely readable during research, so the `2.0.0` statement version is inferred from ADL's 2.0.0 changes. Every field we use is unchanged from 1.0.3, so downgrading is a one-constant change (`XAPI_VERSION` in `src/shared/xapi.ts`; in 1.0.x, omit `version`).
+- The 1.0.3 text says Learning Record Providers SHOULD NOT set `version`. Every field we use is unchanged from 1.0.3, so the statements are accepted by 1.0.x and 2.0 LRSs alike.
 - Verb IRIs use the ADL vocabulary `http://adlnet.gov/expapi/verbs/<name>` (experienced, answered, passed, failed, completed; the pattern is confirmed by the Globebyte, Cornerstone and jxapi references). Custom verb: `branched` = `${XAPI_BASE}/xapi/verbs/branched`.
 
-`XAPI_BASE` defaults to `https://learn-wp-reimagined.space.fast` and is used as the actor account home page and the activity id prefix (`${XAPI_BASE}/activities/<segments>`).
+`XAPI_BASE` defaults to `https://learn-wp-reimagined.space.fast` and is used as the actor account home page and the activity id prefix (`${XAPI_BASE}/activities/<segments>`). Each segment is `encodeURIComponent`-encoded, so file names with spaces, `#` or `?` still yield valid IRIs.
 
 ## Record shape
 
@@ -37,6 +37,13 @@ A record with `version` greater than 1 is rejected ("This record was made by a n
 | completed | http://adlnet.gov/expapi/verbs/completed | a lesson is completed (once) |
 | branched | `${XAPI_BASE}/xapi/verbs/branched` | a checkpoint sends the learner to another lesson |
 
+## Extensions
+
+The `branched` statement's `result.extensions` use IRI keys (xAPI requires this):
+
+- `${XAPI_BASE}/xapi/extensions/outcome`: the checkpoint outcome (`advance`, `review` or `skip`).
+- `${XAPI_BASE}/xapi/extensions/from-lesson`: the activity id IRI of the lesson the checkpoint was in.
+
 ## Example statement
 
 ```json
@@ -47,11 +54,12 @@ A record with `version` greater than 1 is rejected ("This record was made by a n
   "object": { "objectType": "Activity", "id": "https://learn-wp-reimagined.space.fast/activities/lessons/what-is-a-block-theme", "definition": { "name": { "en-US": "What is a block theme?" } } },
   "result": { "completion": true },
   "context": { "contextActivities": { "parent": [ { "objectType": "Activity", "id": "https://learn-wp-reimagined.space.fast/activities/paths/block-theme" } ] } },
-  "timestamp": "2026-10-19T12:00:00.000Z",
-  "version": "2.0.0"
-}
+  "timestamp": "2026-10-19T12:00:00.000Z"
+  }
 ```
 
 ## Privacy
+
+`result.response` on `answered` statements holds the learner's own free-text answer, so it travels wherever the learner exports the record.
 
 The actor is anonymous: an `account` whose `name` is a random UUID. No `mbox`, no name, no email. The record stays on the learner's device unless they export it; statements can be sent unchanged to a learning record store.

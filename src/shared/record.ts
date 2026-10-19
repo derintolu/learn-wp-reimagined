@@ -1,6 +1,6 @@
 import type { Placement } from './engine';
 import type { ContentBundle, Outcome, PathId } from './types';
-import { buildStatement, validateStatement, type VerbKey, type XapiResult, type XapiStatement } from './xapi';
+import { EXT_FROM_LESSON, EXT_OUTCOME, activityId, buildStatement, validateStatement, type VerbKey, type XapiResult, type XapiStatement } from './xapi';
 
 export interface LearningRecord {
   format: 'learn-wp-reimagined/record';
@@ -85,7 +85,7 @@ export function applyEvent(r: LearningRecord, e: RecordEvent, c: ContentBundle):
       const name = `${title(e.lessonId)}: checkpoint`;
       add('answered', cpPath, name, e.lessonId, { response: e.response });
       add(e.outcome === 'review' ? 'failed' : 'passed', cpPath, name, e.lessonId, { success: e.outcome !== 'review' });
-      add('branched', ['lessons', e.to], title(e.to), e.to, { extensions: { outcome: e.outcome, from: e.lessonId } });
+      add('branched', ['lessons', e.to], title(e.to), e.to, { extensions: { [EXT_OUTCOME]: e.outcome, [EXT_FROM_LESSON]: activityId(['lessons', e.lessonId]) } });
       next.current = { pathId: pathOf(e.to), lessonId: e.to, beatIndex: 0 };
       break;
     }

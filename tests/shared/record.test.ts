@@ -1,7 +1,8 @@
 import { describe, expect, it } from 'vitest';
 import { resolve } from 'node:path';
 import { buildContent } from '../../scripts/build-content';
-import { applyEvent, newRecord, parseRecord } from '../../src/shared/record';
+import { applyEvent, newRecord, parseRecord, type RecordEvent } from '../../src/shared/record';
+import { XAPI_BASE, validateStatement } from '../../src/shared/xapi';
 
 const c = buildContent(resolve(__dirname, '../fixtures/content'));
 const ids = c.paths['block-theme'].lessons;
@@ -24,16 +25,49 @@ describe('applyEvent', () => {
     expect(r.current).toEqual({ pathId: 'block-theme', lessonId: ids[0], beatIndex: 1 });
   });
   it.each([
-    ['advance', ['answered', 'passed', 'branched']],
-    ['skip', ['answered', 'passed', 'branched']],
-    ['review', ['answered', 'failed', 'branched']],
-  ] as const)('checkpointAnswered %s', (outcome, expected) => {
+    ['advance', ['answered', 'passed', 'branched'], true],
+    ['skip', ['answered', 'passed', 'branched'], true],
+    ['review', ['answered', 'failed', 'branched'], false],
+  ] as const)('checkpointAnswered %s', (outcome, expected, success) => {
     const branch = cp.branches.find((b) => b.outcome === outcome);
-    if (!branch) return;
-    const r = applyEvent(newRecord(), { type: 'checkpointAnswered', lessonId: withCp, response: 'ans', outcome, to: branch.to }, c);
+    expect(branch).toBeDefined();
+    const r = applyEvent(newRecord(), { type: 'checkpointAnswered', lessonId: withCp, response: 'ans', outcome, to: branch!.to }, c);
     expect(verbOf(r)).toEqual(expected);
-    expect(r.current?.lessonId).toBe(branch.to);
+    expect(r.current?.lessonId).toBe(branch!.to);
     expect(r.statements.every((s) => s.actor.account.name === r.learnerId)).toBe(true);
+    const [answered, verdict, branched] = r.statements;
+    expect(answered.result).toEqual({ response: 'ans' });
+    expect(verdict.result).toEqual({ success });
+    expect(branched.result?.extensions).toEqual({
+      [`${XAPI_BASE}/xapi/extensions/outcome`]: outcome,
+      [`${XAPI_BASE}/xapi/extensions/from-lesson`]: `${XAPI_BASE}/activities/lessons/${encodeURIComponent(withCp)}`,
+    });
+    expect(answered.context?.contextActivities?.parent?.[0].id).toBe(`${XAPI_BASE}/activities/paths/block-theme`);
+    expect(r.statements.flatMap((s) => validateStatement(s))).toEqual([]);
+  });
+  it('every statement from every event type validates and omits version', () => {
+    let r = newRecord();
+    const evs: RecordEvent[] = [
+      { type: 'placed', placement: { pathId: 'block-theme', startLessonId: ids[0], skip: [], reason: 'x' } },
+      { type: 'beatViewed', lessonId: ids[0], beatIndex: 0 },
+      { type: 'checkpointAnswered', lessonId: withCp, response: 'a', outcome: 'advance', to: ids[1] },
+      { type: 'checkpointAnswered', lessonId: withCp, response: 'a', outcome: 'review', to: ids[0] },
+      { type: 'codeChecked', lessonId: withCp, file: 'my file #1?.json', passed: true },
+      { type: 'codeChecked', lessonId: withCp, file: 'a.json', passed: false },
+      { type: 'fileEdited', file: 'a.json', content: 'x' },
+      { type: 'lessonCompleted', lessonId: ids[0] },
+    ];
+    for (const ev of evs) r = applyEvent(r, ev, c);
+    expect(r.statements.length).toBeGreaterThan(6);
+    for (const st of r.statements) {
+      expect(validateStatement(st)).toEqual([]);
+      expect('version' in st).toBe(false);
+    }
+  });
+  it('encodes file names in activity ids and the record still parses', () => {
+    const r = applyEvent(newRecord(), { type: 'codeChecked', lessonId: withCp, file: 'my file #1?.json', passed: true }, c);
+    expect(r.statements[0].object.id).toMatch(/\/files\/my%20file%20%231%3F\.json$/);
+    expect(parseRecord(JSON.parse(JSON.stringify(r))).ok).toBe(true);
   });
   it('codeChecked records passed or failed', () => {
     const ok = applyEvent(newRecord(), { type: 'codeChecked', lessonId: withCp, file: 'a.json', passed: true }, c);
