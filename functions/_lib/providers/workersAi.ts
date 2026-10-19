@@ -30,12 +30,10 @@ interface OaiUsage {
   completion_tokens?: number;
 }
 
-function usageOf(u: OaiUsage | undefined, inputText: number, out: string, streamed = false): Usage {
-  const est = estimateTokens(out);
+function usageOf(u: OaiUsage | undefined, inputText: number, out: string): Usage {
   return {
-    inputTokens: streamed ? u?.prompt_tokens || inputText : (u?.prompt_tokens ?? inputText),
-    // A cut-short stream may report fewer completion tokens than were already delivered.
-    outputTokens: streamed ? Math.max(u?.completion_tokens ?? 0, est) : (u?.completion_tokens ?? est),
+    inputTokens: u?.prompt_tokens ?? inputText,
+    outputTokens: u?.completion_tokens ?? estimateTokens(out),
   };
 }
 
@@ -84,7 +82,15 @@ export function createWorkersAi(accountId: string, token: string): Provider {
       const events = sseData(res).getReader();
       const inputEst = estimateInputTokens(o.messages);
       let text = '';
-      let reported: OaiUsage | undefined;
+      let reported: OaiUsage | undefined; // per-field max over all chunks (prompt count comes from the first)
+      let finalUsage: OaiUsage | undefined; // the cumulative usage chunk, if one arrived
+      // Spend is never under-counted: unless the final cumulative usage chunk arrived, the output is
+      // settled at the reserved worst case (maxTokens). Reasoning models stream `delta.reasoning`, which
+      // is not delivered, so counting delivered text would under-count them badly.
+      const settleUsage = (): Usage =>
+        finalUsage
+          ? usageOf(finalUsage, inputEst, text)
+          : { inputTokens: reported?.prompt_tokens || inputEst, outputTokens: Math.max(o.maxTokens, estimateTokens(text)) };
       let resolveUsage!: (u: Usage) => void;
       const usage = new Promise<Usage>((r) => (resolveUsage = r));
       const body = new ReadableStream<string>({
@@ -93,7 +99,7 @@ export function createWorkersAi(accountId: string, token: string): Provider {
             for (;;) {
               const { done, value } = await events.read();
               if (done) {
-                resolveUsage(usageOf(reported, inputEst, text, true));
+                resolveUsage(settleUsage());
                 ctl.close();
                 return;
               }
@@ -113,13 +119,15 @@ export function createWorkersAi(accountId: string, token: string): Provider {
                 throw new Error(`workers-ai stream error: ${kind}`);
               }
               // Live API: every chunk carries `usage`; only the first (prompt) and last (cumulative) are
-              // meaningful, the rest are per-chunk deltas. Keep the per-field maximum so a stream that
-              // is cut short is never settled at 0 input tokens.
+              // meaningful, the rest are per-chunk deltas. Keep the per-field maximum for the prompt count
+              // and remember the cumulative chunk.
               if (j.usage) {
                 reported = {
                   prompt_tokens: Math.max(reported?.prompt_tokens ?? 0, j.usage.prompt_tokens ?? 0),
                   completion_tokens: Math.max(reported?.completion_tokens ?? 0, j.usage.completion_tokens ?? 0),
                 };
+                // Per-chunk deltas have prompt_tokens 0; the cumulative chunk has both counts.
+                if ((j.usage.prompt_tokens ?? 0) > 0 && (j.usage.completion_tokens ?? 0) > 0) finalUsage = j.usage;
               }
               const d = j.choices?.[0]?.delta?.content;
               if (d) {
@@ -129,12 +137,12 @@ export function createWorkersAi(accountId: string, token: string): Provider {
               }
             }
           } catch (e) {
-            resolveUsage(usageOf(reported, inputEst, text, true));
+            resolveUsage(settleUsage());
             ctl.error(e);
           }
         },
         cancel() {
-          resolveUsage(usageOf(reported, inputEst, text, true));
+          resolveUsage(settleUsage());
           return events.cancel();
         },
       });

@@ -105,7 +105,8 @@ describe('workers-ai adapter', () => {
     mockFetch(sse(['data: {"choices":[{"delta":{"content":"12345678"}}]}\n\ndata: [DONE]\n\n']));
     const s = await cf().stream({ model: 'm', messages: msgs, maxTokens: 9 });
     await drain(s.body);
-    expect((await s.usage).outputTokens).toBe(2);
+    // No usage chunk at all: settle the reserved worst case, never the (smaller) delivered text.
+    expect((await s.usage).outputTokens).toBe(9);
   });
 });
 
@@ -159,13 +160,13 @@ describe('stream robustness', () => {
     mockFetch(sseThenError([cfDelta('abcd')]));
     const s = await cf().stream(args);
     await expect(drain(s.body)).rejects.toThrow();
-    expect((await s.usage).outputTokens).toBe(1);
+    expect((await s.usage).outputTokens).toBe(9);
   });
   it('anthropic: upstream error mid-stream settles usage and errors the body', async () => {
     mockFetch(sseThenError([anDelta('abcdefgh')]));
     const s = await an().stream(args);
     await expect(drain(s.body)).rejects.toThrow();
-    expect((await s.usage).outputTokens).toBe(2);
+    expect((await s.usage).outputTokens).toBe(9);
   });
   it('workers-ai: error chunk errors the body without echoing the message', async () => {
     mockFetch(sse([cfDelta('hi'), 'data: {"error":{"type":"overloaded","message":"SECRET-DETAIL"}}\n\n']));
@@ -207,9 +208,9 @@ describe('stream robustness', () => {
     const r = s.body.getReader();
     await r.read();
     await r.cancel();
-    expect((await s.usage).outputTokens).toBe(2);
+    expect((await s.usage).outputTokens).toBe(9);
   });
-  it('workers-ai: live usage shape (first chunk has the prompt, later chunks are per-chunk deltas) is not under-counted when cut short', async () => {
+  it('workers-ai: live usage shape (first chunk has the prompt, later chunks are per-chunk deltas) settles prompt from the first chunk and output at maxTokens when cut short', async () => {
     // Observed on the live API: every chunk carries `usage`; only the final chunk is cumulative.
     mockFetch(
       sse([
@@ -223,7 +224,7 @@ describe('stream robustness', () => {
     await r.read();
     await r.read();
     await r.cancel();
-    expect(await s.usage).toEqual({ inputTokens: 74, outputTokens: 4 });
+    expect(await s.usage).toEqual({ inputTokens: 74, outputTokens: 9 });
   });
   it('workers-ai: the final cumulative usage chunk wins after per-chunk deltas', async () => {
     mockFetch(
@@ -243,7 +244,40 @@ describe('stream robustness', () => {
     const r = s.body.getReader();
     await r.read();
     await r.cancel();
-    expect((await s.usage).outputTokens).toBe(1);
+    expect((await s.usage).outputTokens).toBe(9);
+  });
+  it('workers-ai: a reasoning stream cut short (no content, per-chunk usage of 1) settles at maxTokens', async () => {
+    const reasoning = 'data: {"choices":[{"delta":{"reasoning":"hmm"}}],"usage":{"prompt_tokens":0,"completion_tokens":1}}\n\n';
+    mockFetch(sse([cfDelta('x'), reasoning, reasoning]));
+    const s = await cf().stream(args);
+    const r = s.body.getReader();
+    await r.read();
+    await r.cancel();
+    expect((await s.usage).outputTokens).toBe(9);
+  });
+  it('workers-ai: a stream that ends normally without a final usage chunk settles at maxTokens', async () => {
+    mockFetch(sse([cfDelta('ab'), 'data: [DONE]\n\n']));
+    const s = await cf().stream(args);
+    await drain(s.body);
+    expect((await s.usage).outputTokens).toBe(9);
+  });
+  it('workers-ai: a usage chunk with prompt_tokens 0 and nothing else settles input from the estimate', async () => {
+    mockFetch(sse(['data: {"choices":[{"delta":{"content":"hi"}}],"usage":{"prompt_tokens":0}}\n\n']));
+    const s = await cf().stream(args);
+    await drain(s.body);
+    expect(await s.usage).toEqual({ inputTokens: Math.ceil(('sys' + 'hello world!').length / 4), outputTokens: 9 });
+  });
+  it('workers-ai: the precise figure is kept when the final usage chunk arrives, even if smaller than maxTokens', async () => {
+    mockFetch(sse([cfDelta('ab'), 'data: {"choices":[],"usage":{"prompt_tokens":5,"completion_tokens":2}}\n\n']));
+    const s = await cf().stream(args);
+    await drain(s.body);
+    expect(await s.usage).toEqual({ inputTokens: 5, outputTokens: 2 });
+  });
+  it('anthropic: a stream that ends normally without message_delta usage settles at maxTokens', async () => {
+    mockFetch(sse([anDelta('ab')]));
+    const s = await an().stream(args);
+    await drain(s.body);
+    expect((await s.usage).outputTokens).toBe(9);
   });
   it('non-200 rejects stream() and anthropic chat, without leaking keys', async () => {
     mockFetch(new Response('no', { status: 429 }));

@@ -81,12 +81,14 @@ export function createAnthropic(apiKey: string): Provider {
       let text = '';
       let inTok: number | undefined;
       let outTok: number | undefined;
+      let finalOut = false; // message_delta carries the cumulative output count
       let resolveUsage!: (u: Usage) => void;
       const usage = new Promise<Usage>((r) => (resolveUsage = r));
       const settle = () =>
         resolveUsage({
           inputTokens: inTok ?? estimateInputTokens(o.messages),
-          outputTokens: outTok ?? estimateTokens(text),
+          // Without the final message_delta usage, settle at the reserved worst case (maxTokens).
+          outputTokens: finalOut ? outTok! : Math.max(o.maxTokens, estimateTokens(text)),
         });
       const body = new ReadableStream<string>({
         async pull(ctl) {
@@ -117,7 +119,10 @@ export function createAnthropic(apiKey: string): Provider {
                 outTok = j.message?.usage?.output_tokens ?? outTok;
               } else if (j.type === 'message_delta') {
                 inTok = j.usage?.input_tokens ?? inTok;
-                outTok = j.usage?.output_tokens ?? outTok; // cumulative
+                if (j.usage?.output_tokens !== undefined) {
+                  outTok = j.usage.output_tokens; // cumulative
+                  finalOut = true;
+                }
               } else if (j.type === 'content_block_delta' && j.delta?.type === 'text_delta' && j.delta.text) {
                 text += j.delta.text;
                 ctl.enqueue(j.delta.text);

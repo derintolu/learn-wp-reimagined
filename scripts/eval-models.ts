@@ -19,14 +19,21 @@ import type { ChatMessage, Task, Usage } from '../functions/_lib/providers/types
 
 const ROOT = resolve(fileURLToPath(import.meta.url), '../..');
 
-// Checked against https://developers.cloudflare.com/workers-ai/platform/pricing/ on 2026-10-19 (USD per million tokens).
-export const CANDIDATES: Record<string, { inPerM: number; outPerM: number }> = {
-  '@cf/openai/gpt-oss-120b': { inPerM: 0.35, outPerM: 0.75 },
+// Eval-only prices for candidates that are not (yet) routed, so not in config.ts PRICES. Checked against
+// https://developers.cloudflare.com/workers-ai/platform/pricing/ on 2026-10-19 (USD per million tokens).
+const EVAL_ONLY_PRICES: Record<string, { inPerM: number; outPerM: number }> = {
   '@cf/zai-org/glm-4.7-flash': { inPerM: 0.06, outPerM: 0.4 },
-  '@cf/meta/llama-4-scout-17b-16e-instruct': { inPerM: 0.27, outPerM: 0.85 },
   '@cf/moonshotai/kimi-k2.6': { inPerM: 0.95, outPerM: 4.0 },
   '@cf/qwen/qwen3.8-27b': { inPerM: 0.45, outPerM: 3.2 },
 };
+// Candidates in evaluation order. Routed models take their price from PRICES, so the two cannot drift.
+export const CANDIDATES: string[] = [
+  '@cf/openai/gpt-oss-120b',
+  '@cf/zai-org/glm-4.7-flash',
+  '@cf/meta/llama-4-scout-17b-16e-instruct',
+  '@cf/moonshotai/kimi-k2.6',
+  '@cf/qwen/qwen3.8-27b',
+];
 
 // Per-learner usage assumed for the cost estimate: 1 placement, 6 judges, 20 tutor turns.
 const MIX: Record<'placement' | 'judge' | 'tutor', number> = { placement: 1, judge: 6, tutor: 20 };
@@ -57,7 +64,7 @@ interface Cases {
   placement: { id: string; messages: { role: 'user' | 'assistant'; content: string }[]; expect: { done: boolean | 'any'; start?: string[] } }[];
   judge: { id: string; lessonId: string; answer: string; expect: { outcome: string[] } }[];
   tutor: { id: string; lessonId: string; solutionRequest?: boolean; messages: { role: 'user' | 'assistant'; content: string }[]; expect: TextExpect }[];
-  feedback: { id: string; lessonId: string; file: string; code: string; passed: boolean; failedMessages: string[]; expect: TextExpect }[];
+  feedback: { id: string; lessonId: string; solutionRequest?: boolean; file: string; code: string; passed: boolean; failedMessages: string[]; expect: TextExpect }[];
 }
 
 export interface CaseResult {
@@ -80,7 +87,8 @@ export function textCorrect(text: string, e: TextExpect): boolean {
 }
 
 export function costOf(model: string, u: Usage): number {
-  const p = CANDIDATES[model] ?? PRICES[model];
+  const p = PRICES[model] ?? EVAL_ONLY_PRICES[model];
+  if (!p) throw new Error(`no price for ${model}`);
   return (u.inputTokens * p.inPerM + u.outputTokens * p.outPerM) / 1e6;
 }
 
@@ -208,7 +216,7 @@ async function runModel(
       );
       if (!v) { results.push(failed('feedback', c.id, ms, error!)); continue; }
       const valid = v.text.trim().length > 0;
-      results.push({ task: 'feedback', id: c.id, valid, correct: valid && textCorrect(v.text, c.expect), solutionRequest: true, empty: !valid, ms, usage: v.usage });
+      results.push({ task: 'feedback', id: c.id, valid, correct: valid && textCorrect(v.text, c.expect), solutionRequest: !!c.solutionRequest, empty: !valid, ms, usage: v.usage });
     }
   }
   return { results, stoppedEarly: false };
@@ -260,12 +268,16 @@ export function summarise(model: string, results: CaseResult[], stoppedEarly: bo
   const by = (t: Task) => results.filter((r) => r.task === t);
   const jsonRuns = [...by('placement'), ...by('judge')];
   const sr = results.filter((r) => r.solutionRequest);
-  const mean = (t: 'placement' | 'judge' | 'tutor') => {
+  // A task with no results (the candidate stopped early) has no mean cost; the mix cost is then incomplete.
+  const mean = (t: 'placement' | 'judge' | 'tutor'): number | undefined => {
     const rs = by(t).filter((r) => !r.error);
-    if (!rs.length) return 0;
-    return rs.reduce((n, r) => n + costOf(model, r.usage), 0) / rs.length;
+    return rs.length ? rs.reduce((n, r) => n + costOf(model, r.usage), 0) / rs.length : undefined;
   };
-  const per1000 = 1000 * (MIX.placement * mean('placement') + MIX.judge * mean('judge') + MIX.tutor * mean('tutor'));
+  const [mp, mj, mt] = [mean('placement'), mean('judge'), mean('tutor')];
+  const per1000 =
+    mp === undefined || mj === undefined || mt === undefined
+      ? 'n/a (incomplete)'
+      : `$${(1000 * (MIX.placement * mp + MIX.judge * mj + MIX.tutor * mt)).toFixed(2)}`;
   return [
     model.replace('@cf/', '') + (stoppedEarly ? ' (stopped early)' : ''),
     pct(jsonRuns.filter((r) => r.valid).length, jsonRuns.length),
@@ -276,7 +288,7 @@ export function summarise(model: string, results: CaseResult[], stoppedEarly: bo
     pct(results.filter((r) => r.empty).length, results.length),
     pct(results.filter((r) => r.error).length, results.length),
     `${Math.round(percentile(results.filter((r) => !r.error).map((r) => r.ms), 0.5))} ms`,
-    `$${per1000.toFixed(2)}`,
+    per1000,
   ];
 }
 
@@ -288,7 +300,7 @@ async function main() {
   const creds = { id: env.CF_ACCOUNT_ID, token: env.CF_AI_TOKEN };
 
   const wanted = flag('models')?.split(',').map((m) => m.trim());
-  const models = Object.keys(CANDIDATES).filter((m) => !wanted || wanted.some((w) => m.endsWith(w)));
+  const models = CANDIDATES.filter((m) => !wanted || wanted.some((w) => m.endsWith(w)));
   const tokens: Record<Task, number> = Object.fromEntries((Object.keys(ROUTES) as Task[]).map((t) => [t, ROUTES[t].maxTokens])) as Record<Task, number>;
   for (const kv of flag('tokens')?.split(',') ?? []) { const [k, v] = kv.split('='); tokens[k as Task] = Number(v); }
   const only = new Set((flag('only') ?? 'placement,judge,tutor,feedback').split(','));
