@@ -1,12 +1,19 @@
 import { HttpError } from './http';
+import type { Env } from './env';
 
 export { HttpError };
 
-export function clientKey(req: Request): string {
-  const cf = req.headers.get('cf-connecting-ip')?.trim();
-  if (cf) return cf;
-  const xff = req.headers.get('x-forwarded-for')?.split(',')[0]?.trim();
-  return xff || 'anon';
+/**
+ * Rate-limit key. Uses the header named by env.TRUSTED_IP_HEADER (default cf-connecting-ip);
+ * else the RIGHTMOST x-forwarded-for entry (appended by the nearest proxy; the leftmost is
+ * client-controlled); else 'anon'.
+ */
+export function clientKey(req: Request, env?: Pick<Env, 'TRUSTED_IP_HEADER'>): string {
+  const trusted = req.headers.get(env?.TRUSTED_IP_HEADER || 'cf-connecting-ip')?.trim();
+  if (trusted) return trusted;
+  const parts = req.headers.get('x-forwarded-for')?.split(',') ?? [];
+  const last = parts[parts.length - 1]?.trim();
+  return last || 'anon';
 }
 
 /** Reads a JSON body, enforcing the byte cap while streaming (content-length can lie). */

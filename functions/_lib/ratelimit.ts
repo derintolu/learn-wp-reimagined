@@ -1,4 +1,5 @@
 import type { D1Like } from './env';
+import { isDuplicateKey } from './db';
 
 /**
  * Fixed-window limiter. Every state change is a conditional UPDATE checked via
@@ -24,7 +25,8 @@ export async function rateLimit(
           .bind(k, now)
           .run();
         return true;
-      } catch {
+      } catch (e) {
+        if (!isDuplicateKey(e)) throw e;
         continue; // concurrent insert won; re-read
       }
     }

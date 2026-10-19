@@ -11,3 +11,15 @@ export async function ensureSchema(db: D1Like): Promise<void> {
     )
     .run();
 }
+
+/** True only for duplicate-key errors (SQLite UNIQUE constraint, MySQL 1062 / ER_DUP_ENTRY). */
+export function isDuplicateKey(e: unknown): boolean {
+  const err = e as { message?: unknown; code?: unknown; errno?: unknown } | null;
+  const msg = String(err?.message ?? e);
+  const code = String(err?.code ?? '');
+  return (
+    /UNIQUE constraint failed|SQLITE_CONSTRAINT|Duplicate entry|ER_DUP_ENTRY/i.test(msg + ' ' + code) ||
+    err?.errno === 1062 ||
+    /\b1062\b/.test(code)
+  );
+}

@@ -13,9 +13,9 @@ describe('readJsonCapped', () => {
     expect(await readJsonCapped(post('{"a":1}'), 100)).toEqual({ a: 1 });
   });
   it('413 over the limit', async () => {
-    await expect(readJsonCapped(post(JSON.stringify({ a: 'x'.repeat(200) })), 100)).rejects.toMatchObject({
-      status: 413,
-    });
+    const err = await readJsonCapped(post(JSON.stringify({ a: 'x'.repeat(200) })), 100).catch((e) => e);
+    expect(err).toBeInstanceOf(HttpError);
+    expect(err.status).toBe(413);
   });
   it('413 when content-length lies low but body is large', async () => {
     const req = new Request('http://x/', {
@@ -23,7 +23,9 @@ describe('readJsonCapped', () => {
       body: 'x'.repeat(500),
       headers: { 'content-length': '5' },
     });
-    await expect(readJsonCapped(req, 100)).rejects.toBeInstanceOf(HttpError);
+    const err = await readJsonCapped(req, 100).catch((e) => e);
+    expect(err).toBeInstanceOf(HttpError);
+    expect(err.status).toBe(413);
   });
   it('400 on invalid JSON', async () => {
     await expect(readJsonCapped(post('{nope'), 100)).rejects.toMatchObject({ status: 400 });
@@ -36,11 +38,16 @@ describe('readJsonCapped', () => {
 });
 
 describe('clientKey', () => {
-  it('prefers cf-connecting-ip, then first x-forwarded-for, then anon', () => {
-    const h = (o: Record<string, string>) => new Request('http://x/', { headers: o });
+  const h = (o: Record<string, string>) => new Request('http://x/', { headers: o });
+  it('prefers cf-connecting-ip, then rightmost x-forwarded-for, then anon', () => {
     expect(clientKey(h({ 'cf-connecting-ip': '1.1.1.1', 'x-forwarded-for': '2.2.2.2' }))).toBe('1.1.1.1');
-    expect(clientKey(h({ 'x-forwarded-for': '2.2.2.2, 3.3.3.3' }))).toBe('2.2.2.2');
+    expect(clientKey(h({ 'x-forwarded-for': 'spoofed, 2.2.2.2, 3.3.3.3' }))).toBe('3.3.3.3');
     expect(clientKey(h({}))).toBe('anon');
+  });
+  it('honours TRUSTED_IP_HEADER and ignores cf-connecting-ip then', () => {
+    const env = { TRUSTED_IP_HEADER: 'x-real-ip' };
+    expect(clientKey(h({ 'x-real-ip': '9.9.9.9', 'cf-connecting-ip': '1.1.1.1' }), env)).toBe('9.9.9.9');
+    expect(clientKey(h({ 'cf-connecting-ip': '1.1.1.1', 'x-forwarded-for': 'a, 4.4.4.4' }), env)).toBe('4.4.4.4');
   });
 });
 

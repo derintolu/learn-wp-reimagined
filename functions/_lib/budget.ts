@@ -1,9 +1,17 @@
 import type { D1Like } from './env';
 import type { Usage } from './providers/types';
 import { PRICES } from './config';
+import { isDuplicateKey } from './db';
 
 export const MONTH_CAP_MICROS = 100_000_000;
 export const DAY_CAP_MICROS = 10_000_000;
+
+/** The exact periods charged by `reserve`; `settle` adjusts these rows, whatever the time is now. */
+export interface Reservation {
+  micros: number;
+  month: string;
+  day: string;
+}
 
 type Refusal = { ok: false; reason: 'month-cap' | 'day-cap' };
 
@@ -34,7 +42,8 @@ async function ensureRow(db: D1Like, period: string): Promise<void> {
   if (row) return;
   try {
     await db.prepare('INSERT INTO spend (period, usd_micros) VALUES (?, 0)').bind(period).run();
-  } catch {
+  } catch (e) {
+    if (!isDuplicateKey(e)) throw e;
     // concurrent insert won the race
   }
 }
@@ -47,10 +56,13 @@ async function tryAdd(db: D1Like, period: string, add: number, cap: number): Pro
   return r.meta.changes === 1;
 }
 
+// Clamped at 0 so a row can never go negative (which would widen the cap).
 async function add(db: D1Like, period: string, delta: number): Promise<void> {
   await db
-    .prepare('UPDATE spend SET usd_micros = usd_micros + ? WHERE period = ?')
-    .bind(delta, period)
+    .prepare(
+      'UPDATE spend SET usd_micros = CASE WHEN usd_micros + ? < 0 THEN 0 ELSE usd_micros + ? END WHERE period = ?',
+    )
+    .bind(delta, delta, period)
     .run();
 }
 
@@ -65,10 +77,17 @@ export async function reserve(
   maxInputTokens: number,
   maxTokens: number,
   now: Date,
-): Promise<{ ok: true; reservation: number } | Refusal> {
+): Promise<{ ok: true; reservation: Reservation } | Refusal> {
   const cost = costMicros(model, maxInputTokens, maxTokens, Math.ceil);
   if (cost === null) return { ok: false, reason: 'month-cap' };
   const { month, day } = periods(now);
+  if (cost === 0) {
+    // MySQL counts changed rows, not matched rows, so a +0 UPDATE would look like a refusal.
+    const s = await spendNow(db, now);
+    if (s.month > MONTH_CAP_MICROS) return { ok: false, reason: 'month-cap' };
+    if (s.day > DAY_CAP_MICROS) return { ok: false, reason: 'day-cap' };
+    return { ok: true, reservation: { micros: 0, month, day } };
+  }
   await ensureRow(db, month);
   await ensureRow(db, day);
   if (!(await tryAdd(db, month, cost, MONTH_CAP_MICROS))) return { ok: false, reason: 'month-cap' };
@@ -76,22 +95,24 @@ export async function reserve(
     await add(db, month, -cost);
     return { ok: false, reason: 'day-cap' };
   }
-  return { ok: true, reservation: cost };
+  return { ok: true, reservation: { micros: cost, month, day } };
 }
 
-/** Replaces the reservation with the actual cost. Unknown model keeps the reservation charged. */
+/**
+ * Replaces the reservation with the actual cost on the exact month/day rows it charged.
+ * Must be called exactly once per reservation. Unknown model keeps the reservation charged.
+ */
 export async function settle(
   db: D1Like,
-  reservation: number,
+  reservation: Reservation,
   model: string,
   usage: Usage,
-  now: Date,
 ): Promise<void> {
   const actual = costMicros(model, usage.inputTokens, usage.outputTokens, Math.ceil);
   if (actual === null) return;
-  const delta = actual - reservation;
+  const delta = actual - reservation.micros;
   if (delta === 0) return;
-  const { month, day } = periods(now);
+  const { month, day } = reservation;
   await ensureRow(db, month);
   await ensureRow(db, day);
   await add(db, month, delta);

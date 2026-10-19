@@ -102,7 +102,7 @@ describe('budget', () => {
     const db = await fresh();
     // 1 in token * $0.1 = 0.1 micro -> 1 micro
     const r = await reserve(db, 'claude-haiku-5-5', 1, 0, NOW);
-    expect(r).toEqual({ ok: true, reservation: 1 });
+    expect(r).toEqual({ ok: true, reservation: { micros: 1, month: '2026-10', day: '2026-10-19' } });
     expect(await get(db, '2026-10')).toBe(1);
   });
 
@@ -110,8 +110,8 @@ describe('budget', () => {
     const db = await fresh();
     const r = await reserve(db, MODEL, 1000, 1800, NOW);
     if (!r.ok) throw new Error('expected ok');
-    expect(r.reservation).toBe(20_000);
-    await settle(db, r.reservation, MODEL, { inputTokens: 500, outputTokens: 100 }, NOW);
+    expect(r.reservation.micros).toBe(20_000);
+    await settle(db, r.reservation, MODEL, { inputTokens: 500, outputTokens: 100 });
     // 500*2 + 100*10 = 2000 micros
     expect(await get(db, '2026-10')).toBe(2000);
     expect(await get(db, '2026-10-19')).toBe(2000);
@@ -121,7 +121,7 @@ describe('budget', () => {
     const db = await fresh();
     await seed(db, '2026-10', 5);
     await seed(db, '2026-10-19', 5);
-    await settle(db, 0, 'mystery', { inputTokens: 1, outputTokens: 1 }, NOW);
+    await settle(db, { micros: 0, month: '2026-10', day: '2026-10-19' }, 'mystery', { inputTokens: 1, outputTokens: 1 });
     expect(await get(db, '2026-10')).toBe(5);
   });
 
@@ -136,5 +136,55 @@ describe('budget', () => {
     expect(await capState(db, new Date('2026-11-01T23:59:59Z'))).toBe('day-cap');
     expect(await capState(db, new Date('2026-11-02T00:00:00Z'))).toBe('ok');
     expect((await reserve(db, MODEL, 1, 1, new Date('2026-11-02T00:00:00Z'))).ok).toBe(true);
+  });
+
+  it('settle adjusts the reserved periods even after crossing midnight and month end', async () => {
+    const db = await fresh();
+    const r = await reserve(db, MODEL, 1000, 1800, new Date('2026-10-31T23:59:59Z'));
+    if (!r.ok) throw new Error('expected ok');
+    await settle(db, r.reservation, MODEL, { inputTokens: 500, outputTokens: 100 });
+    expect(await get(db, '2026-10')).toBe(2000);
+    expect(await get(db, '2026-10-31')).toBe(2000);
+    expect(await get(db, '2026-11')).toBe(0);
+    expect(await get(db, '2026-11-01')).toBe(0);
+  });
+
+  it('settle never drives a row negative', async () => {
+    const db = await fresh();
+    await seed(db, '2026-10', 10);
+    await seed(db, '2026-10-19', 10);
+    await settle(db, { micros: 20_000, month: '2026-10', day: '2026-10-19' }, MODEL, {
+      inputTokens: 0,
+      outputTokens: 0,
+    });
+    expect(await get(db, '2026-10')).toBe(0);
+    expect(await get(db, '2026-10-19')).toBe(0);
+  });
+
+  it('zero-cost reserve is ok without an UPDATE, but still refused over the cap', async () => {
+    const db = await fresh();
+    expect(await reserve(db, MODEL, 0, 0, NOW)).toEqual({
+      ok: true,
+      reservation: { micros: 0, month: '2026-10', day: '2026-10-19' },
+    });
+    await seed(db, '2026-10', MONTH_CAP_MICROS + 1);
+    expect(await reserve(db, MODEL, 0, 0, NOW)).toEqual({ ok: false, reason: 'month-cap' });
+  });
+
+  it('only tolerates duplicate-key errors on row creation', async () => {
+    const real = await fresh();
+    const wrap = (err: Error) => ({
+      prepare(sql: string) {
+        if (sql.startsWith('INSERT INTO spend')) {
+          const st: any = { bind: () => st, run: async () => { throw err; } };
+          return st;
+        }
+        return real.prepare(sql);
+      },
+    });
+    await expect(reserve(wrap(new Error('disk I/O error')), MODEL, 1, 1, NOW)).rejects.toThrow('disk I/O');
+    const dup = Object.assign(new Error("Duplicate entry '2026-10' for key 'PRIMARY'"), { code: 'ER_DUP_ENTRY', errno: 1062 });
+    // insert fails as duplicate but row is absent -> tolerated at ensureRow, UPDATE then matches nothing
+    expect(await reserve(wrap(dup), MODEL, 1, 1, NOW)).toEqual({ ok: false, reason: 'month-cap' });
   });
 });

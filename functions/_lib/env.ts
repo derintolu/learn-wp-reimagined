@@ -16,6 +16,8 @@ export interface Env {
   ANTHROPIC_API_KEY?: string;
   ADMIN_TOKEN?: string;
   AI_ROUTES?: string;
+  /** Header carrying the real client IP behind the edge; defaults to cf-connecting-ip. */
+  TRUSTED_IP_HEADER?: string;
 }
 
 export type Handler = (

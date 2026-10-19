@@ -31,4 +31,18 @@ describe('rateLimit', () => {
     const db = await fresh();
     expect(await rateLimit(db, 'x'.repeat(500), 1)).toBe(true);
   });
+
+  it('rethrows non-duplicate errors on insert', async () => {
+    const real = await fresh();
+    const bad = {
+      prepare(sql: string) {
+        if (sql.startsWith('INSERT INTO hits')) {
+          const st: any = { bind: () => st, run: async () => { throw new Error('connection reset'); } };
+          return st;
+        }
+        return real.prepare(sql);
+      },
+    };
+    await expect(rateLimit(bad, 'k', 1)).rejects.toThrow('connection reset');
+  });
 });
