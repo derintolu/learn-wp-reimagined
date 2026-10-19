@@ -23,9 +23,25 @@ function safeSegments(path: string): string[] {
   return parts;
 }
 
-export function createFolderStore(dir: FileSystemDirectoryHandle): RecordStore {
+export interface FolderStore extends RecordStore {
+  /** Raw text of the record file, or null if the folder has none. */
+  readRaw(): Promise<string | null>;
+  /** Write a file at the top level of the folder (used for backups). */
+  writeRaw(name: string, text: string): Promise<void>;
+}
+
+export function createFolderStore(dir: FileSystemDirectoryHandle): FolderStore {
   return {
     kind: 'folder',
+    async readRaw() {
+      try {
+        return await (await (await dir.getFileHandle(RECORD_FILE)).getFile()).text();
+      } catch (err) {
+        if ((err as { name?: string }).name === 'NotFoundError') return null;
+        throw err;
+      }
+    },
+    writeRaw: (name, text) => writeText(dir, name, text),
     async load() {
       let text: string;
       try {

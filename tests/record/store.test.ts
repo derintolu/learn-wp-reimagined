@@ -96,12 +96,13 @@ describe('createFolderStore', () => {
 });
 
 describe('readRecordFile', () => {
-  it('rejects corrupt JSON and leaves the manager untouched', async () => {
+  it('a rejected file never reaches the manager: record is left untouched', async () => {
     const m = new RecordManager(memStore(), c);
     await m.dispatch({ type: 'lessonCompleted', lessonId });
     const before = m.record;
     const res = await readRecordFile(file('{not json'));
     expect(res.ok).toBe(false);
+    if (res.ok) await m.restore(res.record);
     expect(m.record).toBe(before);
   });
   it('rejects a newer version with the Task 4 message', async () => {
@@ -158,5 +159,176 @@ describe('RecordManager', () => {
     await m.restore(r);
     expect(m.record).toEqual(r);
     expect(await primary.load()).toEqual(r);
+  });
+});
+
+const progressed = (updatedAt: string) => ({
+  ...applyEvent(newRecord(), { type: 'lessonCompleted', lessonId }, c),
+  updatedAt,
+});
+const seed = (dir: FakeDir, r: object | string) =>
+  dir.files.set('learn-wp-record.json', typeof r === 'string' ? r : JSON.stringify(r));
+const namesLike = (dir: FakeDir, re: RegExp) => Object.keys(dir.flat()).filter((n) => re.test(n));
+
+describe('attachFolder', () => {
+  it('writes the current record into an empty folder', async () => {
+    const m = new RecordManager(memStore(), c);
+    expect(await m.attachFolder(asHandle(new FakeDir()))).toBe('wrote');
+  });
+
+  it('resumes from the folder record when the current one is fresh', async () => {
+    const primary = memStore();
+    const m = new RecordManager(primary, c);
+    const dir = new FakeDir();
+    const theirs = progressed('2026-01-01T00:00:00.000Z');
+    seed(dir, theirs);
+    const seen: number[] = [];
+    m.subscribe((r) => seen.push(r.completedLessons.length));
+    expect(await m.attachFolder(asHandle(dir))).toBe('resumed');
+    expect(m.record).toEqual(theirs);
+    expect(await primary.load()).toEqual(theirs);
+    expect(seen).toContain(1);
+  });
+
+  it('keeps the newer record and backs up the other when both have progress', async () => {
+    const dir = new FakeDir();
+    const older = progressed('2020-01-01T00:00:00.000Z');
+    seed(dir, older);
+    const m = new RecordManager(memStore(), c);
+    await m.dispatch({ type: 'lessonCompleted', lessonId }); // updatedAt = now, newer
+    const mine = m.record;
+    expect(await m.attachFolder(asHandle(dir))).toBe('kept-current-with-backup');
+    expect(m.record).toBe(mine);
+    const [b] = namesLike(dir, /^learn-wp-record\.backup-.*\.json$/);
+    expect(b).toBeDefined();
+    expect(b).not.toMatch(/:/);
+    expect(JSON.parse(dir.flat()[b])).toEqual(older);
+    expect(JSON.parse(dir.flat()['learn-wp-record.json']).learnerId).toBe(mine.learnerId);
+  });
+
+  it('adopts a newer folder record and backs up the local progress', async () => {
+    const dir = new FakeDir();
+    const theirs = progressed('2999-01-01T00:00:00.000Z');
+    seed(dir, theirs);
+    const m = new RecordManager(memStore(), c);
+    await m.dispatch({ type: 'lessonCompleted', lessonId });
+    const mine = m.record;
+    expect(await m.attachFolder(asHandle(dir))).toBe('resumed');
+    expect(m.record).toEqual(theirs);
+    const [b] = namesLike(dir, /^learn-wp-record\.backup-/);
+    expect(JSON.parse(dir.flat()[b])).toEqual(mine);
+  });
+
+  it.each([['{oops'], [JSON.stringify({ format: 'nope' })]])('quarantines an invalid folder record: %s', async (bad) => {
+    const dir = new FakeDir();
+    seed(dir, bad);
+    const m = new RecordManager(memStore(), c);
+    expect(await m.attachFolder(asHandle(dir))).toBe('recovered-corrupt');
+    const [n] = namesLike(dir, /^learn-wp-record\.corrupt-/);
+    expect(dir.flat()[n]).toBe(bad);
+    expect(JSON.parse(dir.flat()['learn-wp-record.json']).learnerId).toBe(m.record.learnerId);
+  });
+});
+
+describe('stored record validation', () => {
+  it('quarantines a corrupt OPFS record, returns null and sets a manager notice', async () => {
+    const root = new FakeDir();
+    seed(root, '{"broken');
+    stubStorage({ getDirectory: async () => root });
+    const m = new RecordManager(await createBrowserStore(), c);
+    await m.init();
+    expect(m.notice?.kind).toBe('recovered-corrupt');
+    const [n] = namesLike(root, /^learn-wp-record\.corrupt-/);
+    expect(root.flat()[n]).toBe('{"broken');
+    await m.dispatch({ type: 'lessonCompleted', lessonId });
+    expect(root.flat()[n]).toBe('{"broken'); // the quarantined copy survives later saves
+  });
+
+  it('flags a newer-version record in IndexedDB and keeps the raw blob', async () => {
+    stubStorage(throwingOpfs());
+    const s1 = await createBrowserStore();
+    await s1.save({ ...newRecord(), version: 2 } as never);
+    const m = new RecordManager(await createBrowserStore(), c);
+    await m.init();
+    expect(m.notice?.kind).toBe('newer-version');
+    const keys = await new Promise<IDBValidKey[]>((res) => {
+      const o = indexedDB.open('learn-wp-reimagined', 1);
+      o.onsuccess = () => {
+        const q = o.result.transaction('record').objectStore('record').getAllKeys();
+        q.onsuccess = () => res(q.result);
+      };
+    });
+    expect(keys.some((k) => String(k).startsWith('record.corrupt-'))).toBe(true);
+  });
+
+  it('does not create a record file on the read path', async () => {
+    const root = new FakeDir();
+    stubStorage({ getDirectory: async () => root });
+    const s = await createBrowserStore();
+    expect(await s.load()).toBeNull();
+    expect(Object.keys(root.flat())).toEqual([]);
+  });
+});
+
+describe('save ordering', () => {
+  it('two quick dispatches leave the final state stored even if writes resolve out of order', async () => {
+    let r: ReturnType<typeof newRecord> | null = null;
+    let calls = 0;
+    const slowFirst: RecordStore = {
+      kind: 'opfs',
+      load: async () => r,
+      save: async (x) => {
+        const delay = calls++ === 0 ? 30 : 0;
+        await new Promise((res) => setTimeout(res, delay));
+        r = x;
+      },
+    };
+    const m = new RecordManager(slowFirst, c);
+    await Promise.all([
+      m.dispatch({ type: 'fileEdited', file: 'a', content: '1' }),
+      m.dispatch({ type: 'fileEdited', file: 'a', content: '2' }),
+    ]);
+    expect(r).toEqual(m.record);
+    expect(r!.files.a).toBe('2');
+  });
+
+  it('dispatch before init does not clobber the stored record', async () => {
+    const primary = memStore();
+    const stored = progressed('2026-01-01T00:00:00.000Z');
+    await primary.save(stored);
+    const m = new RecordManager(primary, c);
+    await m.dispatch({ type: 'fileEdited', file: 'a', content: '1' });
+    expect(m.record.completedLessons).toEqual([lessonId]);
+    expect(m.record.learnerId).toBe(stored.learnerId);
+  });
+});
+
+describe('mid-session degradation', () => {
+  it('retries the same tier once before degrading', async () => {
+    const root = new FakeDir();
+    stubStorage({ getDirectory: async () => root });
+    const s = await createBrowserStore();
+    root.failNext = 1;
+    await s.save(newRecord());
+    expect(s.kind).toBe('opfs');
+  });
+
+  it('removes the stale copy, flips persistent and notifies subscribers', async () => {
+    const root = new FakeDir();
+    stubStorage({ getDirectory: async () => root });
+    vi.stubGlobal('indexedDB', { open: () => { throw new Error('denied'); } });
+    const store = await createBrowserStore();
+    const m = new RecordManager(store, c);
+    await m.dispatch({ type: 'lessonCompleted', lessonId }); // saved to OPFS
+    expect(root.flat()['learn-wp-record.json']).toBeDefined();
+    expect(m.persistent).toBe(true);
+    let notified = 0;
+    m.subscribe(() => { notified++; });
+    root.failWrites = true;
+    await m.dispatch({ type: 'fileEdited', file: 'a', content: '1' });
+    expect(m.persistent).toBe(false);
+    expect(notified).toBeGreaterThanOrEqual(2); // the dispatch itself plus the tier change
+    expect(root.flat()['learn-wp-record.json']).toBeUndefined();
+    expect(await store.load()).toEqual(m.record);
   });
 });

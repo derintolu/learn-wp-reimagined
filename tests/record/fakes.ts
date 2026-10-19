@@ -3,6 +3,8 @@ export class FakeDir {
   files = new Map<string, string>();
   dirs = new Map<string, FakeDir>();
   failWrites = false;
+  /** Number of upcoming writes that fail, then writes succeed again. */
+  failNext = 0;
   constructor(public name = '') {}
 
   async getFileHandle(name: string, opts?: { create?: boolean }) {
@@ -21,11 +23,15 @@ export class FakeDir {
       async createWritable() {
         let buf = '';
         return {
-          async write(d: string) { if (dir.failWrites) throw new Error('write failed'); buf += d; },
+          async write(d: string) { if (dir.failWrites || dir.failNext-- > 0) throw new Error('write failed'); buf += d; },
           async close() { dir.files.set(name, buf); },
         };
       },
     };
+  }
+
+  async removeEntry(name: string) {
+    if (!this.files.delete(name)) throw new DOMException('not found', 'NotFoundError');
   }
 
   async getDirectoryHandle(name: string, opts?: { create?: boolean }) {
