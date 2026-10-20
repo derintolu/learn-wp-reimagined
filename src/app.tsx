@@ -2,6 +2,7 @@ import { useEffect } from 'preact/hooks';
 import { LocationProvider, Route, Router, useLocation } from 'preact-iso';
 import { Header } from './components/Header';
 import { Footer } from './components/Footer';
+import { ErrorBoundary } from './components/ErrorBoundary';
 import { Home } from './pages/Home';
 import { Lesson } from './pages/Lesson';
 import { PathOverview } from './pages/PathOverview';
@@ -36,6 +37,14 @@ function HashTarget() {
 }
 
 export function App() {
+  return (
+    <ErrorBoundary>
+      <Shell />
+    </ErrorBoundary>
+  );
+}
+
+function Shell() {
   return (
     <LocationProvider>
       <HashTarget />

@@ -52,6 +52,11 @@ export function getRecordManager(): RecordManager {
   return manager;
 }
 
+/** The app-wide manager if one has been created, without creating it (for the error page). */
+export function peekRecordManager(): RecordManager | null {
+  return manager;
+}
+
 /** For tests: replace the app-wide manager (null resets it). */
 export function setRecordManager(m: RecordManager | null): void {
   manager = m;

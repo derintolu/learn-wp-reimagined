@@ -111,6 +111,35 @@ describe('parseRecord', () => {
     expect(parseRecord({ ...good(), fileLessons: { 'a.html': 3 } }).ok).toBe(false);
     expect(parseRecord({ ...good(), fileLessons: [] }).ok).toBe(false);
   });
+  it('accepts a full placement and current, and rejects a malformed placement', () => {
+    const placement = { pathId: 'block-theme', startLessonId: ids[1], skip: [ids[0]], reason: 'Knows it.' };
+    const placed = { ...good(), placement, current: { pathId: 'block-theme', lessonId: ids[1], beatIndex: 0 } };
+    expect(parseRecord(placed).ok).toBe(true);
+    const bad: unknown[] = [
+      null,
+      [],
+      'block-theme',
+      { pathId: 'block-theme' },
+      { ...placement, pathId: 1 },
+      { ...placement, startLessonId: undefined },
+      { ...placement, startLessonId: 3 },
+      { ...placement, skip: undefined },
+      { ...placement, skip: 'x' },
+      { ...placement, skip: [1] },
+      { ...placement, reason: undefined },
+      { ...placement, reason: {} },
+    ];
+    for (const p of bad) {
+      expect(parseRecord({ ...good(), placement: p })).toEqual({ ok: false, error: 'placement is malformed' });
+    }
+  });
+  it('rejects a malformed current', () => {
+    const cur = { pathId: 'block-theme', lessonId: ids[0], beatIndex: 1 };
+    for (const c2 of [null, [], { ...cur, beatIndex: -1 }, { ...cur, beatIndex: 1.5 }, { ...cur, beatIndex: '1' }, { ...cur, beatIndex: NaN }, { ...cur, lessonId: 2 }, { ...cur, pathId: null }]) {
+      expect(parseRecord({ ...good(), current: c2 })).toEqual({ ok: false, error: 'current is malformed' });
+    }
+    expect(parseRecord({ ...good(), current: cur }).ok).toBe(true);
+  });
   it('rejects wrong format', () => {
     const r = parseRecord({ ...good(), format: 'other' });
     expect(r.ok).toBe(false);

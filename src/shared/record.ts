@@ -138,16 +138,32 @@ export function parseRecord(raw: unknown): { ok: true; record: LearningRecord } 
     const errs = validateStatement(r.statements[i]);
     if (errs.length) return fail(`statement ${i} is invalid: ${errs[0]}`);
   }
+  const isObj = (v: unknown): v is Record<string, unknown> => v !== null && typeof v === 'object' && !Array.isArray(v);
   const cur = r.current;
   if (cur !== undefined) {
-    const o = cur as Record<string, unknown> | null;
-    if (!o || typeof o !== 'object' || typeof o.pathId !== 'string' || typeof o.lessonId !== 'string' || typeof o.beatIndex !== 'number') {
+    if (
+      !isObj(cur) ||
+      typeof cur.pathId !== 'string' ||
+      typeof cur.lessonId !== 'string' ||
+      typeof cur.beatIndex !== 'number' ||
+      !Number.isInteger(cur.beatIndex) ||
+      cur.beatIndex < 0
+    ) {
       return fail('current is malformed');
     }
   }
   const p = r.placement;
-  if (p !== undefined && (p === null || typeof p !== 'object' || typeof (p as Placement).pathId !== 'string')) {
-    return fail('placement is malformed');
+  if (p !== undefined) {
+    if (
+      !isObj(p) ||
+      typeof p.pathId !== 'string' ||
+      typeof p.startLessonId !== 'string' ||
+      !Array.isArray(p.skip) ||
+      !p.skip.every((x) => typeof x === 'string') ||
+      typeof p.reason !== 'string'
+    ) {
+      return fail('placement is malformed');
+    }
   }
   return { ok: true, record: raw as LearningRecord };
 }

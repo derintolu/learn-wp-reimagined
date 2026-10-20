@@ -698,6 +698,8 @@
 
 .placeholder__title { font-size: var(--step-5); letter-spacing: -0.02em; }
 .placeholder__body .button { margin-top: 1.5rem; }
+.app-error { min-height: 100dvh; background: var(--paper); }
+.app-error__actions { display: flex; flex-wrap: wrap; gap: 0.75rem; align-items: center; }
 
 .band[tabindex="-1"]:focus { outline: none; }
 
