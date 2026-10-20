@@ -9,6 +9,18 @@ const KEY = 'record';
 
 type Tier = 'opfs' | 'indexeddb' | 'memory';
 
+/** How long a storage tier may take to open before we give up on it and try the next one. */
+export const OPEN_TIMEOUT_MS = 3000;
+
+/** Rejects if `p` hasn't settled within `ms`. Some browsers never answer a storage call at all. */
+function timeLimit<T>(p: Promise<T>, ms: number, what: string): Promise<T> {
+  let timer: ReturnType<typeof setTimeout> | undefined;
+  const late = new Promise<never>((_, rej) => {
+    timer = setTimeout(() => rej(new Error(`${what} timed out`)), ms);
+  });
+  return Promise.race([p, late]).finally(() => clearTimeout(timer));
+}
+
 interface Loaded {
   record: LearningRecord | null;
   notice?: RecordNotice;
@@ -86,7 +98,20 @@ const req = <T>(r: IDBRequest<T>) =>
 async function openIdb(): Promise<Backend> {
   const open = indexedDB.open(DB, 1);
   open.onupgradeneeded = () => open.result.createObjectStore(STORE);
-  const db = await req(open);
+  const opened = new Promise<IDBDatabase>((res, rej) => {
+    open.onsuccess = () => res(open.result);
+    open.onerror = () => rej(open.error);
+    // Another tab holds an older version open: don't wait on it, use the next tier.
+    open.onblocked = () => rej(new Error('IndexedDB open blocked'));
+  });
+  let db: IDBDatabase;
+  try {
+    db = await timeLimit(opened, OPEN_TIMEOUT_MS, 'IndexedDB open');
+  } catch (e) {
+    // If it opens after all, close it so it never blocks a later open.
+    opened.then((late) => late.close(), () => {});
+    throw e;
+  }
   const tx = (mode: IDBTransactionMode) => db.transaction(STORE, mode).objectStore(STORE);
   await req(tx('readonly').count());
   return {
@@ -144,7 +169,8 @@ export async function createBrowserStore(): Promise<RecordStore> {
     while (next < openers.length) {
       const [k, open] = openers[next++];
       try {
-        backend = await open();
+        // The whole opener is limited too, so a probe that never answers can't hang the page.
+        backend = await timeLimit(open(), OPEN_TIMEOUT_MS, k);
         kind = k;
         break;
       } catch {

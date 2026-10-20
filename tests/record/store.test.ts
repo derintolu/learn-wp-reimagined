@@ -3,7 +3,7 @@ import { afterEach, describe, expect, it, vi } from 'vitest';
 import { resolve } from 'node:path';
 import { buildContent } from '../../scripts/build-content';
 import { newRecord, applyEvent } from '../../src/shared/record';
-import { createBrowserStore } from '../../src/record/browserStore';
+import { OPEN_TIMEOUT_MS, createBrowserStore } from '../../src/record/browserStore';
 import { createFolderStore, supportsFolder } from '../../src/record/folderStore';
 import { readRecordFile } from '../../src/record/fileTransfer';
 import { RecordManager, type RecordStore } from '../../src/record/store';
@@ -64,6 +64,50 @@ describe('createBrowserStore', () => {
     await expect(s.save(r)).resolves.toBeUndefined();
     expect(s.kind).not.toBe('opfs');
     expect(await s.load()).toEqual(r);
+  });
+});
+
+describe('storage that never answers', () => {
+  afterEach(() => vi.useRealTimers());
+  const never = () => new Promise<never>(() => {});
+
+  it('degrades from OPFS to IndexedDB when getDirectory never resolves', async () => {
+    vi.useFakeTimers({ toFake: ['setTimeout', 'clearTimeout'] });
+    stubStorage({ getDirectory: never });
+    const p = createBrowserStore();
+    await vi.advanceTimersByTimeAsync(OPEN_TIMEOUT_MS);
+    const s = await p;
+    expect(s.kind).toBe('indexeddb');
+    vi.useRealTimers();
+    const r = newRecord();
+    await s.save(r);
+    expect(await s.load()).toEqual(r);
+  });
+
+  it('degrades to memory when IndexedDB open never answers either, and the manager still inits', async () => {
+    vi.useFakeTimers({ toFake: ['setTimeout', 'clearTimeout'] });
+    stubStorage({ getDirectory: never });
+    vi.stubGlobal('indexedDB', { open: () => ({}) as IDBOpenDBRequest }); // no callback ever fires
+    const p = createBrowserStore();
+    await vi.advanceTimersByTimeAsync(OPEN_TIMEOUT_MS * 2);
+    const s = await p;
+    expect(s.kind).toBe('memory');
+    const m = new RecordManager(s, c);
+    await m.init();
+    expect(m.persistent).toBe(false);
+  });
+
+  it('a blocked IndexedDB open moves on to memory straight away', async () => {
+    stubStorage(throwingOpfs());
+    vi.stubGlobal('indexedDB', {
+      open: () => {
+        const r = {} as IDBOpenDBRequest;
+        queueMicrotask(() => r.onblocked?.(new Event('blocked') as IDBVersionChangeEvent));
+        return r;
+      },
+    });
+    const s = await createBrowserStore();
+    expect(s.kind).toBe('memory');
   });
 });
 
