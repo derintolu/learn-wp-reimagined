@@ -700,3 +700,65 @@
 .placeholder__body .button { margin-top: 1.5rem; }
 
 .band[tabindex="-1"]:focus { outline: none; }
+
+/* ---------- Finale ---------- */
+
+.finale-hero__icon { width: 4rem; height: 4rem; color: var(--wp-blue-light); margin-bottom: 1rem; }
+.finale-hero__title { font-size: var(--step-5); letter-spacing: -0.02em; }
+.finale-hero__meta { color: var(--on-dark-muted); margin-top: 1rem; }
+.finale-hero__fine { margin: 1.25rem 0 0; font-size: var(--step--1); color: var(--on-dark-muted); max-width: 52ch; }
+.finale-actions { display: flex; flex-wrap: wrap; align-items: center; gap: 0.75rem; margin-top: 2rem; }
+.finale-actions__note { margin: 0; color: var(--warn-on-dark); max-width: 44ch; }
+.finale-hero__head,
+.finale-hero__body { animation: finale-rise 640ms var(--ease-out-expo) both; }
+.finale-hero__body { animation-delay: 120ms; }
+@keyframes finale-rise {
+  from { opacity: 0; transform: translateY(12px); }
+  to { opacity: 1; transform: none; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .finale-hero__head,
+  .finale-hero__body { animation: none; }
+}
+
+.finale-theme { display: grid; gap: 2rem; }
+.finale-files {
+  padding: 1.25rem 1.4rem;
+  border: 1px solid var(--rule);
+  border-radius: 1rem;
+  background: var(--code-bg);
+  box-shadow: var(--shadow-card);
+}
+.finale-files__root { margin: 0 0 0.6rem; font: 600 var(--step-0) / 1.4 var(--font-mono); color: var(--ink); }
+.finale-files__list { list-style: none; margin: 0; padding: 0 0 0 1.1rem; border-left: 1px dashed var(--rule); }
+.finale-files__list li {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.4rem 0.75rem;
+  padding: 0.35rem 0 0.35rem 0.6rem;
+}
+.finale-files__list code { font: var(--step--1) / 1.4 var(--font-mono); color: var(--code-tag); overflow-wrap: anywhere; }
+
+.finale-next { list-style: none; margin: 0 0 2rem; padding: 0; counter-reset: next; border-top: 1px solid var(--rule-dark); }
+.finale-next li {
+  counter-increment: next;
+  display: grid;
+  grid-template-columns: 2.5rem minmax(0, 1fr);
+  gap: 0.3rem 1rem;
+  padding-block: 1.5rem;
+  border-bottom: 1px solid var(--rule-dark);
+}
+.finale-next li::before {
+  content: counter(next, decimal-leading-zero);
+  grid-row: span 2;
+  font: 500 var(--step-1) / 1.2 var(--font-display);
+  color: var(--wp-blue-light);
+}
+.finale-next h3 { font-size: var(--step-2); color: var(--on-dark); }
+.finale-next p { margin: 0; color: var(--on-dark-muted); }
+.finale-next code { font: 0.9em var(--font-mono); color: var(--on-dark); }
+.finale-chat .bubble { max-width: min(46ch, 100%); }
+.finale-home { margin-top: 2rem; }
+.band--dark-2 .button--quiet { color: var(--on-dark); border-color: var(--on-dark-muted); }
+.band--dark-2 .button--quiet:hover { background: var(--veil-on-dark); color: #fff; }

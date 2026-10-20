@@ -5,7 +5,8 @@ import { Footer } from './components/Footer';
 import { Home } from './pages/Home';
 import { Lesson } from './pages/Lesson';
 import { PathOverview } from './pages/PathOverview';
-import { FinalePage, NotFound } from './pages/routes';
+import { Finale } from './pages/Finale';
+import { NotFound } from './pages/routes';
 
 /**
  * preact-iso turns same-origin links like "/#paths" into pushState, which never
@@ -44,7 +45,7 @@ export function App() {
           <Route path="/" component={Home} />
           <Route path="/path/:pathId" component={PathOverview} />
           <Route path="/learn/:lessonId" component={Lesson} />
-          <Route path="/finale" component={FinalePage} />
+          <Route path="/finale" component={Finale} />
           <Route default component={NotFound} />
         </Router>
       </main>
