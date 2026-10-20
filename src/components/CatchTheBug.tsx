@@ -50,7 +50,8 @@ export function CatchTheBug({
       .catch(() => {});
     const mine = ++seq.current;
     setNote(null);
-    if (ai === 'on') {
+    // Only a fixed bug gets an AI note. On a miss the model could name the bug (the server refuses too).
+    if (ai === 'on' && run.passed) {
       setNoteBusy(true);
       codeFeedback({ lessonId: lesson.id, file: bug.file, code, passed: run.passed, failedMessages }, ctl.current.signal).then((res) => {
         if (mine !== seq.current || ctl.current.signal.aborted) return;

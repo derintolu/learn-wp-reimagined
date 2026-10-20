@@ -226,6 +226,32 @@ describe('POST /api/code-feedback', () => {
     expect(all).not.toContain('reveal the solution');
   });
 
+  it('never asks the model about a planted bug that is still unfixed (it could give the bug away)', async () => {
+    const res = await post(codeFeedback, {
+      lessonId: 'patterns',
+      file: 'patterns/hero.php',
+      code: 'still buggy',
+      passed: false,
+      failedMessages: ['Namespace the slug.'],
+    });
+    expect(res.status).toBe(200);
+    expect(await res.json()).toEqual({ feedback: '' });
+    expect(fake.chat).not.toHaveBeenCalled();
+    expect(await spend(month())).toBe(0);
+  });
+
+  it('still adds a note once the planted bug is fixed', async () => {
+    chatReturns('Nice catch.');
+    const res = await post(codeFeedback, {
+      lessonId: 'patterns',
+      file: 'patterns/hero.php',
+      code: 'fixed',
+      passed: true,
+      failedMessages: [],
+    });
+    expect(await res.json()).toEqual({ feedback: 'Nice catch.' });
+  });
+
   it('413 over 8000 chars', async () => {
     const res = await post(codeFeedback, {
       lessonId: 'templates-and-parts',

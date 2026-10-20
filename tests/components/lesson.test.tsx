@@ -386,6 +386,27 @@ describe('Catch the bug', () => {
   });
 });
 
+describe('Catch the bug with AI on', () => {
+  it('asks for an AI note only once the bug is fixed, never on a miss', async () => {
+    status.mockResolvedValue({ ai: 'on' });
+    stream.mockImplementation(async (_req, onText) => onText('Beat text.'));
+    feedbackMock.mockResolvedValue({ ok: true, data: { feedback: 'Nice catch.' } });
+    use(managerWith(recordAt('patterns', 0)));
+    open('/learn/patterns');
+    fireEvent.click(await screen.findByRole('button', { name: /bug/i }));
+    const box = await screen.findByRole('region', { name: /Catch the bug/ });
+    fireEvent.click(within(box).getByRole('button', { name: 'Check my fix' }));
+    expect(await within(box).findByText(/Not yet/)).toBeTruthy();
+    expect(feedbackMock).not.toHaveBeenCalled();
+
+    await typeInto(/hero\.php/, '<?php\n/**\n * Title: Hero\n * Slug: mytheme/hero\n */\n?>\n');
+    fireEvent.click(within(box).getByRole('button', { name: 'Check my fix' }));
+    expect(await within(box).findByText('Nice catch.')).toBeTruthy();
+    expect(feedbackMock).toHaveBeenCalledTimes(1);
+    expect(feedbackMock.mock.calls[0][0]).toMatchObject({ lessonId: 'patterns', file: 'patterns/hero.php', passed: true });
+  });
+});
+
 describe('Tutor', () => {
   it('answers questions in ask mode, grounded in the current beat', async () => {
     status.mockResolvedValue({ ai: 'on' });

@@ -22,6 +22,9 @@ export const POST: Handler = (req, { env }) =>
     // Client text never reaches the model: keep only messages that exactly match an authored check.
     const authored = new Set([...(cp?.checks ?? []), ...(lesson.bug?.fixChecks ?? [])].map((c) => c.message));
     const failed = b.failedMessages.filter((m): m is string => typeof m === 'string' && authored.has(m));
+    // An unfixed planted bug gets no AI note: in live testing the model named the bug despite the rules.
+    // The authored hints (after two misses) are the only help, so the hunt can't be given away.
+    if (!b.passed && lesson.bug?.file === file && cp?.file !== file) return json({ feedback: '' });
     const out = await callChat(pre, [
       { role: 'system', content: feedbackPrompt(lesson, file) },
       {
