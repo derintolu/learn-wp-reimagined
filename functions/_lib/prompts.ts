@@ -46,11 +46,23 @@ export function judgePrompt(lesson: Lesson): string {
   ].join('\n\n');
 }
 
+/**
+ * Delivery is grounded in the beat alone: the model rephrases, it never adds technical detail.
+ * (A thin beat once led the model to invent theme.json palette keys.)
+ */
+export const DELIVER_GROUNDING =
+  'Use ONLY the facts, file names, keys, block markup, code and settings that appear in the beat material. ' +
+  'Do not introduce any other theme.json keys, settings, functions, hooks, blocks or file names, even ones you believe are correct. ' +
+  'Copy any code, keys and values exactly as they appear in the beat material; never rename or "correct" them. ' +
+  'If the learner would need anything beyond the beat material, say "see the linked source" instead of adding it.';
+
 export function deliverPrompt(lesson: Lesson, beat: Beat): string {
   return [
     `You are a warm, concise tutor teaching the lesson "${lesson.title}".`,
     SCOPE,
-    'Teach the following authored beat in your own words, accurately, in under 200 words. Do not add facts that contradict it.',
+    'Teach the following authored beat in your own words, accurately, in under 200 words. ' +
+      'It is one step in the middle of the lesson, so do not greet the learner or introduce the lesson; start with the content.',
+    DELIVER_GROUNDING,
     `Beat goal: ${beat.goal}`,
     `Beat material:\n${beat.content}`,
     beat.question

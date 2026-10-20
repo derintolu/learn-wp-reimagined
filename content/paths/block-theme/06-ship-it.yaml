@@ -1,0 +1,51 @@
+id: bt-ship-it
+title: Ship your block theme
+minutes: 6
+sources:
+  - title: Use the Create Block Theme plugin for exports, and theme variations (Learn WordPress lesson)
+    url: https://learn.wordpress.org/lesson/use-the-create-block-theme-plugin-for-exports-and-theme-variations/
+  - title: Create Block Theme (WordPress.org plugin)
+    url: https://wordpress.org/plugins/create-block-theme/
+  - title: Style Variations (Theme Handbook)
+    url: https://developer.wordpress.org/themes/global-settings-and-styles/style-variations/
+  - title: Theme Structure (Theme Handbook)
+    url: https://developer.wordpress.org/themes/core-concepts/theme-structure/
+beats:
+  - id: database-vs-files
+    goal: Get Site Editor changes back into files.
+    content: |
+      Changes made in the Site Editor (templates, parts, styles) are saved in the site's database, not in your theme's files. That's fine for one site. But if you want to share the theme, use it on another site or keep a backup, those changes need to live in the theme files.
+
+      The **Create Block Theme** plugin does this. Once it's active, it adds a panel to the Site Editor, opened from an icon next to the Save button. From there you can:
+
+      - **Save Changes to Theme**, which writes your editor changes into the active theme's files
+      - **Export Zip**, which downloads the theme as a zip file
+      - **Create Blank Theme**, or clone the active theme, or create a child theme
+
+      A good workflow is to design in the Site Editor, save the changes to the theme, then check the files in your code editor.
+    question: Why might you save editor changes into the theme even if you're the only one using it?
+  - id: finishing-touches
+    goal: Add the finishing touches.
+    content: |
+      A few optional files make a theme feel finished:
+
+      - `screenshot.png` is the preview under **Appearance > Themes**. The recommended size is 1200×900. PNG or JPG both work.
+      - `readme.txt` isn't used by WordPress itself, but you need it to submit to the WordPress.org Theme Directory.
+      - `styles/*.json` files are **style variations**: alternative versions of theme.json that people can switch between, like skins. Each one can hold any setting or style that theme.json can.
+      - `functions.php` is loaded automatically if present, for any custom PHP your theme needs.
+
+      If you plan to submit to the Theme Directory, fill in every required `style.css` header field and license the theme GPLv2 or later.
+    question: What would a style variation for your theme change?
+  - id: your-theme
+    goal: Take your theme with you.
+    content: |
+      Look at what you've built:
+
+      - `style.css` with your theme's details
+      - `theme.json` with a four-colour palette, layout widths and global styles, all using presets
+      - `templates/index.html` listing your posts, with the header part on top
+      - `parts/header.html` with the site title and navigation
+      - `patterns/hero.php`, registered automatically
+
+      That's a complete, activatable block theme. On the next screen you can download it as a zip, upload it under **Appearance > Themes > Add Theme > Upload Theme**, then activate it and see it running.
+    question: What's the first thing you'd add to this theme next?
