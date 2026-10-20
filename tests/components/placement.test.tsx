@@ -367,9 +367,18 @@ describe('Home', () => {
     expect(titles[0]).toBe('Learn WordPress, your way.');
     expect(titles.slice(1)).toEqual([
       'Three ways in',
-      'Continue in the agent you already use',
+      'Coming soon: continue in the agent you already use',
       'How this works',
     ]);
+  });
+
+  it('does not claim features that are not live yet', () => {
+    render(<App />);
+    const text = document.querySelector('main')!.textContent!;
+    expect(text).toContain('will also be a remote MCP server');
+    expect(text).not.toContain('is also a remote MCP server');
+    expect(text).not.toContain('Each path has a moment');
+    expect(text).toContain('The block theme path has a moment');
   });
 
   it('never skips a heading level inside the hero card', async () => {

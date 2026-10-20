@@ -41,11 +41,25 @@ describe('Finale page', () => {
     expect(list.textContent).toContain(content.lessons['bt-templates-and-parts'].title);
   });
 
-  it('has different copy when no lessons are complete', async () => {
+  it('has different copy, hero included, when no lessons are complete', async () => {
     await withLessons([]);
     render(<Finale />);
     await waitFor(() => expect(screen.getByText(/finished reference theme/)).toBeTruthy());
     expect(screen.queryByText(/and you wrote it/)).toBeNull();
+    expect(screen.getByRole('heading', { level: 1 }).textContent).toBe('Where this path ends up');
+  });
+
+  it('says "you wrote it" only when at least one of the learner’s edits was used', async () => {
+    // Lessons done, but no edits: the theme is the path's finished theme.
+    await withLessons(['bt-what-is-a-block-theme']);
+    render(<Finale />);
+    await waitFor(() => expect(screen.getByText(/Here's the finished theme from the path/)).toBeTruthy());
+    expect(screen.queryByText(/and you wrote it/)).toBeNull();
+    cleanup();
+    // An edit that was used.
+    await withLessons(['bt-what-is-a-block-theme'], { 'style.css': [STYLE, 'bt-what-is-a-block-theme'] });
+    render(<Finale />);
+    await waitFor(() => expect(screen.getByText(/and you wrote it/)).toBeTruthy());
   });
 
   it('opens the learner’s own theme in Playground', async () => {

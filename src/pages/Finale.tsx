@@ -39,14 +39,27 @@ export function Finale() {
           <div class="finale-hero__head">
             <SketchIcon name="block-theme" class="finale-hero__icon" />
             <h1 class="split__title finale-hero__title" id="finale-title">
-              You made it <Swipe>this far</Swipe>
+              {doneCount > 0 ? (
+                <>
+                  You made it <Swipe>this far</Swipe>
+                </>
+              ) : (
+                <>
+                  Where this path <Swipe>ends up</Swipe>
+                </>
+              )}
             </h1>
           </div>
           <div class="split__body finale-hero__body">
-            {doneCount > 0 ? (
+            {doneCount > 0 && theme.used.length > 0 ? (
               <p class="lede">
                 That's a real WordPress block theme, and you wrote it. Take it home as a zip, or watch it run in a full
                 WordPress site in your browser.
+              </p>
+            ) : doneCount > 0 ? (
+              <p class="lede">
+                Here's the finished theme from the path, a real WordPress block theme. Take it home as a zip, or watch it
+                run in a full WordPress site in your browser.
               </p>
             ) : (
               <p class="lede">

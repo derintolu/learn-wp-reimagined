@@ -45,14 +45,22 @@ export function Home() {
       <section class="band band--dark-2" aria-labelledby="agent-title">
         <div class="wrap split">
           <h2 id="agent-title" class="split__title">
-            Continue in the agent <Swipe>you already use</Swipe>
+            {!FEATURES.agent && 'Coming soon: '}
+            {FEATURES.agent ? 'Continue' : 'continue'} in the agent <Swipe>you already use</Swipe>
           </h2>
           <div class="split__body">
-            <p class="lede">
-              The whole course is also a remote MCP server. Connect it to the AI agent you already pay for and it
-              becomes your tutor, with the same lessons, checkpoints and planted bugs.
-            </p>
-            <ul class="agent-list" aria-label="Works with">
+            {FEATURES.agent ? (
+              <p class="lede">
+                The whole course is also a remote MCP server. Connect it to the AI agent you already pay for and it
+                becomes your tutor, with the same lessons, checkpoints and planted bugs.
+              </p>
+            ) : (
+              <p class="lede">
+                The whole course will also be a remote MCP server. Connect it to the AI agent you already pay for and
+                it will become your tutor, with the same lessons, checkpoints and planted bugs.
+              </p>
+            )}
+            <ul class="agent-list" aria-label={FEATURES.agent ? 'Works with' : 'Planned to work with'}>
               {AGENTS.map((a) => (
                 <li key={a}>{a}</li>
               ))}
@@ -93,8 +101,8 @@ export function Home() {
               <li>
                 <h3>Coding still matters</h3>
                 <p>
-                  Each path has a moment where the AI's code is wrong on purpose. You read it, find the bug and fix
-                  it by hand before you move on.
+                  The block theme path has a moment where the AI's code is wrong on purpose. You read it, find the
+                  bug and fix it by hand before you move on. The paths still to come will have one too.
                 </p>
               </li>
             </ol>
