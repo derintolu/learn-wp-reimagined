@@ -18,6 +18,7 @@
 import {
   estimateInputTokens,
   estimateTokens,
+  ProviderHttpError,
   sseData,
   type ChatOptions,
   type Provider,
@@ -34,6 +35,14 @@ function usageOf(u: OaiUsage | undefined, inputText: number, out: string): Usage
   return {
     inputTokens: u?.prompt_tokens ?? inputText,
     outputTokens: u?.completion_tokens ?? estimateTokens(out),
+  };
+}
+
+/** A JSON reply with no output count settles at the reserved worst case: reasoning tokens are billed but not returned. */
+function chatUsageOf(u: OaiUsage | undefined, inputText: number, maxTokens: number): Usage {
+  return {
+    inputTokens: u?.prompt_tokens ?? inputText,
+    outputTokens: u?.completion_tokens ?? maxTokens,
   };
 }
 
@@ -59,7 +68,7 @@ export function createWorkersAi(accountId: string, token: string): Provider {
     const res = await fetch(url, { method: 'POST', headers, body: JSON.stringify(body), signal });
     if (!res.ok) {
       await res.body?.cancel().catch(() => {});
-      throw new Error(`workers-ai request failed: ${res.status}`);
+      throw new ProviderHttpError('workers-ai', res.status);
     }
     return res;
   }
@@ -85,7 +94,7 @@ export function createWorkersAi(accountId: string, token: string): Provider {
       const content = data.choices?.[0]?.message?.content;
       // A reply that is only a number or a boolean can come back as a JSON scalar.
       const text = content === undefined || content === null ? '' : String(content);
-      return { text, usage: usageOf(data.usage, estimateInputTokens(o.messages), text) };
+      return { text, usage: chatUsageOf(data.usage, estimateInputTokens(o.messages), o.maxTokens) };
     },
     async stream(o: StreamOptions) {
       const res = await call({

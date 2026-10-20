@@ -2,6 +2,7 @@ import { describe, it, expect, vi, afterEach } from 'vitest';
 import { createWorkersAi, tokenText } from '../../functions/_lib/providers/workersAi';
 import { createAnthropic } from '../../functions/_lib/providers/anthropic';
 import { routeFor } from '../../functions/_lib/providers';
+import { ProviderHttpError } from '../../functions/_lib/providers/types';
 import { PRICES } from '../../functions/_lib/config';
 import type { Env } from '../../functions/_lib/env';
 
@@ -83,14 +84,21 @@ describe('workers-ai adapter', () => {
     mockFetch(Response.json({ choices: [{ message: { content: null } }] }));
     expect((await cf().chat({ model: 'm', messages: msgs, maxTokens: 5 })).text).toBe('');
   });
-  it('estimates usage as ceil(chars/4) when missing', async () => {
+  it('chat with no usage estimates input and settles output at maxTokens (never under-count)', async () => {
     mockFetch(Response.json({ choices: [{ message: { content: 'abcdefghi' } }] }));
     const r = await cf().chat({ model: 'm', messages: msgs, maxTokens: 5 });
-    expect(r.usage).toEqual({ inputTokens: Math.ceil(('sys' + 'hello world!').length / 4), outputTokens: 3 });
+    expect(r.usage).toEqual({ inputTokens: Math.ceil(('sys' + 'hello world!').length / 4), outputTokens: 5 });
   });
-  it('throws on HTTP error without leaking the token', async () => {
+  it('chat with usage but no completion count settles output at maxTokens', async () => {
+    mockFetch(Response.json({ choices: [{ message: { content: 'hi' } }], usage: { prompt_tokens: 11 } }));
+    const r = await cf().chat({ model: 'm', messages: msgs, maxTokens: 40 });
+    expect(r.usage).toEqual({ inputTokens: 11, outputTokens: 40 });
+  });
+  it('throws a ProviderHttpError on HTTP error without leaking the token', async () => {
     mockFetch(new Response('nope', { status: 500 }));
     const err = await cf().chat({ model: 'm', messages: msgs, maxTokens: 5 }).catch((e) => e);
+    expect(err).toBeInstanceOf(ProviderHttpError);
+    expect(err.status).toBe(500);
     expect(err.message).toMatch(/500/);
     expect(err.message).not.toContain('tok1');
   });

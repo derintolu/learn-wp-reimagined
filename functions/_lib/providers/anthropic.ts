@@ -14,6 +14,7 @@
 import {
   estimateInputTokens,
   estimateTokens,
+  ProviderHttpError,
   sseData,
   type ChatMessage,
   type ChatOptions,
@@ -49,7 +50,7 @@ export function createAnthropic(apiKey: string): Provider {
     const res = await fetch(URL, { method: 'POST', headers, body: JSON.stringify(body), signal });
     if (!res.ok) {
       await res.body?.cancel().catch(() => {});
-      throw new Error(`anthropic request failed: ${res.status}`);
+      throw new ProviderHttpError('anthropic', res.status);
     }
     return res;
   }

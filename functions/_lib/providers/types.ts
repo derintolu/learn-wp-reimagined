@@ -32,6 +32,20 @@ export interface Provider {
   stream(o: StreamOptions): Promise<{ body: ReadableStream<string>; usage: Promise<Usage> }>;
 }
 
+/**
+ * The provider answered with a definite non-ok HTTP status, so it generated nothing billable.
+ * Any other failure (abort, timeout, network, bad body) may still have been billed.
+ */
+export class ProviderHttpError extends Error {
+  constructor(
+    public provider: string,
+    public status: number,
+  ) {
+    super(`${provider} request failed: ${status}`);
+    this.name = 'ProviderHttpError';
+  }
+}
+
 /** Fallback token estimate when a provider omits usage: ceil(chars / 4). */
 export function estimateTokens(text: string): number {
   return Math.ceil(text.length / 4);

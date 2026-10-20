@@ -4,6 +4,7 @@ import { buildContent } from '../../scripts/build-content';
 import { setContentForTests } from '../../functions/_lib/content';
 import type { Env } from '../../functions/_lib/env';
 import { MONTH_CAP_MICROS } from '../../functions/_lib/budget';
+import { ProviderHttpError } from '../../functions/_lib/providers/types';
 
 const h = vi.hoisted(() => ({ route: null as unknown }));
 vi.mock('../../functions/_lib/providers', () => ({ routeFor: () => h.route }));
@@ -172,15 +173,34 @@ describe('POST /api/checkpoint', () => {
     expect(fake.chat).not.toHaveBeenCalled();
   });
 
-  it('provider throw gives 503 fallback and settles the reservation', async () => {
+  it('a provider failure that is not a definite HTTP refusal keeps the full reservation', async () => {
     fake.chat.mockRejectedValue(new Error('boom'));
     const res = await post(checkpoint, { lessonId: 'theme-json-basics', answer: 'abc' });
     expect(res.status).toBe(503);
     expect(await res.json()).toEqual({ fallback: true, reason: 'provider-error' });
-    // settled at inputTokens = char count of messages, 0 output: > 0 and far below the reservation
-    const s = await spend(month());
-    expect(s).toBeGreaterThan(0);
-    expect(s).toBeLessThan(300 * 10);
+    const msgs = fake.chat.mock.calls[0][0].messages as { content: string }[];
+    const maxIn = msgs.reduce((n, m) => n + m.content.length, 0);
+    // $2/M in, $10/M out: input bound plus 300 output tokens, nothing refunded
+    expect(await spend(month())).toBe(maxIn * 2 + 300 * 10);
+  });
+
+  it('a timed-out or aborted provider call settles at the worst case (delta 0)', async () => {
+    fake.chat.mockRejectedValue(new DOMException('The operation timed out.', 'TimeoutError'));
+    const res = await post(checkpoint, { lessonId: 'theme-json-basics', answer: 'abc' });
+    expect(res.status).toBe(503);
+    const msgs = fake.chat.mock.calls[0][0].messages as { content: string }[];
+    const maxIn = msgs.reduce((n, m) => n + m.content.length, 0);
+    expect(await spend(month())).toBe(maxIn * 2 + 300 * 10);
+    expect(await spend(new Date().toISOString().slice(0, 10))).toBe(maxIn * 2 + 300 * 10);
+  });
+
+  it('refunds the output only on a definite non-ok HTTP response from the provider', async () => {
+    fake.chat.mockRejectedValue(new ProviderHttpError('workers-ai', 500));
+    const res = await post(checkpoint, { lessonId: 'theme-json-basics', answer: 'abc' });
+    expect(res.status).toBe(503);
+    const msgs = fake.chat.mock.calls[0][0].messages as { content: string }[];
+    const maxIn = msgs.reduce((n, m) => n + m.content.length, 0);
+    expect(await spend(month())).toBe(maxIn * 2);
   });
 });
 
@@ -525,16 +545,36 @@ describe('caps, routing and rate limits', () => {
       expect((await asClient(A)).status).toBe(200);
     });
 
-    it('the global ceiling of 600 applies to every client, after the per-client check', async () => {
-      await seed('global', 599);
+    it('a forged x-forwarded-for: global gets its own ip: bucket and cannot touch the global one', async () => {
+      const forged = () =>
+        placement(
+          new Request('http://x/api', {
+            method: 'POST',
+            body: JSON.stringify({ messages: [{ role: 'user', content: 'hi' }] }),
+            headers: { 'x-forwarded-for': 'global' },
+          }),
+          { params: {}, env },
+        );
+      // Fill the forged key's own bucket; under the old scheme this was the global bucket itself.
+      await seed('ip:global', 30);
+      expect((await forged()).status).toBe(429);
+      expect(await hits('g:global')).toBe(0);
+      expect(await hits('global')).toBe(0);
+      // Everyone else is unaffected.
       expect((await asClient(A)).status).toBe(200);
-      expect(await hits('global')).toBe(600);
+      expect(await hits('g:global')).toBe(1);
+    });
+
+    it('the global ceiling of 600 applies to every client, after the per-client check', async () => {
+      await seed('g:global', 599);
+      expect((await asClient(A)).status).toBe(200);
+      expect(await hits('g:global')).toBe(600);
       expect((await asClient(B)).status).toBe(429);
       // A client blocked by its own limit never uses up the global ceiling.
       await seed(`c:${'c'.repeat(20)}`, 30);
-      await db.prepare('UPDATE hits SET n = 0 WHERE k = ?').bind('global').run();
+      await db.prepare('UPDATE hits SET n = 0 WHERE k = ?').bind('g:global').run();
       expect((await asClient('c'.repeat(20))).status).toBe(429);
-      expect(await hits('global')).toBe(0);
+      expect(await hits('g:global')).toBe(0);
     });
   });
 

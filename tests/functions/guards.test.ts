@@ -1,6 +1,6 @@
 import { describe, it, expect } from 'vitest';
 import { createSqliteD1 } from '../../dev/sqliteD1';
-import { readJsonCapped, clientKey } from '../../functions/_lib/guards';
+import { GLOBAL_KEY, readJsonCapped, clientKey } from '../../functions/_lib/guards';
 import { HttpError } from '../../functions/_lib/http';
 import { GET } from '../../functions/api/admin/spend';
 import { reserve } from '../../functions/_lib/budget';
@@ -40,8 +40,8 @@ describe('readJsonCapped', () => {
 describe('clientKey', () => {
   const h = (o: Record<string, string>) => new Request('http://x/', { headers: o });
   it('prefers cf-connecting-ip, then rightmost x-forwarded-for, then anon', () => {
-    expect(clientKey(h({ 'cf-connecting-ip': '1.1.1.1', 'x-forwarded-for': '2.2.2.2' }))).toBe('1.1.1.1');
-    expect(clientKey(h({ 'x-forwarded-for': 'spoofed, 2.2.2.2, 3.3.3.3' }))).toBe('3.3.3.3');
+    expect(clientKey(h({ 'cf-connecting-ip': '1.1.1.1', 'x-forwarded-for': '2.2.2.2' }))).toBe('ip:1.1.1.1');
+    expect(clientKey(h({ 'x-forwarded-for': 'spoofed, 2.2.2.2, 3.3.3.3' }))).toBe('ip:3.3.3.3');
     expect(clientKey(h({}))).toBe('anon');
   });
   it('uses a well-formed x-client-id as c:<id> when there is no IP (R26)', () => {
@@ -56,12 +56,19 @@ describe('clientKey', () => {
     }
   });
   it('a trusted IP still wins over the client id', () => {
-    expect(clientKey(h({ 'cf-connecting-ip': '1.1.1.1', 'x-client-id': 'A'.repeat(20) }))).toBe('1.1.1.1');
+    expect(clientKey(h({ 'cf-connecting-ip': '1.1.1.1', 'x-client-id': 'A'.repeat(20) }))).toBe('ip:1.1.1.1');
+  });
+  it('namespaces every key, so a forged header can never equal anon, a client id or the global bucket', () => {
+    expect(clientKey(h({ 'x-forwarded-for': 'global' }))).toBe('ip:global');
+    expect(clientKey(h({ 'x-forwarded-for': 'g:global' }))).toBe('ip:g:global');
+    expect(clientKey(h({ 'cf-connecting-ip': 'anon' }))).toBe('ip:anon');
+    expect(clientKey(h({ 'x-forwarded-for': `c:${'A'.repeat(20)}` }))).toBe(`ip:c:${'A'.repeat(20)}`);
+    for (const v of ['global', 'g:global', 'anon']) expect(clientKey(h({ 'x-forwarded-for': v }))).not.toBe(GLOBAL_KEY);
   });
   it('honours TRUSTED_IP_HEADER and ignores cf-connecting-ip then', () => {
     const env = { TRUSTED_IP_HEADER: 'x-real-ip' };
-    expect(clientKey(h({ 'x-real-ip': '9.9.9.9', 'cf-connecting-ip': '1.1.1.1' }), env)).toBe('9.9.9.9');
-    expect(clientKey(h({ 'cf-connecting-ip': '1.1.1.1', 'x-forwarded-for': 'a, 4.4.4.4' }), env)).toBe('4.4.4.4');
+    expect(clientKey(h({ 'x-real-ip': '9.9.9.9', 'cf-connecting-ip': '1.1.1.1' }), env)).toBe('ip:9.9.9.9');
+    expect(clientKey(h({ 'cf-connecting-ip': '1.1.1.1', 'x-forwarded-for': 'a, 4.4.4.4' }), env)).toBe('ip:4.4.4.4');
   });
 });
 

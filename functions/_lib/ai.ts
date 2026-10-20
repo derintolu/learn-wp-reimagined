@@ -1,11 +1,11 @@
 import type { Env, D1Like } from './env';
 import { error, json } from './http';
-import { ANON_LIMIT, CLIENT_LIMIT, GLOBAL_LIMIT, HttpError, RATE_WINDOW_MS, clientKey } from './guards';
+import { ANON_LIMIT, CLIENT_LIMIT, GLOBAL_KEY, GLOBAL_LIMIT, HttpError, RATE_WINDOW_MS, clientKey } from './guards';
 import { ensureSchema } from './db';
 import { rateLimit } from './ratelimit';
 import { reserve, settle } from './budget';
 import { routeFor } from './providers';
-import type { ChatMessage, Task, Usage } from './providers/types';
+import { ProviderHttpError, type ChatMessage, type Task, type Usage } from './providers/types';
 import { getContent } from './content';
 import type { Lesson } from '../../src/shared/types';
 
@@ -37,7 +37,7 @@ export async function preflight(req: Request, env: Env, task: Task): Promise<{ d
   // Per client first, so a client that is already blocked never uses up the global ceiling.
   const allowed =
     (await rateLimit(env.DB, key, now, key === 'anon' ? ANON_LIMIT : CLIENT_LIMIT, RATE_WINDOW_MS)) &&
-    (await rateLimit(env.DB, 'global', now, GLOBAL_LIMIT, RATE_WINDOW_MS));
+    (await rateLimit(env.DB, GLOBAL_KEY, now, GLOBAL_LIMIT, RATE_WINDOW_MS));
   if (!allowed) {
     return error(429, 'rate-limited', 'You are going a little fast. Please wait a few minutes and try again.');
   }
@@ -87,7 +87,8 @@ export async function callChat(
   const maxIn = inputBound(messages);
   const r = await reserve(db, route.model, maxIn, route.maxTokens, new Date());
   if (!r.ok) return fallback(r.reason);
-  let usage: Usage = { inputTokens: maxIn, outputTokens: 0 };
+  // Until the provider answers, assume the worst case: an aborted or timed-out call may still be billed.
+  let usage: Usage = { inputTokens: maxIn, outputTokens: route.maxTokens };
   try {
     const res = await route.provider.chat({
       model: route.model,
@@ -98,7 +99,9 @@ export async function callChat(
     });
     usage = res.usage;
     return { text: res.text };
-  } catch {
+  } catch (e) {
+    // Refund the output only when the provider definitely refused the request.
+    if (e instanceof ProviderHttpError) usage = { inputTokens: maxIn, outputTokens: 0 };
     return fallback('provider-error');
   } finally {
     await settle(db, r.reservation, route.model, usage).catch((e) => console.error('settle failed', (e as Error)?.message));

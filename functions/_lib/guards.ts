@@ -12,6 +12,7 @@ const CLIENT_ID = /^[A-Za-z0-9-]{16,64}$/;
  *     client-controlled);
  *  3. `c:<id>` from the `x-client-id` header, a random id the browser makes once (R26);
  *  4. 'anon', a shared bucket with a lower limit (ANON_LIMIT).
+ * IP keys are `ip:<value>`, so no header value can collide with `anon`, a `c:` id or GLOBAL_KEY.
  *
  * Spacefast passes no visitor IP to functions (Task 15), so there it is the client id.
  * Accepted limitation: the id is client-supplied, so a script can rotate it to get a fresh
@@ -19,10 +20,10 @@ const CLIENT_ID = /^[A-Za-z0-9-]{16,64}$/;
  */
 export function clientKey(req: Request, env?: Pick<Env, 'TRUSTED_IP_HEADER'>): string {
   const trusted = req.headers.get(env?.TRUSTED_IP_HEADER || 'cf-connecting-ip')?.trim();
-  if (trusted) return trusted;
+  if (trusted) return `ip:${trusted}`;
   const parts = req.headers.get('x-forwarded-for')?.split(',') ?? [];
   const last = parts[parts.length - 1]?.trim();
-  if (last) return last;
+  if (last) return `ip:${last}`;
   const id = req.headers.get('x-client-id')?.trim() ?? '';
   return CLIENT_ID.test(id) ? `c:${id}` : 'anon';
 }
@@ -32,6 +33,8 @@ export const CLIENT_LIMIT = 30;
 export const ANON_LIMIT = 10;
 /** Ceiling across every visitor, checked after the per-client limit. */
 export const GLOBAL_LIMIT = 600;
+/** The global bucket's key; namespaced so no client key can equal it. */
+export const GLOBAL_KEY = 'g:global';
 export const RATE_WINDOW_MS = 600_000;
 
 /** Reads a JSON body, enforcing the byte cap while streaming (content-length can lie). */
