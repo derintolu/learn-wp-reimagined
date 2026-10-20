@@ -37,6 +37,20 @@ function usageOf(u: OaiUsage | undefined, inputText: number, out: string): Usage
   };
 }
 
+/**
+ * The live stream sends tokens that look like JSON scalars as JSON values: `"content":3`, `"content":0`,
+ * `"content":true`, `"content":false` (captured 2026-10-19, see the Task 13 report). Chunks with no text
+ * omit `content` entirely, so a present `null` is the literal token "null". Everything becomes text.
+ */
+export function tokenText(delta: { content?: unknown } | undefined): string {
+  if (!delta || !Object.prototype.hasOwnProperty.call(delta, 'content')) return '';
+  const c = delta.content;
+  if (typeof c === 'string') return c;
+  if (c === null) return 'null';
+  if (typeof c === 'number' || typeof c === 'boolean') return String(c);
+  return '';
+}
+
 export function createWorkersAi(accountId: string, token: string): Provider {
   const url = `https://api.cloudflare.com/client/v4/accounts/${accountId}/ai/v1/chat/completions`;
   const headers = { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' };
@@ -65,10 +79,12 @@ export function createWorkersAi(accountId: string, token: string): Provider {
         };
       }
       const data = (await (await call(body, o.signal)).json()) as {
-        choices?: { message?: { content?: string | null } }[];
+        choices?: { message?: { content?: unknown } }[];
         usage?: OaiUsage;
       };
-      const text = data.choices?.[0]?.message?.content ?? '';
+      const content = data.choices?.[0]?.message?.content;
+      // A reply that is only a number or a boolean can come back as a JSON scalar.
+      const text = content === undefined || content === null ? '' : String(content);
       return { text, usage: usageOf(data.usage, estimateInputTokens(o.messages), text) };
     },
     async stream(o: StreamOptions) {
@@ -105,7 +121,7 @@ export function createWorkersAi(accountId: string, token: string): Provider {
               }
               if (value === '[DONE]') continue;
               let j: {
-                choices?: { delta?: { content?: string | number | null } }[];
+                choices?: { delta?: { content?: unknown } }[];
                 usage?: OaiUsage;
                 error?: { type?: string; code?: string | number };
               };
@@ -129,10 +145,8 @@ export function createWorkersAi(accountId: string, token: string): Provider {
                 // Per-chunk deltas have prompt_tokens 0; the cumulative chunk has both counts.
                 if ((j.usage.prompt_tokens ?? 0) > 0 && (j.usage.completion_tokens ?? 0) > 0) finalUsage = j.usage;
               }
-              // The live API sends a token made only of digits as a JSON number (`"content":3`), zero included.
-              const raw = j.choices?.[0]?.delta?.content;
-              const d = typeof raw === 'number' ? String(raw) : raw;
-              if (typeof d === 'string' && d) {
+              const d = tokenText(j.choices?.[0]?.delta);
+              if (d) {
                 text += d;
                 ctl.enqueue(d);
                 return;

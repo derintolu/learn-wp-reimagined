@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, afterEach } from 'vitest';
-import { createWorkersAi } from '../../functions/_lib/providers/workersAi';
+import { createWorkersAi, tokenText } from '../../functions/_lib/providers/workersAi';
 import { createAnthropic } from '../../functions/_lib/providers/anthropic';
 import { routeFor } from '../../functions/_lib/providers';
 import { PRICES } from '../../functions/_lib/config';
@@ -74,6 +74,14 @@ describe('workers-ai adapter', () => {
     expect(body.max_tokens).toBe(50);
     expect(body.response_format.type).toBe('json_schema');
     expect(body.response_format.json_schema.schema).toEqual(schema);
+  });
+  it('chat turns a scalar-only reply (a number or boolean) into text, so .trim() never breaks', async () => {
+    mockFetch(Response.json({ choices: [{ message: { content: 42 } }] }));
+    expect((await cf().chat({ model: 'm', messages: msgs, maxTokens: 5 })).text).toBe('42');
+    mockFetch(Response.json({ choices: [{ message: { content: true } }] }));
+    expect((await cf().chat({ model: 'm', messages: msgs, maxTokens: 5 })).text).toBe('true');
+    mockFetch(Response.json({ choices: [{ message: { content: null } }] }));
+    expect((await cf().chat({ model: 'm', messages: msgs, maxTokens: 5 })).text).toBe('');
   });
   it('estimates usage as ceil(chars/4) when missing', async () => {
     mockFetch(Response.json({ choices: [{ message: { content: 'abcdefghi' } }] }));
@@ -212,6 +220,36 @@ describe('stream robustness', () => {
     expect(out.every((t) => typeof t === 'string')).toBe(true);
     expect(out.join('')).toBe('version 3, #1e0');
     await s.usage;
+  });
+  it('workers-ai: boolean and null tokens (live shape, captured 2026-10-19) arrive as text; chunks without content add nothing', async () => {
+    mockFetch(
+      sse([
+        'data: {"choices":[{"delta":{"role":"assistant","content":""}}]}\n\n',
+        'data: {"choices":[{"delta":{"content":"\\"appearanceTools\\": "}}]}\n\n',
+        'data: {"choices":[{"delta":{"content":true}}]}\n\n',
+        'data: {"choices":[{"delta":{"content":", \\"defaultPalette\\": "}}]}\n\n',
+        'data: {"choices":[{"delta":{"content":false}}]}\n\n',
+        'data: {"choices":[{"delta":{"content":", x: "}}]}\n\n',
+        'data: {"choices":[{"delta":{"content":null}}]}\n\n',
+        'data: {"choices":[{"delta":{}}]}\n\n',
+        'data: {"choices":[],"usage":{"prompt_tokens":5,"completion_tokens":7}}\n\n',
+        'data: [DONE]\n\n',
+      ]),
+    );
+    const s = await cf().stream(args);
+    expect((await drain(s.body)).join('')).toBe('"appearanceTools": true, "defaultPalette": false, x: null');
+    await s.usage;
+  });
+  it('tokenText maps every scalar shape to text', () => {
+    expect(tokenText({ content: 'a' })).toBe('a');
+    expect(tokenText({ content: 0 })).toBe('0');
+    expect(tokenText({ content: 3 })).toBe('3');
+    expect(tokenText({ content: true })).toBe('true');
+    expect(tokenText({ content: false })).toBe('false');
+    expect(tokenText({ content: null })).toBe('null');
+    expect(tokenText({})).toBe('');
+    expect(tokenText(undefined)).toBe('');
+    expect(tokenText({ content: { x: 1 } })).toBe('');
   });
   it('anthropic: split mid-JSON and CRLF', async () => {
     const full = anDelta('Hello').replace(/\n/g, '\r\n');
