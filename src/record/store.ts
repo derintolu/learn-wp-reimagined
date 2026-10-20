@@ -42,6 +42,11 @@ export class RecordManager {
     return this.current;
   }
 
+  /** True once a folder is attached; saves then go to the folder as well as the browser. */
+  get savingToFolder(): boolean {
+    return this.folder !== null;
+  }
+
   /** False when progress is only held in memory, so the UI can warn the learner. */
   get persistent(): boolean {
     return this.primary.kind !== 'memory';
@@ -132,8 +137,16 @@ export class RecordManager {
       const r = this.current;
       const folderSave = this.folder
         ? this.folder.save(r).then(
-            () => { this.folderError = null; },
-            (err) => { this.folderError = err instanceof Error ? err : new Error(String(err)); },
+            () => {
+              if (this.folderError) {
+                this.folderError = null;
+                this.emit();
+              }
+            },
+            (err) => {
+              this.folderError = err instanceof Error ? err : new Error(String(err));
+              this.emit(); // let the UI show the failure
+            },
           )
         : Promise.resolve();
       try {

@@ -152,6 +152,22 @@ describe('RecordManager', () => {
     expect(m.folderError).toBeInstanceOf(Error);
   });
 
+  it('reports savingToFolder once a folder is attached, and tells subscribers when a folder save fails or recovers', async () => {
+    const m = new RecordManager(memStore(), c);
+    expect(m.savingToFolder).toBe(false);
+    const dir = new FakeDir();
+    await m.attachFolder(asHandle(dir));
+    expect(m.savingToFolder).toBe(true);
+    const errors: (Error | null)[] = [];
+    m.subscribe(() => errors.push(m.folderError));
+    dir.failWrites = true;
+    await m.dispatch({ type: 'fileEdited', file: 'a.css', content: 'x' });
+    expect(errors.at(-1)).toBeInstanceOf(Error);
+    dir.failWrites = false;
+    await m.dispatch({ type: 'fileEdited', file: 'a.css', content: 'y' });
+    expect(errors.at(-1)).toBeNull();
+  });
+
   it('restore replaces the record and saves it', async () => {
     const primary = memStore();
     const m = new RecordManager(primary, c);
