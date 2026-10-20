@@ -139,10 +139,15 @@ function LessonView({ lesson, onRestart }: { lesson: LessonT; onRestart: () => v
     el?.scrollIntoView?.({ block: 'start', behavior: 'smooth' });
   }, [step]);
 
+  /** The learner's saved copy of a file, but only if it was edited in this lesson (another lesson's edit is not this lesson's starting point). */
+  const savedHere = (f: string): string | undefined =>
+    has(record.files, f) && record.fileLessons?.[f] === lesson.id ? record.files[f] : undefined;
+
   const lessonFiles = (): Record<string, string> => {
     const out: Record<string, string> = { ...(lesson.starterFiles ?? {}) };
     for (const f of [lesson.checkpoint?.file, ...Object.keys(lesson.starterFiles ?? {})]) {
-      if (f && has(record.files, f)) out[f] = record.files[f];
+      const saved = f ? savedHere(f) : undefined;
+      if (f && saved !== undefined) out[f] = saved;
     }
     return out;
   };
@@ -229,7 +234,7 @@ function LessonView({ lesson, onRestart }: { lesson: LessonT; onRestart: () => v
               <CatchTheBug
                 lesson={lesson}
                 ai={ai}
-                saved={record.files[lesson.bug!.file]}
+                saved={savedHere(lesson.bug!.file)}
                 onEdit={edit}
                 flush={flush}
                 onSolved={onBugSolved}
