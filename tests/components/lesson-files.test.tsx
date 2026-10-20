@@ -143,3 +143,24 @@ describe('Lesson editors only load files saved in that lesson', () => {
     expect(await editorText(/theme\.json/)).toBe(mine);
   });
 });
+
+describe('Path overview after a checkpoint skip branch', () => {
+  it('counts the jumped-over lesson as skipped, so the path is done and the finale button shows', async () => {
+    const path = content.paths['block-theme'];
+    const skip = content.lessons[L1].checkpoint!.branches.find((b) => b.outcome === 'skip')!;
+    let r: LearningRecord = {
+      ...newRecord(),
+      placement: { pathId: 'block-theme', startLessonId: L1, skip: [], reason: 'Picked.' },
+    };
+    r = applyEvent(r, { type: 'checkpointAnswered', lessonId: L1, response: 'I know this', outcome: 'skip', to: skip.to }, content);
+    const jumped = path.lessons.slice(1, path.lessons.indexOf(skip.to));
+    expect(jumped.length).toBeGreaterThan(0);
+    for (const id of path.lessons) if (!jumped.includes(id)) r = applyEvent(r, { type: 'lessonCompleted', lessonId: id }, content);
+    use(r);
+    history.replaceState(null, '', '/path/block-theme');
+    render(<App />);
+    const list = await screen.findByRole('list', { name: /Lessons/ });
+    await waitFor(() => expect(within(list).getAllByText('Skipped')).toHaveLength(jumped.length));
+    expect(screen.getByRole('link', { name: /Go to the finale/ }).getAttribute('href')).toBe('/finale');
+  });
+});

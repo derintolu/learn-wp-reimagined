@@ -2,6 +2,7 @@ import { useRoute } from 'preact-iso';
 import { content } from '../content';
 import { useRecord } from '../record/useRecord';
 import { nextLessonId } from '../shared/engine';
+import { branchSkippedLessons } from '../shared/record';
 import type { PathId } from '../shared/types';
 import { SketchIcon } from '../components/SketchIcon';
 import { Swipe } from '../components/Swipe';
@@ -46,7 +47,8 @@ export function PathOverview() {
   }
 
   const placement = record.placement?.pathId === pathId ? record.placement : undefined;
-  const skip = placement?.skip ?? [];
+  // Skipped by placement, or jumped over by a checkpoint's skip branch.
+  const skip = [...new Set([...(placement?.skip ?? []), ...branchSkippedLessons(record, content, pathId)])];
   const done = new Set(record.completedLessons);
   const here = record.current?.pathId === pathId && path.lessons.includes(record.current.lessonId) ? record.current.lessonId : null;
   const firstOpen = path.lessons.find((id) => !done.has(id) && !skip.includes(id)) ?? null;

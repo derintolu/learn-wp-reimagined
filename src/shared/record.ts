@@ -1,6 +1,6 @@
 import type { Placement } from './engine';
 import type { ContentBundle, Outcome, PathId } from './types';
-import { EXT_FROM_LESSON, EXT_OUTCOME, activityId, buildStatement, validateStatement, type VerbKey, type XapiResult, type XapiStatement } from './xapi';
+import { EXT_FROM_LESSON, EXT_OUTCOME, VERBS, activityId, buildStatement, validateStatement, type VerbKey, type XapiResult, type XapiStatement } from './xapi';
 
 export interface LearningRecord {
   format: 'learn-wp-reimagined/record';
@@ -111,6 +111,26 @@ export function applyEvent(r: LearningRecord, e: RecordEvent, c: ContentBundle):
       break;
   }
   return next;
+}
+
+/**
+ * Lessons of a path that a checkpoint's skip branch jumped over: every lesson strictly between the
+ * checkpoint's lesson and the branch target, read from the record's `branched` statements.
+ */
+export function branchSkippedLessons(r: LearningRecord, c: ContentBundle, pathId: PathId): string[] {
+  const lessons = c.paths[pathId]?.lessons ?? [];
+  const idx = new Map(lessons.map((id, i) => [activityId(['lessons', id]), i] as const));
+  const out = new Set<string>();
+  for (const st of r.statements) {
+    if (st.verb.id !== VERBS.branched.id) continue;
+    const ext = st.result?.extensions;
+    if (ext?.[EXT_OUTCOME] !== 'skip') continue;
+    const from = idx.get(String(ext?.[EXT_FROM_LESSON]));
+    const to = idx.get(st.object.id);
+    if (from === undefined || to === undefined) continue;
+    for (let i = from + 1; i < to; i++) out.add(lessons[i]);
+  }
+  return [...out];
 }
 
 export function parseRecord(raw: unknown): { ok: true; record: LearningRecord } | { ok: false; error: string } {

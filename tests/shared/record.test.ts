@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { resolve } from 'node:path';
 import { buildContent } from '../../scripts/build-content';
-import { applyEvent, newRecord, parseRecord, type RecordEvent } from '../../src/shared/record';
+import { applyEvent, branchSkippedLessons, newRecord, parseRecord, type RecordEvent } from '../../src/shared/record';
 import { XAPI_BASE, validateStatement } from '../../src/shared/xapi';
 
 const c = buildContent(resolve(__dirname, '../fixtures/content'));
@@ -154,5 +154,17 @@ describe('parseRecord', () => {
     expect(parseRecord(g).ok).toBe(false);
     expect(parseRecord('x').ok).toBe(false);
     expect(parseRecord({ ...good(), files: { a: 1 } }).ok).toBe(false);
+  });
+});
+
+describe('branchSkippedLessons', () => {
+  it('lists the lessons a skip branch jumped over, and nothing for advance or review', () => {
+    const L = c.paths['block-theme'].lessons;
+    const skipped = applyEvent(newRecord(), { type: 'checkpointAnswered', lessonId: L[0], response: 'x', outcome: 'skip', to: L[2] }, c);
+    expect(branchSkippedLessons(skipped, c, 'block-theme')).toEqual([L[1]]);
+    const adv = applyEvent(newRecord(), { type: 'checkpointAnswered', lessonId: L[0], response: 'x', outcome: 'advance', to: L[1] }, c);
+    expect(branchSkippedLessons(adv, c, 'block-theme')).toEqual([]);
+    const rev = applyEvent(newRecord(), { type: 'checkpointAnswered', lessonId: L[1], response: 'x', outcome: 'review', to: L[0] }, c);
+    expect(branchSkippedLessons(rev, c, 'block-theme')).toEqual([]);
   });
 });
