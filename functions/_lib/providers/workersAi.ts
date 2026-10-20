@@ -105,7 +105,7 @@ export function createWorkersAi(accountId: string, token: string): Provider {
               }
               if (value === '[DONE]') continue;
               let j: {
-                choices?: { delta?: { content?: string | null } }[];
+                choices?: { delta?: { content?: string | number | null } }[];
                 usage?: OaiUsage;
                 error?: { type?: string; code?: string | number };
               };
@@ -129,8 +129,10 @@ export function createWorkersAi(accountId: string, token: string): Provider {
                 // Per-chunk deltas have prompt_tokens 0; the cumulative chunk has both counts.
                 if ((j.usage.prompt_tokens ?? 0) > 0 && (j.usage.completion_tokens ?? 0) > 0) finalUsage = j.usage;
               }
-              const d = j.choices?.[0]?.delta?.content;
-              if (d) {
+              // The live API sends a token made only of digits as a JSON number (`"content":3`), zero included.
+              const raw = j.choices?.[0]?.delta?.content;
+              const d = typeof raw === 'number' ? String(raw) : raw;
+              if (typeof d === 'string' && d) {
                 text += d;
                 ctl.enqueue(d);
                 return;

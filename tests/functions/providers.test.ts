@@ -195,6 +195,24 @@ describe('stream robustness', () => {
     expect(await drain(s.body)).toEqual(['A', 'B']);
     await s.usage;
   });
+  it('workers-ai: numeric content tokens (live API sends digits as JSON numbers, including 0) arrive as strings', async () => {
+    mockFetch(
+      sse([
+        'data: {"choices":[{"delta":{"content":"version "}}]}\n\n',
+        'data: {"choices":[{"delta":{"content":3}}]}\n\n',
+        'data: {"choices":[{"delta":{"content":", #"}}]}\n\n',
+        'data: {"choices":[{"delta":{"content":1}}]}\n\n',
+        'data: {"choices":[{"delta":{"content":"e"}}]}\n\n',
+        'data: {"choices":[{"delta":{"content":0}}]}\n\n',
+        'data: [DONE]\n\n',
+      ]),
+    );
+    const s = await cf().stream(args);
+    const out = await drain(s.body);
+    expect(out.every((t) => typeof t === 'string')).toBe(true);
+    expect(out.join('')).toBe('version 3, #1e0');
+    await s.usage;
+  });
   it('anthropic: split mid-JSON and CRLF', async () => {
     const full = anDelta('Hello').replace(/\n/g, '\r\n');
     const cut = full.indexOf('text_delta') + 3;
