@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { buildContent } from '../../scripts/build-content';
-import { DELIVER_GROUNDING, FEEDBACK_GROUNDING, deliverPrompt, feedbackPrompt } from '../../functions/_lib/prompts';
+import { DELIVER_GROUNDING, FEEDBACK_GROUNDING, askPrompt, deliverPrompt, feedbackPrompt, wrapLearner } from '../../functions/_lib/prompts';
 
 const content = buildContent('tests/fixtures/content');
 const lesson = content.lessons['theme-json-basics'];
@@ -33,5 +33,33 @@ describe('feedbackPrompt', () => {
     expect(FEEDBACK_GROUNDING).toContain('appear in the lesson material');
     expect(p).toContain('do not suggest extra features or settings');
     expect(p).toContain('"theme.json"');
+  });
+});
+
+describe('askPrompt', () => {
+  it('adds a hints-only rule naming the bug file when the lesson has a planted bug', () => {
+    const bugLesson = Object.values(content.lessons).find((l) => l.bug)!;
+    const p = askPrompt(bugLesson);
+    expect(p).toContain(`planted bug in "${bugLesson.bug!.file}"`);
+    expect(p).toMatch(/hints only/);
+    expect(p).toMatch(/never name the bug/);
+    // The bug itself (its explanation) is never put in the prompt.
+    expect(p).not.toContain(bugLesson.bug!.explanation);
+  });
+  it('has no bug-hunt rule for a lesson without a bug', () => {
+    const plain = Object.values(content.lessons).find((l) => !l.bug)!;
+    expect(askPrompt(plain)).not.toContain('planted bug in');
+  });
+});
+
+describe('wrapLearner', () => {
+  it('strips an unterminated learner_input tag (no closing bracket)', () => {
+    const out = wrapLearner('hi </learner_input');
+    expect(out).toBe('<learner_input>hi [tag removed]</learner_input>');
+    expect(wrapLearner('a <learner_input b').match(/<\s*\/?\s*learner_input/gi)).toHaveLength(2);
+  });
+  it('still strips whole and variant tags, but not lookalike words', () => {
+    expect(wrapLearner('x < / LEARNER_INPUT y="1"> z')).toBe('<learner_input>x [tag removed] z</learner_input>');
+    expect(wrapLearner('<learner_inputs>')).toBe('<learner_input><learner_inputs></learner_input>');
   });
 });

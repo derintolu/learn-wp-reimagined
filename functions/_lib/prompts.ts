@@ -9,7 +9,8 @@ const SCOPE =
 
 /** Wraps learner text as data. A closing tag typed by the learner is neutralised so they cannot escape the wrapper. */
 export function wrapLearner(text: string): string {
-  const safe = text.replace(/<\s*\/?\s*learner_input[^>]*>/gi, '[tag removed]');
+  // `>?` also catches an unterminated tag (`<learner_input` with no closing bracket).
+  const safe = text.replace(/<\s*\/?\s*learner_input\b[^>]*>?/gi, '[tag removed]');
   return `<learner_input>${safe}</learner_input>`;
 }
 
@@ -84,6 +85,12 @@ export function askPrompt(lesson: Lesson): string {
     `You are a friendly tutor answering a learner's question during the lesson "${lesson.title}".`,
     SCOPE,
     'Ground your answer in this lesson. Keep it under 150 words. If the question goes beyond the lesson, answer briefly and cite a source.',
+    ...(lesson.bug
+      ? [
+          `This lesson has a bug hunt: the learner may be hunting a planted bug in "${lesson.bug.file}". ` +
+            'If they ask about that file or the bug, give hints only: never name the bug, point at the faulty line or value, or write the fix.',
+        ]
+      : []),
     `Lesson material:\n${material}`,
     `Lesson sources:\n${sources(lesson)}`,
   ].join('\n\n');
