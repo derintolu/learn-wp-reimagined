@@ -32,6 +32,10 @@ describe('Footer', () => {
     expect(hrefs).toContain('mailto:hello@derintolu.com');
     expect(hrefs).toContain('https://github.com/derintolu/learn-wp-reimagined');
     expect(text).toContain('CC BY-SA 4.0');
+    // JSX drops the line break before the link, so the space must be explicit.
+    const licence = Array.from(container.querySelectorAll('p')).find((p) => p.textContent?.includes('CC BY-SA'))!;
+    expect(licence.textContent).toContain('Lesson content is CC BY-SA 4.0. Code is GPL-2.0-or-later.');
+    expect(licence.textContent).not.toContain('isCC');
     expect(text).toContain('GPL-2.0-or-later');
     expect(screen.getByRole('link', { name: 'CC BY-SA 4.0' }).getAttribute('href')).toBe('https://creativecommons.org/licenses/by-sa/4.0/');
     expect(screen.getByRole('link', { name: 'GPL-2.0-or-later' }).getAttribute('href')).toBe('https://www.gnu.org/licenses/old-licenses/gpl-2.0.html');

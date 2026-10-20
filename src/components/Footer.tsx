@@ -26,7 +26,7 @@ export function Footer() {
               <p class="site-footer__heading">Where the lessons come from</p>
               <p>
                 Lessons are adapted from <a href="https://learn.wordpress.org/">Learn WordPress</a> and the
-                Developer Handbooks, and haven't been reviewed by the Training Team. Lesson content is
+                Developer Handbooks, and haven't been reviewed by the Training Team. Lesson content is{' '}
                 <a href="https://creativecommons.org/licenses/by-sa/4.0/" rel="license">CC BY-SA 4.0</a>. Code is{' '}
                 <a href="https://www.gnu.org/licenses/old-licenses/gpl-2.0.html" rel="license">GPL-2.0-or-later</a>.
               </p>
