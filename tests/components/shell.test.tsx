@@ -33,6 +33,8 @@ describe('Footer', () => {
     expect(hrefs).toContain('https://github.com/derintolu/learn-wp-reimagined');
     expect(text).toContain('CC BY-SA 4.0');
     expect(text).toContain('GPL-2.0-or-later');
+    expect(screen.getByRole('link', { name: 'CC BY-SA 4.0' }).getAttribute('href')).toBe('https://creativecommons.org/licenses/by-sa/4.0/');
+    expect(screen.getByRole('link', { name: 'GPL-2.0-or-later' }).getAttribute('href')).toBe('https://www.gnu.org/licenses/old-licenses/gpl-2.0.html');
   });
 });
 

@@ -76,7 +76,7 @@ beats:
       - `slug` is required. WordPress loads `parts/{slug}.html`, so `"header"` loads `parts/header.html`.
       - `tagName` sets the wrapping element, here `<header>`.
 
-      You can also register parts in theme.json under the top-level `templateParts` key, with `name` (the file name without `.html`), `title` and `area`. The built-in areas are `header`, `footer` and `uncategorized` (shown as "General"). Registering is optional, but it gives the part a proper label in the Site Editor.
+      You can also register parts in theme.json under the top-level `templateParts` key, with `name` (the file name without `.html`), `title` and `area`. WordPress 7.x has four built-in areas: `header`, `footer`, `uncategorized` (shown as "General") and `navigation-overlay` (shown as "Navigation Overlay", new in 7.0). Registering is optional, but it gives the part a proper label in the Site Editor.
     question: Why put the header in a part instead of copying it into every template?
   - id: editor-vs-files
     goal: Know where Site Editor changes go.
@@ -140,8 +140,8 @@ checkpoint:
       message: Keep the Query Loop that lists your posts.
     - type: regex
       file: templates/index.html
-      pattern: 'wp:template-part[^>]*"header"[\s\S]*wp:query'
-      message: Put the header part above the posts, at the top of the file.
+      pattern: '^\s*<!--\s*wp:template-part\s+\{[^}]*"slug"\s*:\s*"header"[^}]*\}\s*/-->[\s\S]*<main\b[\s\S]*<!--\s*wp:query\s'
+      message: Put the header part at the very top of the file, before the main group and the posts.
   branches:
     - outcome: advance
       to: bt-global-styles

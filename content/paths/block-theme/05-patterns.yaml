@@ -66,7 +66,7 @@ beats:
       <!-- wp:pattern {"slug":"my-block-theme/hero"} /-->
       ```
 
-      Default themes lean on this. In Twenty Twenty-Five, the index template, the header part and the footer part are mostly Pattern blocks.
+      Default themes lean on this. In Twenty Twenty-Five, the header and footer parts each contain just one Pattern block, and the index template's main content is two Pattern blocks.
     question: Why might a theme put a section in a pattern and then include it in a template?
 starterFiles:
   patterns/hero.php: |

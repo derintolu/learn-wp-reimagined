@@ -27,7 +27,8 @@ export function Footer() {
               <p>
                 Lessons are adapted from <a href="https://learn.wordpress.org/">Learn WordPress</a> and the
                 Developer Handbooks, and haven't been reviewed by the Training Team. Lesson content is
-                CC BY-SA 4.0. Code is GPL-2.0-or-later.
+                <a href="https://creativecommons.org/licenses/by-sa/4.0/" rel="license">CC BY-SA 4.0</a>. Code is{' '}
+                <a href="https://www.gnu.org/licenses/old-licenses/gpl-2.0.html" rel="license">GPL-2.0-or-later</a>.
               </p>
             </div>
           </div>

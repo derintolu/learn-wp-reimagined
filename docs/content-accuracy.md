@@ -34,6 +34,8 @@ Every factual claim and code sample in `content/paths/block-theme/*.yaml` was ch
   - A theme that isn't a block theme and has no `index.php` gets the `theme_no_index` error. This confirms that **block themes don't need `index.php`**.
   - When the `Name` header is empty, it falls back to the stylesheet (folder) name (`sanitize_header`, `case 'Name'`).
   - `get_block_patterns()` skips a pattern file with no `Slug` ("Slug" field missing) or no `Title` ("Title" field missing), reporting each through `_doing_it_wrong`. An invalid slug is reported but not skipped.
+- https://raw.githubusercontent.com/WordPress/wordpress-develop/7.1/src/wp-includes/block-template-utils.php
+  - `get_allowed_block_template_part_areas()` defines four default areas: `uncategorized` ("General"), `header`, `footer` and `navigation-overlay` ("Navigation Overlay", `WP_TEMPLATE_PART_AREA_NAVIGATION_OVERLAY`). The overlay area is present on the 7.0 branch and absent on 6.9, so it is new in 7.0. (`WP_TEMPLATE_PART_AREA_SIDEBAR` is defined as a constant but is not one of the default areas.)
 - https://raw.githubusercontent.com/WordPress/wordpress-develop/7.1/src/wp-includes/class-wp-theme-json.php
   - `LATEST_SCHEMA = 3`.
   - The palette preset's `value_key` is `'color'`.
@@ -150,10 +152,17 @@ Every factual claim and code sample in `content/paths/block-theme/*.yaml` was ch
 - https://learn.wordpress.org/tutorial/anatomy-of-a-block-theme/
   - **Outdated:** this tutorial says `index.php` "is a required file". Core 7.1 (`is_block_theme()` / `theme_no_index`) proves otherwise, so lesson 1 says so explicitly.
 
+### Make WordPress Themes: review requirements
+- https://make.wordpress.org/themes/handbook/review/required/
+  - "Although any GPL-compatible license is acceptable, using the same license as WordPress — 'GPLv2 or later' — is strongly recommended." Everything in the theme zip must be GPL or GPL-compatible.
+
 ### WordPress.org plugin directory
 - https://wordpress.org/plugins/create-block-theme/ (checked through `api.wordpress.org/plugins/info/1.2/`; version 2.10.2, updated 2026-10-01)
   - The plugin adds a panel in the Editor, opened from an icon to the right of Save.
   - Its options include Save Changes (to Theme), Export Zip, Create Blank Theme, Create Theme Variation, and clone or child theme.
+- https://github.com/WordPress/create-block-theme/blob/trunk/src/plugin-sidebar.js (trunk source, checked 2026-10-19)
+  - The exact UI labels are "Save Changes to Theme", "Create Theme Variation", "Edit Theme Metadata", "View theme.json", "View Custom Styles", "Export Zip", "Create Blank Theme", "Create Theme" (which opens "Clone Theme" and "Create Child Theme") and "Reset Theme".
+  - The panel is a `PluginSidebar` titled "Create Block Theme", using the `tool` (wrench) icon.
 
 ## Accuracy checklist (Step 4)
 
@@ -183,10 +192,14 @@ The final `theme.json` was also audited key by key against the WP 7.1 schema.
   - Block markup anatomy matches Intro to Templates.
   - The hierarchy fallback matches Template Hierarchy.
   - Query Loop markup follows TT5 and core `block.json`, and the `inherit` behaviour is verified in `post-template.php`.
-  - Template Part block attributes, the no-subfolders rule and the default areas match Template Parts.
+  - Template Part block attributes and the no-subfolders rule match Template Parts.
+  - The four default areas (including 7.0's `navigation-overlay`) are verified in core `get_allowed_block_template_part_areas()` (fix round 1).
+  - The header-placement check now requires the part at the top, before `<main>` and the opening `<!-- wp:query`. Discrimination cases are in `tests/content/block-theme-checks.test.ts` (fix round 1).
   - The database-override claim matches Template Parts and Intro to Templates.
 - [x] **04 Global styles** (`bt-global-styles`)
   - The three levels match Styles and Applying Styles.
+  - The pseudo-class list is worded "including" (fix round 1).
+  - The checkpoint also checks for an accent palette entry, so a learner who skipped lesson 2 is told to add one (fix round 1).
   - The element list (the subset taught) and pseudo-classes match Applying Styles and the schema.
   - "Block styles win over element styles" matches Applying Styles.
   - The `var:preset|color|slug` syntax and the CSS-var guidance match Using Presets.
@@ -197,12 +210,15 @@ The final `theme.json` was also audited key by key against the WP 7.1 schema.
   - The Pattern block markup matches Usage in Templates.
   - The TT5 claim is verified against the theme files.
 - [x] **06 Ship your block theme** (`bt-ship-it`)
-  - The Create Block Theme features and panel location match the plugin readme and the Learn lesson.
+  - The Create Block Theme labels (Save Changes to Theme, Export Zip, Create Blank Theme, Create Theme with Clone Theme / Create Child Theme) and the wrench-icon panel match the plugin's trunk source, `plugin-sidebar.js` (fix round 1).
+  - The licence wording ("GPL-compatible, typically GPLv2 or later") matches the theme review requirements (fix round 1).
   - Screenshot size, `readme.txt` and `functions.php` match Theme Structure.
   - Style variations match the Style Variations page.
   - The admin labels "Add Theme > Upload Theme" are verified against core 7.1 (an earlier draft said "Add New Theme", which was corrected).
 
 ## Known discrepancies in upstream sources (for the Training Team)
+
+- The Theme Handbook's Template Parts page lists three default template part areas (`uncategorized`, `header`, `footer`). Since WordPress 7.0, core also registers `navigation-overlay` ("Navigation Overlay") in `get_allowed_block_template_part_areas()`. Lesson 3 lists all four.
 
 - The Theme Handbook's "Introduction to theme.json" says the API "is currently at version 2". The schema (since 6.6) and core (`LATEST_SCHEMA = 3`) say 3. Many handbook code samples still use `"version": 2`.
 - The Learn tutorial "Anatomy of a Block Theme" says `index.php` is required for block themes. Core hasn't required it for block themes since `is_block_theme()` arrived (5.9).
