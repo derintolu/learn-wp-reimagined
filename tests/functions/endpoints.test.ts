@@ -315,7 +315,8 @@ describe('POST /api/tutor', () => {
     const res = await post(tutor, body);
     const text = await res.text();
     expect(text).toBe('data: {"t":"Hi"}\n\ndata: {"error":"provider-error"}\n\n');
-    expect(await spend(month())).toBe(70);
+    // The error path settles without blocking the response (R28).
+    await vi.waitFor(async () => expect(await spend(month())).toBe(70));
   });
 
   it('ask mode requires messages and wraps them in learner_input', async () => {
@@ -361,7 +362,46 @@ describe('POST /api/tutor', () => {
     const reader = res.body!.getReader();
     await reader.read();
     await reader.cancel();
+    await vi.waitFor(async () => expect(await spend(month())).toBe(70));
+    // Exactly once: a second cancel or a late usage never charges again.
+    await reader.cancel().catch(() => {});
+    await new Promise((r) => setTimeout(r, 20));
     expect(await spend(month())).toBe(70);
+  });
+
+  it('cancel does not wait for the database (R28)', async () => {
+    streamOf(['a', 'b', 'c']);
+    const res = await post(tutor, body);
+    const reader = res.body!.getReader();
+    await reader.read();
+    const orig = db.prepare.bind(db);
+    // From here on every spend write hangs forever.
+    db.prepare = ((sql: string) => {
+      if (/^UPDATE spend|^INSERT INTO spend|^SELECT usd_micros/.test(sql)) {
+        const st = { bind: () => st, run: () => new Promise(() => {}), first: () => new Promise(() => {}) };
+        return st;
+      }
+      return orig(sql);
+    }) as typeof db.prepare;
+    const done = await Promise.race([
+      reader.cancel().then(() => 'returned'),
+      new Promise((r) => setTimeout(() => r('blocked'), 200)),
+    ]);
+    expect(done).toBe('returned');
+  });
+
+  it('passes the request signal to the provider, so a client abort stops the provider call (R28)', async () => {
+    streamOf(['a']);
+    const ctl = new AbortController();
+    const res = await tutor(
+      new Request('http://x/api', { method: 'POST', body: JSON.stringify(body), signal: ctl.signal }),
+      { params: {}, env },
+    );
+    const seen = fake.stream.mock.calls[0][0].signal as AbortSignal;
+    expect(seen.aborted).toBe(false);
+    ctl.abort();
+    expect(seen.aborted).toBe(true);
+    await res.body?.cancel();
   });
 
   it('stream() throwing gives 503 fallback and settles', async () => {
@@ -448,6 +488,56 @@ describe('caps, routing and rate limits', () => {
     expect(fake.chat).not.toHaveBeenCalled();
   });
 
+  describe('per-client rate limits (R26)', () => {
+    const A = 'aaaaaaaa-1111-4111-8111-aaaaaaaaaaaa';
+    const B = 'bbbbbbbb-2222-4222-8222-bbbbbbbbbbbb';
+    const asClient = (id: string | undefined) =>
+      placement(
+        new Request('http://x/api', {
+          method: 'POST',
+          body: JSON.stringify({ messages: [{ role: 'user', content: 'hi' }] }),
+          headers: id === undefined ? {} : { 'x-client-id': id },
+        }),
+        { params: {}, env },
+      );
+    const hits = async (k: string) =>
+      Number((await db.prepare('SELECT n FROM hits WHERE k = ?').bind(k).first<{ n: number }>())?.n ?? 0);
+    const seed = async (k: string, n: number) => {
+      const { ensureSchema } = await import('../../functions/_lib/db');
+      await ensureSchema(db);
+      await db.prepare('INSERT INTO hits (k, window_start, n) VALUES (?, ?, ?)').bind(k, Date.now(), n).run();
+    };
+    beforeEach(() => chatReturns(JSON.stringify({ reply: 'ok', done: false })));
+
+    it('separate client ids do not share a limit', async () => {
+      await seed(`c:${A}`, 30);
+      expect((await asClient(A)).status).toBe(429);
+      expect((await asClient(B)).status).toBe(200);
+      expect(await hits(`c:${B}`)).toBe(1);
+    });
+
+    it('an invalid id falls to the anon bucket, which allows 10', async () => {
+      await seed('anon', 9);
+      expect((await asClient('not valid!')).status).toBe(200);
+      expect(await hits('anon')).toBe(10);
+      expect((await asClient('not valid!')).status).toBe(429);
+      expect((await asClient(undefined)).status).toBe(429);
+      expect((await asClient(A)).status).toBe(200);
+    });
+
+    it('the global ceiling of 600 applies to every client, after the per-client check', async () => {
+      await seed('global', 599);
+      expect((await asClient(A)).status).toBe(200);
+      expect(await hits('global')).toBe(600);
+      expect((await asClient(B)).status).toBe(429);
+      // A client blocked by its own limit never uses up the global ceiling.
+      await seed(`c:${'c'.repeat(20)}`, 30);
+      await db.prepare('UPDATE hits SET n = 0 WHERE k = ?').bind('global').run();
+      expect((await asClient('c'.repeat(20))).status).toBe(429);
+      expect(await hits('global')).toBe(0);
+    });
+  });
+
   it('a provider timeout is a 503 provider-error and settles', async () => {
     fake.chat.mockImplementation(
       (o: { signal: AbortSignal }) =>
@@ -464,7 +554,7 @@ describe('caps, routing and rate limits', () => {
       const res = await post(checkpoint, { lessonId: 'theme-json-basics', answer: 'x' });
       expect(res.status).toBe(503);
       expect(await res.json()).toEqual({ fallback: true, reason: 'provider-error' });
-      expect(ms).toEqual([30_000]);
+      expect(ms).toEqual([15_000]);
     } finally {
       spy.mockRestore();
     }

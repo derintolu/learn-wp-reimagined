@@ -1,7 +1,8 @@
 node_modules
 dist
 .data
-.env.server
+.env*
+!.env.server.example
 src/generated
 .superpowers/
 .spacefast/state.json

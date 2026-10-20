@@ -6,7 +6,10 @@ import { Markdown } from './Markdown';
 import { tidy } from './PlacementChat';
 import { SketchIcon } from './SketchIcon';
 
-/** Deliveries already streamed this session, so revisiting a beat never pays for it twice. */
+/**
+ * Deliveries already fetched this session, so revisiting a beat never pays for it twice. A delivery
+ * the learner moved past keeps running and lands here (R28).
+ */
 const delivered = new Map<string, string>();
 const keyOf = (lessonId: string, i: number) => `${lessonId}#${i}`;
 
@@ -15,7 +18,7 @@ export function clearDeliveries() {
   delivered.clear();
 }
 
-type Voice = 'waiting' | 'streaming' | 'tutor' | 'authored';
+type Voice = 'waiting' | 'tutor' | 'authored';
 
 export function BeatView({
   lesson,
@@ -45,7 +48,9 @@ export function BeatView({
   const [failed, setFailed] = useState(false);
 
   const ctl = useRef<AbortController | null>(null);
-  // Paid streams never pile up: stop this one when the beat goes away.
+  // Leaving the lesson stops the delivery. Pressing Next does not (R28): the reply finishes in the
+  // background and is cached, because the platform has already been paid for it and an aborted
+  // request left the worker hanging on Spacefast.
   useEffect(
     () => () => {
       ctl.current?.abort();
@@ -54,13 +59,6 @@ export function BeatView({
   );
 
   useEffect(() => {
-    // The learner moved on mid-stream: stop paying for it and show the authored beat instead.
-    if (!active && ctl.current && !ctl.current.signal.aborted && !delivered.has(key)) {
-      ctl.current.abort();
-      setText('');
-      setVoice('authored');
-      return;
-    }
     if (started.current || ai === 'loading') return;
     if (ai !== 'on' || !active) {
       setVoice('authored');
@@ -73,10 +71,10 @@ export function BeatView({
     setVoice('waiting');
     tutorStream(
       { lessonId: lesson.id, beatIndex: index, mode: 'deliver', messages: [] },
+      // Spacefast buffers the response, so the reply arrives all at once: keep the skeleton up
+      // and show the whole reply when it is complete rather than pretending to stream it.
       (t) => {
         acc += t;
-        setText(acc);
-        setVoice('streaming');
       },
       c.signal,
     ).then(
@@ -87,6 +85,7 @@ export function BeatView({
           return;
         }
         delivered.set(key, acc);
+        setText(acc);
         setVoice('tutor');
       },
       () => {
@@ -99,7 +98,7 @@ export function BeatView({
   }, [ai, active]);
 
   const hid = `beat-${lesson.id}-${index}`;
-  const fromTutor = voice === 'streaming' || voice === 'tutor';
+  const fromTutor = voice === 'tutor';
 
   return (
     <article
@@ -138,18 +137,15 @@ export function BeatView({
         <>
           <div class="beat__tutor">
             <SketchIcon name="tutor" class="beat__avatar" />
-            <div class="beat__voice" aria-live="polite" aria-busy={voice === 'streaming'}>
+            <div class="beat__voice" aria-live="polite">
               <Markdown text={tidy(text)} />
-              {voice === 'streaming' && <span class="beat__caret" aria-hidden="true" />}
             </div>
           </div>
-          {voice === 'tutor' && (
-            <details class="beat__source">
-              <summary>Read the lesson text</summary>
-              <Markdown text={beat.content} />
-              {beat.question && <p class="beat__question-plain">{beat.question}</p>}
-            </details>
-          )}
+          <details class="beat__source">
+            <summary>Read the lesson text</summary>
+            <Markdown text={beat.content} />
+            {beat.question && <p class="beat__question-plain">{beat.question}</p>}
+          </details>
         </>
       )}
 

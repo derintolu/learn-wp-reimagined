@@ -44,6 +44,20 @@ describe('clientKey', () => {
     expect(clientKey(h({ 'x-forwarded-for': 'spoofed, 2.2.2.2, 3.3.3.3' }))).toBe('3.3.3.3');
     expect(clientKey(h({}))).toBe('anon');
   });
+  it('uses a well-formed x-client-id as c:<id> when there is no IP (R26)', () => {
+    const id = '0f8fad5b-d9cb-469f-a165-70867728950e';
+    expect(clientKey(h({ 'x-client-id': id }))).toBe(`c:${id}`);
+    expect(clientKey(h({ 'x-client-id': 'A'.repeat(16) }))).toBe(`c:${'A'.repeat(16)}`);
+    expect(clientKey(h({ 'x-client-id': 'A'.repeat(64) }))).toBe(`c:${'A'.repeat(64)}`);
+  });
+  it('an invalid x-client-id falls to anon', () => {
+    for (const bad of ['short', 'A'.repeat(15), 'A'.repeat(65), 'has space in it here', 'a/b/c/d/e/f/g/h/i/j', 'global:aaaaaaaaaaaaaaa', '']) {
+      expect(clientKey(h({ 'x-client-id': bad }))).toBe('anon');
+    }
+  });
+  it('a trusted IP still wins over the client id', () => {
+    expect(clientKey(h({ 'cf-connecting-ip': '1.1.1.1', 'x-client-id': 'A'.repeat(20) }))).toBe('1.1.1.1');
+  });
   it('honours TRUSTED_IP_HEADER and ignores cf-connecting-ip then', () => {
     const env = { TRUSTED_IP_HEADER: 'x-real-ip' };
     expect(clientKey(h({ 'x-real-ip': '9.9.9.9', 'cf-connecting-ip': '1.1.1.1' }), env)).toBe('9.9.9.9');

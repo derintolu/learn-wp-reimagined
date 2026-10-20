@@ -1,6 +1,6 @@
 import type { Env, D1Like } from './env';
 import { error, json } from './http';
-import { HttpError, clientKey } from './guards';
+import { ANON_LIMIT, CLIENT_LIMIT, GLOBAL_LIMIT, HttpError, RATE_WINDOW_MS, clientKey } from './guards';
 import { ensureSchema } from './db';
 import { rateLimit } from './ratelimit';
 import { reserve, settle } from './budget';
@@ -10,7 +10,8 @@ import { getContent } from './content';
 import type { Lesson } from '../../src/shared/types';
 
 export type Route = NonNullable<ReturnType<typeof routeFor>>;
-export const CHAT_TIMEOUT_MS = 30_000;
+/** Server provider timeout for JSON calls; below the client's 20s (R27) so the server answers first. */
+export const CHAT_TIMEOUT_MS = 15_000;
 export const STREAM_TIMEOUT_MS = 60_000;
 
 export const fallback = (reason: string) => json({ fallback: true, reason }, 503);
@@ -31,7 +32,13 @@ export async function guarded(fn: () => Promise<Response>): Promise<Response> {
 /** ensureSchema, then rate limit, then route lookup. Returns a Response when the request must stop. */
 export async function preflight(req: Request, env: Env, task: Task): Promise<{ db: D1Like; route: Route } | Response> {
   await ensureSchema(env.DB);
-  if (!(await rateLimit(env.DB, clientKey(req, env), Date.now()))) {
+  const key = clientKey(req, env);
+  const now = Date.now();
+  // Per client first, so a client that is already blocked never uses up the global ceiling.
+  const allowed =
+    (await rateLimit(env.DB, key, now, key === 'anon' ? ANON_LIMIT : CLIENT_LIMIT, RATE_WINDOW_MS)) &&
+    (await rateLimit(env.DB, 'global', now, GLOBAL_LIMIT, RATE_WINDOW_MS));
+  if (!allowed) {
     return error(429, 'rate-limited', 'You are going a little fast. Please wait a few minutes and try again.');
   }
   const route = routeFor(task, env);

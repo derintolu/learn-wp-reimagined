@@ -107,16 +107,6 @@
 .beat__avatar { width: 2.4rem; height: 2.4rem; color: var(--wp-blue); margin-top: 0.1rem; }
 .beat__voice { font-size: 1.125rem; line-height: 1.65; }
 .beat__authored { font-size: 1.125rem; line-height: 1.65; }
-.beat__caret {
-  display: inline-block;
-  width: 0.55ch;
-  height: 1.05em;
-  margin-left: 0.1em;
-  vertical-align: -0.15em;
-  background: var(--wp-blue);
-  animation: caret 900ms steps(2) infinite;
-}
-@keyframes caret { 50% { opacity: 0; } }
 .beat__lines { display: grid; gap: 0.6rem; padding-top: 0.5rem; }
 .beat__lines span {
   display: block;
@@ -830,6 +820,6 @@
   }
   .branch-glyph__chosen { animation: none; stroke-dashoffset: 0; }
   .branch-glyph__end { animation: none; transform: none; }
-  .beat__caret, .beat__lines span { animation: none; }
+  .beat__lines span { animation: none; }
   .tutor__panel { transition: none; }
 }

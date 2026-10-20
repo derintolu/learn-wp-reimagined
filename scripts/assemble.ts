@@ -9,7 +9,7 @@
 // We publish `dist/`, which has no node_modules, so each route is pre-bundled into one self-contained
 // ESM file at `dist/functions/api/**.js`.
 import { execFileSync } from 'node:child_process';
-import { copyFileSync, readdirSync, statSync } from 'node:fs';
+import { copyFileSync, readdirSync, rmSync, statSync } from 'node:fs';
 import { join, relative, sep } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { build as esbuild } from 'esbuild';
@@ -48,6 +48,8 @@ export async function bundleFunctions(srcDir: string, outDir: string): Promise<s
       bundle: true,
       format: 'esm',
       platform: 'neutral',
+      // platform 'neutral' sets no mainFields, so an npm dependency without `exports` would not resolve.
+      mainFields: ['module', 'main'],
       target: 'es2022',
       external: [],
       logLevel: 'warning',
@@ -59,6 +61,26 @@ export async function bundleFunctions(srcDir: string, outDir: string): Promise<s
   return written;
 }
 
+/** Every `.env*` file under `dir`, at any depth. */
+export function envFilesIn(dir: string): string[] {
+  const out: string[] = [];
+  const walk = (d: string) => {
+    for (const name of readdirSync(d)) {
+      const full = join(d, name);
+      if (statSync(full).isDirectory()) walk(full);
+      else if (name.startsWith('.env')) out.push(relative(dir, full).split(sep).join('/'));
+    }
+  };
+  walk(dir);
+  return out;
+}
+
+/** Throws if the publish directory holds any `.env*` file: secrets must never be uploaded. */
+export function assertNoEnvFiles(dir: string): void {
+  const found = envFilesIn(dir);
+  if (found.length) throw new Error(`refusing to publish: ${dir} contains ${found.join(', ')}`);
+}
+
 export async function assemble(root: string): Promise<void> {
   execFileSync(process.execPath, ['--import', 'tsx', join(root, 'scripts/build-content.ts')], {
     cwd: root,
@@ -66,8 +88,10 @@ export async function assemble(root: string): Promise<void> {
   });
   await viteBuild({ root, logLevel: 'warn' });
   const dist = join(root, 'dist');
+  rmSync(join(dist, 'functions'), { recursive: true, force: true });
   const files = await bundleFunctions(join(root, 'functions/api'), join(dist, 'functions/api'));
   copyFileSync(join(root, 'sf.jsonc'), join(dist, 'sf.jsonc'));
+  assertNoEnvFiles(dist);
   for (const f of files) console.log(`function: ${relative(root, f)} (${statSync(f).size} bytes)`);
 }
 

@@ -3,18 +3,36 @@ import type { Env } from './env';
 
 export { HttpError };
 
+const CLIENT_ID = /^[A-Za-z0-9-]{16,64}$/;
+
 /**
- * Rate-limit key. Uses the header named by env.TRUSTED_IP_HEADER (default cf-connecting-ip);
- * else the RIGHTMOST x-forwarded-for entry (appended by the nearest proxy; the leftmost is
- * client-controlled); else 'anon'.
+ * Rate-limit key, strongest identity first:
+ *  1. the header named by env.TRUSTED_IP_HEADER (default cf-connecting-ip);
+ *  2. the RIGHTMOST x-forwarded-for entry (appended by the nearest proxy; the leftmost is
+ *     client-controlled);
+ *  3. `c:<id>` from the `x-client-id` header, a random id the browser makes once (R26);
+ *  4. 'anon', a shared bucket with a lower limit (ANON_LIMIT).
+ *
+ * Spacefast passes no visitor IP to functions (Task 15), so there it is the client id.
+ * Accepted limitation: the id is client-supplied, so a script can rotate it to get a fresh
+ * bucket. The global ceiling (GLOBAL_LIMIT) and the $10/day spending cap are the backstop.
  */
 export function clientKey(req: Request, env?: Pick<Env, 'TRUSTED_IP_HEADER'>): string {
   const trusted = req.headers.get(env?.TRUSTED_IP_HEADER || 'cf-connecting-ip')?.trim();
   if (trusted) return trusted;
   const parts = req.headers.get('x-forwarded-for')?.split(',') ?? [];
   const last = parts[parts.length - 1]?.trim();
-  return last || 'anon';
+  if (last) return last;
+  const id = req.headers.get('x-client-id')?.trim() ?? '';
+  return CLIENT_ID.test(id) ? `c:${id}` : 'anon';
 }
+
+/** Per-key AI requests per RATE_WINDOW_MS; requests with no identity share the smaller anon bucket. */
+export const CLIENT_LIMIT = 30;
+export const ANON_LIMIT = 10;
+/** Ceiling across every visitor, checked after the per-client limit. */
+export const GLOBAL_LIMIT = 600;
+export const RATE_WINDOW_MS = 600_000;
 
 /** Reads a JSON body, enforcing the byte cap while streaming (content-length can lie). */
 export async function readJsonCapped<T>(req: Request, maxBytes: number): Promise<T> {

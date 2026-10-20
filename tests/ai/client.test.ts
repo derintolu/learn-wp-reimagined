@@ -1,5 +1,16 @@
-import { describe, it, expect, vi, afterEach } from 'vitest';
-import { getStatus, judge, placement, codeFeedback, tutorStream, JSON_TIMEOUT_MS } from '../../src/ai/client';
+import { describe, it, expect, vi, afterEach, beforeEach } from 'vitest';
+import {
+  getStatus,
+  judge,
+  placement,
+  codeFeedback,
+  tutorStream,
+  clientId,
+  resetClientIdForTests,
+  JSON_TIMEOUT_MS,
+  STATUS_TIMEOUT_MS,
+  STREAM_STALL_MS,
+} from '../../src/ai/client';
 
 afterEach(() => vi.unstubAllGlobals());
 
@@ -106,7 +117,63 @@ describe('ai client', () => {
     const p = tutorStream(REQ, () => {}, ctl.signal);
     ctl.abort();
     await expect(p).rejects.toThrow();
-    expect(f.mock.calls[0][1].signal).toBe(ctl.signal);
+    // The caller's signal is linked to the fetch signal (which also carries the stall timeout).
+    expect(f.mock.calls[0][1].signal!.aborted).toBe(true);
+  });
+});
+
+describe('client id (R26)', () => {
+  const REQ = { lessonId: 'l', beatIndex: 0, mode: 'deliver' as const, messages: [] };
+  const store = new Map<string, string>();
+  beforeEach(() => {
+    store.clear();
+    vi.stubGlobal('localStorage', {
+      getItem: (k: string) => store.get(k) ?? null,
+      setItem: (k: string, v: string) => void store.set(k, v),
+    });
+  });
+  afterEach(() => {
+    resetClientIdForTests();
+    vi.unstubAllGlobals();
+  });
+
+  it('is made once, kept in localStorage, and matches the server pattern', () => {
+    const a = clientId();
+    expect(a).toMatch(/^[A-Za-z0-9-]{16,64}$/);
+    expect(store.get('lwr-client-id')).toBe(a);
+    resetClientIdForTests();
+    expect(clientId()).toBe(a);
+  });
+
+  it('falls back to a stable in-memory id when localStorage throws', () => {
+    vi.stubGlobal('localStorage', {
+      getItem: () => {
+        throw new Error('denied');
+      },
+      setItem: () => {
+        throw new Error('denied');
+      },
+    });
+    const a = clientId();
+    expect(a).toMatch(/^[A-Za-z0-9-]{16,64}$/);
+    expect(clientId()).toBe(a);
+  });
+
+  it('is sent as x-client-id on every /api call, including the tutor stream', async () => {
+    const f = vi.fn(async (url: string) =>
+      url === '/api/tutor' ? sseResponse(['data: [DONE]\n\n']) : json(url === '/api/status' ? { ai: 'on' } : {}),
+    );
+    vi.stubGlobal('fetch', f);
+    await getStatus();
+    await placement([]);
+    await judge('l', 'a');
+    await codeFeedback({ lessonId: 'l', file: 'f', code: 'c', passed: true, failedMessages: [] });
+    await tutorStream(REQ, () => {});
+    const id = clientId();
+    expect(f.mock.calls.map((c) => c[0])).toEqual(['/api/status', '/api/placement', '/api/checkpoint', '/api/code-feedback', '/api/tutor']);
+    for (const c of f.mock.calls as unknown as [string, RequestInit][]) {
+      expect((c[1].headers as Record<string, string>)['x-client-id']).toBe(id);
+    }
   });
 });
 
@@ -126,16 +193,16 @@ describe('ai client timeouts (R20)', () => {
   }
   afterEach(() => vi.useRealTimers());
 
-  it('exports an ~8s timeout', () => {
-    expect(JSON_TIMEOUT_MS).toBeGreaterThanOrEqual(5000);
-    expect(JSON_TIMEOUT_MS).toBeLessThanOrEqual(10000);
+  it('uses 5s for status and 20s for JSON AI calls (R27)', () => {
+    expect(STATUS_TIMEOUT_MS).toBe(5000);
+    expect(JSON_TIMEOUT_MS).toBe(20_000);
   });
 
   it('getStatus gives up after the timeout and reports off', async () => {
     vi.useFakeTimers();
     const f = hangingFetch();
     const p = getStatus();
-    await vi.advanceTimersByTimeAsync(JSON_TIMEOUT_MS + 10);
+    await vi.advanceTimersByTimeAsync(STATUS_TIMEOUT_MS + 10);
     expect(await p).toMatchObject({ ai: 'off' });
     expect(f.mock.calls[0][1]?.signal).toBeInstanceOf(AbortSignal);
   });
@@ -188,5 +255,52 @@ describe('ai client timeouts (R20)', () => {
     const p = judge('l', 'a');
     await vi.advanceTimersByTimeAsync(JSON_TIMEOUT_MS + 10);
     expect(await p).toMatchObject({ ok: false, fallback: true });
+  });
+});
+
+describe('tutor stream stall timeout (R28)', () => {
+  afterEach(() => {
+    vi.useRealTimers();
+    vi.unstubAllGlobals();
+  });
+
+  it('rejects with reason timeout after STREAM_STALL_MS with no bytes', async () => {
+    vi.useFakeTimers();
+    vi.stubGlobal(
+      'fetch',
+      vi.fn(
+        (_u: string, init?: RequestInit) =>
+          new Promise<Response>((_, rej) => init?.signal?.addEventListener('abort', () => rej(new Error('aborted')))),
+      ),
+    );
+    const p = tutorStream({ lessonId: 'l', beatIndex: 0, mode: 'deliver', messages: [] }, () => {});
+    const caught = p.catch((e: { reason?: string }) => e);
+    await vi.advanceTimersByTimeAsync(STREAM_STALL_MS - 100);
+    let settled = false;
+    void caught.then(() => (settled = true));
+    await Promise.resolve();
+    expect(settled).toBe(false);
+    await vi.advanceTimersByTimeAsync(200);
+    expect(await caught).toMatchObject({ name: 'AiFallbackError', reason: 'timeout' });
+  });
+
+  it('a body that stalls after headers also times out', async () => {
+    vi.useFakeTimers();
+    vi.stubGlobal(
+      'fetch',
+      vi.fn(async (_u: string, init?: RequestInit) => {
+        const body = new ReadableStream({
+          start(c) {
+            init?.signal?.addEventListener('abort', () => c.error(new DOMException('aborted', 'AbortError')));
+          },
+        });
+        return new Response(body, { status: 200 });
+      }),
+    );
+    const caught = tutorStream({ lessonId: 'l', beatIndex: 0, mode: 'deliver', messages: [] }, () => {}).catch(
+      (e: { reason?: string }) => e,
+    );
+    await vi.advanceTimersByTimeAsync(STREAM_STALL_MS + 10);
+    expect(await caught).toMatchObject({ reason: 'timeout' });
   });
 });

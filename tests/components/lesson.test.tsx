@@ -627,25 +627,64 @@ describe('Fix round 1', () => {
     expect(viewed).toEqual([{ type: 'beatViewed', lessonId: 'theme-json-basics', beatIndex: 1 }]);
   });
 
-  it('moving on mid-delivery aborts the stream and shows the authored beat', async () => {
+  it('pressing Next mid-delivery does not abort it; the reply lands on the earlier beat when it arrives (R28)', async () => {
     status.mockResolvedValue({ ai: 'on' });
     const signals: AbortSignal[] = [];
+    let finishFirst!: () => void;
     stream.mockImplementation(
       (req, onText, signal) =>
-        new Promise((_res, rej) => {
+        new Promise<void>((res, rej) => {
           signals.push(signal!);
-          if (req.beatIndex === 0) onText('Half way through');
           signal!.addEventListener('abort', () => rej(new Error('aborted')));
+          if (req.beatIndex === 0) {
+            onText('Half way through');
+            finishFirst = () => {
+              onText(', and now done.');
+              res();
+            };
+          }
         }),
     );
     use(managerWith(recordAt('theme-json-basics', 0)));
     open('/learn/theme-json-basics');
     const beat = (await screen.findByRole('heading', { name: /control centre/ })).closest('[data-beat]') as HTMLElement;
-    await waitFor(() => expect(beat.textContent).toContain('Half way through'));
-    fireEvent.click(screen.getByRole('button', { name: /^Next/ }));
-    await waitFor(() => expect(signals[0].aborted).toBe(true));
-    await waitFor(() => expect(beat.textContent).toContain('declares your palette'));
+    await waitFor(() => expect(signals).toHaveLength(1));
+    // No fake token streaming: partial text is not shown, the skeleton stays up.
     expect(beat.textContent).not.toContain('Half way through');
+    expect(beat.textContent).toContain('The tutor is preparing this step');
+    fireEvent.click(screen.getByRole('button', { name: /^Next/ }));
+    await screen.findByRole('heading', { name: 'Add a colour palette.' });
+    await new Promise((r) => setTimeout(r, 20));
+    expect(signals[0].aborted).toBe(false);
+    act(() => finishFirst());
+    await waitFor(() => expect(beat.textContent).toContain('Half way through, and now done.'));
+  });
+
+  it('leaving the lesson aborts an in-flight delivery (R28)', async () => {
+    status.mockResolvedValue({ ai: 'on' });
+    const signals: AbortSignal[] = [];
+    stream.mockImplementation(
+      (_req, _onText, signal) =>
+        new Promise<void>((_res, rej) => {
+          signals.push(signal!);
+          signal!.addEventListener('abort', () => rej(new Error('aborted')));
+        }),
+    );
+    use(managerWith(recordAt('theme-json-basics', 0)));
+    const { unmount } = open('/learn/theme-json-basics');
+    await waitFor(() => expect(signals).toHaveLength(1));
+    unmount();
+    await waitFor(() => expect(signals[0].aborted).toBe(true));
+  });
+
+  it('a stalled delivery (tutorStream timeout) falls back to the authored beat (R28)', async () => {
+    status.mockResolvedValue({ ai: 'on' });
+    const { AiFallbackError } = await vi.importActual<typeof import('../../src/ai/client')>('../../src/ai/client');
+    stream.mockRejectedValue(new AiFallbackError('timeout'));
+    use(managerWith(recordAt('theme-json-basics', 0)));
+    open('/learn/theme-json-basics');
+    const beat = (await screen.findByRole('heading', { name: /control centre/ })).closest('[data-beat]') as HTMLElement;
+    await waitFor(() => expect(beat.textContent).toContain('The tutor dropped out for a moment'));
   });
 
   it('unmounting aborts a pending judge call', async () => {
