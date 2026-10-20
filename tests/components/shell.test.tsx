@@ -50,7 +50,7 @@ describe('Branding', () => {
 
 describe('CapNotice', () => {
   it('hides "Continue in your own agent" while the agent feature is off, but keeps the message', () => {
-    const { container } = render(<CapNotice state="capped" />);
+    const { container } = render(<CapNotice status={{ ai: 'capped', reason: 'day-cap' }} />);
     expect(screen.queryByRole('link', { name: 'Continue in your own agent' })).toBeNull();
     expect((container.textContent ?? '').length).toBeGreaterThan(20);
     expect(container.querySelector('[role="status"]')).toBeTruthy();

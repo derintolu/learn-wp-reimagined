@@ -7,7 +7,11 @@ export interface TutorRequest { lessonId: string; beatIndex: number; mode: 'deli
 
 /** Thrown by tutorStream when the AI is unavailable or fails; the UI shows its no-AI version. */
 export class AiFallbackError extends Error {
-  constructor(public reason?: string) {
+  /** `serverMessage` is the server's friendly text, e.g. for a 429. */
+  constructor(
+    public reason?: string,
+    public serverMessage?: string,
+  ) {
     super(`AI unavailable${reason ? `: ${reason}` : ''}`);
     this.name = 'AiFallbackError';
   }
@@ -168,7 +172,10 @@ export async function tutorStream(req: TutorRequest, onText: (t: string) => void
     } catch {
       throw fail('network');
     }
-    if (!res.ok || !res.body) throw new AiFallbackError((await failure(res)).reason);
+    if (!res.ok || !res.body) {
+      const f = await failure(res);
+      throw new AiFallbackError(f.reason, f.message);
+    }
 
     const reader = res.body.getReader();
     const dec = new TextDecoder();

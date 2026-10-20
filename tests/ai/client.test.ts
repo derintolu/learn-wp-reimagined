@@ -57,6 +57,22 @@ describe('ai client', () => {
     });
   });
 
+  it('a 429 carries the reason and the server message, for JSON calls and for tutorStream', async () => {
+    const body = { error: { code: 'rate-limited', message: 'You are going a little fast.' } };
+    stubFetch(() => json(body, 429));
+    expect(await judge('l', 'a')).toEqual({ ok: false, fallback: true, reason: 'rate-limited', message: 'You are going a little fast.' });
+    const err = await tutorStream({ lessonId: 'l', beatIndex: 0, mode: 'ask', messages: [] }, () => {}).catch((e) => e);
+    expect(err.reason).toBe('rate-limited');
+    expect(err.serverMessage).toBe('You are going a little fast.');
+  });
+
+  it('a 503 cap carries its reason', async () => {
+    stubFetch(() => json({ fallback: true, reason: 'day-cap' }, 503));
+    expect(await placement([])).toMatchObject({ ok: false, reason: 'day-cap' });
+    const err = await tutorStream({ lessonId: 'l', beatIndex: 0, mode: 'ask', messages: [] }, () => {}).catch((e) => e);
+    expect(err.reason).toBe('day-cap');
+  });
+
   it('getStatus falls back to off', async () => {
     stubFetch(json({ ai: 'on' }));
     expect(await getStatus()).toEqual({ ai: 'on' });

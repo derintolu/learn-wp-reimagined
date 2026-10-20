@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from 'preact/hooks';
 import { codeFeedback } from '../ai/client';
-import type { AiState } from '../ai/useAiStatus';
+import { reportAiFailure, type AiState } from '../ai/useAiStatus';
 import { getRecordManager } from '../record/useRecord';
 import { runChecks } from '../shared/checks';
 import type { Lesson } from '../shared/types';
@@ -55,6 +55,7 @@ export function CatchTheBug({
       setNoteBusy(true);
       codeFeedback({ lessonId: lesson.id, file: bug.file, code, passed: run.passed, failedMessages }, ctl.current.signal).then((res) => {
         if (mine !== seq.current || ctl.current.signal.aborted) return;
+        if (!res.ok) reportAiFailure(res);
         setNoteBusy(false);
         setNote(res.ok && typeof res.data.feedback === 'string' && res.data.feedback.trim() ? res.data.feedback : null);
       });

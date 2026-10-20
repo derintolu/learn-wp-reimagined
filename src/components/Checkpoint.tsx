@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from 'preact/hooks';
 import { codeFeedback, judge } from '../ai/client';
-import type { AiState } from '../ai/useAiStatus';
+import { reportAiFailure, type AiState } from '../ai/useAiStatus';
 import { content } from '../content';
 import { getRecordManager } from '../record/useRecord';
 import { runChecks } from '../shared/checks';
@@ -84,6 +84,7 @@ function FreeText({ lesson, ai, onResolve }: { lesson: Lesson; ai: AiState; onRe
     busyRef.current = false;
     setBusy(false);
     // Never trust the response's own "to" or message: look the outcome up in the authored branches.
+    if (!res.ok) reportAiFailure(res);
     const branch = res.ok ? branchFor(lesson.id, res.data.outcome) : null;
     if (!res.ok || !branch) {
       setFallback(true);
@@ -104,7 +105,7 @@ function FreeText({ lesson, ai, onResolve }: { lesson: Lesson; ai: AiState; onRe
   if (!aiReady || fallback) {
     return (
       <>
-        {!aiReady && <CapNotice state={ai === 'capped' ? 'capped' : 'off'} />}
+        {!aiReady && <CapNotice />}
         <p class="checkpoint__note">
           {aiReady
             ? "The tutor couldn't read your answer just now. Pick the one closest to what you'd say."
@@ -210,6 +211,7 @@ function Code({
       onFeedback(null, run.passed);
       codeFeedback({ lessonId: lesson.id, file, code, passed: run.passed, failedMessages }, ctl.current.signal).then((res) => {
         if (mine !== seq.current || ctl.current.signal.aborted) return;
+        if (!res.ok) reportAiFailure(res);
         setNoteBusy(false);
         const text = res.ok && typeof res.data.feedback === 'string' && res.data.feedback.trim() ? res.data.feedback : null;
         setNote(text);

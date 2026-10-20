@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from 'preact/hooks';
 import { useLocation } from 'preact-iso';
-import { getStatus, placement as askPlacement, type ChatMessage } from '../ai/client';
+import { placement as askPlacement, type ChatMessage } from '../ai/client';
+import { reportAiFailure, useAiStatus } from '../ai/useAiStatus';
 import { content } from '../content';
 import { getRecordManager } from '../record/useRecord';
 import type { Placement } from '../shared/engine';
@@ -18,7 +19,6 @@ export const MAX_CHARS = 600;
 const PLACEHOLDER = "Not sure where to start? Tell me what you're building.";
 const GREETING = "Hi, I'm your tutor. Tell me a little about you, and I'll point you at the right first lesson.";
 
-type AiState = 'loading' | 'on' | 'capped' | 'off';
 type Mode = 'chat' | 'placed' | 'choose';
 
 const anyLive = () => PATH_ORDER.some((id) => content.paths[id].status === 'live');
@@ -32,7 +32,7 @@ const lessonTitle = (id: string) => content.lessons[id]?.title ?? id;
 
 export function PlacementChat() {
   const { route } = useLocation();
-  const [ai, setAi] = useState<AiState>('loading');
+  const { ai } = useAiStatus();
   const [mode, setMode] = useState<Mode>(anyLive() ? 'chat' : 'choose');
   const [messages, setMessages] = useState<ChatMessage[]>([]);
   const [draft, setDraft] = useState('');
@@ -55,16 +55,15 @@ export function PlacementChat() {
 
   useEffect(() => {
     alive.current = true;
-    getStatus().then((s) => {
-      if (!alive.current) return;
-      setAi(s.ai);
-      // Only swap an untouched chat; never pull a card or chooser out from under the learner.
-      if (s.ai !== 'on') setMode((m) => (m === 'chat' ? 'choose' : m));
-    });
     return () => {
       alive.current = false;
     };
   }, []);
+
+  // AI off or capped (at load or mid-chat): only swap the chat; never pull a card or chooser out from under the learner.
+  useEffect(() => {
+    if (ai !== 'on' && ai !== 'loading') setMode((m) => (m === 'chat' ? 'choose' : m));
+  }, [ai]);
 
   // Keep the newest message in view inside the log.
   useEffect(() => {
@@ -99,6 +98,7 @@ export function PlacementChat() {
     // The learner skipped to the chooser while we waited: the late reply must not override that.
     if (modeRef.current !== 'chat') return;
     moveFocus.current = true;
+    if (!res.ok) reportAiFailure(res);
     if (!res.ok || typeof res.data?.reply !== 'string' || !res.data.reply.trim()) {
       setNote(
         "The tutor can't answer right now, so let's do this the quick way. Pick the path that sounds most like you.",
@@ -265,7 +265,7 @@ export function PlacementChat() {
 
       {ready && mode === 'choose' && (
         <div class="placement__choose">
-          {capped && <CapNotice state={ai === 'capped' ? 'capped' : 'off'} />}
+          {capped && <CapNotice />}
           {note && <p class="placement__note">{note}</p>}
           <div class="choices" role="group" aria-labelledby="choose-title">
             <h2 id="choose-title" class="choices__title" tabIndex={-1} ref={focusRef as never}>

@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from 'preact/hooks';
 import { tutorStream } from '../ai/client';
-import type { AiState } from '../ai/useAiStatus';
+import { reportAiError, type AiState } from '../ai/useAiStatus';
 import type { Lesson } from '../shared/types';
 import { Markdown } from './Markdown';
 import { tidy } from './PlacementChat';
@@ -88,8 +88,9 @@ export function BeatView({
         setText(acc);
         setVoice('tutor');
       },
-      () => {
+      (e: unknown) => {
         if (c.signal.aborted) return;
+        reportAiError(e);
         setText('');
         setFailed(true);
         setVoice('authored');

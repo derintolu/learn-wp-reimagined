@@ -86,7 +86,7 @@ function LessonHeader({ lesson, reached: raw }: { lesson: LessonT; reached: numb
 
 function LessonView({ lesson, onRestart }: { lesson: LessonT; onRestart: () => void }) {
   const { manager, record } = useRecord();
-  const ai = useAiStatus();
+  const { ai } = useAiStatus();
   const n = lesson.beats.length;
   const [step, setStepState] = useState<number | null>(null);
   // Mirrors step synchronously, so a double click on Next can't advance (and record) twice.

@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from 'preact/hooks';
 import { tutorStream, type ChatMessage } from '../ai/client';
-import type { AiState } from '../ai/useAiStatus';
+import { reportAiError, type AiState } from '../ai/useAiStatus';
 import type { Lesson } from '../shared/types';
 import { Bubble } from './Bubble';
 import { CapNotice } from './CapNotice';
@@ -127,8 +127,9 @@ export function Tutor({ lesson, beatIndex, ai }: { lesson: Lesson; beatIndex: nu
       if (c.signal.aborted) return;
       if (!acc.trim()) throw new Error('empty');
       setTurns([...base, { role: 'assistant', content: acc }]);
-    } catch {
+    } catch (e) {
       if (c.signal.aborted) return;
+      reportAiError(e);
       setTurns([
         ...base.slice(0, -1),
         { role: 'user', content: q, failed: true },
@@ -245,7 +246,7 @@ export function Tutor({ lesson, beatIndex, ai }: { lesson: Lesson; beatIndex: nu
         )}
         {(ai === 'capped' || ai === 'off') && (
           <div class="tutor__cap">
-            <CapNotice state={ai} />
+            <CapNotice />
           </div>
         )}
       </div>
