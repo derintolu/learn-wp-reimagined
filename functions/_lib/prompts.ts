@@ -47,14 +47,20 @@ export function judgePrompt(lesson: Lesson): string {
 }
 
 /**
- * Delivery is grounded in the beat alone: the model rephrases, it never adds technical detail.
- * (A thin beat once led the model to invent theme.json palette keys.)
+ * The model rephrases authored material; it never adds technical detail of its own.
+ * (A thin beat once led the model to invent theme.json palette keys.) Path-neutral on purpose.
  */
-export const DELIVER_GROUNDING =
-  'Use ONLY the facts, file names, keys, block markup, code and settings that appear in the beat material. ' +
-  'Do not introduce any other theme.json keys, settings, functions, hooks, blocks or file names, even ones you believe are correct. ' +
-  'Copy any code, keys and values exactly as they appear in the beat material; never rename or "correct" them. ' +
-  'If the learner would need anything beyond the beat material, say "see the linked source" instead of adding it.';
+export function grounding(material: string): string {
+  return (
+    `Use ONLY the facts, file names, keys, block markup, code and settings that appear in the ${material}. ` +
+    'Do not introduce any other keys, settings, functions, hooks, blocks or file names, even ones you believe are correct. ' +
+    `Copy any code, keys and values exactly as they appear in the ${material}; never rename or "correct" them. ` +
+    `If the learner would need anything beyond the ${material}, say "see the linked source" instead of adding it.`
+  );
+}
+
+export const DELIVER_GROUNDING = grounding('beat material');
+export const FEEDBACK_GROUNDING = grounding('lesson material');
 
 export function deliverPrompt(lesson: Lesson, beat: Beat): string {
   return [
@@ -84,10 +90,14 @@ export function askPrompt(lesson: Lesson): string {
 }
 
 export function feedbackPrompt(lesson: Lesson, file: string): string {
+  const material = lesson.beats.map((b) => `## ${b.goal}\n${b.content}`).join('\n\n');
   return [
     `You give short feedback on the learner's code in "${file}" for the lesson "${lesson.title}".`,
     SCOPE,
-    'You are told which authored checks failed. Explain in one to three sentences what to look at next, as a hint. Never paste corrected code or the full solution.',
+    'You are told which authored checks failed. Explain in one to three sentences what to look at next, as a hint. Never paste corrected code or the full solution. ' +
+      'If every check passed, say briefly what the learner got right; do not suggest extra features or settings.',
+    FEEDBACK_GROUNDING,
+    `Lesson material:\n${material}`,
     `Lesson sources:\n${sources(lesson)}`,
   ].join('\n\n');
 }

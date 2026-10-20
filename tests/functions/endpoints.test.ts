@@ -240,16 +240,30 @@ describe('POST /api/code-feedback', () => {
     expect(await spend(month())).toBe(0);
   });
 
-  it('still adds a note once the planted bug is fixed', async () => {
+  it('decides the bug file on the server: a client claiming passed with buggy code gets no AI call', async () => {
+    const res = await post(codeFeedback, {
+      lessonId: 'patterns',
+      file: 'patterns/hero.php',
+      code: '<?php /** Title: Hero\n Slug: hero */ ?>',
+      passed: true,
+      failedMessages: [],
+    });
+    expect(await res.json()).toEqual({ feedback: '' });
+    expect(fake.chat).not.toHaveBeenCalled();
+  });
+
+  it('adds a note once the server-run fix checks pass, even if the client says it failed', async () => {
     chatReturns('Nice catch.');
     const res = await post(codeFeedback, {
       lessonId: 'patterns',
       file: 'patterns/hero.php',
-      code: 'fixed',
-      passed: true,
-      failedMessages: [],
+      code: '<?php /** Title: Hero\n Slug: mytheme/hero */ ?>',
+      passed: false,
+      failedMessages: ['Namespace the slug.'],
     });
     expect(await res.json()).toEqual({ feedback: 'Nice catch.' });
+    const user = (fake.chat.mock.calls[0][0].messages as { role: string; content: string }[]).find((m) => m.role === 'user')!.content;
+    expect(user).toContain('Checks all passed.');
   });
 
   it('413 over 8000 chars', async () => {

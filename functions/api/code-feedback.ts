@@ -3,6 +3,7 @@ import { json } from '../_lib/http';
 import { HttpError, readJsonCapped } from '../_lib/guards';
 import { callChat, checkText, guarded, lessonOf, preflight } from '../_lib/ai';
 import { feedbackPrompt, wrapLearner } from '../_lib/prompts';
+import { runChecks } from '../../src/shared/checks';
 
 export const POST: Handler = (req, { env }) =>
   guarded(async () => {
@@ -22,14 +23,17 @@ export const POST: Handler = (req, { env }) =>
     // Client text never reaches the model: keep only messages that exactly match an authored check.
     const authored = new Set([...(cp?.checks ?? []), ...(lesson.bug?.fixChecks ?? [])].map((c) => c.message));
     const failed = b.failedMessages.filter((m): m is string => typeof m === 'string' && authored.has(m));
-    // An unfixed planted bug gets no AI note: in live testing the model named the bug despite the rules.
-    // The authored hints (after two misses) are the only help, so the hunt can't be given away.
-    if (!b.passed && lesson.bug?.file === file && cp?.file !== file) return json({ feedback: '' });
+    // The planted bug's file: the server decides from the fix checks and never trusts the client's `passed`.
+    // Until they pass there is no AI note at all (live, the model named the bug despite the rules), so the
+    // authored hints are the only help and the hunt can't be given away.
+    const bugFile = lesson.bug?.file === file;
+    const passed = bugFile ? runChecks(lesson.bug!.fixChecks, { [file]: code }).passed : b.passed;
+    if (bugFile && !passed) return json({ feedback: '' });
     const out = await callChat(pre, [
       { role: 'system', content: feedbackPrompt(lesson, file) },
       {
         role: 'user',
-        content: `Checks ${b.passed ? 'all passed' : 'failed'}.\nFailed check messages:\n${failed.map((m) => `- ${m}`).join('\n') || '(none)'}\n\n${wrapLearner(code)}`,
+        content: `Checks ${passed ? 'all passed' : 'failed'}.\nFailed check messages:\n${failed.map((m) => `- ${m}`).join('\n') || '(none)'}\n\n${wrapLearner(code)}`,
       },
     ]);
     if (out instanceof Response) return out;
