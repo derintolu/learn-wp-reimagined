@@ -15,16 +15,20 @@ import { memoryManager } from '../components/helpers';
 afterEach(() => {
   cleanup();
   setRecordManager(null);
+  vi.restoreAllMocks();
+  vi.useRealTimers();
 });
 
-async function withLessons(ids: string[], files: Record<string, string> = {}) {
+async function withLessons(ids: string[], files: Record<string, [string, string]> = {}) {
   const m = memoryManager(content);
   await m.init();
-  for (const [file, c] of Object.entries(files)) await m.dispatch({ type: 'fileEdited', file, content: c });
+  for (const [file, [c, lessonId]] of Object.entries(files)) await m.dispatch({ type: 'fileEdited', file, content: c, lessonId });
   for (const id of ids) await m.dispatch({ type: 'lessonCompleted', lessonId: id });
   setRecordManager(m);
   return m;
 }
+
+const STYLE = '/*\nTheme Name: Ada Theme\nText Domain: my-block-theme\n*/\n';
 
 describe('Finale page', () => {
   it('celebrates the lessons the learner completed', async () => {
@@ -32,33 +36,69 @@ describe('Finale page', () => {
     render(<Finale />);
     expect(screen.getByRole('heading', { level: 1 }).textContent).toBe('You made it this far');
     await waitFor(() => expect(screen.getByText(/2 of 6 lessons/)).toBeTruthy());
-    const done = screen.getByRole('list', { name: 'Lessons in your theme' });
-    expect(done.textContent).toContain(content.lessons['bt-what-is-a-block-theme'].title);
-    expect(done.textContent).toContain(content.lessons['bt-templates-and-parts'].title);
+    const list = screen.getByRole('list', { name: 'Lessons in your theme' });
+    expect(list.textContent).toContain(content.lessons['bt-what-is-a-block-theme'].title);
+    expect(list.textContent).toContain(content.lessons['bt-templates-and-parts'].title);
+  });
+
+  it('has different copy when no lessons are complete', async () => {
+    await withLessons([]);
+    render(<Finale />);
+    await waitFor(() => expect(screen.getByText(/finished reference theme/)).toBeTruthy());
+    expect(screen.queryByText(/and you wrote it/)).toBeNull();
   });
 
   it('opens the learner’s own theme in Playground', async () => {
-    await withLessons([], { 'style.css': '/*\nTheme Name: Ada Theme\n*/' });
+    await withLessons([], { 'style.css': [STYLE, 'bt-what-is-a-block-theme'] });
     render(<Finale />);
     const link = await screen.findByRole('link', { name: /Open in WordPress Playground/ });
-    const href = link.getAttribute('href')!;
-    expect(href.startsWith('https://playground.wordpress.net/#')).toBe(true);
+    expect(link.getAttribute('href')!.startsWith('https://playground.wordpress.net/#')).toBe(true);
     await waitFor(() => expect(decodeURIComponent(link.getAttribute('href')!)).toContain('Theme Name: Ada Theme'));
     expect(link.getAttribute('target')).toBe('_blank');
     expect(link.getAttribute('rel')).toContain('noopener');
   });
 
-  it('downloads the theme as a zip', async () => {
+  it('marks only edits that were used, and explains the ones that were replaced', async () => {
+    const bug = content.lessons['bt-what-is-a-block-theme'].bug!.code.replace('"value"', '"color"');
+    await withLessons([], { 'style.css': [STYLE, 'bt-what-is-a-block-theme'], 'theme.json': [bug, 'bt-what-is-a-block-theme'] });
+    render(<Finale />);
+    const files = await screen.findByRole('list', { name: 'Files in your theme' });
+    await waitFor(() => expect(files.querySelectorAll('.chip').length).toBe(1));
+    expect(files.querySelector('li:has(.chip) code')!.textContent).toBe('style.css');
+    expect(screen.getByText(/We used the finished version of theme\.json because/)).toBeTruthy();
+  });
+
+  it('falls back to the zip when the theme is too big for a link', async () => {
+    const base = JSON.parse(content.lessons['bt-global-styles'].starterFiles!['theme.json']);
+    const huge = JSON.stringify({
+      ...base,
+      settings: { ...base.settings, custom: { notes: 'x'.repeat(210_000) } },
+      styles: {
+        color: { background: 'var:preset|color|base', text: 'var:preset|color|contrast' },
+        elements: { link: { color: { text: 'var:preset|color|accent' } } },
+      },
+    });
+    await withLessons([], { 'theme.json': [huge, 'bt-global-styles'] });
+    render(<Finale />);
+    await waitFor(() => expect(screen.getByText(/too big for a Playground link/)).toBeTruthy());
+    expect(screen.queryByRole('link', { name: /Open in WordPress Playground/ })).toBeNull();
+  });
+
+  it('downloads the theme as a zip and revokes the URL later', async () => {
     await withLessons([]);
-    const create = vi.fn(() => 'blob:x');
-    const revoke = vi.fn();
-    Object.assign(URL, { createObjectURL: create, revokeObjectURL: revoke });
+    const create = vi.spyOn(URL, 'createObjectURL').mockReturnValue('blob:x');
+    const revoke = vi.spyOn(URL, 'revokeObjectURL').mockImplementation(() => {});
+    vi.useFakeTimers();
     render(<Finale />);
     fireEvent.click(screen.getByRole('button', { name: /Download your theme \(\.zip\)/ }));
     expect(create).toHaveBeenCalledTimes(1);
-    const blob = (create.mock.calls[0] as unknown as [Blob])[0];
+    const blob = create.mock.calls[0][0] as Blob;
     expect(blob.type).toBe('application/zip');
     expect(blob.size).toBeGreaterThan(100);
+    vi.advanceTimersByTime(1000);
+    expect(revoke).not.toHaveBeenCalled();
+    vi.advanceTimersByTime(10_000);
+    expect(revoke).toHaveBeenCalledWith('blob:x');
   });
 
   it('says what to do next and that this is an unofficial concept', () => {

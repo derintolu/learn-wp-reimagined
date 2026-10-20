@@ -17,18 +17,23 @@ export function flushPendingEdits(): void {
 }
 
 /**
- * Debounced `fileEdited` dispatches, one timer per file.
+ * Debounced `fileEdited` dispatches, one timer per file, each tagged with the lesson
+ * it was typed in (the finale uses it to pick the learner's edit, R25).
  * `flush()` writes any pending edit straight away (before a check, and on unmount).
  */
-export function useFileEdits(): { edit: (file: string, content: string) => void; flush: () => void } {
-  const pending = useRef(new Map<string, { content: string; timer: ReturnType<typeof setTimeout> }>());
+export function useFileEdits(lessonId?: string): { edit: (file: string, content: string) => void; flush: () => void } {
+  const pending = useRef(new Map<string, { content: string; lessonId?: string; timer: ReturnType<typeof setTimeout> }>());
+  const lesson = useRef(lessonId);
+  lesson.current = lessonId;
 
   const write = (file: string) => {
     const p = pending.current.get(file);
     if (!p) return;
     clearTimeout(p.timer);
     pending.current.delete(file);
-    getRecordManager().dispatch({ type: 'fileEdited', file, content: p.content }).catch(() => {});
+    getRecordManager()
+      .dispatch(p.lessonId ? { type: 'fileEdited', file, content: p.content, lessonId: p.lessonId } : { type: 'fileEdited', file, content: p.content })
+      .catch(() => {});
   };
   const flush = () => {
     for (const file of [...pending.current.keys()]) write(file);
@@ -36,7 +41,7 @@ export function useFileEdits(): { edit: (file: string, content: string) => void;
   const edit = (file: string, content: string) => {
     const prev = pending.current.get(file);
     if (prev) clearTimeout(prev.timer);
-    pending.current.set(file, { content, timer: setTimeout(() => write(file), FILE_EDIT_DEBOUNCE_MS) });
+    pending.current.set(file, { content, lessonId: lesson.current, timer: setTimeout(() => write(file), FILE_EDIT_DEBOUNCE_MS) });
   };
 
   useEffect(() => {

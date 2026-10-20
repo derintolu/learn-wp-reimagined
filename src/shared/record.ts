@@ -12,6 +12,8 @@ export interface LearningRecord {
   current?: { pathId: PathId; lessonId: string; beatIndex: number };
   completedLessons: string[];
   files: Record<string, string>;
+  /** The lesson each file in `files` was last edited in. Missing for edits made before this existed. */
+  fileLessons?: Record<string, string>;
   statements: XapiStatement[];
 }
 
@@ -20,7 +22,7 @@ export type RecordEvent =
   | { type: 'beatViewed'; lessonId: string; beatIndex: number }
   | { type: 'checkpointAnswered'; lessonId: string; response: string; outcome: Outcome; to: string }
   | { type: 'codeChecked'; lessonId: string; file: string; passed: boolean }
-  | { type: 'fileEdited'; file: string; content: string }
+  | { type: 'fileEdited'; file: string; content: string; lessonId?: string }
   | { type: 'lessonCompleted'; lessonId: string };
 
 export function newRecord(): LearningRecord {
@@ -92,9 +94,15 @@ export function applyEvent(r: LearningRecord, e: RecordEvent, c: ContentBundle):
     case 'codeChecked':
       add(e.passed ? 'passed' : 'failed', ['lessons', e.lessonId, 'files', e.file], `${title(e.lessonId)}: ${e.file}`, e.lessonId, { success: e.passed });
       break;
-    case 'fileEdited':
+    case 'fileEdited': {
       next.files[e.file] = e.content;
+      const fl = { ...r.fileLessons };
+      if (e.lessonId) fl[e.file] = e.lessonId;
+      else delete fl[e.file];
+      if (Object.keys(fl).length) next.fileLessons = fl;
+      else delete next.fileLessons;
       break;
+    }
     case 'lessonCompleted':
       if (!next.completedLessons.includes(e.lessonId)) {
         next.completedLessons.push(e.lessonId);
@@ -120,6 +128,10 @@ export function parseRecord(raw: unknown): { ok: true; record: LearningRecord } 
   const f = r.files;
   if (f === null || typeof f !== 'object' || Array.isArray(f) || !Object.values(f).every((v) => typeof v === 'string')) {
     return fail('files must map names to strings');
+  }
+  const fl = r.fileLessons;
+  if (fl !== undefined && (fl === null || typeof fl !== 'object' || Array.isArray(fl) || !Object.values(fl).every((v) => typeof v === 'string'))) {
+    return fail('fileLessons must map names to lesson ids');
   }
   if (!Array.isArray(r.statements)) return fail('statements must be an array');
   for (let i = 0; i < r.statements.length; i++) {

@@ -3,6 +3,7 @@ import { join, relative } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { parse } from 'yaml';
 import type { z } from 'zod';
+import { runChecks } from '../src/shared/checks';
 import { ContentBundleSchema, LessonSchema, PathIdSchema, PathSchema } from '../src/shared/schema';
 import type { ContentBundle, Lesson, Path, PathId } from '../src/shared/types';
 
@@ -66,6 +67,24 @@ export function buildContent(dir: string): ContentBundle {
     if (p.status !== 'live') continue;
     const n = p.lessons.filter((id) => lessons[id].checkpoint).length;
     if (n < 2) fail(pathFile[pid]!, `a live path needs at least 2 checkpoints across its lessons, found ${n}`);
+    // The finished reference theme must pass every check any lesson runs on its files.
+    const finalFiles = p.finalFiles ?? {};
+    for (const [file, text] of Object.entries(finalFiles)) {
+      if (file.endsWith('.json')) {
+        try {
+          JSON.parse(text);
+        } catch (e) {
+          fail(pathFile[pid]!, `finalFiles ${file} is not valid JSON: ${(e as Error).message}`);
+        }
+      }
+    }
+    for (const id of p.lessons) {
+      const l = lessons[id];
+      const checks = [...(l.checkpoint?.checks ?? []), ...(l.bug?.fixChecks ?? [])].filter((ch) => Object.prototype.hasOwnProperty.call(finalFiles, ch.file));
+      for (const { check, passed } of runChecks(checks, finalFiles).results) {
+        if (!passed) fail(pathFile[pid]!, `finalFiles ${check.file} fails a check in lesson "${id}": ${check.message}`);
+      }
+    }
   }
 
   const bundle = ContentBundleSchema.safeParse({ paths, lessons });

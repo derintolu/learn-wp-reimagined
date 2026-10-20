@@ -22,6 +22,7 @@ JSON, `format: "learn-wp-reimagined/record"`, `version: 1`:
 | `current?` | `{ pathId, lessonId, beatIndex }` resume point |
 | `completedLessons` | Lesson ids |
 | `files` | The learner's edited files, name to content |
+| `fileLessons?` | File name to the lesson id it was last edited in. Set by `fileEdited` events that carry a `lessonId`. Records without it (from before this field existed) are still valid. The finale uses it to decide whether an edit is used (R25). It is not part of xAPI. |
 | `statements` | xAPI statements, in order |
 
 A record with `version` greater than 1 is rejected ("This record was made by a newer version"). Statements are validated on load.

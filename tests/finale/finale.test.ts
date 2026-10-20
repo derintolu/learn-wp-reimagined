@@ -1,60 +1,119 @@
 import { describe, expect, it } from 'vitest';
 import { strFromU8, unzipSync } from 'fflate';
 import { buildContent } from '../../scripts/build-content';
-import { newRecord, type LearningRecord } from '../../src/shared/record';
-import { buildThemeFiles, themeZip, THEME_SLUG } from '../../src/finale/themeZip';
+import { applyEvent, newRecord, type LearningRecord, type RecordEvent } from '../../src/shared/record';
+import { buildThemeFiles, resolveTheme, themeZip, THEME_SLUG } from '../../src/finale/themeZip';
 import { PLAYGROUND_URL_LIMIT, playgroundBlueprint, playgroundUrl } from '../../src/finale/playground';
 
 const c = buildContent('content');
 const L = c.lessons;
-const rec = (files: Record<string, string>, completed: string[] = []): LearningRecord => ({
-  ...newRecord(),
-  files,
-  completedLessons: completed,
+const FINAL = c.paths['block-theme'].finalFiles!;
+
+/** A record built by the real reducer, as the app would. */
+const play = (...events: RecordEvent[]): LearningRecord => events.reduce((r, e) => applyEvent(r, e, c), newRecord());
+const edit = (file: string, content: string, lessonId?: string): RecordEvent => ({ type: 'fileEdited', file, content, lessonId });
+const done = (lessonId: string): RecordEvent => ({ type: 'lessonCompleted', lessonId });
+const skipped = (lessonId: string, to: string): RecordEvent => ({ type: 'checkpointAnswered', lessonId, response: 'skip', outcome: 'skip', to });
+
+const l1Fixed = L['bt-what-is-a-block-theme'].bug!.code.replace('"value"', '"color"');
+/** What a learner who passes lesson 4's checkpoint writes. */
+const l4Answer = JSON.stringify(
+  {
+    ...JSON.parse(L['bt-global-styles'].starterFiles!['theme.json']),
+    styles: {
+      color: { background: 'var:preset|color|base', text: 'var:preset|color|contrast' },
+      elements: { link: { color: { text: 'var:preset|color|accent' } } },
+    },
+  },
+  null,
+  2,
+);
+
+describe('finalFiles (the finished reference theme)', () => {
+  it('is a complete, styled theme by default', () => {
+    const files = buildThemeFiles(c, newRecord());
+    expect(Object.keys(files).sort()).toEqual(
+      ['parts/footer.html', 'parts/header.html', 'patterns/hero.php', 'style.css', 'templates/index.html', 'theme.json'],
+    );
+    const tj = JSON.parse(files['theme.json']);
+    expect(tj.version).toBe(3);
+    expect(tj.settings.layout).toEqual({ contentSize: '40rem', wideSize: '64rem' });
+    expect(tj.settings.useRootPaddingAwareAlignments).toBe(true);
+    expect(tj.settings.typography.fontFamilies[0].fontFamily).toMatch(/system-ui|sans-serif/);
+    expect(tj.styles.typography.fontFamily).toBe(`var:preset|font-family|${tj.settings.typography.fontFamilies[0].slug}`);
+    expect(Object.keys(tj.styles.spacing.padding).sort()).toEqual(['bottom', 'left', 'right', 'top']);
+    expect(tj.styles.color).toEqual({ background: 'var:preset|color|base', text: 'var:preset|color|contrast' });
+    expect(tj.styles.elements.link.color.text).toBe('var:preset|color|accent');
+    const index = files['templates/index.html'];
+    expect(index).toMatch(/^<!-- wp:template-part \{"slug":"header"/);
+    expect(index).toContain('<!-- wp:pattern {"slug":"my-block-theme/hero"} /-->');
+    expect(index).toContain('<!-- wp:query ');
+    expect(index).toContain('"slug":"footer"');
+    expect(resolveTheme(c, newRecord()).used).toEqual([]);
+  });
 });
 
-const decode = (url: string) => JSON.parse(decodeURIComponent(url.slice(url.indexOf('#') + 1)));
-
-describe('buildThemeFiles (R24 merge order)', () => {
-  it('builds the whole theme from the starters, later lessons winning', () => {
-    const files = buildThemeFiles(c, rec({}));
-    expect(Object.keys(files).sort()).toEqual(
-      ['parts/header.html', 'patterns/hero.php', 'style.css', 'templates/index.html', 'theme.json'],
+describe('resolveTheme (R25 merge rule)', () => {
+  it('fixing the lesson 1 bug then skipping lessons 2 and 4 still ships the finished theme.json', () => {
+    const r = play(
+      edit('theme.json', l1Fixed, 'bt-what-is-a-block-theme'),
+      done('bt-what-is-a-block-theme'),
+      skipped('bt-style-css-and-theme-json', 'bt-templates-and-parts'),
+      skipped('bt-templates-and-parts', 'bt-global-styles'),
+      skipped('bt-global-styles', 'bt-patterns'),
     );
-    // L4's theme.json (with layout) beats L1/L2's
-    expect(files['theme.json']).toBe(L['bt-global-styles'].starterFiles!['theme.json']);
-    expect(files['style.css']).toBe(L['bt-what-is-a-block-theme'].starterFiles!['style.css']);
+    expect(r.fileLessons).toEqual({ 'theme.json': 'bt-what-is-a-block-theme' });
+    const t = resolveTheme(c, r);
+    expect(t.files['theme.json']).toBe(FINAL['theme.json']);
+    const tj = JSON.parse(t.files['theme.json']);
+    expect(tj.settings.layout.contentSize).toBe('40rem');
+    expect(tj.styles.typography.fontFamily).toBeTruthy();
+    expect(t.used).toEqual([]);
+    expect(t.replaced).toEqual([{ file: 'theme.json', message: expect.stringContaining('lesson 4') }]);
   });
 
-  it("the learner's edit overrides every starter", () => {
-    const mine = '{ "version": 3, "settings": { "layout": { "contentSize": "42rem" } } }';
-    const files = buildThemeFiles(c, rec({ 'theme.json': mine }));
-    expect(files['theme.json']).toBe(mine);
+  it('an unfixed planted bug falls back to the finished file', () => {
+    const t = resolveTheme(c, play(edit('patterns/hero.php', L['bt-patterns'].bug!.code, 'bt-patterns')));
+    expect(t.files['patterns/hero.php']).toBe(FINAL['patterns/hero.php']);
+    expect(t.replaced[0].message).toBe("We used the finished version of patterns/hero.php because your copy didn't pass lesson 5's checks.");
   });
 
-  it('a learner who skipped lesson 2 still gets a full theme with their other edits', () => {
-    const css = L['bt-what-is-a-block-theme'].starterFiles!['style.css'].replace('Author: You', 'Author: Ada');
-    const hero = '<?php /** Title: Mine */ ?>\n<!-- wp:paragraph --><p>Mine</p><!-- /wp:paragraph -->';
-    const files = buildThemeFiles(
-      c,
-      rec({ 'style.css': css, 'patterns/hero.php': hero }, ['bt-what-is-a-block-theme', 'bt-templates-and-parts', 'bt-global-styles', 'bt-patterns']),
+  it('invalid JSON falls back, even when the edit was made in the right lesson', () => {
+    const t = resolveTheme(c, play(edit('theme.json', l4Answer.replace('"styles"', 'styles'), 'bt-global-styles')));
+    expect(t.files['theme.json']).toBe(FINAL['theme.json']);
+    expect(t.used).toEqual([]);
+  });
+
+  it("a valid theme.json made in lesson 4 is the learner's", () => {
+    const t = resolveTheme(c, play(edit('theme.json', l4Answer, 'bt-global-styles')));
+    expect(t.files['theme.json']).toBe(l4Answer);
+    expect(t.used).toEqual(['theme.json']);
+    expect(t.replaced).toEqual([]);
+  });
+
+  it('a lesson 3 index edit is checked against lesson 3', () => {
+    const good = FINAL['templates/index.html'].replace('Nothing to show yet.', 'No posts yet.');
+    expect(resolveTheme(c, play(edit('templates/index.html', good, 'bt-templates-and-parts'))).files['templates/index.html']).toBe(good);
+    const noHeader = L['bt-templates-and-parts'].starterFiles!['templates/index.html'];
+    expect(resolveTheme(c, play(edit('templates/index.html', noHeader, 'bt-templates-and-parts'))).files['templates/index.html']).toBe(
+      FINAL['templates/index.html'],
     );
-    expect(files['style.css']).toContain('Author: Ada');
-    expect(files['patterns/hero.php']).toBe(hero);
-    expect(files['theme.json']).toBe(L['bt-global-styles'].starterFiles!['theme.json']);
-    expect(files['templates/index.html']).toBe(L['bt-templates-and-parts'].starterFiles!['templates/index.html']);
   });
 
-  it('drops record paths that would escape the theme folder', () => {
-    const files = buildThemeFiles(c, rec({ '../evil.php': 'x', '/etc/passwd': 'x', 'a/../../b': 'x', 'parts/footer.html': 'ok' }));
-    expect(files['parts/footer.html']).toBe('ok');
-    expect(Object.keys(files).some((k) => k.includes('..') || k.startsWith('/'))).toBe(false);
+  it('legacy edits with no lessonId count as the last owning lesson and must still pass', () => {
+    expect(resolveTheme(c, play(edit('theme.json', l4Answer))).files['theme.json']).toBe(l4Answer);
+    expect(resolveTheme(c, play(edit('theme.json', l1Fixed))).files['theme.json']).toBe(FINAL['theme.json']);
+  });
+
+  it('only includes files the block theme path owns', () => {
+    const t = resolveTheme(c, play(edit('app.js', 'x'), edit('../evil.php', 'x'), edit('/etc/passwd', 'x')));
+    expect(Object.keys(t.files).sort()).toEqual(Object.keys(FINAL).sort());
   });
 });
 
 describe('themeZip', () => {
   it('puts every file under my-block-theme/', () => {
-    const files = buildThemeFiles(c, rec({}));
+    const files = buildThemeFiles(c, newRecord());
     const out = unzipSync(themeZip(files));
     expect(Object.keys(out)).toContain(`${THEME_SLUG}/style.css`);
     expect(Object.keys(out)).toContain(`${THEME_SLUG}/theme.json`);
@@ -64,7 +123,7 @@ describe('themeZip', () => {
 });
 
 describe('playground blueprint', () => {
-  const files = buildThemeFiles(c, rec({}));
+  const files = buildThemeFiles(c, newRecord());
 
   it('writes every file into the theme folder, then activates it', () => {
     const bp = playgroundBlueprint(files);
@@ -75,9 +134,7 @@ describe('playground blueprint', () => {
       Object.keys(files).map((f) => `/wordpress/wp-content/themes/my-block-theme/${f}`).sort(),
     );
     for (const w of writes) expect(w.data).toBe(files[w.path!.replace('/wordpress/wp-content/themes/my-block-theme/', '')]);
-    const last = bp.steps[bp.steps.length - 1];
-    expect(last).toEqual({ step: 'activateTheme', themeFolderName: 'my-block-theme' });
-    // every directory exists before its files are written
+    expect(bp.steps[bp.steps.length - 1]).toEqual({ step: 'activateTheme', themeFolderName: 'my-block-theme' });
     const mk = bp.steps.findIndex((s) => s.step === 'mkdir' && s.path === '/wordpress/wp-content/themes/my-block-theme/patterns');
     const wr = bp.steps.findIndex((s) => s.step === 'writeFile' && s.path?.endsWith('patterns/hero.php'));
     expect(mk).toBeGreaterThanOrEqual(0);
@@ -87,31 +144,23 @@ describe('playground blueprint', () => {
   it('encodes the blueprint in the URL fragment and round-trips', () => {
     const url = playgroundUrl(files);
     expect(url.startsWith('https://playground.wordpress.net/#')).toBe(true);
-    expect(decode(url)).toEqual(playgroundBlueprint(files));
+    expect(JSON.parse(decodeURIComponent(url.slice(url.indexOf('#') + 1)))).toEqual(playgroundBlueprint(files));
   });
 
-  it('keeps the starter theme and a large realistic theme under the URL limit', () => {
-    expect(playgroundUrl(files).length).toBeLessThan(PLAYGROUND_URL_LIMIT);
-    // A learner who wrote a lot: full styles in theme.json, a bigger index, a footer and two more patterns.
-    const big = buildThemeFiles(
+  it('keeps a large realistic theme, using only files the path owns, under the URL limit', () => {
+    expect(PLAYGROUND_URL_LIMIT).toBe(200_000);
+    const longIndex = FINAL['templates/index.html'].replace('Nothing to show yet.', 'Nothing to show yet. '.repeat(40));
+    const bigJson = JSON.stringify({ ...JSON.parse(l4Answer), settings: { ...JSON.parse(l4Answer).settings, custom: { notes: 'x'.repeat(4000) } } }, null, 2);
+    const big = resolveTheme(
       c,
-      rec({
-        'theme.json': files['theme.json'].replace(
-          /\n}\s*$/,
-          `,\n  "styles": ${JSON.stringify({
-            color: { background: 'var(--wp--preset--color--base)', text: 'var(--wp--preset--color--contrast)' },
-            typography: { fontSize: '1.125rem', lineHeight: '1.6' },
-            elements: { link: { color: { text: 'var(--wp--preset--color--accent)' } }, heading: { typography: { fontWeight: '700' } } },
-            blocks: { 'core/site-title': { typography: { fontSize: '1.5rem' } }, 'core/post-title': { typography: { fontSize: '2rem' } } },
-          }, null, 2)}\n}\n`,
-        ),
-        'templates/index.html': `<!-- wp:template-part {"slug":"header"} /-->\n${files['templates/index.html']}\n<!-- wp:template-part {"slug":"footer"} /-->\n`,
-        'templates/single.html': files['templates/index.html'].repeat(2),
-        'parts/footer.html': files['parts/header.html'].repeat(2),
-        'patterns/cta.php': files['patterns/hero.php'].repeat(2),
-        'patterns/about.php': files['patterns/hero.php'].repeat(2),
-      }),
+      play(
+        edit('theme.json', bigJson, 'bt-global-styles'),
+        edit('templates/index.html', longIndex, 'bt-templates-and-parts'),
+        edit('parts/header.html', FINAL['parts/header.html'].repeat(3), 'bt-templates-and-parts'),
+        edit('patterns/hero.php', FINAL['patterns/hero.php'] + '\n<!-- wp:paragraph --><p>More.</p><!-- /wp:paragraph -->\n'.repeat(30), 'bt-patterns'),
+      ),
     );
-    expect(playgroundUrl(big).length).toBeLessThan(PLAYGROUND_URL_LIMIT);
+    expect(big.used.sort()).toEqual(['parts/header.html', 'patterns/hero.php', 'templates/index.html', 'theme.json']);
+    expect(playgroundUrl(big.files).length).toBeLessThan(PLAYGROUND_URL_LIMIT);
   });
 });

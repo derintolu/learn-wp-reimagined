@@ -10,6 +10,10 @@ sources:
     url: https://developer.wordpress.org/themes/global-settings-and-styles/styles/using-presets/
   - title: Global settings and styles (Learn WordPress lesson)
     url: https://learn.wordpress.org/lesson/global-settings-and-styles/
+  - title: Typography settings (Theme Handbook)
+    url: https://developer.wordpress.org/themes/global-settings-and-styles/settings/typography/
+  - title: theme.json reference, version 3 (Block Editor Handbook)
+    url: https://developer.wordpress.org/block-editor/reference-guides/theme-json-reference/theme-json-living/
 beats:
   - id: three-levels
     goal: Know the three levels you can style.
@@ -78,6 +82,11 @@ beats:
       ```
 
       Behind the scenes, WordPress turns each preset into a CSS custom property, such as `--wp--preset--color--base`. In theme.json, use the `var:preset|…` form, because it shows up correctly in the Styles interface. Save the `var(--wp--preset--color--base)` form for when you're writing actual CSS.
+
+      The same idea works beyond colour. The finished theme at the end of this path uses two more:
+
+      - **A font preset.** Register a font stack in `settings.typography.fontFamilies` (each entry has a `name`, a `slug` and a `fontFamily`), then apply it with `var:preset|font-family|{slug}` in `styles.typography.fontFamily`. A system stack such as `system-ui, sans-serif` needs no font files.
+      - **Root padding.** `styles.spacing.padding` sets the padding around the whole site. Declare `top`, `right`, `bottom` and `left` separately and turn on `settings.useRootPaddingAwareAlignments`, so full-width blocks reach the screen edges while their content keeps that padding.
     question: Why does referencing a preset make a later redesign easier?
 starterFiles:
   theme.json: |

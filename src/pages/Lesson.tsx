@@ -102,7 +102,7 @@ function LessonView({ lesson, onRestart }: { lesson: LessonT; onRestart: () => v
   const focusNext = useRef(false);
   const activeHeading = useRef<HTMLHeadingElement>(null);
   const postRef = useRef<HTMLDivElement>(null);
-  const { edit, flush } = useFileEdits();
+  const { edit, flush } = useFileEdits(lesson.id);
 
   useEffect(() => {
     if (lesson.bug || lesson.checkpoint?.kind === 'code') preloadCodeEditor().catch(() => {});

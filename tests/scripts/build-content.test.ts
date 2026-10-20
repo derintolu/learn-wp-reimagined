@@ -68,4 +68,35 @@ describe('buildContent', () => {
     edit(join(dir, 'paths/block-theme/03-patterns.yaml'), 'id: patterns\n', 'id: theme-json-basics\n');
     expect(() => buildContent(dir)).toThrow(/duplicate/i);
   });
+
+  describe('finalFiles', () => {
+    const REAL = join(__dirname, '../../content');
+    const copyReal = () => {
+      const dir = mkdtempSync(join(tmpdir(), 'content-'));
+      cpSync(REAL, dir, { recursive: true });
+      return dir;
+    };
+
+    it('the real block theme path has finalFiles that pass every lesson check', () => {
+      expect(Object.keys(buildContent(REAL).paths['block-theme'].finalFiles ?? {})).toContain('theme.json');
+    });
+
+    it('throws naming the lesson and check when finalFiles fail a checkpoint check', () => {
+      const dir = copyReal();
+      edit(join(dir, 'paths/block-theme/path.yaml'), '"contentSize": "40rem"', '"contentSize": "41rem"');
+      expect(() => buildContent(dir)).toThrow(/path\.yaml.*finalFiles.*theme\.json.*bt-style-css-and-theme-json/);
+    });
+
+    it('throws when finalFiles fail a planted bug fixCheck', () => {
+      const dir = copyReal();
+      edit(join(dir, 'paths/block-theme/path.yaml'), 'Slug: my-block-theme/hero', 'Slug: other/hero');
+      expect(() => buildContent(dir)).toThrow(/finalFiles.*patterns\/hero\.php.*bt-patterns/);
+    });
+
+    it('rejects finalFiles on a path that is not live', () => {
+      const dir = copyFixture();
+      writeFileSync(join(dir, 'paths/learner/path.yaml'), readFileSync(join(dir, 'paths/learner/path.yaml'), 'utf8') + 'finalFiles:\n  a.css: x\n');
+      expect(() => buildContent(dir)).toThrow(/finalFiles/);
+    });
+  });
 });

@@ -70,11 +70,15 @@ export const PathSchema = z
     status: z.enum(['live', 'coming-soon']),
     lessons: z.array(nonEmpty),
     placementHints: nonEmpty,
+    finalFiles: z.record(z.string(), z.string()).optional(),
   })
   .strict()
   .superRefine((p, ctx) => {
     if (p.status === 'live' && p.lessons.length === 0) {
       ctx.addIssue({ code: 'custom', path: ['lessons'], message: 'a live path needs at least one lesson' });
+    }
+    if (p.finalFiles && p.status !== 'live') {
+      ctx.addIssue({ code: 'custom', path: ['finalFiles'], message: 'finalFiles are only allowed on a live path' });
     }
   });
 

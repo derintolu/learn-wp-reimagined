@@ -228,4 +228,22 @@ The final `theme.json` was also audited key by key against the WP 7.1 schema.
 
 The theme the path builds is: `style.css` (L1), `theme.json` (L1 bug fix, then edited in L2 and L4), `templates/index.html` and `parts/header.html` (L3), and `patterns/hero.php` (L5).
 
-The learner's edits to `theme.json`, `templates/index.html` and `patterns/hero.php` are stored in `record.files`. When the starter files are merged, later lessons' starters must win over earlier ones (L4's `theme.json` over L1/L2's), and the learner's edits win over all of them.
+The learner's edits are stored in `record.files`, and since R25 each one is tagged in `record.fileLessons` with the lesson it was made in. For each file, the finale uses the learner's edit only if:
+
+- it was made in the last lesson, in path order, that owns the file through `starterFiles`, `checkpoint.file` or `bug.file`
+- it passes that lesson's checks for the file (`checkpoint.checks` and `bug.fixChecks`), run again at finale time
+- it parses, if it is a `.json` file
+
+Otherwise the finale uses the path's `finalFiles`, or failing that the latest starter. Edits with no recorded lesson count as made in the owning lesson and still have to pass. Only files a block-theme lesson owns, or that `finalFiles` lists, are included. (R25 replaced R24, under which any edit won. That let a lesson 1 bug-hunt `theme.json` hide lesson 4's layout, and could ship an unfixed planted bug.)
+
+## Finale reference theme
+
+`content/paths/block-theme/path.yaml` `finalFiles` is the finished theme. `scripts/build-content.ts` fails the build unless it passes every check and fixCheck that a lesson runs on those files, and its JSON parses. Every key was checked on 2026-10-19 against the live schema at https://schemas.wp.org/trunk/theme.json and these docs:
+
+- **`settings.typography.fontFamilies`** takes `name`, `slug` and `fontFamily`, and is applied as `var:preset|font-family|{slug}` in `styles.typography.fontFamily`. Sources: the Theme Handbook's Typography settings page (https://developer.wordpress.org/themes/global-settings-and-styles/settings/typography/) and the schema's `settingsTypographyProperties` and `stylesProperties.typography.fontFamily`.
+- **`settings.useRootPaddingAwareAlignments`** "Enables root padding (the values from `styles.spacing.padding`) to be applied to the contents of full-width blocks". The schema and the theme.json reference say `styles.spacing.padding` "should always be set as an object with top, right, bottom, left values declared separately". Source: https://developer.wordpress.org/block-editor/reference-guides/theme-json-reference/theme-json-living/. The Theme Handbook's Layout and Spacing settings pages don't mention it.
+- **`styles.color`, `styles.elements.link` and `var:preset|color|…`** are already sourced in lesson 4.
+- **`templateParts`** takes `name`, `title` and `area`, with `header` and `footer` areas (schema `properties.templateParts`).
+- **`templates/index.html`** puts the header Template Part (`tagName` header) first, which satisfies the lesson 3 checks. It then has `<main>` holding `<!-- wp:pattern {"slug":"my-block-theme/hero"} /-->`, per the Theme Handbook's "Using patterns in templates" (https://developer.wordpress.org/themes/patterns/usage-in-templates/), followed by the Query Loop, and ends with a footer part.
+- **Block markup** uses only core attributes: group `align`, `layout`, `backgroundColor`, `style.spacing.padding`, and paragraph `align`. Each block's saved HTML (classes and inline padding) matches what the block's save function outputs.
+- **Lesson 4** now briefly introduces font presets and root padding in its "presets-not-hex" beat, so nothing in the finished theme is a surprise. No checkpoint was added.

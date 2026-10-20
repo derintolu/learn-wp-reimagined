@@ -10,6 +10,8 @@ export interface Path {
   status: 'live' | 'coming-soon';
   lessons: string[];
   placementHints: string;
+  /** The finished reference theme, file name to content. Live paths only. */
+  finalFiles?: Record<string, string>;
 }
 
 export interface Beat { id: string; goal: string; content: string; question?: string }

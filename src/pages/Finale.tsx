@@ -1,7 +1,7 @@
 import { useMemo } from 'preact/hooks';
 import { content } from '../content';
 import { useRecord } from '../record/useRecord';
-import { buildThemeFiles, themeZip, THEME_SLUG } from '../finale/themeZip';
+import { resolveTheme, themeZip, THEME_SLUG } from '../finale/themeZip';
 import { PLAYGROUND_URL_LIMIT, playgroundUrl } from '../finale/playground';
 import { Bubble } from '../components/Bubble';
 import { SketchIcon } from '../components/SketchIcon';
@@ -16,7 +16,8 @@ function downloadZip(files: Record<string, string>) {
   document.body.appendChild(a);
   a.click();
   a.remove();
-  setTimeout(() => URL.revokeObjectURL(url), 0);
+  // Some browsers start the download asynchronously; revoking at once can cancel it.
+  setTimeout(() => URL.revokeObjectURL(url), 10_000);
 }
 
 export function Finale() {
@@ -25,7 +26,8 @@ export function Finale() {
   const lessons = path.lessons.map((id) => content.lessons[id]).filter(Boolean);
   const done = new Set(record.completedLessons);
   const doneCount = lessons.filter((l) => done.has(l.id)).length;
-  const files = useMemo(() => buildThemeFiles(content, record), [record]);
+  const theme = useMemo(() => resolveTheme(content, record), [record]);
+  const files = theme.files;
   const url = useMemo(() => playgroundUrl(files), [files]);
   const fits = url.length < PLAYGROUND_URL_LIMIT;
   const names = Object.keys(files).sort((a, b) => a.split('/').length - b.split('/').length || a.localeCompare(b));
@@ -41,14 +43,23 @@ export function Finale() {
             </h1>
           </div>
           <div class="split__body finale-hero__body">
-            <p class="lede">
-              That's a real WordPress block theme, and you wrote it. Take it home as a zip, or watch it run in a full
-              WordPress site in your browser.
-            </p>
+            {doneCount > 0 ? (
+              <p class="lede">
+                That's a real WordPress block theme, and you wrote it. Take it home as a zip, or watch it run in a full
+                WordPress site in your browser.
+              </p>
+            ) : (
+              <p class="lede">
+                Here's the block theme this path builds. Open the finished reference theme in a real WordPress site, then
+                work through the lessons to make it yours.
+              </p>
+            )}
             <p class="finale-hero__meta">
               {doneCount === lessons.length
                 ? `All ${lessons.length} lessons done.`
-                : `${doneCount} of ${lessons.length} lessons done. Lessons you skipped add their starter files, so the theme is still complete.`}
+                : doneCount > 0
+                  ? `${doneCount} of ${lessons.length} lessons done. Anything you skipped comes from the finished reference theme, so it's still complete.`
+                  : `0 of ${lessons.length} lessons done.`}
             </p>
             <div class="finale-actions">
               <button type="button" class="button" onClick={() => downloadZip(files)}>
@@ -92,10 +103,17 @@ export function Finale() {
                 {names.map((f) => (
                   <li key={f}>
                     <code>{f}</code>
-                    {Object.prototype.hasOwnProperty.call(record.files, f) && <span class="chip chip--here">Your edit</span>}
+                    {theme.used.includes(f) && <span class="chip chip--here">Your edit</span>}
                   </li>
                 ))}
               </ul>
+              {theme.replaced.length > 0 && (
+                <ul class="finale-files__notes">
+                  {theme.replaced.map((n) => (
+                    <li key={n.file}>{n.message}</li>
+                  ))}
+                </ul>
+              )}
             </div>
             <ol class="lesson-list finale-lessons" aria-label="Lessons in your theme">
               {lessons.map((l, i) => (
@@ -109,7 +127,7 @@ export function Finale() {
                     </h3>
                   </div>
                   <span class={`chip ${done.has(l.id) ? 'chip--done' : 'chip--skipped'}`}>
-                    {done.has(l.id) ? 'Done' : 'Starter files'}
+                    {done.has(l.id) ? 'Done' : 'Not done'}
                   </span>
                 </li>
               ))}

@@ -306,7 +306,7 @@ describe('Code checkpoint', () => {
     expect(await within(cp).findByText('Looks great to me!')).toBeTruthy();
 
     await typeInto(/theme\.json/, '{ "version": 3, "settings": { "color": { "palette": [ { "slug": "brand", "color": "#3858E9", "name": "Brand" } ] } } }');
-    await waitFor(() => expect(dispatched().some((e) => e.type === 'fileEdited' && e.file === 'theme.json')).toBe(true), {
+    await waitFor(() => expect(dispatched().some((e) => e.type === 'fileEdited' && e.file === 'theme.json' && e.lessonId === 'templates-and-parts')).toBe(true), {
       timeout: 2000,
     });
     fireEvent.click(within(cp).getByRole('button', { name: 'Check my code' }));
@@ -379,7 +379,7 @@ describe('Catch the bug', () => {
     expect(box.textContent).toContain('Pattern slugs must be namespaced');
     await waitFor(() => expect(dispatched()).toContainEqual({ type: 'lessonCompleted', lessonId: 'patterns' }));
     await waitFor(() =>
-      expect(dispatched()).toContainEqual({ type: 'fileEdited', file: 'patterns/hero.php', content: expect.stringContaining('mytheme/hero') }),
+      expect(dispatched()).toContainEqual({ type: 'fileEdited', file: 'patterns/hero.php', content: expect.stringContaining('mytheme/hero'), lessonId: 'patterns' }),
     );
     // patterns is the last lesson of the path
     expect(screen.getByRole('link', { name: /Continue/ }).getAttribute('href')).toBe('/finale');

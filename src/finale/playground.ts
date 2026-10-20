@@ -2,10 +2,10 @@ import { THEME_SLUG } from './themeZip';
 
 /**
  * Playground has no documented fragment limit, and a fragment never reaches a server.
- * Browsers allow far longer URLs (Chrome caps at 2 MB), but links that get copied
- * into chat and email are safer kept short, so this is our own budget.
+ * Chrome caps URLs at 2 MB; this is our own, generous budget. Past it, the finale
+ * offers the zip instead.
  */
-export const PLAYGROUND_URL_LIMIT = 32_000;
+export const PLAYGROUND_URL_LIMIT = 200_000;
 
 const THEME_DIR = `/wordpress/wp-content/themes/${THEME_SLUG}`;
 

@@ -85,6 +85,16 @@ describe('applyEvent', () => {
     const r = applyEvent(newRecord(), { type: 'fileEdited', file: 'a.html', content: 'x' }, c);
     expect(r.files).toEqual({ 'a.html': 'x' });
     expect(r.statements).toEqual([]);
+    expect(r.fileLessons).toBeUndefined();
+  });
+  it('fileEdited remembers the lesson an edit was made in, and a legacy edit clears it', () => {
+    let r = applyEvent(newRecord(), { type: 'fileEdited', file: 'a.html', content: 'x', lessonId: ids[0] }, c);
+    expect(r.fileLessons).toEqual({ 'a.html': ids[0] });
+    r = applyEvent(r, { type: 'fileEdited', file: 'b.html', content: 'y', lessonId: ids[1] }, c);
+    expect(r.fileLessons).toEqual({ 'a.html': ids[0], 'b.html': ids[1] });
+    r = applyEvent(r, { type: 'fileEdited', file: 'a.html', content: 'z' }, c);
+    expect(r.fileLessons).toEqual({ 'b.html': ids[1] });
+    expect(r.statements).toEqual([]);
   });
 });
 
@@ -93,6 +103,13 @@ describe('parseRecord', () => {
   it('round-trips a valid record', () => {
     const r = good();
     expect(parseRecord(JSON.parse(JSON.stringify(r)))).toEqual({ ok: true, record: r });
+  });
+  it('accepts records with and without fileLessons, and rejects a malformed one', () => {
+    const r = applyEvent(good(), { type: 'fileEdited', file: 'a.html', content: 'x', lessonId: ids[0] }, c);
+    expect(parseRecord(JSON.parse(JSON.stringify(r))).ok).toBe(true);
+    expect(parseRecord(JSON.parse(JSON.stringify(good()))).ok).toBe(true);
+    expect(parseRecord({ ...good(), fileLessons: { 'a.html': 3 } }).ok).toBe(false);
+    expect(parseRecord({ ...good(), fileLessons: [] }).ok).toBe(false);
   });
   it('rejects wrong format', () => {
     const r = parseRecord({ ...good(), format: 'other' });
