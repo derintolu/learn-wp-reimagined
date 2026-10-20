@@ -25,8 +25,10 @@ afterEach(() => {
 describe('routing', () => {
   it.each([
     ['/', 'Learn WordPress, your way.'],
-    ['/path/x', 'Your path'],
-    ['/learn/x', 'This lesson is nearly ready'],
+    ['/path/x', 'Nothing here'],
+    ['/path/block-theme', 'Block theme developer'],
+    ['/learn/x', 'Nothing here'],
+    ['/learn/theme-json-basics', 'theme.json basics'],
     ['/finale', 'You made it this far'],
     ['/no/such/page', 'Nothing here'],
   ])('renders %s', async (url, heading) => {
@@ -39,9 +41,9 @@ describe('routing', () => {
   });
 
   it('passes the route param through to the page', async () => {
-    history.replaceState(null, '', '/learn/theme-json-basics');
+    history.replaceState(null, '', '/learn/templates-and-parts');
     render(<App />);
-    await screen.findByText(/theme-json-basics/);
+    expect((await screen.findByRole('heading', { level: 1 })).textContent).toBe('Templates and template parts');
   });
 });
 

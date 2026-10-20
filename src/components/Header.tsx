@@ -1,4 +1,5 @@
 import { REPO_URL } from '../config';
+import { RecordPanel } from './RecordPanel';
 import { Sticker } from './Sticker';
 
 export function Header() {
@@ -15,6 +16,7 @@ export function Header() {
             <li><a href="/#paths">Paths</a></li>
             <li class="nav-optional"><a href={REPO_URL}>GitHub</a></li>
           </ul>
+          <RecordPanel />
         </nav>
       </div>
     </header>

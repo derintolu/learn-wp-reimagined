@@ -3,7 +3,9 @@ import { LocationProvider, Route, Router, useLocation } from 'preact-iso';
 import { Header } from './components/Header';
 import { Footer } from './components/Footer';
 import { Home } from './pages/Home';
-import { FinalePage, LessonPage, NotFound, PathPage } from './pages/routes';
+import { Lesson } from './pages/Lesson';
+import { PathOverview } from './pages/PathOverview';
+import { FinalePage, NotFound } from './pages/routes';
 
 /**
  * preact-iso turns same-origin links like "/#paths" into pushState, which never
@@ -40,8 +42,8 @@ export function App() {
       <main id="main" tabIndex={-1}>
         <Router>
           <Route path="/" component={Home} />
-          <Route path="/path/:pathId" component={PathPage} />
-          <Route path="/learn/:lessonId" component={LessonPage} />
+          <Route path="/path/:pathId" component={PathOverview} />
+          <Route path="/learn/:lessonId" component={Lesson} />
           <Route path="/finale" component={FinalePage} />
           <Route default component={NotFound} />
         </Router>

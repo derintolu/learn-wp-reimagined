@@ -189,7 +189,7 @@ describe('PlacementChat (AI on)', () => {
     await waitFor(() => expect(manager.dispatch).toHaveBeenCalledWith({ type: 'placed', placement: PLACED }));
     await waitFor(() => expect(location.pathname).toBe('/learn/templates-and-parts'));
     expect(manager.record.placement).toEqual(PLACED);
-    await screen.findByText(/templates-and-parts/);
+    expect(await screen.findByRole('heading', { level: 1, name: 'Templates and template parts' })).toBeTruthy();
   });
 
   it('a double click on "Start here" dispatches placed only once', async () => {

@@ -33,6 +33,35 @@
   --measure: 66ch;
   --wide: 1280px;
 
+  --font-mono: ui-monospace, 'SF Mono', 'Cascadia Code', Menlo, Consolas, monospace;
+
+  /* Branch outcomes: text colours are AA on white and on their wash */
+  --outcome-advance: var(--wp-blue);
+  --outcome-advance-wash: var(--tint);
+  --outcome-review: #8F5400;      /* 6.0:1 on white */
+  --outcome-review-wash: #FDF3E1;
+  --outcome-skip: #00703A;        /* 6.0:1 on white */
+  --outcome-skip-wash: #E8F5EC;
+  --danger: #CC1818;              /* WordPress alert red, 5.6:1 on white */
+  --danger-wash: #FCF0F1;
+  --live: #4AB866;                /* "live" dot on dark */
+  --warn-on-dark: #F2D675;
+  --surface-muted: #F6F7F7;
+  --shadow-card: 0 1px 0 rgba(30, 30, 30, 0.04), 0 24px 48px -32px rgba(30, 30, 30, 0.35);
+
+  /* Code editor syntax colours (all AA on --code-bg) */
+  --code-bg: #FCFCFD;
+  --code-gutter: #F6F7F7;
+  --code-keyword: #2145E6;
+  --code-string: #00703A;
+  --code-number: #8F5400;
+  --code-property: #8A2387;
+  --code-tag: #2145E6;
+  --code-comment: #50575E;
+  --code-variable: var(--charcoal);
+  --code-meta: #8A2387;
+  --code-invalid: var(--danger);
+
   --radius-bubble: 1.25rem;
   --ease-out: cubic-bezier(0.22, 1, 0.36, 1);
 }

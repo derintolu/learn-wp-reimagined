@@ -1,26 +1,7 @@
-import { useRoute } from 'preact-iso';
 import { Swipe } from '../components/Swipe';
 import { Placeholder } from './Placeholder';
 
-// Placeholders until the path, lesson and finale tasks land.
-export function PathPage() {
-  const { params } = useRoute();
-  return (
-    <Placeholder title={<>Your <Swipe>path</Swipe></>}>
-      <p>The {params.pathId} path is on its way. Soon you'll see every lesson here, and where you left off.</p>
-    </Placeholder>
-  );
-}
-
-export function LessonPage() {
-  const { params } = useRoute();
-  return (
-    <Placeholder title={<>This lesson is <Swipe>nearly ready</Swipe></>}>
-      <p>We're still writing “{params.lessonId}”. Check back soon.</p>
-    </Placeholder>
-  );
-}
-
+// Placeholders until the finale task lands.
 export function FinalePage() {
   return (
     <Placeholder title={<>You made it <Swipe>this far</Swipe></>}>

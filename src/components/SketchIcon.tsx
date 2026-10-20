@@ -1,5 +1,5 @@
 /** Small hand-drawn-style icons. Our own strokes; decorative unless given a label. */
-export type SketchName = 'learner' | 'block-theme' | 'vibe-coder' | 'tutor' | 'arrow' | 'cup';
+export type SketchName = 'learner' | 'block-theme' | 'vibe-coder' | 'tutor' | 'arrow' | 'cup' | 'branch';
 
 const PATHS: Record<SketchName, { viewBox: string; d: string[] }> = {
   // A sprout pushing out of the ground
@@ -48,6 +48,19 @@ const PATHS: Record<SketchName, { viewBox: string; d: string[] }> = {
     d: [
       'M6 12c14-6 32-6 40 4 7 9-2 20-10 16-7-4-2-15 8-17 20-4 39 9 52 25 4.6 5.6 8.6 11.8 12 18',
       'M95.6 49.2c3.4 3.7 6.8 8.1 8.8 13.6-5.4-.9-10.6-1-15.6.2',
+    ],
+  },
+  // A road that forks three ways, for checkpoints
+  branch: {
+    viewBox: '0 0 48 48',
+    d: [
+      'M5.5 24.2c4.6-.3 9.2-.2 13.6.1',
+      'M19.1 24.3c5.4-.6 10-4.9 13.4-11.2',
+      'M19.2 24.4c6.6.1 13.2 0 19.4-.3',
+      'M19.1 24.6c5.2.9 9.8 5.4 13 11.3',
+      'M29.4 11.6c1.4.6 2.7 1 4.1 1.5.1-1.5.3-3 .2-4.4',
+      'M36 21c1.3 1 2.4 2.1 3.4 3.3-1.2 1-2.4 2-3.6 2.9',
+      'M28.9 36.6c1.5-.2 3-.4 4.4-.8-.4-1.4-.8-2.8-1.4-4.2',
     ],
   },
   // A cup of tea, for "taking a breather"
