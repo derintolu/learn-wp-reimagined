@@ -29,7 +29,7 @@ describe('routing', () => {
     ['/path/block-theme', 'Block theme developer'],
     ['/learn/x', 'Nothing here'],
     ['/learn/theme-json-basics', 'theme.json basics'],
-    ['/finale', 'You made it this far'],
+    ['/finale', 'Where this path ends up'], // a fresh record: 0 lessons done
     ['/no/such/page', 'Nothing here'],
   ])('renders %s', async (url, heading) => {
     history.replaceState(null, '', url);
