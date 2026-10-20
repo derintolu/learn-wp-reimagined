@@ -60,8 +60,11 @@ export function BranchMoment({
   onRestart: () => void;
 }) {
   const ref = useRef<HTMLDivElement>(null);
+  const action = useRef<HTMLElement>(null);
+  // The surrounding aria-live region announces the moment, so it isn't focused itself (that would
+  // read it twice). Keyboard focus goes to the next step instead of being dropped with the form.
   useEffect(() => {
-    ref.current?.focus({ preventScroll: true });
+    action.current?.focus({ preventScroll: true });
     ref.current?.scrollIntoView?.({ block: 'nearest', behavior: 'smooth' });
   }, []);
   const same = branch.to === lessonId;
@@ -72,8 +75,8 @@ export function BranchMoment({
       class={`moment moment--${outcome}`}
       data-testid="branch-moment"
       data-outcome={outcome}
-      tabIndex={-1}
       ref={ref}
+      role="group"
       aria-labelledby="moment-badge moment-message"
     >
       <BranchGlyph outcome={outcome} />
@@ -98,11 +101,11 @@ export function BranchMoment({
       )}
       <div class="moment__actions">
         {same ? (
-          <button type="button" class="button" onClick={onRestart}>
+          <button type="button" class="button" onClick={onRestart} ref={action as never}>
             Go through this lesson again
           </button>
         ) : (
-          <a class="button" href={`/learn/${branch.to}`}>
+          <a class="button" href={`/learn/${branch.to}`} ref={action as never}>
             {outcome === 'review' ? `Go back to “${target}”` : `Continue to “${target}”`}
             <span aria-hidden="true">→</span>
           </a>

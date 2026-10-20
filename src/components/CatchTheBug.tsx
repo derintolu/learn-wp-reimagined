@@ -1,4 +1,4 @@
-import { useRef, useState } from 'preact/hooks';
+import { useEffect, useRef, useState } from 'preact/hooks';
 import { codeFeedback } from '../ai/client';
 import type { AiState } from '../ai/useAiStatus';
 import { getRecordManager } from '../record/useRecord';
@@ -37,6 +37,8 @@ export function CatchTheBug({
   const [note, setNote] = useState<string | null>(null);
   const [noteBusy, setNoteBusy] = useState(false);
   const seq = useRef(0);
+  const ctl = useRef(new AbortController());
+  useEffect(() => () => ctl.current.abort(), []);
 
   function check() {
     if (solved) return;
@@ -50,8 +52,8 @@ export function CatchTheBug({
     setNote(null);
     if (ai === 'on') {
       setNoteBusy(true);
-      codeFeedback({ lessonId: lesson.id, file: bug.file, code, passed: run.passed, failedMessages }).then((res) => {
-        if (mine !== seq.current) return;
+      codeFeedback({ lessonId: lesson.id, file: bug.file, code, passed: run.passed, failedMessages }, ctl.current.signal).then((res) => {
+        if (mine !== seq.current || ctl.current.signal.aborted) return;
         setNoteBusy(false);
         setNote(res.ok && typeof res.data.feedback === 'string' && res.data.feedback.trim() ? res.data.feedback : null);
       });

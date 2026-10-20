@@ -5,7 +5,8 @@ import { BeatView } from '../components/BeatView';
 import { CatchTheBug } from '../components/CatchTheBug';
 import { Checkpoint, type Resolution } from '../components/Checkpoint';
 import { preloadCodeEditor } from '../components/LazyCodeEditor';
-import { RESTORED_EVENT } from '../components/RecordPanel';
+import { CompletedSummary } from '../components/CompletedSummary';
+import { RESTORED_EVENT, SaveWarning } from '../components/RecordPanel';
 import { Tutor } from '../components/Tutor';
 import { content } from '../content';
 import { useFileEdits } from '../record/useFileEdits';
@@ -87,7 +88,15 @@ function LessonView({ lesson, onRestart }: { lesson: LessonT; onRestart: () => v
   const { manager, record } = useRecord();
   const ai = useAiStatus();
   const n = lesson.beats.length;
-  const [step, setStep] = useState<number | null>(null);
+  const [step, setStepState] = useState<number | null>(null);
+  // Mirrors step synchronously, so a double click on Next can't advance (and record) twice.
+  const stepRef = useRef<number | null>(null);
+  const setStep = (v: number) => {
+    stepRef.current = v;
+    setStepState(v);
+  };
+  /** R22: decided once on open. A completed lesson's checkpoint and bug hunt are read-only. */
+  const [readOnly, setReadOnly] = useState(false);
   const [bugSolved, setBugSolved] = useState(false);
   const completed = useRef(false);
   const focusNext = useRef(false);
@@ -105,10 +114,11 @@ function LessonView({ lesson, onRestart }: { lesson: LessonT; onRestart: () => v
     const begin = () => {
       if (!live) return;
       const r = manager.record;
-      if (r.current?.lessonId === lesson.id) {
-        setStep(Math.max(0, Math.min(n - 1, r.current.beatIndex)));
-      } else if (r.completedLessons.includes(lesson.id)) {
+      if (r.completedLessons.includes(lesson.id)) {
+        setReadOnly(true);
         setStep(n);
+      } else if (r.current?.lessonId === lesson.id) {
+        setStep(Math.max(0, Math.min(n - 1, r.current.beatIndex)));
       } else {
         setStep(0);
         manager.dispatch({ type: 'beatViewed', lessonId: lesson.id, beatIndex: 0 }).catch(() => {});
@@ -144,7 +154,8 @@ function LessonView({ lesson, onRestart }: { lesson: LessonT; onRestart: () => v
   }
 
   function next() {
-    if (step === null) return;
+    const step = stepRef.current;
+    if (step === null || step >= n) return;
     focusNext.current = true;
     if (step < n - 1) {
       setStep(step + 1);
@@ -197,6 +208,7 @@ function LessonView({ lesson, onRestart }: { lesson: LessonT; onRestart: () => v
       <LessonHeader lesson={lesson} reached={reached} />
       <div class="wrap lesson">
         <div class="lesson__read">
+          <SaveWarning />
           {lesson.beats.slice(0, Math.min(step + 1, n)).map((_, i) => (
             <BeatView
               key={i}
@@ -212,7 +224,8 @@ function LessonView({ lesson, onRestart }: { lesson: LessonT; onRestart: () => v
           ))}
 
           <div class="lesson__post" ref={postRef} tabIndex={-1}>
-            {showBug && (
+            {readOnly && <CompletedSummary lesson={lesson} record={record} />}
+            {!readOnly && showBug && (
               <CatchTheBug
                 lesson={lesson}
                 ai={ai}
@@ -222,7 +235,7 @@ function LessonView({ lesson, onRestart }: { lesson: LessonT; onRestart: () => v
                 onSolved={onBugSolved}
               />
             )}
-            {showCheckpoint && (
+            {!readOnly && showCheckpoint && (
               <Checkpoint
                 lesson={lesson}
                 ai={ai}
@@ -233,7 +246,7 @@ function LessonView({ lesson, onRestart }: { lesson: LessonT; onRestart: () => v
                 onRestart={onRestart}
               />
             )}
-            {finishedNoCheckpoint && (
+            {!readOnly && finishedNoCheckpoint && (
               <section class="lesson-done" aria-labelledby="done-title">
                 <p class="lesson-done__kicker">Lesson complete</p>
                 <h2 class="lesson-done__title" id="done-title">

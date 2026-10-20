@@ -47,6 +47,11 @@
   --live: #4AB866;                /* "live" dot on dark */
   --warn-on-dark: #F2D675;
   --surface-muted: #F6F7F7;
+  --on-accent: #FFFFFF;            /* text on blue, amber and green fills */
+  --veil-on-dark: rgba(255, 255, 255, 0.06);
+  --veil-on-accent: rgba(255, 255, 255, 0.2);
+  --shadow-float: 0 12px 30px -10px rgba(0, 0, 0, 0.55);
+  --shadow-popover: 0 2px 0 rgba(0, 0, 0, 0.1), 0 24px 50px -20px rgba(0, 0, 0, 0.55);
   --shadow-card: 0 1px 0 rgba(30, 30, 30, 0.04), 0 24px 48px -32px rgba(30, 30, 30, 0.35);
 
   /* Code editor syntax colours (all AA on --code-bg) */
@@ -64,4 +69,5 @@
 
   --radius-bubble: 1.25rem;
   --ease-out: cubic-bezier(0.22, 1, 0.36, 1);
+  --ease-out-expo: cubic-bezier(0.16, 1, 0.3, 1);
 }

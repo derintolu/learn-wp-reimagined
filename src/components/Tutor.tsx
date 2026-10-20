@@ -55,13 +55,40 @@ export function Tutor({ lesson, beatIndex, ai }: { lesson: Lesson; beatIndex: nu
     if (!open && returnFocus.current) toggleRef.current?.focus();
     returnFocus.current = false;
   }, [open, mobile]);
+  const panelRef = useRef<HTMLDivElement>(null);
+  // An open sheet is modal: the page behind goes inert and Tab stays inside the sheet.
   useEffect(() => {
     if (!mobile || !open) return;
+    const behind = [...document.querySelectorAll<HTMLElement>('.site-header, .site-footer, .lesson-head, .lesson__read')];
+    const was = behind.map((el) => el.inert);
+    behind.forEach((el) => (el.inert = true));
+    if (!inputRef.current) panelRef.current?.querySelector<HTMLElement>('button')?.focus();
     const onKey = (e: KeyboardEvent) => {
-      if (e.key === 'Escape') close();
+      if (e.key === 'Escape') {
+        close();
+        return;
+      }
+      if (e.key !== 'Tab' || !panelRef.current) return;
+      const items = [
+        ...panelRef.current.querySelectorAll<HTMLElement>('a[href], button:not([disabled]), textarea, input, [tabindex]:not([tabindex="-1"])'),
+      ].filter((el) => !el.hasAttribute('inert') && el.offsetParent !== null);
+      if (!items.length) return;
+      const first = items[0];
+      const last = items[items.length - 1];
+      const at = document.activeElement;
+      if (e.shiftKey && (at === first || !panelRef.current.contains(at))) {
+        e.preventDefault();
+        last.focus();
+      } else if (!e.shiftKey && (at === last || !panelRef.current.contains(at))) {
+        e.preventDefault();
+        first.focus();
+      }
     };
     document.addEventListener('keydown', onKey);
-    return () => document.removeEventListener('keydown', onKey);
+    return () => {
+      document.removeEventListener('keydown', onKey);
+      behind.forEach((el, i) => (el.inert = was[i]));
+    };
   }, [mobile, open]);
 
   function close() {
@@ -135,7 +162,13 @@ export function Tutor({ lesson, beatIndex, ai }: { lesson: Lesson; beatIndex: nu
         </button>
       )}
       {mobile && open && <div class="tutor__scrim" onClick={close} aria-hidden="true" />}
-      <div class="tutor__panel" id="tutor-panel" inert={sheetHidden || undefined}>
+      <div
+        class="tutor__panel"
+        id="tutor-panel"
+        ref={panelRef}
+        inert={sheetHidden || undefined}
+        {...(mobile && open ? { role: 'dialog', 'aria-modal': 'true', 'aria-label': 'Lesson tutor' } : {})}
+      >
         <div class="tutor__head hero__chat-head">
           <SketchIcon name="tutor" class="hero__avatar" />
           <span>

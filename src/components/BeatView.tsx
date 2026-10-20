@@ -45,7 +45,7 @@ export function BeatView({
   const [failed, setFailed] = useState(false);
 
   const ctl = useRef<AbortController | null>(null);
-  // Abort only when the beat goes away, not when the learner moves on mid-stream.
+  // Paid streams never pile up: stop this one when the beat goes away.
   useEffect(
     () => () => {
       ctl.current?.abort();
@@ -54,6 +54,13 @@ export function BeatView({
   );
 
   useEffect(() => {
+    // The learner moved on mid-stream: stop paying for it and show the authored beat instead.
+    if (!active && ctl.current && !ctl.current.signal.aborted && !delivered.has(key)) {
+      ctl.current.abort();
+      setText('');
+      setVoice('authored');
+      return;
+    }
     if (started.current || ai === 'loading') return;
     if (ai !== 'on' || !active) {
       setVoice('authored');

@@ -4,6 +4,7 @@ import { content } from '../content';
 import { downloadRecord, readRecordFile } from '../record/fileTransfer';
 import { supportsFolder } from '../record/folderStore';
 import type { AttachResult } from '../record/store';
+import { cancelPendingEdits, flushPendingEdits } from '../record/useFileEdits';
 import { useRecord } from '../record/useRecord';
 import type { LearningRecord } from '../shared/record';
 
@@ -38,6 +39,7 @@ export function RecordPanel() {
   const [busy, setBusy] = useState(false);
   const rootRef = useRef<HTMLDivElement>(null);
   const buttonRef = useRef<HTMLButtonElement>(null);
+  const panelRef = useRef<HTMLDivElement>(null);
   const fileRef = useRef<HTMLInputElement>(null);
   const folderOk = supportsFolder();
   const loc = useLocation() as ReturnType<typeof useLocation> | undefined;
@@ -51,10 +53,12 @@ export function RecordPanel() {
 
   const folder = manager.savingToFolder;
   const state: 'folder' | 'browser' | 'none' = folder ? 'folder' : persistent ? 'browser' : 'none';
+  const attention = Boolean(notice || manager.folderError);
   const stateLabel = { folder: 'Saving to your folder', browser: 'Saved in this browser', none: 'Not saved' }[state];
 
   useEffect(() => {
     if (!open) return;
+    panelRef.current?.focus();
     const onKey = (e: KeyboardEvent) => {
       if (e.key === 'Escape') {
         setOpen(false);
@@ -85,6 +89,7 @@ export function RecordPanel() {
     }
     setBusy(true);
     try {
+      flushPendingEdits();
       const result = await manager.attachFolder(dir);
       setMsg({ tone: 'ok', text: ATTACH_COPY[result] });
       if (result === 'resumed') goToRestored();
@@ -115,6 +120,8 @@ export function RecordPanel() {
     if (!r) return;
     setBusy(true);
     try {
+      // An edit still waiting on its debounce must not land on top of the restored files.
+      cancelPendingEdits();
       await manager.restore(r);
       setPendingRestore(null);
       setMsg({
@@ -134,18 +141,27 @@ export function RecordPanel() {
     <div class="record" ref={rootRef}>
       <button
         type="button"
-        class={`record__button record__button--${state}`}
+        class={`record__button record__button--${state}${attention ? ' record__button--attention' : ''}`}
         ref={buttonRef}
         aria-expanded={open}
         aria-controls="record-panel"
         onClick={() => setOpen((o) => !o)}
       >
         <span class="record__dot" aria-hidden="true" />
-        <span>Your record</span>
-        <span class="visually-hidden">: {stateLabel}</span>
+        {state === 'none' || attention ? (
+          <>
+            <span class="visually-hidden">Your record: </span>
+            <span>{state === 'none' ? 'Not saved' : 'Check your record'}</span>
+          </>
+        ) : (
+          <>
+            <span>Your record</span>
+            <span class="visually-hidden">: {stateLabel}</span>
+          </>
+        )}
       </button>
       {open && (
-        <div class="record__panel" id="record-panel" role="dialog" aria-label="Your record">
+        <div class="record__panel" id="record-panel" role="dialog" aria-label="Your record" tabIndex={-1} ref={panelRef}>
           <p class={`record__state record__state--${state}`}>
             <span class="record__dot" aria-hidden="true" />
             {stateLabel}
@@ -232,4 +248,42 @@ export function RecordPanel() {
       )}
     </div>
   );
+}
+
+let warningDismissed = false;
+
+/**
+ * A visible warning on the lesson page when progress isn't being kept (private window,
+ * blocked storage) or the stored record needed attention. Dismissible for this visit.
+ */
+export function SaveWarning() {
+  const { manager, persistent, notice } = useRecord();
+  const [hidden, setHidden] = useState(warningDismissed);
+  if (hidden || (persistent && !notice)) return null;
+  return (
+    <div class="save-warning" role="status">
+      <p class="save-warning__text">{persistent ? notice!.message : NOT_SAVED}</p>
+      <div class="save-warning__actions">
+        <button type="button" class="button" onClick={() => downloadRecord(manager.record)}>
+          Download record
+        </button>
+        <button
+          type="button"
+          class="save-warning__close"
+          onClick={() => {
+            warningDismissed = true;
+            setHidden(true);
+          }}
+        >
+          <span class="visually-hidden">Dismiss this warning</span>
+          <span aria-hidden="true">×</span>
+        </button>
+      </div>
+    </div>
+  );
+}
+
+/** For tests: show the warning again. */
+export function resetSaveWarning(): void {
+  warningDismissed = false;
 }

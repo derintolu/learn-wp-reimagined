@@ -1,5 +1,4 @@
-import type { ComponentChildren } from 'preact';
-import { useRef, useState } from 'preact/hooks';
+import { useEffect, useRef, useState } from 'preact/hooks';
 import { codeFeedback, judge } from '../ai/client';
 import type { AiState } from '../ai/useAiStatus';
 import { content } from '../content';
@@ -39,16 +38,13 @@ function branchFor(lessonId: string, outcome: Outcome): Branch | null {
 function FallbackOptions({
   lesson,
   onPick,
-  extra,
 }: {
   lesson: Lesson;
   onPick: (r: Resolution) => void;
-  extra?: ComponentChildren;
 }) {
   const cp = lesson.checkpoint!;
   return (
     <div class="checkpoint__options" role="group" aria-label="Pick the closest answer">
-      {extra}
       {cp.fallback.map((f) => {
         const branch = branchFor(lesson.id, f.outcome);
         if (!branch) return null;
@@ -74,6 +70,8 @@ function FreeText({ lesson, ai, onResolve }: { lesson: Lesson; ai: AiState; onRe
   const [fallback, setFallback] = useState(false);
   const busyRef = useRef(false);
   const aiReady = ai === 'on';
+  const ctl = useRef(new AbortController());
+  useEffect(() => () => ctl.current.abort(), []);
 
   async function submit(e: Event) {
     e.preventDefault();
@@ -81,7 +79,8 @@ function FreeText({ lesson, ai, onResolve }: { lesson: Lesson; ai: AiState; onRe
     if (!text || busyRef.current) return;
     busyRef.current = true;
     setBusy(true);
-    const res = await judge(lesson.id, text);
+    const res = await judge(lesson.id, text, ctl.current.signal);
+    if (ctl.current.signal.aborted) return;
     busyRef.current = false;
     setBusy(false);
     // Never trust the response's own "to" or message: look the outcome up in the authored branches.
@@ -185,7 +184,16 @@ function Code({
   const [fails, setFails] = useState(0);
   const [note, setNote] = useState<string | null>(null);
   const [noteBusy, setNoteBusy] = useState(false);
+  const [helpHidden, setHelpHidden] = useState(false);
   const seq = useRef(0);
+  const ctl = useRef(new AbortController());
+  const box = useRef<HTMLDivElement>(null);
+  useEffect(() => () => ctl.current.abort(), []);
+
+  function keepTrying() {
+    setHelpHidden(true);
+    box.current?.querySelector<HTMLElement>('.cm-content, textarea')?.focus();
+  }
 
   function check() {
     flush();
@@ -200,8 +208,8 @@ function Code({
     if (ai === 'on') {
       setNoteBusy(true);
       onFeedback(null, run.passed);
-      codeFeedback({ lessonId: lesson.id, file, code, passed: run.passed, failedMessages }).then((res) => {
-        if (mine !== seq.current) return;
+      codeFeedback({ lessonId: lesson.id, file, code, passed: run.passed, failedMessages }, ctl.current.signal).then((res) => {
+        if (mine !== seq.current || ctl.current.signal.aborted) return;
         setNoteBusy(false);
         const text = res.ok && typeof res.data.feedback === 'string' && res.data.feedback.trim() ? res.data.feedback : null;
         setNote(text);
@@ -215,13 +223,14 @@ function Code({
       return;
     }
     setFails((n) => n + 1);
+    setHelpHidden(false);
   }
 
   const review = branchFor(lesson.id, 'review');
   const reviewTitle = review ? (content.lessons[review.to]?.title ?? review.to) : '';
 
   return (
-    <div class="checkpoint__code">
+    <div class="checkpoint__code" ref={box}>
       <CodeEditor
         file={file}
         value={code}
@@ -253,26 +262,29 @@ function Code({
           )}
         </div>
       )}
-      {!locked && fails >= CODE_ATTEMPTS_BEFORE_HELP && (
+      {!locked && !helpHidden && fails >= CODE_ATTEMPTS_BEFORE_HELP && (
         <div class="checkpoint__help">
           <p class="checkpoint__help-title">Stuck? That's part of it.</p>
-          <p class="checkpoint__note">Take another pass, or pick a way forward.</p>
-          <FallbackOptions
-            lesson={lesson}
-            onPick={onResolve}
-            extra={
-              review && (
-                <button
-                  type="button"
-                  class="option"
-                  onClick={() => onResolve({ outcome: 'review', branch: review, response: `Chose to review ${reviewTitle}` })}
-                >
-                  <span class="option__dot" aria-hidden="true" />
-                  Review “{reviewTitle}”
-                </button>
-              )
-            }
-          />
+          <p class="checkpoint__note">
+            The checks only pass on working code, so there's no skipping this one. Have another go, or step back and review.
+          </p>
+          {/* R21: no option here may record a pass the checks didn't give. */}
+          <div class="checkpoint__options" role="group" aria-label="What next?">
+            <button type="button" class="option" onClick={keepTrying}>
+              <span class="option__dot" aria-hidden="true" />
+              Keep trying
+            </button>
+            {review && (
+              <button
+                type="button"
+                class="option"
+                onClick={() => onResolve({ outcome: 'review', branch: review, response: `Chose to review ${reviewTitle}` })}
+              >
+                <span class="option__dot" aria-hidden="true" />
+                Review “{reviewTitle}”
+              </button>
+            )}
+          </div>
         </div>
       )}
     </div>

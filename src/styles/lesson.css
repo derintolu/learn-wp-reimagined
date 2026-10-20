@@ -195,10 +195,10 @@
   font: 0.88rem / 1.55 var(--font-mono);
 }
 .md-pre code { padding: 0; background: none; color: inherit; font: inherit; }
-.md blockquote { margin: 0 0 1em; padding-left: 1em; border-left: 2px solid var(--rule); color: var(--ink-muted); }
+.md blockquote { margin: 0 0 1em; padding: 0.75rem 1rem; border-radius: 0.75rem; background: var(--surface-muted); color: var(--ink); }
 .bubble .md p { margin-bottom: 0.6em; }
 .bubble .md p:last-child { margin-bottom: 0; }
-.bubble--learner .md code { background: rgba(255, 255, 255, 0.2); color: #fff; }
+.bubble--learner .md code { background: var(--veil-on-accent); color: var(--on-accent); }
 
 /* ---------- Shared card ---------- */
 
@@ -269,7 +269,7 @@
   padding: 0.85rem 1.1rem;
   border-radius: 1rem 1rem 0.3rem 1rem;
   background: var(--wp-blue);
-  color: #fff;
+  color: var(--on-accent);
   width: fit-content;
   max-width: 100%;
   margin-left: auto;
@@ -351,16 +351,15 @@
   border-radius: 1.25rem;
   background: var(--m-wash);
   color: var(--ink);
-  animation: moment-in 620ms var(--ease-out) both;
+  animation: moment-in 620ms var(--ease-out-expo) both;
 }
 .moment--review { --m: var(--outcome-review); --m-wash: var(--outcome-review-wash); }
 .moment--skip { --m: var(--outcome-skip); --m-wash: var(--outcome-skip-wash); }
 .moment:focus { outline: none; }
 .moment:focus-visible { outline: 2px solid var(--m); outline-offset: 3px; }
 @keyframes moment-in {
-  0% { opacity: 0; transform: translateY(16px) scale(0.96); }
-  60% { opacity: 1; transform: translateY(-2px) scale(1.01); }
-  100% { opacity: 1; transform: none; }
+  from { opacity: 0; transform: translateY(16px) scale(0.97); }
+  to { opacity: 1; transform: none; }
 }
 
 .branch-glyph {
@@ -391,7 +390,7 @@
   transform-box: fill-box;
   transform-origin: center;
   transform: scale(0);
-  animation: stop-pop 420ms cubic-bezier(0.34, 1.56, 0.64, 1) 900ms forwards;
+  animation: stop-pop 420ms var(--ease-out-expo) 900ms forwards;
 }
 @keyframes road-draw { to { stroke-dashoffset: 0; } }
 @keyframes stop-pop { to { transform: scale(1); } }
@@ -402,7 +401,7 @@
   padding: 0.3rem 0.75rem;
   border-radius: 999px;
   background: var(--m);
-  color: #fff;
+  color: var(--on-accent);
   font-size: 0.78rem;
   font-weight: 600;
   letter-spacing: 0.07em;
@@ -480,10 +479,43 @@
   color: var(--outcome-skip);
 }
 
+/* ---------- Save warning (progress not kept) ---------- */
+
+.save-warning {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.75rem 1rem;
+  margin-top: clamp(1.25rem, 1rem + 1vw, 2rem);
+  padding: 0.9rem 1rem 0.9rem 1.25rem;
+  border-radius: 1rem;
+  background: var(--outcome-review-wash);
+  color: var(--ink);
+}
+.save-warning__text { margin: 0; font-weight: 600; }
+.save-warning__actions { display: flex; align-items: center; gap: 0.5rem; }
+.save-warning .button { min-height: 2.5rem; padding: 0.5rem 1rem; font-size: var(--step--1); }
+.save-warning__close {
+  display: grid;
+  place-items: center;
+  width: 2.5rem;
+  height: 2.5rem;
+  border: 1px solid var(--rule);
+  border-radius: 50%;
+  background: var(--paper);
+  color: var(--ink);
+  font-size: 1.3rem;
+  line-height: 1;
+  cursor: pointer;
+}
+.save-warning__close:hover { border-color: var(--ink-muted); }
+
 /* ---------- Lesson complete ---------- */
 
 .lesson-done { background: var(--tint); border-color: transparent; }
 .lesson-done__title { font-size: var(--step-3); margin-bottom: 1.25rem; }
+.lesson-done__answer { margin: -0.5rem 0 1.25rem; }
 
 /* ---------- Code editor (CodeMirror 6) ---------- */
 
@@ -512,6 +544,26 @@
   overflow-x: auto;
   color: var(--code-variable);
   font: 0.9rem / 1.6 var(--font-mono);
+}
+.code-editor__plain {
+  display: block;
+  width: 100%;
+  padding: 0.75rem 1rem;
+  border: 0;
+  background: var(--code-bg);
+  color: var(--code-variable);
+  font: 0.9rem / 1.6 var(--font-mono);
+  resize: vertical;
+}
+.code-editor__plain:focus-visible { outline: none; }
+.code-editor__retry {
+  padding: 0;
+  border: 0;
+  background: none;
+  color: var(--wp-blue-light);
+  font: 500 0.78rem / 1.4 var(--font-ui);
+  text-decoration: underline;
+  cursor: pointer;
 }
 .code-editor__file { color: var(--on-dark); font: 500 0.82rem / 1.4 var(--font-mono); }
 .code-editor__host .cm-editor { max-height: 26rem; font-size: 0.9rem; background: var(--code-bg); color: var(--code-variable); }
@@ -595,7 +647,7 @@
     background: var(--charcoal);
     color: var(--on-dark);
     font: 600 var(--step-0) / 1.2 var(--font-ui);
-    box-shadow: 0 12px 30px -10px rgba(0, 0, 0, 0.55);
+    box-shadow: var(--shadow-float);
     cursor: pointer;
   }
   .tutor__toggle-icon { width: 1.8rem; height: 1.8rem; color: var(--wp-blue-light); }
@@ -646,14 +698,24 @@
 .path-hero__title { font-size: var(--step-5); letter-spacing: -0.02em; }
 .path-hero__meta { color: var(--on-dark-muted); margin-top: 1rem; }
 .path-hero__soon { color: var(--on-dark); margin: 1rem 0 1.5rem; }
+/* The placement reason as a pull-quote, same treatment as the placement card */
 .path-hero__reason {
+  position: relative;
   margin: 1.5rem 0 0;
-  padding-left: 1.1rem;
-  border-left: 2px solid var(--wp-blue-light);
+  padding-left: 1.55rem;
   font: italic 400 var(--step-1) / 1.4 var(--font-display);
   color: var(--on-dark);
   max-width: 44ch;
 }
+.path-hero__reason p::before {
+  content: '“';
+  position: absolute;
+  left: -0.05rem;
+  top: -0.12em;
+  font: normal 500 3.1rem / 1 var(--font-display);
+  color: var(--wp-blue-light);
+}
+.path-hero__reason p::after { content: '”'; color: var(--wp-blue-light); }
 .path-hero__cta { margin-top: 2rem; }
 
 .lesson-list { list-style: none; margin: 0; padding: 0; border-top: 1px solid var(--rule); }
@@ -710,10 +772,14 @@
   transition: border-color 150ms ease, background-color 150ms ease;
 }
 .record__button:hover,
-.record__button[aria-expanded='true'] { border-color: var(--wp-blue-light); background: rgba(255, 255, 255, 0.06); }
+.record__button[aria-expanded='true'] { border-color: var(--wp-blue-light); background: var(--veil-on-dark); }
 .record__dot { flex: none; width: 0.55rem; height: 0.55rem; border-radius: 50%; background: var(--live); }
 .record__button--folder .record__dot { background: var(--wp-blue-light); }
-.record__button--none .record__dot { background: var(--warn-on-dark); }
+.record__button--none .record__dot,
+.record__button--attention .record__dot { background: var(--warn-on-dark); }
+.record__button--none,
+.record__button--attention { border-color: var(--warn-on-dark); }
+.record__panel:focus { outline: none; }
 .record__panel {
   position: absolute;
   z-index: 60;
@@ -724,7 +790,7 @@
   border-radius: 1rem;
   background: var(--paper);
   color: var(--ink);
-  box-shadow: 0 2px 0 rgba(0, 0, 0, 0.1), 0 24px 50px -20px rgba(0, 0, 0, 0.55);
+  box-shadow: var(--shadow-popover);
   font-size: var(--step--1);
   animation: card-in 240ms var(--ease-out) both;
 }
@@ -757,8 +823,11 @@
 }
 
 @media (prefers-reduced-motion: reduce) {
-  .checkpoint, .bug, .lesson-done, .moment, .bug__win, .record__panel, .tutor__log:empty { display: none; }
-.tutor__log .bubble { animation: none; }
+  /* Motion only: never hide content here. */
+  .checkpoint, .bug, .lesson-done, .moment, .bug__win, .record__panel, .tutor__log .bubble, .tutor__scrim {
+    animation: none;
+    transition: none;
+  }
   .branch-glyph__chosen { animation: none; stroke-dashoffset: 0; }
   .branch-glyph__end { animation: none; transform: none; }
   .beat__caret, .beat__lines span { animation: none; }

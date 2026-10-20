@@ -26,8 +26,10 @@ import { App } from '../../src/app';
 import { getStatus, judge, codeFeedback, tutorStream } from '../../src/ai/client';
 import { content } from '../../src/content';
 import { setRecordManager } from '../../src/record/useRecord';
+import { resetSaveWarning } from '../../src/components/RecordPanel';
+import { clearDeliveries } from '../../src/components/BeatView';
 import { RecordManager, type RecordStore } from '../../src/record/store';
-import { newRecord, type LearningRecord } from '../../src/shared/record';
+import { applyEvent, newRecord, type LearningRecord } from '../../src/shared/record';
 import { memoryManager } from './helpers';
 
 const status = vi.mocked(getStatus);
@@ -94,6 +96,9 @@ afterEach(() => {
   cleanup();
   vi.clearAllMocks();
   setRecordManager(null);
+  resetSaveWarning();
+  clearDeliveries();
+  vi.restoreAllMocks();
 });
 
 describe('Lesson page', () => {
@@ -199,7 +204,7 @@ describe('Free-text checkpoint', () => {
     expect(moment.getAttribute('data-outcome')).toBe('advance');
     expect(moment.textContent).toContain('Nice. On to templates.');
     expect(moment.textContent).toContain('You named presets. Spot on.');
-    expect(judgeMock).toHaveBeenCalledWith('theme-json-basics', 'It sets which controls and presets exist.');
+    expect(judgeMock).toHaveBeenCalledWith('theme-json-basics', 'It sets which controls and presets exist.', expect.any(AbortSignal));
     await waitFor(() =>
       expect(dispatched()).toContainEqual({
         type: 'checkpointAnswered',
@@ -295,6 +300,7 @@ describe('Code checkpoint', () => {
     await waitFor(() =>
       expect(feedbackMock).toHaveBeenCalledWith(
         expect.objectContaining({ lessonId: 'templates-and-parts', file: 'theme.json', passed: false, failedMessages: ['Add a colour with a slug.'] }),
+        expect.any(AbortSignal),
       ),
     );
     expect(await within(cp).findByText('Looks great to me!')).toBeTruthy();
@@ -319,21 +325,35 @@ describe('Code checkpoint', () => {
     expect(dispatched()).toContainEqual({ type: 'codeChecked', lessonId: 'templates-and-parts', file: 'theme.json', passed: true });
   });
 
-  it('offers the review branch and authored options after two failed attempts', async () => {
+  it('after two failed checks offers only "Keep trying" and the review branch, never a pass (R21)', async () => {
     use(managerWith(recordAt('templates-and-parts', 1)));
     open('/learn/templates-and-parts');
     const cp = await toCheckpoint();
     fireEvent.click(within(cp).getByRole('button', { name: 'Check my code' }));
     await within(cp).findByText('Add a colour with a slug.');
-    expect(within(cp).queryByRole('button', { name: 'Skip this one' })).toBeNull();
+    expect(within(cp).queryByRole('button', { name: 'Keep trying' })).toBeNull();
     fireEvent.click(within(cp).getByRole('button', { name: 'Check my code' }));
-    expect(await within(cp).findByRole('button', { name: 'Skip this one' })).toBeTruthy();
-    expect(within(cp).getByRole('button', { name: 'Show me the answer' })).toBeTruthy();
+    expect(await within(cp).findByRole('button', { name: 'Keep trying' })).toBeTruthy();
     expect(within(cp).getByRole('button', { name: /Review/ })).toBeTruthy();
-    fireEvent.click(within(cp).getByRole('button', { name: 'Skip this one' }));
+    // The authored "skip" and "show me" options would record a pass the checks never gave.
+    expect(within(cp).queryByRole('button', { name: 'Skip this one' })).toBeNull();
+    expect(within(cp).queryByRole('button', { name: 'Show me the answer' })).toBeNull();
+
+    fireEvent.click(within(cp).getByRole('button', { name: 'Keep trying' }));
+    await waitFor(() => expect(within(cp).queryByRole('button', { name: 'Keep trying' })).toBeNull());
+    fireEvent.click(within(cp).getByRole('button', { name: 'Check my code' }));
+    fireEvent.click(await within(cp).findByRole('button', { name: /Review/ }));
     const moment = await screen.findByTestId('branch-moment');
-    expect(moment.getAttribute('data-outcome')).toBe('skip');
-    expect(moment.textContent).toContain('Moving on to patterns.');
+    expect(moment.getAttribute('data-outcome')).toBe('review');
+    await waitFor(() =>
+      expect(dispatched()).toContainEqual(
+        expect.objectContaining({ type: 'checkpointAnswered', outcome: 'review', to: 'theme-json-basics' }),
+      ),
+    );
+    const events = dispatched();
+    expect(events.some((e) => e.type === 'codeChecked' && e.passed)).toBe(false);
+    expect(events.some((e) => e.type === 'checkpointAnswered' && e.outcome !== 'review')).toBe(false);
+    expect(events.some((e) => e.type === 'lessonCompleted')).toBe(false);
     expect(feedbackMock).not.toHaveBeenCalled(); // AI was off
   });
 });
@@ -429,11 +449,37 @@ describe('Record panel', () => {
     return screen.findByRole('dialog', { name: /Your record/ });
   }
 
-  it('warns when progress is not being saved', async () => {
+  it('warns when progress is not being saved, visibly, without opening the menu', async () => {
     use(memoryManager(content));
-    open('/');
+    const url = vi.fn(() => 'blob:x');
+    URL.createObjectURL = url as never;
+    URL.revokeObjectURL = vi.fn();
+    // happy-dom would really navigate to blob:x and break the next test's URL.
+    vi.spyOn(HTMLAnchorElement.prototype, 'click').mockImplementation(() => {});
+    open('/learn/theme-json-basics');
+    const button = await screen.findByRole('button', { name: /Your record/ });
+    expect(button.textContent).toContain('Not saved');
+    const banner = await screen.findByText("Your progress isn't being saved. Download it to keep it.");
+    expect(screen.queryByRole('dialog')).toBeNull();
+    const box = banner.closest('.save-warning') as HTMLElement;
+    fireEvent.click(within(box).getByRole('button', { name: 'Download record' }));
+    expect(url).toHaveBeenCalled();
+    fireEvent.click(within(box).getByRole('button', { name: 'Dismiss this warning' }));
+    await waitFor(() => expect(screen.queryByText("Your progress isn't being saved. Download it to keep it.")).toBeNull());
+    // The menu still says so.
     const panel = await openPanel();
     expect(panel.textContent).toContain("Your progress isn't being saved. Download it to keep it.");
+    expect(document.activeElement).toBe(panel);
+  });
+
+  it('flags a stored-record notice on the header button and the lesson page', async () => {
+    const m = managerWith(recordAt('theme-json-basics', 0));
+    use(m);
+    await m.init();
+    m.notice = { kind: 'newer-version', message: 'Your saved record was made by a newer version, so we started fresh.' };
+    open('/learn/theme-json-basics');
+    expect((await screen.findByRole('button', { name: /Your record/ })).textContent).toContain('Check your record');
+    expect(await screen.findByText('Your saved record was made by a newer version, so we started fresh.')).toBeTruthy();
   });
 
   it('shows the browser save state and a stored-record notice', async () => {
@@ -510,9 +556,92 @@ describe('Record panel', () => {
     const url = vi.fn(() => 'blob:x');
     URL.createObjectURL = url as never;
     URL.revokeObjectURL = vi.fn();
+    // happy-dom would really navigate to blob:x and break the next test's URL.
+    vi.spyOn(HTMLAnchorElement.prototype, 'click').mockImplementation(() => {});
     open('/');
     const panel = await openPanel();
     fireEvent.click(within(panel).getByRole('button', { name: 'Download record' }));
     expect(url).toHaveBeenCalled();
+  });
+});
+
+describe('Fix round 1', () => {
+  it('a completed lesson is read-only: it shows the past outcome and records nothing new (R22)', async () => {
+    let r = recordAt('theme-json-basics', 2);
+    r = applyEvent(r, { type: 'checkpointAnswered', lessonId: 'theme-json-basics', response: 'x', outcome: 'skip', to: 'templates-and-parts' }, content);
+    r = applyEvent(r, { type: 'lessonCompleted', lessonId: 'theme-json-basics' }, content);
+    use(managerWith(r));
+    open('/learn/theme-json-basics');
+    const summary = await screen.findByTestId('completed-summary');
+    expect(summary.textContent).toContain('You answered this: Skip ahead');
+    expect(summary.textContent).toContain('Skipping ahead to templates.');
+    expect(within(summary).getByRole('link', { name: /Continue/ }).getAttribute('href')).toBe('/learn/templates-and-parts');
+    expect(screen.queryByRole('region', { name: /Checkpoint/ })).toBeNull();
+    expect(screen.queryByRole('button', { name: 'Check my answer' })).toBeNull();
+    await new Promise((res) => setTimeout(res, 50));
+    expect(dispatched().filter((e) => e.type !== 'beatViewed')).toEqual([]);
+  });
+
+  it('a completed bug lesson does not offer the bug hunt again (R22)', async () => {
+    let r = recordAt('patterns', 0);
+    r = applyEvent(r, { type: 'lessonCompleted', lessonId: 'patterns' }, content);
+    use(managerWith(r));
+    open('/learn/patterns');
+    const summary = await screen.findByTestId('completed-summary');
+    expect(summary.textContent).toContain('You caught the planted bug.');
+    expect(screen.queryByRole('region', { name: /Catch the bug/ })).toBeNull();
+    expect(within(summary).getByRole('link', { name: /Continue/ }).getAttribute('href')).toBe('/finale');
+    expect(dispatched()).toEqual([]);
+  });
+
+  it('a double click on Next records the next beat once', async () => {
+    use(managerWith(recordAt('theme-json-basics', 0)));
+    open('/learn/theme-json-basics');
+    const next = await screen.findByRole('button', { name: /^Next/ });
+    fireEvent.click(next);
+    fireEvent.click(next);
+    await screen.findByRole('heading', { name: 'Add a colour palette.' });
+    await new Promise((res) => setTimeout(res, 20));
+    const viewed = dispatched().filter((e) => e.type === 'beatViewed');
+    expect(viewed).toEqual([{ type: 'beatViewed', lessonId: 'theme-json-basics', beatIndex: 1 }]);
+  });
+
+  it('moving on mid-delivery aborts the stream and shows the authored beat', async () => {
+    status.mockResolvedValue({ ai: 'on' });
+    const signals: AbortSignal[] = [];
+    stream.mockImplementation(
+      (req, onText, signal) =>
+        new Promise((_res, rej) => {
+          signals.push(signal!);
+          if (req.beatIndex === 0) onText('Half way through');
+          signal!.addEventListener('abort', () => rej(new Error('aborted')));
+        }),
+    );
+    use(managerWith(recordAt('theme-json-basics', 0)));
+    open('/learn/theme-json-basics');
+    const beat = (await screen.findByRole('heading', { name: /control centre/ })).closest('[data-beat]') as HTMLElement;
+    await waitFor(() => expect(beat.textContent).toContain('Half way through'));
+    fireEvent.click(screen.getByRole('button', { name: /^Next/ }));
+    await waitFor(() => expect(signals[0].aborted).toBe(true));
+    await waitFor(() => expect(beat.textContent).toContain('declares your palette'));
+    expect(beat.textContent).not.toContain('Half way through');
+  });
+
+  it('unmounting aborts a pending judge call', async () => {
+    status.mockResolvedValue({ ai: 'on' });
+    stream.mockImplementation(async (_r, onText) => onText('Beat.'));
+    let seen: AbortSignal | undefined;
+    judgeMock.mockImplementation((_l, _a, signal) => {
+      seen = signal;
+      return new Promise(() => {});
+    });
+    use(managerWith(recordAt('theme-json-basics', 2)));
+    const { unmount } = open('/learn/theme-json-basics');
+    const cp = await toCheckpoint();
+    fireEvent.input(within(cp).getByLabelText('Your answer'), { target: { value: 'An answer' } });
+    fireEvent.click(within(cp).getByRole('button', { name: 'Check my answer' }));
+    await waitFor(() => expect(seen).toBeInstanceOf(AbortSignal));
+    unmount();
+    await waitFor(() => expect(seen!.aborted).toBe(true));
   });
 });
