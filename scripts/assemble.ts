@@ -50,6 +50,9 @@ export async function bundleFunctions(srcDir: string, outDir: string): Promise<s
       platform: 'neutral',
       // platform 'neutral' sets no mainFields, so an npm dependency without `exports` would not resolve.
       mainFields: ['module', 'main'],
+      // The MCP SDK's `_shims` export resolves to a Node shim (node:process, Ajv) without these; its
+      // workerd build uses web APIs only. Only packages that publish these conditions are affected.
+      conditions: ['workerd', 'worker', 'browser'],
       target: 'es2022',
       external: [],
       logLevel: 'warning',
@@ -86,6 +89,11 @@ export async function assemble(root: string): Promise<void> {
     cwd: root,
     stdio: 'inherit',
   });
+  // The MCP connector converts the content at runtime; fail the build here if it no longer fits learning-mcp.
+  // Imported late: the converter reads src/generated/content.json, which the step above just wrote.
+  const { buildContent } = await import('./build-content.ts');
+  const { buildCourse } = await import('../functions/_lib/mcp/course.ts');
+  buildCourse(buildContent(join(root, 'content')));
   await viteBuild({ root, logLevel: 'warn' });
   const dist = join(root, 'dist');
   rmSync(join(dist, 'functions'), { recursive: true, force: true });
