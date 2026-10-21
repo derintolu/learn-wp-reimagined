@@ -7,7 +7,7 @@ import { THEME_SLUG } from './themeZip';
  */
 export const PLAYGROUND_URL_LIMIT = 200_000;
 
-const THEME_DIR = `/wordpress/wp-content/themes/${THEME_SLUG}`;
+export const THEME_DIR = `/wordpress/wp-content/themes/${THEME_SLUG}`;
 
 export interface BlueprintStep {
   step: 'mkdir' | 'writeFile' | 'activateTheme';
@@ -25,7 +25,7 @@ export interface Blueprint {
 }
 
 /** Blueprint (developer.wordpress.org/playground/blueprints): write the theme, then activate it. */
-export function playgroundBlueprint(files: Record<string, string>): Blueprint {
+export function playgroundBlueprint(files: Record<string, string>, opts: { login?: boolean } = {}): Blueprint {
   const paths = Object.keys(files).sort();
   const dirs = new Set<string>([THEME_DIR]);
   for (const p of paths) {
@@ -36,7 +36,7 @@ export function playgroundBlueprint(files: Record<string, string>): Blueprint {
     $schema: 'https://playground.wordpress.net/blueprint-schema.json',
     landingPage: '/',
     preferredVersions: { wp: 'latest', php: '8.3' },
-    login: true,
+    login: opts.login ?? true,
     steps: [
       ...[...dirs].sort().map((path): BlueprintStep => ({ step: 'mkdir', path })),
       ...paths.map((p): BlueprintStep => ({ step: 'writeFile', path: `${THEME_DIR}/${p}`, data: files[p] })),
