@@ -71,6 +71,7 @@ export const PathSchema = z
     lessons: z.array(nonEmpty),
     placementHints: nonEmpty,
     finalFiles: z.record(z.string(), z.string()).optional(),
+    previewFiles: z.record(z.string(), z.string()).optional(),
   })
   .strict()
   .superRefine((p, ctx) => {
@@ -79,6 +80,9 @@ export const PathSchema = z
     }
     if (p.finalFiles && p.status !== 'live') {
       ctx.addIssue({ code: 'custom', path: ['finalFiles'], message: 'finalFiles are only allowed on a live path' });
+    }
+    if (p.previewFiles && p.status !== 'live') {
+      ctx.addIssue({ code: 'custom', path: ['previewFiles'], message: 'previewFiles are only allowed on a live path' });
     }
   });
 

@@ -99,4 +99,43 @@ describe('buildContent', () => {
       expect(() => buildContent(dir)).toThrow(/finalFiles/);
     });
   });
+
+  describe('previewFiles', () => {
+    const pathFile = (dir: string) => join(dir, 'paths/block-theme/path.yaml');
+
+    it('the real block theme path ships the preview scaffold', () => {
+      const pf = buildContent(join(__dirname, '../../content')).paths['block-theme'].previewFiles ?? {};
+      expect(Object.keys(pf).sort()).toEqual(['style.css', 'templates/index.html', 'theme.json']);
+    });
+
+    it('throws when a live path has no previewFiles', () => {
+      const dir = copyFixture();
+      edit(pathFile(dir), /previewFiles:[\s\S]*$/, '');
+      expect(() => buildContent(dir)).toThrow(/path\.yaml.*previewFiles/);
+    });
+
+    it('throws when previewFiles lack style.css', () => {
+      const dir = copyFixture();
+      edit(pathFile(dir), '  style.css:', '  other.css:');
+      expect(() => buildContent(dir)).toThrow(/previewFiles must include style\.css/);
+    });
+
+    it('throws when previewFiles lack templates/index.html', () => {
+      const dir = copyFixture();
+      edit(pathFile(dir), '  templates/index.html:', '  templates/other.html:');
+      expect(() => buildContent(dir)).toThrow(/previewFiles must include templates\/index\.html/);
+    });
+
+    it('throws when a previewFiles .json does not parse', () => {
+      const dir = copyFixture();
+      writeFileSync(pathFile(dir), readFileSync(pathFile(dir), 'utf8') + '  theme.json: "{nope"\n');
+      expect(() => buildContent(dir)).toThrow(/previewFiles theme\.json is not valid JSON/);
+    });
+
+    it('rejects previewFiles on a path that is not live', () => {
+      const dir = copyFixture();
+      writeFileSync(join(dir, 'paths/learner/path.yaml'), readFileSync(join(dir, 'paths/learner/path.yaml'), 'utf8') + 'previewFiles:\n  a.css: x\n');
+      expect(() => buildContent(dir)).toThrow(/previewFiles/);
+    });
+  });
 });

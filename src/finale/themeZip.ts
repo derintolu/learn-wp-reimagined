@@ -2,6 +2,7 @@ import { strToU8, zipSync } from 'fflate';
 import { runChecks } from '../shared/checks';
 import type { LearningRecord } from '../shared/record';
 import type { ContentBundle, Lesson } from '../shared/types';
+import { ownedFiles } from '../studio/workspace';
 
 /** The theme's folder name, matching the Text Domain in the starter style.css. */
 export const THEME_SLUG = 'my-block-theme';
@@ -15,10 +16,6 @@ export interface ResolvedTheme {
   used: string[];
   /** Learner edits that were set aside, with a note saying why. */
   replaced: { file: string; message: string }[];
-}
-
-function ownedFiles(l: Lesson): string[] {
-  return [...Object.keys(l.starterFiles ?? {}), l.checkpoint?.file, l.bug?.file].filter((f): f is string => !!f);
 }
 
 /**

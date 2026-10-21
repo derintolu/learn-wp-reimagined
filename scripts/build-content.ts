@@ -78,6 +78,20 @@ export function buildContent(dir: string): ContentBundle {
         }
       }
     }
+    const previewFiles = p.previewFiles;
+    if (!previewFiles) fail(pathFile[pid]!, 'a live path needs previewFiles');
+    for (const required of ['style.css', 'templates/index.html']) {
+      if (!Object.prototype.hasOwnProperty.call(previewFiles, required)) fail(pathFile[pid]!, `previewFiles must include ${required}`);
+    }
+    for (const [file, text] of Object.entries(previewFiles)) {
+      if (file.endsWith('.json')) {
+        try {
+          JSON.parse(text);
+        } catch (e) {
+          fail(pathFile[pid]!, `previewFiles ${file} is not valid JSON: ${(e as Error).message}`);
+        }
+      }
+    }
     for (const id of p.lessons) {
       const l = lessons[id];
       const checks = [...(l.checkpoint?.checks ?? []), ...(l.bug?.fixChecks ?? [])].filter((ch) => Object.prototype.hasOwnProperty.call(finalFiles, ch.file));

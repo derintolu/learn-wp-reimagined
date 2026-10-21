@@ -12,6 +12,8 @@ export interface Path {
   placementHints: string;
   /** The finished reference theme, file name to content. Live paths only. */
   finalFiles?: Record<string, string>;
+  /** Read-only scaffold files so the live preview renders from the first lesson. Live paths only. */
+  previewFiles?: Record<string, string>;
 }
 
 export interface Beat { id: string; goal: string; content: string; question?: string }

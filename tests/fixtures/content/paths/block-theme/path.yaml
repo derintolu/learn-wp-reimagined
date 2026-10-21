@@ -2,3 +2,6 @@ title: Block theme developer
 tagline: Build a modern block theme with theme.json, templates and patterns.
 status: live
 placementHints: For people who know HTML and CSS and want to build block themes.
+previewFiles:
+  style.css: "/* Theme Name: Fixture */\n"
+  templates/index.html: "<!-- wp:site-title /-->\n"

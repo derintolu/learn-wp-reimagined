@@ -153,3 +153,53 @@ finalFiles:
     	<!-- /wp:paragraph -->
     </section>
     <!-- /wp:group -->
+
+# Read-only scaffold so the live preview renders before lesson 3 teaches templates.
+previewFiles:
+  style.css: |
+    /*
+    Theme Name: My Block Theme
+    Author: You
+    Description: My first block theme, built with Learn WordPress, reimagined.
+    Version: 1.0.0
+    Requires at least: 6.6
+    Tested up to: 7.1
+    Requires PHP: 7.4
+    License: GNU General Public License v2 or later
+    License URI: https://www.gnu.org/licenses/gpl-2.0.html
+    Text Domain: my-block-theme
+    */
+  theme.json: |
+    {
+      "$schema": "https://schemas.wp.org/trunk/theme.json",
+      "version": 3,
+      "settings": {
+        "color": {
+          "palette": [
+            { "name": "Base", "slug": "base", "color": "#ffffff" },
+            { "name": "Contrast", "slug": "contrast", "color": "#1e1e1e" },
+            { "name": "Subtle", "slug": "subtle", "color": "#f0f0f0" }
+          ]
+        }
+      }
+    }
+  templates/index.html: |
+    <!-- wp:group {"tagName":"header","backgroundColor":"contrast","textColor":"base","style":{"spacing":{"padding":{"top":"4rem","bottom":"4rem","left":"2rem","right":"2rem"}}},"layout":{"type":"constrained"}} -->
+    <header class="wp-block-group has-base-color has-contrast-background-color has-text-color has-background" style="padding-top:4rem;padding-right:2rem;padding-bottom:4rem;padding-left:2rem">
+    <!-- wp:site-title {"level":1} /-->
+    <!-- wp:paragraph -->
+    <p>This band is painted with the Contrast colour from theme.json.</p>
+    <!-- /wp:paragraph -->
+    </header>
+    <!-- /wp:group -->
+
+    <!-- wp:group {"tagName":"main","backgroundColor":"subtle","style":{"spacing":{"padding":{"top":"2rem","bottom":"3rem","left":"2rem","right":"2rem"}}},"layout":{"type":"constrained"}} -->
+    <main class="wp-block-group has-subtle-background-color has-background" style="padding-top:2rem;padding-right:2rem;padding-bottom:3rem;padding-left:2rem">
+    <!-- wp:query {"query":{"perPage":3,"postType":"post","inherit":true}} -->
+    <div class="wp-block-query"><!-- wp:post-template -->
+    <!-- wp:post-title {"isLink":true} /-->
+    <!-- wp:post-excerpt /-->
+    <!-- /wp:post-template --></div>
+    <!-- /wp:query -->
+    </main>
+    <!-- /wp:group -->
