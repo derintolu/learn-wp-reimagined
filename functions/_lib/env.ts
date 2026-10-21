@@ -18,6 +18,8 @@ export interface Env {
   AI_ROUTES?: string;
   /** Header carrying the real client IP behind the edge; defaults to cf-connecting-ip. */
   TRUSTED_IP_HEADER?: string;
+  /** Bearer token the daily /api/mcp-sweep cron must send. */
+  CRON_SECRET?: string;
 }
 
 export type Handler = (

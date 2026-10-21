@@ -1,0 +1,89 @@
+/* Bring your own agent: the Connect page, and the handoff and import views in the record menu.
+   Kept in its own file so other workstreams' stylesheets stay untouched. Tokens: src/styles/tokens.css. */
+
+.copy-field { display: grid; gap: 0.3rem; min-width: 0; }
+.copy-field__label { font-size: var(--step--1); font-weight: 600; color: var(--ink); }
+.copy-field__row { display: flex; align-items: stretch; gap: 0.5rem; min-width: 0; }
+.copy-field__value {
+  flex: 1 1 auto;
+  min-width: 0;
+  margin: 0;
+  padding: 0.5rem 0.65rem;
+  border: 1px solid var(--rule);
+  border-radius: 0.5rem;
+  background: var(--code-bg);
+  font-family: var(--font-mono);
+  font-size: var(--step--1);
+  line-height: 1.45;
+  overflow-wrap: anywhere;
+  white-space: pre-wrap;
+  user-select: all;
+}
+pre.copy-field__value { white-space: pre; overflow-wrap: normal; overflow-x: auto; }
+.agent-handoff pre.copy-field__value { white-space: pre-wrap; overflow-wrap: anywhere; }
+.copy-field__button.button { flex: none; align-self: flex-start; min-height: 2.5rem; padding: 0.45rem 0.9rem; font-size: var(--step--1); }
+.copy-field__error { color: var(--danger); font-size: var(--step--1); font-weight: 600; }
+
+/* In the record menu */
+.record__panel { max-height: min(40rem, calc(100vh - 6rem)); overflow-y: auto; overscroll-behavior: contain; }
+.record__back { margin-bottom: 0.75rem; }
+.record__back .button { min-height: 2.25rem; padding: 0.35rem 0.8rem; font-size: var(--step--1); }
+.record__agent { margin-top: 1rem; padding-top: 0.9rem; border-top: 1px solid var(--rule); }
+.record__agent-title { margin: 0 0 0.5rem; font-size: var(--step--1); font-weight: 600; color: var(--ink-muted); text-transform: none; }
+
+.agent-handoff__steps { display: grid; gap: 0.9rem; margin: 0.6rem 0 0.9rem; padding-left: 1.2rem; }
+.agent-handoff__steps li::marker { color: var(--ink-muted); font-weight: 600; }
+.agent-handoff__note { margin: 0.35rem 0 0; color: var(--outcome-review); font-weight: 600; font-size: var(--step--1); }
+.agent-handoff__link { margin: 0; }
+
+.agent-import { display: grid; gap: 0.9rem; min-width: 0; }
+.agent-import__label { display: block; margin-bottom: 0.35rem; font-weight: 600; }
+.agent-import__field {
+  width: 100%;
+  box-sizing: border-box;
+  min-height: 4.5rem;
+  padding: 0.55rem 0.7rem;
+  border: 1px solid var(--ink-muted);
+  border-radius: 0.5rem;
+  font: inherit;
+  font-family: var(--font-mono);
+  font-size: var(--step--1);
+  resize: vertical;
+}
+.agent-import__field:focus-visible { outline: 2px solid var(--wp-blue); outline-offset: 2px; }
+.agent-import__privacy { margin: 0.45rem 0 0.7rem; color: var(--ink-muted); font-size: var(--step--1); }
+.agent-import__plan { display: grid; gap: 0.75rem; }
+.agent-import__plan .record__summary { margin: 0; }
+.agent-import__conflicts { display: grid; gap: 0.6rem; margin: 0; padding: 0; border: 0; min-width: 0; }
+.agent-import__conflicts legend { padding: 0; margin-bottom: 0.4rem; font-weight: 600; }
+.agent-import__conflict { display: grid; grid-template-columns: auto minmax(0, 1fr); gap: 0.5rem; align-items: start; }
+.agent-import__conflict input { width: 1.1rem; height: 1.1rem; margin: 0.15rem 0 0; accent-color: var(--wp-blue); }
+.agent-import__what { display: block; font-weight: 600; }
+.agent-import__vs { display: grid; grid-template-columns: 3rem minmax(0, 1fr); gap: 0.2rem 0.5rem; margin-top: 0.3rem; color: var(--ink-muted); font-size: var(--step--1); }
+.agent-import__vs pre { margin: 0; padding: 0.3rem 0.45rem; border-radius: 0.35rem; background: var(--surface-muted); color: var(--ink); font-family: var(--font-mono); white-space: pre-wrap; overflow-wrap: anywhere; }
+.agent-import__ignored summary { cursor: pointer; color: var(--ink-muted); }
+.agent-import__ignored ul { margin: 0.4rem 0 0; padding-left: 1.2rem; color: var(--ink-muted); font-size: var(--step--1); }
+.agent-import__delete { padding-top: 0.6rem; border-top: 1px solid var(--rule); }
+
+/* The Connect page */
+.connect__url { margin: 1.5rem 0 1rem; max-width: 36rem; }
+.connect__note { color: var(--ink-muted); }
+.connect__clients { padding-top: 0; }
+.connect__grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 19rem), 1fr)); gap: 1.25rem; margin-top: 1.75rem; }
+.connect__client {
+  display: grid;
+  align-content: start;
+  gap: 0.6rem;
+  min-width: 0;
+  padding: 1.25rem;
+  border: 1px solid var(--rule);
+  border-radius: 1rem;
+  background: var(--paper);
+  box-shadow: var(--shadow-card);
+}
+.connect__client h3 { margin: 0; font-family: var(--font-display); font-size: var(--step-2); font-weight: 500; }
+.connect__plans { margin: 0; color: var(--ink-muted); font-size: var(--step--1); }
+.connect__client ol { margin: 0; padding-left: 1.2rem; display: grid; gap: 0.35rem; }
+.connect__docs { margin: 0; font-size: var(--step--1); }
+.connect__import { display: grid; gap: 1rem; }
+.connect__import .agent-import { max-width: 36rem; }

@@ -372,7 +372,7 @@ describe('Catch the bug', () => {
       expect(dispatched()).toContainEqual({ type: 'fileEdited', file: 'patterns/hero.php', content: expect.stringContaining('mytheme/hero'), lessonId: 'patterns' }),
     );
     // patterns is the last lesson of the path
-    expect(screen.getByRole('link', { name: /Continue/ }).getAttribute('href')).toBe('/finale');
+    expect(screen.getByRole('link', { name: /Continue to the finale/ }).getAttribute('href')).toBe('/finale');
   });
 });
 

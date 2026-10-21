@@ -3,7 +3,7 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { afterEach, describe, expect, it } from 'vitest';
-import { assertNoEnvFiles, bundleFunctions, envFilesIn, routeModules } from '../../scripts/assemble';
+import { BUNDLE_LIMIT, assertNoEnvFiles, bundleFunctions, envFilesIn, routeModules } from '../../scripts/assemble';
 
 const API = fileURLToPath(new URL('../../functions/api', import.meta.url));
 
@@ -41,6 +41,41 @@ describe('bundleFunctions', () => {
       expect(code).not.toMatch(/^\s*import\s/m);
       expect(code).toMatch(/export\s*\{[^}]*\b(GET|POST|default)\b/);
     }
+  });
+});
+
+describe('the MCP connector bundle', () => {
+  it('bundles the SDK for a web runtime: no node: imports, under the limit, with its methods', async () => {
+    const out = tmp();
+    const files = await bundleFunctions(API, out);
+    const mcp = files.find((f) => f.endsWith('/mcp.js'))!;
+    expect(mcp).toBeTruthy();
+    const code = readFileSync(mcp, 'utf8');
+    expect(code).not.toMatch(/["']node:/);
+    expect(code).not.toMatch(/\brequire\(/);
+    expect(code).toMatch(/export\s*\{[^}]*\bPOST\b/);
+    expect(code).toMatch(/export\s*\{[^}]*\bGET\b/);
+    expect(code).toMatch(/export\s*\{[^}]*\bDELETE\b/);
+    expect(code.length).toBeLessThan(BUNDLE_LIMIT);
+    for (const f of files) expect(readFileSync(f, 'utf8'), f).not.toMatch(/from\s*["']node:/);
+  });
+
+  it('the bundled connector serves tools/list when imported as a module', async () => {
+    const out = tmp();
+    const files = await bundleFunctions(API, out);
+    const mod = await import(files.find((f) => f.endsWith('/mcp.js'))!);
+    const { createSqliteD1 } = await import('../../dev/sqliteD1');
+    const res: Response = await mod.POST(
+      new Request('http://localhost/api/mcp', {
+        method: 'POST',
+        headers: { 'content-type': 'application/json', accept: 'application/json, text/event-stream', 'mcp-protocol-version': '2025-06-18' },
+        body: JSON.stringify({ jsonrpc: '2.0', id: 1, method: 'tools/list', params: {} }),
+      }),
+      { params: {}, env: { DB: createSqliteD1() } },
+    );
+    expect(res.status).toBe(200);
+    const text = await res.text();
+    for (const t of ['list_paths', 'start_placement', 'next_beat', 'delete_record']) expect(text).toContain(`"${t}"`);
   });
 });
 

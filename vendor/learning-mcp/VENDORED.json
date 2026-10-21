@@ -1,0 +1,25 @@
+{
+  "repo": "github.com/derintolu/learning-mcp",
+  "commit": "f2c83626d84bd478b330fbc6c064d980b52585e2",
+  "license": "GPL-2.0-or-later",
+  "transforms": [
+    "server/server.ts: from '@learning-mcp/core' -> from '../core/index.ts'",
+    "a one-line provenance header on each .ts file"
+  ],
+  "files": [
+    "core/agent-rules.generated.ts",
+    "core/checks.ts",
+    "core/engine.ts",
+    "core/index.ts",
+    "core/learner-text.ts",
+    "core/profile.ts",
+    "core/record.ts",
+    "core/rules.ts",
+    "core/schema.ts",
+    "core/session.ts",
+    "core/store.ts",
+    "core/xapi.ts",
+    "server/server.ts",
+    "LICENSE"
+  ]
+}
