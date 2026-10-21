@@ -1,4 +1,5 @@
 // @vitest-environment happy-dom
+// @vitest-environment-options {"settings": {"enableIframePageLoading": true}}
 // A cap or rate limit that kicks in mid-session reaches the whole page (final review item 2).
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { cleanup, fireEvent, render, screen, waitFor, within } from '@testing-library/preact';
@@ -19,6 +20,7 @@ import { App } from '../../src/app';
 import { getStatus, judge, placement, tutorStream } from '../../src/ai/client';
 import { content } from '../../src/content';
 import { setRecordManager } from '../../src/record/useRecord';
+import { setPlaygroundImporter } from '../../src/studio/previewClient';
 import { resetSaveWarning } from '../../src/components/RecordPanel';
 import { clearDeliveries } from '../../src/components/BeatView';
 import { CapNotice } from '../../src/components/CapNotice';
@@ -49,6 +51,7 @@ function open(url: string) {
 const tutorPanel = () => screen.findByRole('complementary', { name: /tutor/i });
 
 beforeEach(() => {
+  setPlaygroundImporter(() => Promise.reject(new Error('no Playground in tests')));
   status.mockResolvedValue({ ai: 'on' });
   stream.mockImplementation(async (req, onText) => onText(req.mode === 'ask' ? 'An answer.' : 'Beat text.'));
 });
@@ -56,6 +59,7 @@ afterEach(() => {
   cleanup();
   vi.clearAllMocks();
   setRecordManager(null);
+  setPlaygroundImporter(null);
   resetSaveWarning();
   clearDeliveries();
   resetAiStatusForTests();

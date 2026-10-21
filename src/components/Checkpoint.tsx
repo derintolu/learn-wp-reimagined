@@ -8,7 +8,7 @@ import { resolveBranch } from '../shared/engine';
 import type { Branch, Check, Lesson, Outcome } from '../shared/types';
 import { BranchMoment } from './BranchMoment';
 import { CapNotice } from './CapNotice';
-import { CodeEditor } from './LazyCodeEditor';
+import { useStudio } from '../studio/StudioContext';
 import { Markdown } from './Markdown';
 import { tidy } from './PlacementChat';
 import { SketchIcon } from './SketchIcon';
@@ -141,17 +141,18 @@ function FreeText({ lesson, ai, onResolve }: { lesson: Lesson; ai: AiState; onRe
   );
 }
 
-type CheckResult = { check: Check; passed: boolean }[];
+/** `passed: null` is a check that hasn't run yet. */
+export type CheckResult = { check: Check; passed: boolean | null }[];
 
-function CheckList({ results }: { results: CheckResult }) {
+export function CheckList({ results }: { results: CheckResult }) {
   return (
     <ul class="check-list">
       {results.map((r, i) => (
-        <li key={i} class={r.passed ? 'check-list__item is-pass' : 'check-list__item is-fail'}>
+        <li key={i} class={`check-list__item ${r.passed === null ? 'is-pending' : r.passed ? 'is-pass' : 'is-fail'}`}>
           <span class="check-list__mark" aria-hidden="true">
-            {r.passed ? '✓' : '×'}
+            {r.passed === null ? '○' : r.passed ? '✓' : '×'}
           </span>
-          <span class="visually-hidden">{r.passed ? 'Passed: ' : 'Not yet: '}</span>
+          <span class="visually-hidden">{r.passed === null ? 'Not checked yet: ' : r.passed ? 'Passed: ' : 'Not yet: '}</span>
           <span>{r.check.message}</span>
         </li>
       ))}
@@ -162,9 +163,6 @@ function CheckList({ results }: { results: CheckResult }) {
 function Code({
   lesson,
   ai,
-  files,
-  onEdit,
-  flush,
   onResolve,
   onFeedback,
   locked,
@@ -172,15 +170,12 @@ function Code({
   lesson: Lesson;
   ai: AiState;
   locked: boolean;
-  files: Record<string, string>;
-  onEdit: (file: string, content: string) => void;
-  flush: () => void;
   onResolve: (r: Resolution) => void;
   onFeedback: (f: string | null, pending: boolean) => void;
 }) {
   const cp = lesson.checkpoint!;
   const file = cp.file!;
-  const [code, setCode] = useState(files[file] ?? '');
+  const studio = useStudio();
   const [results, setResults] = useState<CheckResult | null>(null);
   const [fails, setFails] = useState(0);
   const [note, setNote] = useState<string | null>(null);
@@ -188,17 +183,19 @@ function Code({
   const [helpHidden, setHelpHidden] = useState(false);
   const seq = useRef(0);
   const ctl = useRef(new AbortController());
-  const box = useRef<HTMLDivElement>(null);
   useEffect(() => () => ctl.current.abort(), []);
 
   function keepTrying() {
     setHelpHidden(true);
-    box.current?.querySelector<HTMLElement>('.cm-content, textarea')?.focus();
+    studio.openFile(file);
+    // The editor is in the workspace; it may remount on the tab switch, so focus it after.
+    setTimeout(() => document.querySelector<HTMLElement>('#ws-panel .cm-content, #ws-panel textarea')?.focus());
   }
 
   function check() {
-    flush();
-    const run = runChecks(cp.checks ?? [], { ...files, [file]: code });
+    studio.flush();
+    const code = studio.files[file] ?? '';
+    const run = runChecks(cp.checks ?? [], studio.files);
     setResults(run.results);
     getRecordManager()
       .dispatch({ type: 'codeChecked', lessonId: lesson.id, file, passed: run.passed })
@@ -219,6 +216,7 @@ function Code({
       });
     }
     if (run.passed) {
+      void studio.apply([file]);
       // The checks decide; the AI only ever adds a note.
       const branch = branchFor(lesson.id, 'advance');
       if (branch) onResolve({ outcome: 'advance', branch, response: CODE_PASS_RESPONSE });
@@ -232,20 +230,14 @@ function Code({
   const reviewTitle = review ? (content.lessons[review.to]?.title ?? review.to) : '';
 
   return (
-    <div class="checkpoint__code" ref={box}>
-      <CodeEditor
-        file={file}
-        value={code}
-        describedBy={`cp-q-${lesson.id}`}
-        onChange={(v) => {
-          setCode(v);
-          onEdit(file, v);
-        }}
-      />
+    <div class="checkpoint__code">
       {!locked && (
         <div class="checkpoint__row">
           <button type="button" class="button" onClick={check}>
             Check my code
+          </button>
+          <button type="button" class="button button--quiet" onClick={() => studio.openFile(file)}>
+            Edit {file} in the workspace
           </button>
           <span class="checkpoint__hint">Checks run right here in your browser. They decide pass or fail.</span>
         </div>
@@ -297,17 +289,11 @@ function Code({
 export function Checkpoint({
   lesson,
   ai,
-  files,
-  onEdit,
-  flush,
   onResolved,
   onRestart,
 }: {
   lesson: Lesson;
   ai: AiState;
-  files: Record<string, string>;
-  onEdit: (file: string, content: string) => void;
-  flush: () => void;
   onResolved: (r: Resolution) => void;
   onRestart: () => void;
 }) {
@@ -349,9 +335,6 @@ export function Checkpoint({
             lesson={lesson}
             ai={ai}
             locked={Boolean(done)}
-            files={files}
-            onEdit={onEdit}
-            flush={flush}
             onResolve={(r) => resolve(r)}
             onFeedback={(f, p) => {
               if (doneRef.current && doneRef.current.response !== CODE_PASS_RESPONSE) return;

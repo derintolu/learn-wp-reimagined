@@ -1,4 +1,5 @@
 // @vitest-environment happy-dom
+// @vitest-environment-options {"settings": {"enableIframePageLoading": true}}
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { act, cleanup, fireEvent, render, screen, waitFor, within } from '@testing-library/preact';
 import { EditorView } from '@codemirror/view';
@@ -26,6 +27,7 @@ import { App } from '../../src/app';
 import { getStatus, judge, codeFeedback, tutorStream } from '../../src/ai/client';
 import { content } from '../../src/content';
 import { setRecordManager } from '../../src/record/useRecord';
+import { setPlaygroundImporter } from '../../src/studio/previewClient';
 import { resetSaveWarning } from '../../src/components/RecordPanel';
 import { clearDeliveries } from '../../src/components/BeatView';
 import { RecordManager, type RecordStore } from '../../src/record/store';
@@ -88,6 +90,7 @@ async function typeInto(name: RegExp, text: string) {
 }
 
 beforeEach(() => {
+  setPlaygroundImporter(() => Promise.reject(new Error('no Playground in tests')));
   status.mockResolvedValue({ ai: 'off' });
   stream.mockRejectedValue(new Error('not set'));
   feedbackMock.mockResolvedValue({ ok: false, fallback: true });
@@ -96,6 +99,7 @@ afterEach(() => {
   cleanup();
   vi.clearAllMocks();
   setRecordManager(null);
+  setPlaygroundImporter(null);
   resetSaveWarning();
   clearDeliveries();
   vi.restoreAllMocks();
@@ -289,7 +293,9 @@ describe('Code checkpoint', () => {
     use(managerWith(recordAt('templates-and-parts', 1)));
     open('/learn/templates-and-parts');
     const cp = await toCheckpoint();
-    expect(await within(cp).findByRole('textbox', { name: /theme\.json/ })).toBeTruthy();
+    // The editor is in the workspace, not the card.
+    expect(within(cp).queryByRole('textbox')).toBeNull();
+    expect(await screen.findByRole('textbox', { name: /theme\.json/ })).toBeTruthy();
 
     fireEvent.click(within(cp).getByRole('button', { name: 'Check my code' }));
     expect(await within(cp).findByText('Add a colour with a slug.')).toBeTruthy();
@@ -369,7 +375,7 @@ describe('Catch the bug', () => {
     expect((await editor(/hero\.php/)).state.doc.toString()).toContain('Slug: hero');
 
     fireEvent.click(within(box).getByRole('button', { name: 'Check my fix' }));
-    expect(await within(box).findByText(/Not yet/)).toBeTruthy();
+    expect(await within(box).findByText('Not yet. The bug is still in there.')).toBeTruthy();
     expect(dispatched()).toContainEqual({ type: 'codeChecked', lessonId: 'patterns', file: 'patterns/hero.php', passed: false });
     expect(dispatched().some((e) => e.type === 'lessonCompleted')).toBe(false);
 
@@ -396,7 +402,7 @@ describe('Catch the bug with AI on', () => {
     fireEvent.click(await screen.findByRole('button', { name: /bug/i }));
     const box = await screen.findByRole('region', { name: /Catch the bug/ });
     fireEvent.click(within(box).getByRole('button', { name: 'Check my fix' }));
-    expect(await within(box).findByText(/Not yet/)).toBeTruthy();
+    expect(await within(box).findByText('Not yet. The bug is still in there.')).toBeTruthy();
     expect(feedbackMock).not.toHaveBeenCalled();
 
     await typeInto(/hero\.php/, '<?php\n/**\n * Title: Hero\n * Slug: mytheme/hero\n */\n?>\n');

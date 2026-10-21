@@ -269,3 +269,12 @@
   .msg { animation: none; }
   .typing span { animation: none; opacity: 0.7; }
 }
+
+/* ---------- Task cards: the bug hunt points at the workspace ---------- */
+
+.task-card.bug { border: 1.5px solid var(--danger); }
+.task-card.bug.is-solved { border-color: var(--outcome-skip); }
+.bug__lead { margin: 1rem 0 0.75rem; }
+.bug__lead code { font-family: var(--font-mono); font-size: 0.9em; }
+.task-card .check-list { margin-top: 0.5rem; }
+.check-list__item.is-pending .check-list__mark { background: var(--surface-muted); color: var(--ink-muted); }

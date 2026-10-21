@@ -1,4 +1,5 @@
 // @vitest-environment happy-dom
+// @vitest-environment-options {"settings": {"enableIframePageLoading": true}}
 // Editors open the learner's saved file only when it was edited in THIS lesson (final review item 1).
 // Uses the real block-theme content, so the scenarios match the live path.
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
@@ -17,6 +18,7 @@ import { App } from '../../src/app';
 import { getStatus, tutorStream, codeFeedback } from '../../src/ai/client';
 import { content } from '../../src/content';
 import { setRecordManager } from '../../src/record/useRecord';
+import { setPlaygroundImporter } from '../../src/studio/previewClient';
 import { resetSaveWarning } from '../../src/components/RecordPanel';
 import { clearDeliveries } from '../../src/components/BeatView';
 import { RecordManager, type RecordStore } from '../../src/record/store';
@@ -57,6 +59,7 @@ function at(lessonId: string, r: LearningRecord): LearningRecord {
 const LATER_THEME_JSON = content.paths['block-theme'].finalFiles!['theme.json'];
 
 beforeEach(() => {
+  setPlaygroundImporter(() => Promise.reject(new Error('no Playground in tests')));
   vi.mocked(getStatus).mockResolvedValue({ ai: 'off' });
   vi.mocked(tutorStream).mockRejectedValue(new Error('off'));
   vi.mocked(codeFeedback).mockResolvedValue({ ok: false, fallback: true });
@@ -65,6 +68,7 @@ afterEach(() => {
   cleanup();
   vi.clearAllMocks();
   setRecordManager(null);
+  setPlaygroundImporter(null);
   resetSaveWarning();
   clearDeliveries();
   vi.restoreAllMocks();
@@ -87,7 +91,7 @@ describe('Lesson editors only load files saved in that lesson', () => {
     const box = await screen.findByRole('region', { name: /Catch the bug/ });
     expect(await editorText(/theme\.json/)).toBe(bug.code);
     fireEvent.click(within(box).getByRole('button', { name: 'Check my fix' }));
-    expect(await within(box).findByText(/Not yet/)).toBeTruthy();
+    expect(await within(box).findByText('Not yet. The bug is still in there.')).toBeTruthy();
     expect(dispatched()).toContainEqual({ type: 'codeChecked', lessonId: L1, file: 'theme.json', passed: false });
     expect(dispatched().some((e) => e.type === 'lessonCompleted')).toBe(false);
   });

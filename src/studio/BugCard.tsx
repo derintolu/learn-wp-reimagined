@@ -1,36 +1,31 @@
 import { useEffect, useRef, useState } from 'preact/hooks';
 import { codeFeedback } from '../ai/client';
 import { reportAiFailure, type AiState } from '../ai/useAiStatus';
-import { getRecordManager } from '../record/useRecord';
+import { CheckList, type CheckResult } from '../components/Checkpoint';
+import { Markdown } from '../components/Markdown';
+import { tidy } from '../components/PlacementChat';
+import { SketchIcon } from '../components/SketchIcon';
+import { getRecordManager, useRecord } from '../record/useRecord';
 import { runChecks } from '../shared/checks';
 import type { Lesson } from '../shared/types';
-import { CodeEditor } from './LazyCodeEditor';
-import { Markdown } from './Markdown';
-import { tidy } from './PlacementChat';
-import { SketchIcon } from './SketchIcon';
+import { useStudioInternal } from './StudioContext';
 
 export const BUG_LABEL = 'AI-written code. We planted one bug. Find it.';
 /** After this many misses, show the failing checks as a hint. */
 const MISSES_BEFORE_HINT = 2;
 
-/** "Catch the AI": an AI-written snippet with one planted bug. Only the authored fix checks can pass it. */
-export function CatchTheBug({
-  lesson,
-  ai,
-  saved,
-  onEdit,
-  flush,
-  onSolved,
-}: {
-  lesson: Lesson;
-  ai: AiState;
-  saved?: string;
-  onEdit: (file: string, content: string) => void;
-  flush: () => void;
-  onSolved: () => void;
-}) {
+const has = (o: object, k: string) => Object.prototype.hasOwnProperty.call(o, k);
+
+/**
+ * "Catch the AI": an AI-written file with one planted bug, put live in the workspace.
+ * The learner fixes it there by hand. Only the authored fix checks can pass it.
+ */
+export function BugCard({ lesson, ai, onSolved }: { lesson: Lesson; ai: AiState; onSolved: () => void }) {
   const bug = lesson.bug!;
-  const [code, setCode] = useState(saved ?? bug.code);
+  const studio = useStudioInternal();
+  const { record } = useRecord();
+  const started = useRef(false);
+  const [results, setResults] = useState<CheckResult>(() => bug.fixChecks.map((check) => ({ check, passed: null })));
   const [misses, setMisses] = useState(0);
   const [failed, setFailed] = useState<string[] | null>(null);
   const [solved, setSolved] = useState(false);
@@ -40,10 +35,23 @@ export function CatchTheBug({
   const ctl = useRef(new AbortController());
   useEffect(() => () => ctl.current.abort(), []);
 
+  // Start the hunt once the files are in: the learner's saved copy from this lesson (a reload
+  // mid-hunt), otherwise the planted bug. Either way, open it and put it live.
+  useEffect(() => {
+    if (!studio.loaded || started.current) return;
+    started.current = true;
+    const savedHere = has(record.files, bug.file) && record.fileLessons?.[bug.file] === lesson.id;
+    if (!savedHere) studio.replaceFile(bug.file, bug.code);
+    studio.openFile(bug.file);
+    void studio.apply([bug.file]);
+  }, [studio.loaded]);
+
   function check() {
     if (solved) return;
-    flush();
+    studio.flush();
+    const code = studio.files[bug.file] ?? '';
     const run = runChecks(bug.fixChecks, { [bug.file]: code });
+    setResults(run.results);
     const failedMessages = run.results.filter((r) => !r.passed).map((r) => r.check.message);
     getRecordManager()
       .dispatch({ type: 'codeChecked', lessonId: lesson.id, file: bug.file, passed: run.passed })
@@ -61,6 +69,7 @@ export function CatchTheBug({
       });
     }
     if (run.passed) {
+      void studio.apply([bug.file]);
       setSolved(true);
       setFailed(null);
       onSolved();
@@ -71,7 +80,7 @@ export function CatchTheBug({
   }
 
   return (
-    <section class={`bug${solved ? ' is-solved' : ''}`} aria-labelledby={`bug-title-${lesson.id}`}>
+    <section class={`task-card bug${solved ? ' is-solved' : ''}`} aria-labelledby={`bug-title-${lesson.id}`}>
       <div class="bug__head">
         <span class="bug__stamp" aria-hidden="true">
           <svg viewBox="0 0 32 32" class="sketch">
@@ -86,21 +95,19 @@ export function CatchTheBug({
           <p class="bug__label">{BUG_LABEL}</p>
         </div>
       </div>
-      <CodeEditor
-        file={bug.file}
-        value={code}
-        label={`Code editor for ${bug.file}, with one planted bug`}
-        onChange={(v) => {
-          setCode(v);
-          onEdit(bug.file, v);
-        }}
-      />
+      <p class="bug__lead">
+        Look at the preview on the right, then fix <code>{bug.file}</code> there by hand.
+      </p>
+      <CheckList results={results} />
       {!solved && (
         <div class="checkpoint__row">
           <button type="button" class="button" onClick={check}>
             Check my fix
           </button>
-          <span class="checkpoint__hint">Fix it by hand. The check looks for the real fix, not just a change.</span>
+          <button type="button" class="button button--quiet" onClick={() => studio.openFile(bug.file)}>
+            Open {bug.file}
+          </button>
+          <span class="checkpoint__hint">The check looks for the real fix, not just a change.</span>
         </div>
       )}
       <div aria-live="polite" class="bug__live">

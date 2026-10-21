@@ -2,17 +2,18 @@ import { useEffect, useRef, useState } from 'preact/hooks';
 import { useRoute } from 'preact-iso';
 import { useAiStatus } from '../ai/useAiStatus';
 import { BeatView } from '../components/BeatView';
-import { CatchTheBug } from '../components/CatchTheBug';
 import { Checkpoint, type Resolution } from '../components/Checkpoint';
 import { preloadCodeEditor } from '../components/LazyCodeEditor';
 import { CompletedSummary } from '../components/CompletedSummary';
 import { RESTORED_EVENT, SaveWarning } from '../components/RecordPanel';
 import { Tutor } from '../components/Tutor';
 import { content } from '../content';
-import { useFileEdits } from '../record/useFileEdits';
 import { useRecord } from '../record/useRecord';
 import { nextLessonId } from '../shared/engine';
 import type { Lesson as LessonT } from '../shared/types';
+import { BugCard } from '../studio/BugCard';
+import { StudioProvider } from '../studio/StudioContext';
+import { Workspace } from '../studio/WorkspacePane';
 import { NotFound } from './routes';
 
 export const REVIEW_DISCLAIMER = 'Adapted from Learn WordPress, not reviewed by the Training Team';
@@ -102,7 +103,6 @@ function LessonView({ lesson, onRestart }: { lesson: LessonT; onRestart: () => v
   const focusNext = useRef(false);
   const activeHeading = useRef<HTMLHeadingElement>(null);
   const postRef = useRef<HTMLDivElement>(null);
-  const { edit, flush } = useFileEdits(lesson.id);
 
   useEffect(() => {
     if (lesson.bug || lesson.checkpoint?.kind === 'code') preloadCodeEditor().catch(() => {});
@@ -139,19 +139,6 @@ function LessonView({ lesson, onRestart }: { lesson: LessonT; onRestart: () => v
     el?.scrollIntoView?.({ block: 'start', behavior: 'smooth' });
   }, [step]);
 
-  /** The learner's saved copy of a file, but only if it was edited in this lesson (another lesson's edit is not this lesson's starting point). */
-  const savedHere = (f: string): string | undefined =>
-    has(record.files, f) && record.fileLessons?.[f] === lesson.id ? record.files[f] : undefined;
-
-  const lessonFiles = (): Record<string, string> => {
-    const out: Record<string, string> = { ...(lesson.starterFiles ?? {}) };
-    for (const f of [lesson.checkpoint?.file, ...Object.keys(lesson.starterFiles ?? {})]) {
-      const saved = f ? savedHere(f) : undefined;
-      if (f && saved !== undefined) out[f] = saved;
-    }
-    return out;
-  };
-
   function complete() {
     if (completed.current) return;
     completed.current = true;
@@ -187,7 +174,7 @@ function LessonView({ lesson, onRestart }: { lesson: LessonT; onRestart: () => v
 
   if (step === null) {
     return (
-      <>
+      <StudioProvider lesson={lesson} key={lesson.id}>
         <LessonHeader lesson={lesson} reached={0} />
         <div class="wrap lesson" aria-busy="true">
           <div class="lesson__read" role="status">
@@ -195,7 +182,7 @@ function LessonView({ lesson, onRestart }: { lesson: LessonT; onRestart: () => v
             <span class="placement__skeleton lesson__skeleton" aria-hidden="true" />
           </div>
         </div>
-      </>
+      </StudioProvider>
     );
   }
 
@@ -208,8 +195,9 @@ function LessonView({ lesson, onRestart }: { lesson: LessonT; onRestart: () => v
   const after = nextLessonId(content, lesson.pathId, lesson.id, skip);
   const reached = step < n ? step + 1 : n + (showBug ? 1 : 0) + (showCheckpoint ? 1 : 0);
 
+  // Temporary arrangement until the three-pane layout: the workspace sits after the reading column.
   return (
-    <>
+    <StudioProvider lesson={lesson} key={lesson.id}>
       <LessonHeader lesson={lesson} reached={reached} />
       <div class="wrap lesson">
         <div class="lesson__read">
@@ -231,22 +219,12 @@ function LessonView({ lesson, onRestart }: { lesson: LessonT; onRestart: () => v
           <div class="lesson__post" ref={postRef} tabIndex={-1}>
             {readOnly && <CompletedSummary lesson={lesson} record={record} />}
             {!readOnly && showBug && (
-              <CatchTheBug
-                lesson={lesson}
-                ai={ai}
-                saved={savedHere(lesson.bug!.file)}
-                onEdit={edit}
-                flush={flush}
-                onSolved={onBugSolved}
-              />
+              <BugCard lesson={lesson} ai={ai} onSolved={onBugSolved} />
             )}
             {!readOnly && showCheckpoint && (
               <Checkpoint
                 lesson={lesson}
                 ai={ai}
-                files={lessonFiles()}
-                onEdit={edit}
-                flush={flush}
                 onResolved={onResolved}
                 onRestart={onRestart}
               />
@@ -265,8 +243,9 @@ function LessonView({ lesson, onRestart }: { lesson: LessonT; onRestart: () => v
             )}
           </div>
         </div>
+        <Workspace />
         <Tutor lesson={lesson} beatIndex={Math.min(step, n - 1)} ai={ai} />
       </div>
-    </>
+    </StudioProvider>
   );
 }

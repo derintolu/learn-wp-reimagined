@@ -1,5 +1,6 @@
 // @vitest-environment happy-dom
-import { afterEach, describe, expect, it, vi } from 'vitest';
+// @vitest-environment-options {"settings": {"enableIframePageLoading": true}}
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { act, cleanup, render, screen, waitFor } from '@testing-library/preact';
 
 vi.mock('../../src/content', async () => {
@@ -15,11 +16,16 @@ import { App } from '../../src/app';
 import { getRecordManager, setRecordManager, useRecord } from '../../src/record/useRecord';
 import { RecordManager } from '../../src/record/store';
 import { content } from '../../src/content';
+import { setPlaygroundImporter } from '../../src/studio/previewClient';
 import { memoryManager } from './helpers';
 
+beforeEach(() => {
+  setPlaygroundImporter(() => Promise.reject(new Error('no Playground in tests')));
+});
 afterEach(() => {
   cleanup();
   setRecordManager(null);
+  setPlaygroundImporter(null);
 });
 
 describe('routing', () => {

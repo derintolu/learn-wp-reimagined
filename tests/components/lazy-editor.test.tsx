@@ -43,4 +43,17 @@ describe('LazyCodeEditor', () => {
     await waitFor(() => expect(document.querySelector('.cm-content')).toBeTruthy());
     expect(screen.getByRole('textbox', { name: 'Edit a.css' }).classList.contains('cm-content')).toBe(true);
   });
+
+  it('a new value from outside replaces the text without echoing it to onChange', async () => {
+    const { CodeEditor: Real } = await import('../../src/components/CodeEditor');
+    const { EditorView } = await import('@codemirror/view');
+    const onChange = vi.fn();
+    const { rerender } = render(<Real file="a.css" value="a{}" onChange={onChange} />);
+    const view = EditorView.findFromDOM(document.querySelector('.cm-editor') as HTMLElement)!;
+    rerender(<Real file="a.css" value="b{}" onChange={onChange} />);
+    await waitFor(() => expect(view.state.doc.toString()).toBe('b{}'));
+    expect(onChange).not.toHaveBeenCalled();
+    view.dispatch({ changes: { from: 0, insert: 'x' } });
+    expect(onChange).toHaveBeenCalledWith('xb{}');
+  });
 });

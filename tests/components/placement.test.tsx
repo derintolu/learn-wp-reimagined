@@ -1,4 +1,5 @@
 // @vitest-environment happy-dom
+// @vitest-environment-options {"settings": {"enableIframePageLoading": true}}
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { act, cleanup, fireEvent, render, screen, waitFor, within } from '@testing-library/preact';
 
@@ -14,6 +15,7 @@ import { tidy } from '../../src/components/PlacementChat';
 import { getStatus, placement } from '../../src/ai/client';
 import { content } from '../../src/content';
 import { setRecordManager } from '../../src/record/useRecord';
+import { setPlaygroundImporter } from '../../src/studio/previewClient';
 import type { RecordManager } from '../../src/record/store';
 import { LocationProvider } from 'preact-iso';
 import { memoryManager } from './helpers';
@@ -31,6 +33,7 @@ const PLACED = {
 let manager: RecordManager;
 
 beforeEach(() => {
+  setPlaygroundImporter(() => Promise.reject(new Error('no Playground in tests')));
   history.replaceState(null, '', '/');
   manager = memoryManager(content);
   vi.spyOn(manager, 'dispatch');
@@ -41,6 +44,7 @@ afterEach(() => {
   cleanup();
   vi.clearAllMocks();
   setRecordManager(null);
+  setPlaygroundImporter(null);
 });
 
 const input = () => screen.getByLabelText('Your message') as HTMLTextAreaElement;

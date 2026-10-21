@@ -1,5 +1,5 @@
 import { useEffect, useRef } from 'preact/hooks';
-import { EditorState, type Extension } from '@codemirror/state';
+import { Annotation, EditorState, type Extension } from '@codemirror/state';
 import { EditorView, highlightActiveLine, keymap, lineNumbers } from '@codemirror/view';
 import { defaultKeymap, history, historyKeymap, indentWithTab } from '@codemirror/commands';
 import { bracketMatching, HighlightStyle, indentOnInput, syntaxHighlighting } from '@codemirror/language';
@@ -8,6 +8,9 @@ import { json } from '@codemirror/lang-json';
 import { css } from '@codemirror/lang-css';
 import { html } from '@codemirror/lang-html';
 import { php } from '@codemirror/lang-php';
+
+/** Marks a change that came in through the `value` prop, so it isn't echoed back through onChange. */
+const external = Annotation.define<boolean>();
 
 /** The language mode for a file, picked by its extension. */
 export function languageFor(file: string): Extension {
@@ -83,7 +86,7 @@ export function CodeEditor({
             ...(readOnly ? { 'aria-readonly': 'true' } : {}),
           }),
           EditorView.updateListener.of((u) => {
-            if (u.docChanged) change.current(u.state.doc.toString());
+            if (u.docChanged && !u.transactions.some((tr) => tr.annotation(external))) change.current(u.state.doc.toString());
           }),
         ],
       }),
@@ -98,10 +101,11 @@ export function CodeEditor({
   }, [file, readOnly]);
 
   // Accept a replacement value from outside (e.g. a restored record) without fighting the learner's typing.
+  // It isn't echoed to onChange: a stale value landing after newer typing would otherwise ping-pong forever.
   useEffect(() => {
     const v = view.current;
     if (v && v.state.doc.toString() !== value) {
-      v.dispatch({ changes: { from: 0, to: v.state.doc.length, insert: value } });
+      v.dispatch({ changes: { from: 0, to: v.state.doc.length, insert: value }, annotations: external.of(true) });
     }
   }, [value]);
 
