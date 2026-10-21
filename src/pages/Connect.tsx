@@ -43,7 +43,7 @@ export function Connect() {
                     <li key={s}>{s}</li>
                   ))}
                 </ol>
-                {c.snippet && <CopyField label={`${c.name} setup`} value={c.snippet} multiline />}
+                {c.snippet && <CopyField label={`${c.name} setup`} value={c.snippet} multiline={c.snippet.includes('\n')} />}
                 <p class="connect__docs">
                   <a href={c.docsUrl} rel="noopener noreferrer" target="_blank">
                     {c.name} documentation<span class="visually-hidden"> (opens in a new tab)</span>
