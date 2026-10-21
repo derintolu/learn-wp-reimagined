@@ -85,8 +85,19 @@ describe('MCP gate', () => {
           { jsonrpc: '2.0', method: 'notifications/initialized' },
         ]),
       ),
-    ).toEqual({ handles: [a, b], creates: 2, ids: [1, 2, 3, 4, 5] });
-    expect(inspectMcpBody('{nope')).toEqual({ handles: [], creates: 0, ids: [] });
+    ).toEqual({ messages: 6, handles: [a, a, b], creates: 2, ids: [1, 2, 3, 4, 5] });
+    expect(inspectMcpBody('{nope')).toEqual({ messages: 1, handles: [], creates: 0, ids: [] });
+    expect(inspectMcpBody(JSON.stringify(toolCall(1, 'get_record', { handle: 'not-a-handle' }))).handles).toEqual([]);
+  });
+
+  it('a batch is charged per call: 121 calls on one handle in batches get 429', async () => {
+    const h = newHandle();
+    const batch = (n: number) => Array.from({ length: n }, (_, i) => toolCall(i, 'get_record', { handle: h }));
+    expect((await rpc(batch(100))).status).toBe(200);
+    expect((await rpc(batch(20))).status).toBe(200);
+    expect((await rpc(batch(1))).status).toBe(429);
+    const g = await db.prepare("SELECT n FROM hits WHERE k = 'mcp:g'").first<{ n: number }>();
+    expect(Number(g!.n)).toBe(121);
   });
 });
 

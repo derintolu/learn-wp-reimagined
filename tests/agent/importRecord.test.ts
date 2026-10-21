@@ -95,6 +95,19 @@ describe('planImport and applyImport', () => {
     expect(out.completedLessons).toEqual(['bt-what-is-a-block-theme']);
   });
 
+  it('a file conflict previews the lines where the versions start to differ', () => {
+    const agent = agentRun();
+    const theirs = agent.courses[COURSE_ID].files['theme.json'];
+    const lines = theirs.split('\n');
+    const mine = [...lines.slice(0, 4), 'MINE', ...lines.slice(5)].join('\n');
+    const site = applyEvent(newRecord(), { type: 'fileEdited', file: 'theme.json', content: mine }, content);
+    const p = planImport(site, agent, content);
+    if (!p.ok) throw new Error(p.error);
+    const c = p.plan.conflicts.find((x) => x.key === 'file:theme.json')!;
+    expect(c.site.startsWith('line 5:\nMINE')).toBe(true);
+    expect(c.agent.startsWith(`line 5:\n${lines[4]}`)).toBe(true);
+  });
+
   it('accepted conflicts are applied', () => {
     let site = siteAt('bt-patterns', 1);
     site = applyEvent(site, { type: 'fileEdited', file: 'theme.json', content: '{"mine":true}' }, content);

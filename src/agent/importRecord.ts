@@ -70,7 +70,15 @@ function courseFiles(content: ContentBundle): Set<string> {
   return out;
 }
 
-const firstLines = (s: string) => s.split('\n').slice(0, 3).join('\n');
+/** Three lines of each version, from the first line where they differ. */
+function diffPreview(site: string, agent: string): { site: string; agent: string } {
+  const a = site.split('\n');
+  const b = agent.split('\n');
+  let i = 0;
+  while (i < a.length && i < b.length && a[i] === b[i]) i++;
+  const from = (l: string[]) => (i > 0 ? `line ${i + 1}:\n` : '') + l.slice(i, i + 3).join('\n');
+  return { site: from(a), agent: from(b) };
+}
 
 export function planImport(site: LearningRecord, raw: unknown, content: ContentBundle): { ok: true; plan: ImportPlan } | { ok: false; error: string } {
   const parsed = parseMcpRecord(raw);
@@ -154,7 +162,7 @@ export function planImport(site: LearningRecord, raw: unknown, content: ContentB
       events.push(event);
       files++;
     } else if (site.files[name] !== text) {
-      conflicts.push({ kind: 'file', key: `file:${name}`, site: firstLines(site.files[name]), agent: firstLines(text), event });
+      conflicts.push({ kind: 'file', key: `file:${name}`, ...diffPreview(site.files[name], text), event });
       files++;
     }
   }

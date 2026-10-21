@@ -8,6 +8,19 @@ import './agent.css';
 export const KEEP_PRIVATE = "Keep this handle private. It's the key to your progress in the agent.";
 export const HANDOFF_FAILED = "Couldn't create a handle right now. You can still connect your agent from the Connect page.";
 
+type Handoff = { handle: string; mcpUrl: string; prompt: string };
+
+/**
+ * One handoff per lesson per page load, held in memory only (never in storage), so reopening the
+ * panel doesn't spend another record creation from the site-wide limit.
+ */
+const made = new Map<string, Handoff>();
+
+/** For tests: forget handoffs made on this page. */
+export function resetHandoffs(): void {
+  made.clear();
+}
+
 type State = { kind: 'loading' } | { kind: 'ready'; handle: string; mcpUrl: string; prompt: string } | { kind: 'failed' };
 
 /**
@@ -15,11 +28,17 @@ type State = { kind: 'loading' } | { kind: 'ready'; handle: string; mcpUrl: stri
  * learner's files, and shows what to paste into the agent. The handle is shown once and never stored.
  */
 export function AgentHandoff({ lessonId, lessonTitle }: { lessonId: string; lessonTitle: string }) {
-  const [state, setState] = useState<State>({ kind: 'loading' });
+  const [state, setState] = useState<State>(() => {
+    const m = made.get(lessonId);
+    return m ? { kind: 'ready', ...m } : { kind: 'loading' };
+  });
   useEffect(() => {
+    const cached = made.get(lessonId);
+    if (cached) return setState({ kind: 'ready', ...cached });
     let live = true;
     flushPendingEdits();
     startHandoff(lessonId, getRecordManager().record.files).then((r) => {
+      if (r.ok) made.set(lessonId, r.data);
       if (!live) return;
       setState(r.ok ? { kind: 'ready', ...r.data } : { kind: 'failed' });
     });

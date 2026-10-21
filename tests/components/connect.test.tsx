@@ -16,7 +16,7 @@ import { RecordPanel } from '../../src/components/RecordPanel';
 import { CLAUDE_CODE_COMMAND } from '../../src/agent/clients';
 import { MCP_URL, agentPrompt } from '../../src/shared/course-meta';
 import { INVALID_PASTE } from '../../src/agent/importRecord';
-import { HANDOFF_FAILED, KEEP_PRIVATE } from '../../src/components/AgentHandoff';
+import { HANDOFF_FAILED, KEEP_PRIVATE, resetHandoffs } from '../../src/components/AgentHandoff';
 import { IMPORT_DONE } from '../../src/components/ImportAgentProgress';
 import { getRecordManager, setRecordManager } from '../../src/record/useRecord';
 import { content } from '../../src/content';
@@ -51,6 +51,7 @@ beforeEach(() => {
   writeText = vi.fn(async () => {});
   Object.defineProperty(navigator, 'clipboard', { value: { writeText }, configurable: true });
   for (const f of Object.values(h)) f.mockReset();
+  resetHandoffs();
 });
 afterEach(() => {
   cleanup();
@@ -163,6 +164,21 @@ describe('Your record: Continue in your agent', () => {
     expect(within(dialog).getByText(agentPrompt(HANDLE))).toBeTruthy();
     expect(within(dialog).getByText(KEEP_PRIVATE)).toBeTruthy();
     expect(within(dialog).getByRole('link', { name: 'Set up your agent' }).getAttribute('href')).toBe('/connect');
+    // Reopening shows the same handle and makes no second record.
+    fireEvent.click(within(dialog).getByRole('button', { name: 'Back' }));
+    fireEvent.click(within(dialog).getByRole('button', { name: 'Continue in your agent' }));
+    expect(await within(dialog).findByText(HANDLE)).toBeTruthy();
+    expect(h.startHandoff).toHaveBeenCalledTimes(1);
+  });
+
+  it('a new paste clears the last check', async () => {
+    h.fetchAgentRecord.mockResolvedValue({ ok: true, data: { record: agentAtLesson3() } });
+    render(<Connect />);
+    paste(HANDLE);
+    expect(await screen.findByRole('button', { name: 'Bring it back' })).toBeTruthy();
+    fireEvent.input(screen.getByLabelText('Record handle or exported JSON'), { target: { value: 'something else' } });
+    expect(screen.queryByRole('button', { name: 'Bring it back' })).toBeNull();
+    expect(screen.queryByRole('button', { name: "Delete the agent's copy" })).toBeNull();
   });
 
   it('a failure shows the fallback copy and the /connect link', async () => {

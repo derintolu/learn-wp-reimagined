@@ -2,7 +2,7 @@ import { useState } from 'preact/hooks';
 import { deleteAgentRecord, fetchAgentRecord } from '../agent/client';
 import { applyImport, classifyPaste, planImport, type ImportPlan } from '../agent/importRecord';
 import { content } from '../content';
-import { cancelPendingEdits } from '../record/useFileEdits';
+import { flushPendingEdits } from '../record/useFileEdits';
 import { getRecordManager } from '../record/useRecord';
 import './agent.css';
 
@@ -17,6 +17,7 @@ type Msg = { tone: 'ok' | 'error'; text: string };
 export function ImportAgentProgress({ idPrefix = 'import', onDone }: { idPrefix?: string; onDone?: () => void }) {
   const [text, setText] = useState('');
   const [plan, setPlan] = useState<ImportPlan | null>(null);
+  const [raw, setRaw] = useState<unknown>(undefined);
   const [handle, setHandle] = useState<string | null>(null);
   const [accepted, setAccepted] = useState<Set<string>>(new Set());
   const [confirmDelete, setConfirmDelete] = useState(false);
@@ -34,9 +35,11 @@ export function ImportAgentProgress({ idPrefix = 'import', onDone }: { idPrefix?
     e.preventDefault();
     reset();
     setMsg(null);
+    flushPendingEdits();
     const p = classifyPaste(text);
     if (p.kind === 'invalid') return setMsg({ tone: 'error', text: p.message });
     let raw: unknown;
+    setHandle(null);
     if (p.kind === 'handle') {
       setBusy(true);
       const r = await fetchAgentRecord(p.handle);
@@ -50,16 +53,27 @@ export function ImportAgentProgress({ idPrefix = 'import', onDone }: { idPrefix?
     }
     const planned = planImport(getRecordManager().record, raw, content);
     if (!planned.ok) return setMsg({ tone: 'error', text: `We couldn't read that record: ${planned.error}.` });
+    setRaw(raw);
     setPlan(planned.plan);
   }
 
   async function bringBack() {
-    if (!plan) return;
+    if (!plan || raw === undefined) return;
     setBusy(true);
     try {
-      cancelPendingEdits();
+      // Keep the learner's latest typing, then plan again against the record as it is now: if
+      // anything new now differs, show the conflicts again instead of overwriting it.
+      flushPendingEdits();
       const m = getRecordManager();
-      await m.restore(applyImport(m.record, plan, accepted, content));
+      const fresh = planImport(m.record, raw, content);
+      if (!fresh.ok) throw new Error(fresh.error);
+      const keys = (p: ImportPlan) => p.conflicts.map((c) => c.key).sort().join('|');
+      if (keys(fresh.plan) !== keys(plan)) {
+        setPlan(fresh.plan);
+        setMsg({ tone: 'error', text: 'Your progress changed while you were looking. Check the list again.' });
+        return;
+      }
+      await m.restore(applyImport(m.record, fresh.plan, accepted, content));
       reset();
       setText('');
       setMsg({ tone: 'ok', text: IMPORT_DONE });
@@ -106,7 +120,12 @@ export function ImportAgentProgress({ idPrefix = 'import', onDone }: { idPrefix?
           spellcheck={false}
           autocomplete="off"
           value={text}
-          onInput={(e) => setText((e.currentTarget as HTMLTextAreaElement).value)}
+          onInput={(e) => {
+            // A new paste invalidates the last check, and the handle it was for.
+            setText((e.currentTarget as HTMLTextAreaElement).value);
+            reset();
+            setHandle(null);
+          }}
         />
         <p class="agent-import__privacy">{PRIVACY}</p>
         <div class="record__actions">
@@ -128,18 +147,24 @@ export function ImportAgentProgress({ idPrefix = 'import', onDone }: { idPrefix?
               <legend>These differ from the site. Tick the ones to replace.</legend>
               {plan.conflicts.map((c) => (
                 <div class="agent-import__conflict" key={c.key}>
-                  <input id={`${idPrefix}-${c.key}`} type="checkbox" checked={accepted.has(c.key)} onChange={() => toggle(c.key)} />
-                  <label for={`${idPrefix}-${c.key}`}>
-                    <span class="agent-import__what">
+                  <input
+                    id={`${idPrefix}-${c.key}`}
+                    type="checkbox"
+                    checked={accepted.has(c.key)}
+                    onChange={() => toggle(c.key)}
+                    aria-describedby={`${idPrefix}-${c.key}-vs`}
+                  />
+                  <div>
+                    <label class="agent-import__what" for={`${idPrefix}-${c.key}`}>
                       Use the agent's version: {c.kind === 'file' ? c.key.slice(5) : c.kind === 'position' ? 'where you are' : 'placement'}
-                    </span>
-                    <span class="agent-import__vs">
+                    </label>
+                    <div class="agent-import__vs" id={`${idPrefix}-${c.key}-vs`}>
                       <span>Site</span>
                       {c.kind === 'file' ? <pre>{c.site}</pre> : <span>{c.site}</span>}
                       <span>Agent</span>
                       {c.kind === 'file' ? <pre>{c.agent}</pre> : <span>{c.agent}</span>}
-                    </span>
-                  </label>
+                    </div>
+                  </div>
                 </div>
               ))}
             </fieldset>

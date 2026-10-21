@@ -213,9 +213,8 @@ export function RecordPanel() {
                   Back
                 </button>
               </div>
-              {view === 'handoff' && handoffLesson ? (
-                <AgentHandoff lessonId={handoffLesson} lessonTitle={titleOf(handoffLesson)} />
-              ) : (
+              {view === 'handoff' && handoffLesson && <AgentHandoff lessonId={handoffLesson} lessonTitle={titleOf(handoffLesson)} />}
+              {view === 'import' && (
                 <>
                   <p class="record__confirm-q">Bring back your agent's progress</p>
                   <ImportAgentProgress idPrefix="record-import" onDone={goToRestored} />
