@@ -101,7 +101,8 @@ describe('BugCard', () => {
     await waitFor(() => expect(writes).toContainEqual({ path: `${DIR}/${BUG_FILE}`, data: bug.code }));
     expect(studio.files[BUG_FILE]).toBe(bug.code);
     expect(studio.active).toBe(BUG_FILE);
-    expect(studio.pane).toBe('workspace');
+    // The card stays in view: on phones the learner reads it before going to the Workspace.
+    expect(studio.pane).toBe('lesson');
     expect(studio.dirty).toEqual([]);
     expect(dispatched().some((e) => e.type === 'fileEdited')).toBe(false);
 
@@ -117,6 +118,7 @@ describe('BugCard', () => {
     act(() => studio.openFile('style.css'));
     fireEvent.click(within(box).getByRole('button', { name: `Open ${BUG_FILE}` }));
     expect(studio.active).toBe(BUG_FILE);
+    expect(studio.pane).toBe('workspace');
     const view = await editorView(/hero\.php/);
     await waitFor(() => expect(document.activeElement).toBe(view.contentDOM));
   });
@@ -185,7 +187,9 @@ describe('BugCard', () => {
 
     await typeInto(/hero\.php/, FIX);
     fireEvent.click(within(box).getByRole('button', { name: 'Check my fix' }));
-    expect(await within(box).findByText(/You caught it/)).toBeTruthy();
+    const win = await within(box).findByText(/You caught it/);
+    // The Check button is gone, so keyboard focus moves to the result instead of falling to the page.
+    await waitFor(() => expect(document.activeElement).toBe(win.closest('.bug__win')));
     for (const li of within(box).getAllByRole('listitem')) expect(li.className).toContain('is-pass');
     await waitFor(() => expect(writes.at(-1)).toEqual({ path: `${DIR}/${BUG_FILE}`, data: FIX }));
     expect(studio.dirty).toEqual([]);

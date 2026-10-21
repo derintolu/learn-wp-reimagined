@@ -97,7 +97,7 @@ function FreeText({ lesson, ai, onResolve }: { lesson: Lesson; ai: AiState; onRe
     return (
       <div class="checkpoint__loading" role="status">
         <span class="visually-hidden">Getting the checkpoint ready…</span>
-        <span class="placement__skeleton checkpoint__skeleton" aria-hidden="true" />
+        <span class="checkpoint__skeleton" aria-hidden="true" />
       </div>
     );
   }

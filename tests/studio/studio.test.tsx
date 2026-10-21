@@ -267,6 +267,92 @@ describe('Studio', () => {
     expect(pane('outline').hidden).toBe(true);
   });
 
+  it('narrow screens: the welcome points at the Workspace tab; wide screens say "On the right"', async () => {
+    stubMedia(true);
+    use(at('templates-and-parts', 0));
+    open('/learn/templates-and-parts');
+    const log = await screen.findByRole('log');
+    await waitFor(() =>
+      expect(log.textContent).toContain(
+        "Hi. Your theme runs in a real WordPress in the Workspace tab, next to the files that make it. Everything we talk about, you'll see and change there.",
+      ),
+    );
+    expect(log.textContent).not.toContain('On the right');
+    cleanup();
+    stubMedia(false);
+    use(at('templates-and-parts', 0));
+    open('/learn/templates-and-parts');
+    expect((await screen.findByRole('log')).textContent).toContain('Hi. On the right is a real WordPress running your theme');
+  });
+
+  it('the skip link has a #feed target while the lesson loads', async () => {
+    const store: RecordStore = { kind: 'indexeddb', load: () => new Promise(() => {}), save: async () => {} };
+    manager = new RecordManager(store, content);
+    setRecordManager(manager);
+    open('/learn/templates-and-parts');
+    await screen.findByText('Opening your lesson…');
+    expect(screen.getByRole('link', { name: 'Skip to content' }).getAttribute('href')).toBe('#feed');
+    expect(document.getElementById('feed')).toBeTruthy();
+  });
+
+  it('on narrow screens the skip link switches to the lesson pane and focuses the conversation', async () => {
+    stubMedia(true);
+    use(at('templates-and-parts', 0));
+    open('/learn/templates-and-parts');
+    const switcher = await screen.findByRole('group', { name: 'Show pane' });
+    await screen.findByRole('log');
+    fireEvent.click(within(switcher).getByRole('button', { name: 'Workspace' }));
+    const lessonPane = document.querySelector('[data-pane-id="lesson"]') as HTMLElement;
+    expect(lessonPane.hidden).toBe(true);
+    fireEvent.click(screen.getByRole('link', { name: 'Skip to content' }));
+    await waitFor(() => expect(lessonPane.hidden).toBe(false));
+    expect(within(switcher).getByRole('button', { name: 'Lesson' }).getAttribute('aria-pressed')).toBe('true');
+    await waitFor(() => expect(document.activeElement).toBe(document.getElementById('feed')));
+  });
+
+  it('the save warning stays visible whichever pane is showing', async () => {
+    stubMedia(true);
+    use(at('templates-and-parts', 0));
+    await manager.init();
+    manager.notice = { kind: 'newer-version', message: 'Your saved record was made by a newer version, so we started fresh.' };
+    open('/learn/templates-and-parts');
+    const warning = await screen.findByText('Your saved record was made by a newer version, so we started fresh.');
+    const switcher = await screen.findByRole('group', { name: 'Show pane' });
+    for (const name of ['Outline', 'Workspace', 'Lesson']) {
+      fireEvent.click(within(switcher).getByRole('button', { name }));
+      expect(warning.closest('[hidden]')).toBeNull();
+    }
+  });
+
+  it('the free-text checkpoint loads on a light skeleton, like the composer', async () => {
+    vi.mocked(getStatus).mockReturnValue(new Promise(() => {}));
+    use(at('theme-json-basics', 1));
+    open('/learn/theme-json-basics');
+    fireEvent.click(await screen.findByRole('button', { name: /checkpoint/i }));
+    const loading = (await screen.findByText('Getting the checkpoint ready…')).closest('[role="status"]') as HTMLElement;
+    const skeleton = loading.querySelector('.checkpoint__skeleton') as HTMLElement;
+    expect(skeleton).toBeTruthy();
+    expect(skeleton.classList.contains('placement__skeleton')).toBe(false);
+  });
+
+  it('on narrow screens the bug hunt opens in the lesson pane, focused, pointing at the Workspace tab', async () => {
+    stubMedia(true);
+    const last = content.lessons['patterns'].beats.length - 1;
+    use(at('patterns', last));
+    open('/learn/patterns');
+    const go = await screen.findByRole('button', { name: /bug hunt/i });
+    await new Promise((res) => setTimeout(res, 30)); // let the opening effects settle, as a real click would
+    fireEvent.click(go);
+    const box = await screen.findByRole('region', { name: /Catch the bug/ });
+    expect(box.textContent).toContain('Look at the preview in the Workspace tab, then fix');
+    const lessonPane = document.querySelector('[data-pane-id="lesson"]') as HTMLElement;
+    await new Promise((res) => setTimeout(res, 30));
+    expect(lessonPane.hidden).toBe(false);
+    expect(document.activeElement).toBe(lessonPane.querySelector('.feed__post'));
+    fireEvent.click(within(box).getByRole('button', { name: /^Open / }));
+    await waitFor(() => expect((document.querySelector('[data-pane-id="workspace"]') as HTMLElement).hidden).toBe(false));
+  });
+
   it('wide screens show every pane and no pane switch', async () => {
     stubMedia(false);
     use(at('templates-and-parts', 0));

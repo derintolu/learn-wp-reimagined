@@ -7,6 +7,7 @@ import { SketchIcon } from '../components/SketchIcon';
 import { getRecordManager, useRecord } from '../record/useRecord';
 import { runChecks } from '../shared/checks';
 import type { Check, Lesson } from '../shared/types';
+import { NARROW, scrollBehavior, useMedia } from './media';
 import { useStudio } from './StudioContext';
 
 export const BUG_LABEL = 'AI-written code. We planted one bug. Find it.';
@@ -58,6 +59,7 @@ function FixChecks({ rows, hint, solved }: { rows: Row[]; hint: boolean; solved:
 export function BugCard({ lesson, ai, onSolved }: { lesson: Lesson; ai: AiState; onSolved: () => void }) {
   const bug = lesson.bug!;
   const studio = useStudio();
+  const narrow = useMedia(NARROW);
   const { record } = useRecord();
   const started = useRef(false);
   const [results, setResults] = useState<Row[]>(() => bug.fixChecks.map((check) => ({ check, passed: null })));
@@ -69,6 +71,13 @@ export function BugCard({ lesson, ai, onSolved }: { lesson: Lesson; ai: AiState;
   const seq = useRef(0);
   const ctl = useRef(new AbortController());
   useEffect(() => () => ctl.current.abort(), []);
+  // Solving removes the Check button: keep keyboard focus on the card, on the result.
+  const winRef = useRef<HTMLDivElement>(null);
+  useEffect(() => {
+    if (!solved) return;
+    winRef.current?.focus({ preventScroll: true });
+    winRef.current?.scrollIntoView?.({ block: 'nearest', behavior: scrollBehavior() });
+  }, [solved]);
 
   // Start the hunt once the files are in. A saved copy from this lesson that still fails the fix
   // checks is a fix in progress (a reload mid-hunt), so it stays. Anything else, including an
@@ -79,7 +88,8 @@ export function BugCard({ lesson, ai, onSolved }: { lesson: Lesson; ai: AiState;
     const savedHere = has(record.files, bug.file) && record.fileLessons?.[bug.file] === lesson.id;
     const inProgress = savedHere && !runChecks(bug.fixChecks, { [bug.file]: record.files[bug.file] }).passed;
     if (!inProgress) studio.replaceFile(bug.file, bug.code);
-    studio.openFile(bug.file);
+    // The tab only: on phones the learner reads this card first.
+    studio.openFile(bug.file, { switchPane: false });
     void studio.apply([bug.file]);
   }, [studio.loaded]);
 
@@ -133,7 +143,7 @@ export function BugCard({ lesson, ai, onSolved }: { lesson: Lesson; ai: AiState;
         </div>
       </div>
       <p class="bug__lead">
-        Look at the preview on the right, then fix <code>{bug.file}</code> there by hand.
+        Look at the preview {narrow ? 'in the Workspace tab' : 'on the right'}, then fix <code>{bug.file}</code> there by hand.
       </p>
       <FixChecks rows={results} hint={misses >= MISSES_BEFORE_HINT} solved={solved} />
       {!solved && (
@@ -164,7 +174,7 @@ export function BugCard({ lesson, ai, onSolved }: { lesson: Lesson; ai: AiState;
           </div>
         )}
         {solved && (
-          <div class="bug__win">
+          <div class="bug__win" ref={winRef} tabIndex={-1}>
             <p class="bug__win-title">
               <span aria-hidden="true">✓</span> You caught it.
             </p>

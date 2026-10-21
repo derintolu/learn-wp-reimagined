@@ -8,13 +8,16 @@ import { Markdown } from '../components/Markdown';
 import { tidy } from '../components/PlacementChat';
 import { SketchIcon } from '../components/SketchIcon';
 import { Composer, MAX_CHARS } from './Composer';
-import { scrollBehavior } from './media';
+import { NARROW, scrollBehavior, useMedia } from './media';
 import { SectionCard } from './SectionCard';
 
 /** Server limit for /api/tutor: 12 messages. */
 const MAX_MESSAGES = 12;
 const WELCOME =
   "Hi. On the right is a real WordPress running your theme, and the files that make it. Everything we talk about, you'll see and change there.";
+/** Phones show one pane at a time, so there is no "right". */
+const WELCOME_NARROW =
+  "Hi. Your theme runs in a real WordPress in the Workspace tab, next to the files that make it. Everything we talk about, you'll see and change there.";
 export const REVIEW_DISCLAIMER = 'Adapted from Learn WordPress, not reviewed by the Training Team';
 const FAILURE = "I couldn't answer that just now. Try again in a moment, or check the sources under each section.";
 
@@ -167,10 +170,11 @@ export function Feed({
     </TutorMsg>
   );
   const shown = readOnly ? n : Math.min(step + 1, n);
+  const narrow = useMedia(NARROW);
 
   return (
     <div class="stage">
-      <div class="feed" id="feed" role="log" aria-live="polite" aria-label="Lesson conversation" ref={feedRef}>
+      <div class="feed" id="feed" tabIndex={-1} role="log" aria-live="polite" aria-label="Lesson conversation" ref={feedRef}>
         <div class="feed__inner">
           <div class="feed-head">
             <p class="feed-head__eyebrow">
@@ -180,7 +184,7 @@ export function Feed({
             <p class="feed-head__note">{REVIEW_DISCLAIMER}</p>
           </div>
           <TutorMsg>
-            <p>{WELCOME}</p>
+            <p>{narrow ? WELCOME_NARROW : WELCOME}</p>
           </TutorMsg>
           {lesson.beats.slice(0, shown).map((beat, i) => (
             <Fragment key={i}>

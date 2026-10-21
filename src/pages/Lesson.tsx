@@ -127,7 +127,7 @@ function LessonView({ lesson, onRestart }: { lesson: LessonT; onRestart: () => v
       <StudioProvider lesson={lesson} key={lesson.id}>
         <StudioLayout lesson={lesson} step={0} bugSolved={false}>
           <div class="stage" aria-busy="true">
-            <div class="feed">
+            <div class="feed" id="feed" tabIndex={-1}>
               <div class="feed__inner" role="status">
                 <span class="visually-hidden">Opening your lesson…</span>
                 <span class="feed__skeleton" aria-hidden="true" />
@@ -181,18 +181,34 @@ function LessonView({ lesson, onRestart }: { lesson: LessonT; onRestart: () => v
  * workspace). The page never scrolls; each pane does. At 960px and below, one pane shows at a time.
  */
 function StudioLayout({ lesson, step, bugSolved, children }: { lesson: LessonT; step: number; bugSolved: boolean; children: ComponentChildren }) {
-  const { pane } = useStudio();
+  const { pane, setPane } = useStudio();
   const narrow = useMedia(NARROW);
   const hide = (p: Pane) => narrow && pane !== p;
+  const focusFeed = useRef(false);
+  useEffect(() => {
+    if (!focusFeed.current || pane !== 'lesson') return;
+    focusFeed.current = false;
+    document.getElementById('feed')?.focus();
+  }, [pane]);
+  // On phones the conversation may sit in a hidden pane: show it, then land on it.
+  function skip(e: MouseEvent) {
+    if (!narrow || pane === 'lesson') return;
+    e.preventDefault();
+    focusFeed.current = true;
+    setPane('lesson');
+  }
   return (
     <div class="studio-page">
+      <a class="skip-link" href="#feed" onClick={skip}>
+        Skip to content
+      </a>
       <CourseBar lesson={lesson} narrow={narrow} />
+      <SaveWarning />
       <div class="studio">
         <div class="studio__pane studio__pane--outline" data-pane-id="outline" hidden={hide('outline')}>
           <Outline lesson={lesson} step={step} bugSolved={bugSolved} />
         </div>
         <main class="studio__pane studio__pane--lesson" id="main" tabIndex={-1} data-pane-id="lesson" hidden={hide('lesson')}>
-          <SaveWarning />
           {children}
         </main>
         <div class="studio__pane studio__pane--workspace" data-pane-id="workspace" hidden={hide('workspace')}>

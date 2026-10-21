@@ -76,16 +76,8 @@ function Frame() {
       <Route default component={NotFound} />
     </Router>
   );
-  if (isStudio(path)) {
-    return (
-      <>
-        <a class="skip-link" href="#feed">
-          Skip to content
-        </a>
-        {routes}
-      </>
-    );
-  }
+  // The studio renders its own skip link: on phones it has to switch panes first.
+  if (isStudio(path)) return routes;
   return (
     <>
       <Header />

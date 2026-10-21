@@ -16,8 +16,8 @@ export interface Studio {
   active: string;
   /** The saved record has loaded and the files are in. */
   loaded: boolean;
-  /** Open a file's tab, and switch the narrow-screen pane to Workspace. */
-  openFile(name: string): void;
+  /** Open a file's tab, and switch the narrow-screen pane to Workspace (unless `switchPane` is false). */
+  openFile(name: string, opts?: { switchPane?: boolean }): void;
   /** The learner typing. Edits to editable files are recorded (debounced, tagged with this lesson). */
   setFile(name: string, text: string): void;
   /** Like setFile but programmatic (e.g. a bug hunt starting): nothing is recorded. */
@@ -155,9 +155,9 @@ export function StudioProvider({ lesson, children }: { lesson: Lesson; children?
       focusEditor() {
         setFocusTick((n) => n + 1);
       },
-      openFile(name) {
+      openFile(name, opts) {
         setActive(name);
-        setPane('workspace');
+        if (opts?.switchPane !== false) setPane('workspace');
       },
       setFile(name, text) {
         if (filesRef.current[name] === text) return; // the editor echoing a replaceFile back

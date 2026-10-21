@@ -263,7 +263,8 @@
 .composer__send:disabled { opacity: 0.5; cursor: not-allowed; }
 .composer__send:disabled:hover { background: var(--wp-blue); border-color: var(--wp-blue); }
 .composer__skeleton,
-.feed__skeleton {
+.feed__skeleton,
+.checkpoint__skeleton {
   display: block;
   height: 2.75rem;
   border-radius: 10px;
@@ -271,12 +272,13 @@
   animation: skeleton 1.4s ease-in-out infinite;
 }
 .feed__skeleton { height: 14rem; border-radius: 12px; }
+.checkpoint__skeleton { height: 7rem; border-radius: 0.9rem; }
 
 @media (prefers-reduced-motion: reduce) {
   .feed { scroll-behavior: auto; }
   .msg { animation: none; }
   .typing span { animation: none; opacity: 0.7; }
-  .composer__skeleton, .feed__skeleton { animation: none; }
+  .composer__skeleton, .feed__skeleton, .checkpoint__skeleton { animation: none; }
 }
 
 /* ---------- Task cards: the bug hunt points at the workspace ---------- */
@@ -293,12 +295,15 @@
 /* The page never scrolls: the bar, then three panes that each scroll on their own. */
 .studio-page {
   display: grid;
-  grid-template-rows: auto minmax(0, 1fr);
+  grid-template-rows: auto auto minmax(0, 1fr);
   height: 100vh;
   height: 100dvh;
   overflow: hidden;
 }
+/* Over the course bar, which sits above the panes. */
+.studio-page > .skip-link { z-index: 30; }
 .studio {
+  grid-row: 3;
   display: grid;
   grid-template-columns: 248px minmax(0, 1fr) minmax(380px, 44%);
   grid-template-rows: minmax(0, 1fr);
@@ -307,7 +312,7 @@
 .studio__pane { display: flex; flex-direction: column; min-width: 0; min-height: 0; }
 .studio__pane[hidden] { display: none; }
 .studio__pane--lesson:focus { outline: none; }
-.studio__pane--lesson > .save-warning { flex: none; margin: 0.75rem clamp(1rem, 4vw, 3rem) 0; }
+.studio-page > .save-warning { margin: 0; border-radius: 0; padding-inline: clamp(1rem, 4vw, 3rem); }
 .studio__pane--workspace > .workspace { flex: 1; }
 
 /* ---------- Course bar ---------- */
