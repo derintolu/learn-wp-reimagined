@@ -81,9 +81,21 @@ export function Workspace() {
             );
           })}
         </div>
-        <button type="button" class="ws-apply" title="Write these files into the live WordPress" onClick={() => void s.apply()}>
+        <button
+          type="button"
+          class="ws-apply"
+          title="Write these files into the live WordPress"
+          disabled={s.previewFailed}
+          aria-describedby={s.previewFailed ? 'ws-apply-why' : undefined}
+          onClick={() => void s.apply()}
+        >
           Apply to site
         </button>
+        {s.previewFailed && (
+          <span id="ws-apply-why" class="visually-hidden">
+            WordPress couldn't start here. Use Open in Playground below.
+          </span>
+        )}
       </div>
       <div class="ws-editor" id="ws-panel" ref={panel} role="tabpanel" aria-labelledby={s.active ? tabId(s.active) : undefined}>
         {readOnly && (
@@ -108,7 +120,7 @@ export function Workspace() {
           />
         )}
       </div>
-      <LivePreview files={s.files} onReady={s.attachPreview} />
+      <LivePreview files={s.files} onReady={s.attachPreview} onFailed={s.failPreview} />
     </section>
   );
 }

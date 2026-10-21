@@ -16,6 +16,7 @@ import { setPlaygroundImporter } from '../../src/studio/previewClient';
 import { StudioProvider, useStudio, type Studio } from '../../src/studio/StudioContext';
 import { Workspace } from '../../src/studio/WorkspacePane';
 import type { RecordManager } from '../../src/record/store';
+import { RecordManager as Manager } from '../../src/record/store';
 import { memoryManager } from '../components/helpers';
 
 const DIR = '/wordpress/wp-content/themes/my-block-theme';
@@ -253,6 +254,50 @@ describe('workspace pane', () => {
     await act(() => studio.apply());
     expect(writes).toEqual([{ path: `${DIR}/theme.json`, data: 'mine' }]);
     expect(studio.dirty).toEqual([]);
+  });
+
+  it('a record that fails to load still opens the files', async () => {
+    fakePlayground();
+    manager = new Manager({ kind: 'indexeddb', load: async () => Promise.reject(new Error('blocked')), save: async () => {} }, content);
+    setRecordManager(manager);
+    render(
+      <StudioProvider lesson={lesson()}>
+        <Probe />
+        <Workspace />
+      </StudioProvider>,
+    );
+    const list = await screen.findByRole('tablist', { name: 'Files' });
+    expect(within(list).getAllByRole('tab').map((t) => t.textContent)).toEqual(['style.css', 'templates/index.html', 'theme.json']);
+    expect(screen.queryByText('Opening your files…')).toBeNull();
+    expect(studio.editable).toContain('theme.json');
+  });
+
+  it('while the preview has failed, Apply is disabled, says why, and leaves files dirty', async () => {
+    setPlaygroundImporter(async () => {
+      throw new Error('offline');
+    });
+    mount();
+    await screen.findByText(/Couldn't start WordPress here\./);
+    const btn = screen.getByRole('button', { name: 'Apply to site' }) as HTMLButtonElement;
+    expect(btn.disabled).toBe(true);
+    const desc = document.getElementById(btn.getAttribute('aria-describedby') ?? '');
+    expect(desc?.textContent).toBe("WordPress couldn't start here. Use Open in Playground below.");
+    type(await editorView(/theme\.json/), '{"version":3}');
+    await waitFor(() => expect(studio.dirty).toEqual(['theme.json']));
+    await act(() => studio.apply());
+    expect(studio.dirty).toEqual(['theme.json']);
+    expect(screen.getByRole('tab', { name: /theme\.json/ }).querySelector('.ws-dot')).toBeTruthy();
+  });
+
+  it('Apply is enabled while the preview boots and once it is live', async () => {
+    const { boot } = fakePlayground();
+    mount();
+    const btn = (await screen.findByRole('button', { name: 'Apply to site' })) as HTMLButtonElement;
+    expect(btn.disabled).toBe(false);
+    expect(btn.getAttribute('aria-describedby')).toBeNull();
+    boot();
+    await live();
+    expect(btn.disabled).toBe(false);
   });
 
   it('on a completed lesson every file is read-only, labelled "Lesson complete"', async () => {

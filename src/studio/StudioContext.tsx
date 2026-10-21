@@ -43,6 +43,9 @@ interface StudioInternal extends Studio {
   focusTick: number;
   /** The lesson is completed, so nothing is editable (R22). */
   completed: boolean;
+  /** The preview couldn't start (it may still come up late, via attachPreview). Apply is off meanwhile. */
+  previewFailed: boolean;
+  failPreview(): void;
   attachPreview(p: LivePreview): void;
 }
 
@@ -79,6 +82,8 @@ export function StudioProvider({ lesson, children }: { lesson: Lesson; children?
   const [focusTick, setFocusTick] = useState(0);
   // What the preview has (or will have, once pending writes land). Dirty = differs from this.
   const [applied, setApplied] = useState<Record<string, string>>({});
+  const [previewFailed, setPreviewFailed] = useState(false);
+  const failedRef = useRef(false);
 
   const filesRef = useRef(files);
   const appliedRef = useRef(applied);
@@ -89,25 +94,24 @@ export function StudioProvider({ lesson, children }: { lesson: Lesson; children?
 
   useEffect(() => {
     let live = true;
-    manager.init().then(
-      () => {
-        if (!live) return;
-        const r = manager.record;
-        const w = workspaceFiles(content, r, lesson.id);
-        const done = r.completedLessons.includes(lesson.id);
-        const canEdit = done ? [] : w.editable; // R22: a completed lesson is read-only
-        filesRef.current = w.files;
-        appliedRef.current = w.files;
-        editableRef.current = canEdit;
-        setFiles(w.files);
-        setApplied(w.files);
-        setEditable(canEdit);
-        setCompleted(done);
-        setActive(canEdit.find((f) => f in w.files) ?? Object.keys(w.files)[0] ?? '');
-        setLoaded(true);
-      },
-      () => {},
-    );
+    // Load the files whether or not the saved record could be read (then it's the starting record).
+    const load = () => {
+      if (!live) return;
+      const r = manager.record;
+      const w = workspaceFiles(content, r, lesson.id);
+      const done = r.completedLessons.includes(lesson.id);
+      const canEdit = done ? [] : w.editable; // R22: a completed lesson is read-only
+      filesRef.current = w.files;
+      appliedRef.current = w.files;
+      editableRef.current = canEdit;
+      setFiles(w.files);
+      setApplied(w.files);
+      setEditable(canEdit);
+      setCompleted(done);
+      setActive(canEdit.find((f) => f in w.files) ?? Object.keys(w.files)[0] ?? '');
+      setLoaded(true);
+    };
+    manager.init().then(load, load);
     return () => {
       live = false;
     };
@@ -166,6 +170,8 @@ export function StudioProvider({ lesson, children }: { lesson: Lesson; children?
       },
       replaceFile: put,
       apply(names) {
+        // Nowhere to write: the files stay dirty until the preview comes up (if it does).
+        if (failedRef.current) return queue.current;
         const cur = filesRef.current;
         const list = names ?? Object.keys(cur).filter((n) => cur[n] !== appliedRef.current[n]);
         const batch = pick(cur, list);
@@ -178,14 +184,21 @@ export function StudioProvider({ lesson, children }: { lesson: Lesson; children?
         }
         return write(batch);
       },
+      previewFailed,
+      failPreview() {
+        failedRef.current = true;
+        setPreviewFailed(true);
+      },
       attachPreview(p) {
+        failedRef.current = false;
+        setPreviewFailed(false);
         preview.current = p;
         const waiting = pending.current;
         pending.current = null;
         if (waiting) void write(waiting);
       },
     };
-  }, [files, editable, active, pane, describedBy, loaded, completed, applied, focusTick]);
+  }, [files, editable, active, pane, describedBy, loaded, completed, applied, focusTick, previewFailed]);
 
   return <Ctx.Provider value={value}>{children}</Ctx.Provider>;
 }

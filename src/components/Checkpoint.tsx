@@ -239,7 +239,14 @@ function Code({
           <button type="button" class="button" onClick={check}>
             Check my code
           </button>
-          <button type="button" class="button button--quiet" onClick={() => studio.openFile(file)}>
+          <button
+            type="button"
+            class="button button--quiet"
+            onClick={() => {
+              studio.openFile(file);
+              studio.focusEditor();
+            }}
+          >
             Edit {file} in the workspace
           </button>
           <span class="checkpoint__hint">Checks run right here in your browser. They decide pass or fail.</span>
@@ -322,7 +329,7 @@ export function Checkpoint({
         <SketchIcon name="branch" class="checkpoint__icon" />
         Checkpoint
       </p>
-      <h2 class="checkpoint__question" id={`cp-q-${lesson.id}`}>
+      <h2 class="checkpoint__question" id={`cp-q-${lesson.id}`} tabIndex={-1}>
         {cp.question}
       </h2>
       {done && done.response !== CODE_PASS_RESPONSE && cp.kind === 'free-text' && (
@@ -347,7 +354,8 @@ export function Checkpoint({
           />
         </div>
       )}
-      <div class="checkpoint__live" aria-live="polite">
+      {/* No live region of its own: the feed log around it announces the moment. */}
+      <div class="checkpoint__live">
         {done && (
           <BranchMoment
             outcome={done.outcome}

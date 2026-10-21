@@ -16,6 +16,7 @@ vi.mock('../../src/ai/client', () => ({
 }));
 
 import { Feed } from '../../src/studio/Feed';
+import { MAX_CHARS } from '../../src/studio/Composer';
 import { getStatus, tutorStream } from '../../src/ai/client';
 import { content } from '../../src/content';
 import { resetAiStatusForTests } from '../../src/ai/useAiStatus';
@@ -111,6 +112,42 @@ describe('Feed', () => {
     expect(req.messages).toEqual([{ role: 'user', content: `Answering your question "${QUESTION}": Colours and fonts` }]);
     const bubble = document.querySelector('.msg--learner .msg__bubble') as HTMLElement;
     expect(bubble.textContent).toBe('Colours and fonts');
+  });
+
+  it('a long answer keeps the whole prefix and as much of the learner text as fits', async () => {
+    reply('Noted.');
+    render(<Host />);
+    const long = 'abcdefghij'.repeat(MAX_CHARS / 10);
+    await send(long);
+    await screen.findByText('Noted.');
+    const prefix = `Answering your question "${QUESTION}": `;
+    const [req] = stream.mock.calls[0];
+    expect(req.messages).toEqual([{ role: 'user', content: prefix + long.slice(0, MAX_CHARS - prefix.length) }]);
+    expect(req.messages[0].content.length).toBe(MAX_CHARS);
+  });
+
+  it('the log is busy while a reply streams, so a growing reply is not announced chunk by chunk', async () => {
+    let chunk!: (t: string) => void;
+    let finish!: () => void;
+    stream.mockImplementationOnce(
+      (_req, onText) =>
+        new Promise<void>((res) => {
+          chunk = onText;
+          finish = res;
+        }),
+    );
+    render(<Host />);
+    const log = screen.getByRole('log');
+    expect(log.getAttribute('aria-busy')).not.toBe('true');
+    await send('Colours');
+    await waitFor(() => expect(log.getAttribute('aria-busy')).toBe('true'));
+    chunk('Half a');
+    await screen.findByText('Half a');
+    expect(log.getAttribute('aria-busy')).toBe('true');
+    chunk(' reply.');
+    finish();
+    await screen.findByText('Half a reply.');
+    await waitFor(() => expect(log.getAttribute('aria-busy')).not.toBe('true'));
   });
 
   it('a later send is a plain ask with beatIndex = step', async () => {

@@ -88,6 +88,55 @@ describe('live preview', () => {
     expect(screen.getByText(/Couldn't start WordPress here\./)).toBeTruthy();
   });
 
+  it('a boot that finishes after the timeout is promoted to live', async () => {
+    vi.useFakeTimers();
+    const { client } = fake();
+    let finish!: () => void;
+    client.isReady.mockImplementation(() => new Promise<void>((r) => (finish = r)));
+    const onReady = vi.fn();
+    const onFailed = vi.fn();
+    render(<LivePreview files={files} onReady={onReady} onFailed={onFailed} />);
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(PREVIEW_BOOT_TIMEOUT_MS + 1);
+    });
+    expect(screen.getByText(/Couldn't start WordPress here\./)).toBeTruthy();
+    expect(onFailed).toHaveBeenCalledOnce();
+    expect(onReady).not.toHaveBeenCalled();
+    expect((document.querySelector('iframe') as HTMLIFrameElement).hidden).toBe(true);
+
+    await act(async () => {
+      finish();
+      await vi.advanceTimersByTimeAsync(0);
+    });
+    expect(screen.getByText('Live: your theme in WordPress Playground')).toBeTruthy();
+    expect(onReady).toHaveBeenCalledOnce();
+    expect((document.querySelector('iframe') as HTMLIFrameElement).hidden).toBe(false);
+    const p = onReady.mock.calls[0][0];
+    await p.write({ 'style.css': 'x' });
+    expect(client.writeFile).toHaveBeenCalledWith(`${DIR}/style.css`, 'x');
+  });
+
+  it('a late boot after unmount does nothing', async () => {
+    vi.useFakeTimers();
+    const { client } = fake();
+    let finish!: () => void;
+    client.isReady.mockImplementation(() => new Promise<void>((r) => (finish = r)));
+    const onReady = vi.fn();
+    const { unmount } = render(<LivePreview files={files} onReady={onReady} />);
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(PREVIEW_BOOT_TIMEOUT_MS + 1);
+    });
+    unmount();
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(200); // let the unmount's effect cleanup run (it aborts the boot)
+    });
+    await act(async () => {
+      finish();
+      await vi.advanceTimersByTimeAsync(0);
+    });
+    expect(onReady).not.toHaveBeenCalled();
+  });
+
   it('no unhandled rejection when the iframe unmounts mid-boot', async () => {
     const unhandled = vi.fn();
     process.on('unhandledRejection', unhandled);

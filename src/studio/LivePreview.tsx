@@ -4,25 +4,37 @@ import { startLivePreview, type LivePreview as Preview } from './previewClient';
 
 type Status = 'booting' | 'live' | 'failed';
 
-export function LivePreview({ files, onReady }: { files: Record<string, string>; onReady: (p: Preview) => void }) {
+export function LivePreview({
+  files,
+  onReady,
+  onFailed,
+}: {
+  files: Record<string, string>;
+  onReady: (p: Preview) => void;
+  /** The boot failed or timed out. A late boot can still follow with onReady. */
+  onFailed?: () => void;
+}) {
   const frame = useRef<HTMLIFrameElement>(null);
   const initial = useRef(files);
   const ready = useRef(onReady);
   ready.current = onReady;
+  const failed = useRef(onFailed);
+  failed.current = onFailed;
   const [status, setStatus] = useState<Status>('booting');
 
   useEffect(() => {
     const ctl = new AbortController();
-    startLivePreview(frame.current!, initial.current, ctl.signal).then(
-      (p) => {
-        if (ctl.signal.aborted) return;
-        setStatus('live');
-        ready.current(p);
-      },
-      () => {
-        if (!ctl.signal.aborted) setStatus('failed');
-      },
-    );
+    const live = (p: Preview) => {
+      if (ctl.signal.aborted) return;
+      setStatus('live');
+      ready.current(p);
+    };
+    // A boot that beats the timeout, or one that finishes after it while still mounted.
+    startLivePreview(frame.current!, initial.current, ctl.signal, live).then(live, () => {
+      if (ctl.signal.aborted) return;
+      setStatus('failed');
+      failed.current?.();
+    });
     return () => ctl.abort();
   }, []);
 

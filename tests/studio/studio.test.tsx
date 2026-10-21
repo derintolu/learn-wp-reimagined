@@ -348,7 +348,8 @@ describe('Studio', () => {
     const lessonPane = document.querySelector('[data-pane-id="lesson"]') as HTMLElement;
     await new Promise((res) => setTimeout(res, 30));
     expect(lessonPane.hidden).toBe(false);
-    expect(document.activeElement).toBe(lessonPane.querySelector('.feed__post'));
+    // Focus lands on the card's heading, not on the unlabelled wrapper around the cards.
+    expect(document.activeElement).toBe(within(box).getByRole('heading', { name: 'Catch the bug' }));
     fireEvent.click(within(box).getByRole('button', { name: /^Open / }));
     await waitFor(() => expect((document.querySelector('[data-pane-id="workspace"]') as HTMLElement).hidden).toBe(false));
   });
@@ -391,6 +392,15 @@ describe('Studio', () => {
     await screen.findByRole('button', { name: /^Next/ });
     expect(screen.queryByRole('region', { name: /Checkpoint/ })).toBeNull();
     expect(screen.queryByTestId('completed-summary')).toBeNull();
+  });
+
+  it('after the last section, focus lands on the checkpoint question', async () => {
+    use(at('templates-and-parts', 1));
+    open('/learn/templates-and-parts');
+    await new Promise((res) => setTimeout(res, 30));
+    fireEvent.click(await screen.findByRole('button', { name: /checkpoint/i }));
+    await screen.findByRole('region', { name: /Checkpoint/ });
+    await waitFor(() => expect(document.activeElement).toBe(document.getElementById('cp-q-templates-and-parts')));
   });
 
   it('the code checkpoint editor is described by its question', async () => {

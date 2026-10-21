@@ -16,6 +16,23 @@ const MISSES_BEFORE_HINT = 2;
 
 const has = (o: object, k: string) => Object.prototype.hasOwnProperty.call(o, k);
 
+/** Per device: the hunt for this lesson has started, so a failing saved copy is a fix in progress. */
+const huntKey = (lessonId: string) => `lwr:hunt:${lessonId}`;
+function huntStarted(lessonId: string): boolean {
+  try {
+    return localStorage.getItem(huntKey(lessonId)) === '1';
+  } catch {
+    return false;
+  }
+}
+function markHuntStarted(lessonId: string): void {
+  try {
+    localStorage.setItem(huntKey(lessonId), '1');
+  } catch {
+    // no storage: a reload starts the hunt over from bug.code
+  }
+}
+
 /** `passed: null` is a check that hasn't run yet. */
 type Row = { check: Check; passed: boolean | null };
 
@@ -79,15 +96,18 @@ export function BugCard({ lesson, ai, onSolved }: { lesson: Lesson; ai: AiState;
     winRef.current?.scrollIntoView?.({ block: 'nearest', behavior: scrollBehavior() });
   }, [solved]);
 
-  // Start the hunt once the files are in. A saved copy from this lesson that still fails the fix
-  // checks is a fix in progress (a reload mid-hunt), so it stays. Anything else, including an
-  // edit from the beats that already passes, gives way to the planted bug. Then open it and put it live.
+  // Start the hunt once the files are in. Only once the hunt has started on this device is a saved
+  // copy from this lesson that still fails the fix checks a fix in progress (a reload mid-hunt), so
+  // it stays. Anything else, including an edit from the beats (passing or not), gives way to the
+  // planted bug. Then open it and put it live.
   useEffect(() => {
     if (!studio.loaded || started.current) return;
     started.current = true;
     const savedHere = has(record.files, bug.file) && record.fileLessons?.[bug.file] === lesson.id;
-    const inProgress = savedHere && !runChecks(bug.fixChecks, { [bug.file]: record.files[bug.file] }).passed;
+    const inProgress =
+      huntStarted(lesson.id) && savedHere && !runChecks(bug.fixChecks, { [bug.file]: record.files[bug.file] }).passed;
     if (!inProgress) studio.replaceFile(bug.file, bug.code);
+    markHuntStarted(lesson.id);
     // The tab only: on phones the learner reads this card first.
     studio.openFile(bug.file, { switchPane: false });
     void studio.apply([bug.file]);
@@ -136,7 +156,7 @@ export function BugCard({ lesson, ai, onSolved }: { lesson: Lesson; ai: AiState;
           </svg>
         </span>
         <div>
-          <h2 class="bug__title" id={`bug-title-${lesson.id}`}>
+          <h2 class="bug__title" id={`bug-title-${lesson.id}`} tabIndex={-1}>
             Catch the bug
           </h2>
           <p class="bug__label">{BUG_LABEL}</p>
@@ -164,7 +184,8 @@ export function BugCard({ lesson, ai, onSolved }: { lesson: Lesson; ai: AiState;
           <span class="checkpoint__hint">The check looks for the real fix, not just a change.</span>
         </div>
       )}
-      <div aria-live="polite" class="bug__live">
+      {/* No live region of its own: the feed log around it announces what's added here. */}
+      <div class="bug__live">
         {missed && !solved && (
           <div class="bug__miss">
             <p class="checkpoint__verdict">

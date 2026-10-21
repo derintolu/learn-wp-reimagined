@@ -108,7 +108,9 @@ export function Feed({
     if (busy || ai !== 'on') return;
     const question = lesson.beats[step]?.question;
     const answering = Boolean(question) && !answered.has(step);
-    const wire = (answering ? `Answering your question "${question}": ${text}` : text).slice(0, MAX_CHARS);
+    // The prefix always goes whole; the learner's text gets the room that's left.
+    const prefix = answering ? `Answering your question "${question}": ` : '';
+    const wire = prefix + text.slice(0, Math.max(0, MAX_CHARS - prefix.length));
     // Only answered pairs go back to the server, newest last, within its message cap.
     const history: ChatMessage[] = turns
       .filter((t) => !t.failed)
@@ -174,7 +176,16 @@ export function Feed({
 
   return (
     <div class="stage">
-      <div class="feed" id="feed" tabIndex={-1} role="log" aria-live="polite" aria-label="Lesson conversation" ref={feedRef}>
+      <div
+        class="feed"
+        id="feed"
+        tabIndex={-1}
+        role="log"
+        aria-live="polite"
+        aria-busy={busy ? 'true' : undefined}
+        aria-label="Lesson conversation"
+        ref={feedRef}
+      >
         <div class="feed__inner">
           <div class="feed-head">
             <p class="feed-head__eyebrow">

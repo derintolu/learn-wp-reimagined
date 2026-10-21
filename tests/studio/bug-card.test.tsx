@@ -29,6 +29,9 @@ import { memoryManager } from '../components/helpers';
 
 const DIR = '/wordpress/wp-content/themes/my-block-theme';
 const BUG_FILE = 'patterns/hero.php';
+const HUNT_KEY = 'lwr:hunt:patterns';
+/** Still fails the fix check (the slug has no namespace). */
+const PARTIAL = '<?php\n/**\n * Title: Hero\n * Slug: mytheme\n */\n?>\n';
 const FIX = '<?php\n/**\n * Title: Hero\n * Slug: mytheme/hero\n */\n?>\n';
 
 function fakePlayground() {
@@ -86,6 +89,8 @@ async function typeInto(name: RegExp, text: string) {
 
 afterEach(() => {
   cleanup();
+  vi.unstubAllGlobals();
+  localStorage.clear();
   setRecordManager(null);
   setPlaygroundImporter(null);
   vi.restoreAllMocks();
@@ -152,8 +157,33 @@ describe('BugCard', () => {
     expect(studio.files[BUG_FILE]).toBe(bug.code);
   });
 
+  it('a beat-time edit that fails fixChecks, before the hunt has started, is replaced by bug.code', async () => {
+    const bug = content.lessons['patterns'].bug!;
+    const { writes } = fakePlayground();
+    await useManager((m) => m.dispatch({ type: 'fileEdited', file: BUG_FILE, content: PARTIAL, lessonId: 'patterns' }));
+    mountBug();
+    await waitFor(() => expect(writes).toContainEqual({ path: `${DIR}/${BUG_FILE}`, data: bug.code }));
+    expect(studio.files[BUG_FILE]).toBe(bug.code);
+    // Starting the hunt is remembered on this device.
+    expect(localStorage.getItem(HUNT_KEY)).toBe('1');
+  });
+
+  it('when localStorage throws, a failing saved copy gives way to bug.code', async () => {
+    const bug = content.lessons['patterns'].bug!;
+    const boom = () => {
+      throw new Error('blocked');
+    };
+    vi.stubGlobal('localStorage', { getItem: boom, setItem: boom, removeItem: boom, clear: () => {} });
+    fakePlayground();
+    await useManager((m) => m.dispatch({ type: 'fileEdited', file: BUG_FILE, content: PARTIAL, lessonId: 'patterns' }));
+    mountBug();
+    await waitFor(() => expect(studio.files[BUG_FILE]).toBe(bug.code));
+    expect(studio.active).toBe(BUG_FILE);
+  });
+
   it('reload mid-hunt: a saved partial fix that still fails is kept, not bug.code', async () => {
-    const partial = '<?php\n/**\n * Title: Hero\n * Slug: mytheme\n */\n?>\n';
+    const partial = PARTIAL;
+    localStorage.setItem(HUNT_KEY, '1'); // the hunt started before the reload
     const { writes } = fakePlayground();
     await useManager((m) => m.dispatch({ type: 'fileEdited', file: BUG_FILE, content: partial, lessonId: 'patterns' }));
     mountBug();
@@ -188,6 +218,8 @@ describe('BugCard', () => {
     await typeInto(/hero\.php/, FIX);
     fireEvent.click(within(box).getByRole('button', { name: 'Check my fix' }));
     const win = await within(box).findByText(/You caught it/);
+    // The feed log announces the result; no live region nested inside it would announce it twice.
+    expect(box.querySelector('[aria-live]')).toBeNull();
     // The Check button is gone, so keyboard focus moves to the result instead of falling to the page.
     await waitFor(() => expect(document.activeElement).toBe(win.closest('.bug__win')));
     for (const li of within(box).getAllByRole('listitem')) expect(li.className).toContain('is-pass');
@@ -199,8 +231,40 @@ describe('BugCard', () => {
   });
 });
 
+/**
+ * Record focus() calls without moving focus. A focused CodeMirror editor re-syncs its selection
+ * 10ms later, and happy-dom fires selectionchange synchronously inside that update, which throws
+ * "Calls to EditorView.update are not allowed while an update is in progress". Browsers don't.
+ */
+function noRealFocus() {
+  return vi.spyOn(HTMLElement.prototype, 'focus').mockImplementation(() => {});
+}
+
 describe('Code checkpoint in the workspace', () => {
+  it('"Edit theme.json in the workspace" opens the tab and moves focus into the editor', async () => {
+    const lesson: Lesson = content.lessons['templates-and-parts'];
+    fakePlayground();
+    await useManager();
+    render(
+      <StudioProvider lesson={lesson}>
+        <Probe />
+        <Checkpoint lesson={lesson} ai="off" onResolved={() => {}} onRestart={() => {}} />
+        <Workspace />
+      </StudioProvider>,
+    );
+    const cp = await screen.findByRole('region', { name: /Checkpoint/ });
+    await screen.findByRole('tablist', { name: 'Files' });
+    act(() => studio.openFile('style.css', { switchPane: false }));
+    const focus = noRealFocus();
+    fireEvent.click(within(cp).getByRole('button', { name: 'Edit theme.json in the workspace' }));
+    expect(studio.active).toBe('theme.json');
+    expect(studio.pane).toBe('workspace');
+    const view = await editorView(/theme\.json/);
+    await waitFor(() => expect(focus.mock.contexts).toContain(view.contentDOM));
+  });
+
   it('code checkpoint checks the workspace copy; two misses offer Keep trying / Review only', async () => {
+    noRealFocus(); // "Edit theme.json" focuses the editor; see noRealFocus
     const lesson: Lesson = content.lessons['templates-and-parts'];
     const { writes } = fakePlayground();
     await useManager();
@@ -236,6 +300,8 @@ describe('Code checkpoint in the workspace', () => {
     await typeInto(/theme\.json/, fixed);
     fireEvent.click(within(cp).getByRole('button', { name: 'Check my code' }));
     await waitFor(() => expect(onResolved).toHaveBeenCalledWith(expect.objectContaining({ outcome: 'advance', response: 'code checks passed' })));
+    expect(await within(cp).findByTestId('branch-moment')).toBeTruthy();
+    expect(cp.querySelector('[aria-live]')).toBeNull();
     await waitFor(() => expect(writes).toEqual([{ path: `${DIR}/theme.json`, data: fixed }]));
     const events = dispatched().filter((e) => e.type === 'codeChecked');
     expect(events.map((e) => (e as { passed: boolean }).passed)).toEqual([false, false, true]);

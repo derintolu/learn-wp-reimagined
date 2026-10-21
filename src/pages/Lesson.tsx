@@ -85,7 +85,8 @@ function LessonView({ lesson, onRestart }: { lesson: LessonT; onRestart: () => v
     focusNext.current = false;
     if (step < n) return;
     const el = postRef.current;
-    el?.focus({ preventScroll: true });
+    // The first card's heading (the bug's title, the checkpoint's question), not the unlabelled wrapper.
+    (el?.querySelector<HTMLElement>('h2') ?? el)?.focus({ preventScroll: true });
     el?.scrollIntoView?.({ block: 'start', behavior: scrollBehavior() });
   }, [step]);
 
@@ -159,7 +160,7 @@ function LessonView({ lesson, onRestart }: { lesson: LessonT; onRestart: () => v
               {!readOnly && finishedNoCheckpoint && (
                 <section class="lesson-done" aria-labelledby="done-title">
                   <p class="lesson-done__kicker">Lesson complete</p>
-                  <h2 class="lesson-done__title" id="done-title">
+                  <h2 class="lesson-done__title" id="done-title" tabIndex={-1}>
                     {after ? 'Nicely done. On to the next one.' : `That's the ${path.title} path, done.`}
                   </h2>
                   <a class="button" href={after ? `/learn/${after}` : '/finale'}>
