@@ -3,5 +3,6 @@
   "space": "learn-wp-reimagined",
   "meta": { "title": "Learn WordPress, reimagined" },
   "index": "index.html",
-  "fallback": { "path": "index.html", "status": 200 }
+  "fallback": { "path": "index.html", "status": 200 },
+  "crons": [{ "path": "/api/mcp-sweep", "schedule": "daily" }]
 }
