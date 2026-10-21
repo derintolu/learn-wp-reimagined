@@ -1,4 +1,4 @@
-import { useRef } from 'preact/hooks';
+import { useEffect, useRef } from 'preact/hooks';
 import { CodeEditor } from '../components/LazyCodeEditor';
 import { LivePreview } from './LivePreview';
 import { useStudioInternal } from './StudioContext';
@@ -9,7 +9,23 @@ const tabId = (name: string) => `ws-tab-${name.replace(/[^a-z0-9]+/gi, '-')}`;
 export function Workspace() {
   const s = useStudioInternal();
   const tablist = useRef<HTMLDivElement>(null);
+  const panel = useRef<HTMLDivElement>(null);
   const names = Object.keys(s.files);
+
+  // focusEditor(): after the tab switch has rendered (the editor remounts per file, and the first
+  // time CodeMirror may still be loading), focus it. Gives up after about two seconds.
+  useEffect(() => {
+    if (!s.focusTick) return;
+    let tries = 0;
+    let t: ReturnType<typeof setTimeout>;
+    const attempt = () => {
+      const el = panel.current?.querySelector<HTMLElement>('.cm-content, textarea');
+      if (el) el.focus();
+      else if (tries++ < 40) t = setTimeout(attempt, 50);
+    };
+    t = setTimeout(attempt);
+    return () => clearTimeout(t);
+  }, [s.focusTick]);
 
   if (!s.loaded) {
     return (
@@ -68,7 +84,7 @@ export function Workspace() {
           Apply to site
         </button>
       </div>
-      <div class="ws-editor" id="ws-panel" role="tabpanel" aria-labelledby={s.active ? tabId(s.active) : undefined}>
+      <div class="ws-editor" id="ws-panel" ref={panel} role="tabpanel" aria-labelledby={s.active ? tabId(s.active) : undefined}>
         {readOnly && (
           <p class="ws-provided">
             {s.completed ? (

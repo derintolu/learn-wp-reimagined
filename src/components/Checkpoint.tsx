@@ -141,18 +141,17 @@ function FreeText({ lesson, ai, onResolve }: { lesson: Lesson; ai: AiState; onRe
   );
 }
 
-/** `passed: null` is a check that hasn't run yet. */
-export type CheckResult = { check: Check; passed: boolean | null }[];
+type CheckResult = { check: Check; passed: boolean }[];
 
-export function CheckList({ results }: { results: CheckResult }) {
+function CheckList({ results }: { results: CheckResult }) {
   return (
     <ul class="check-list">
       {results.map((r, i) => (
-        <li key={i} class={`check-list__item ${r.passed === null ? 'is-pending' : r.passed ? 'is-pass' : 'is-fail'}`}>
+        <li key={i} class={r.passed ? 'check-list__item is-pass' : 'check-list__item is-fail'}>
           <span class="check-list__mark" aria-hidden="true">
-            {r.passed === null ? '○' : r.passed ? '✓' : '×'}
+            {r.passed ? '✓' : '×'}
           </span>
-          <span class="visually-hidden">{r.passed === null ? 'Not checked yet: ' : r.passed ? 'Passed: ' : 'Not yet: '}</span>
+          <span class="visually-hidden">{r.passed ? 'Passed: ' : 'Not yet: '}</span>
           <span>{r.check.message}</span>
         </li>
       ))}
@@ -188,8 +187,7 @@ function Code({
   function keepTrying() {
     setHelpHidden(true);
     studio.openFile(file);
-    // The editor is in the workspace; it may remount on the tab switch, so focus it after.
-    setTimeout(() => document.querySelector<HTMLElement>('#ws-panel .cm-content, #ws-panel textarea')?.focus());
+    studio.focusEditor();
   }
 
   function check() {

@@ -14,6 +14,8 @@ export interface Studio {
   editable: string[];
   /** The open tab. */
   active: string;
+  /** The saved record has loaded and the files are in. */
+  loaded: boolean;
   /** Open a file's tab, and switch the narrow-screen pane to Workspace. */
   openFile(name: string): void;
   /** The learner typing. Edits to editable files are recorded (debounced, tagged with this lesson). */
@@ -26,13 +28,16 @@ export interface Studio {
   dirty: string[];
   /** Record any pending edit now. */
   flush(): void;
+  /** Move keyboard focus into the workspace editor (on the open tab). */
+  focusEditor(): void;
   pane: Pane;
   setPane(p: Pane): void;
 }
 
 /** What the workspace pane needs beyond the public interface. */
 interface StudioInternal extends Studio {
-  loaded: boolean;
+  /** Bumped by focusEditor; the workspace pane focuses its editor when it changes. */
+  focusTick: number;
   /** The lesson is completed, so nothing is editable (R22). */
   completed: boolean;
   attachPreview(p: LivePreview): void;
@@ -67,6 +72,7 @@ export function StudioProvider({ lesson, children }: { lesson: Lesson; children?
   const [editable, setEditable] = useState<string[]>([]);
   const [active, setActive] = useState('');
   const [pane, setPane] = useState<Pane>('lesson');
+  const [focusTick, setFocusTick] = useState(0);
   // What the preview has (or will have, once pending writes land). Dirty = differs from this.
   const [applied, setApplied] = useState<Record<string, string>>({});
 
@@ -139,6 +145,10 @@ export function StudioProvider({ lesson, children }: { lesson: Lesson; children?
       completed,
       dirty: Object.keys(files).filter((n) => files[n] !== applied[n]),
       flush,
+      focusTick,
+      focusEditor() {
+        setFocusTick((n) => n + 1);
+      },
       openFile(name) {
         setActive(name);
         setPane('workspace');
@@ -169,7 +179,7 @@ export function StudioProvider({ lesson, children }: { lesson: Lesson; children?
         if (waiting) void write(waiting);
       },
     };
-  }, [files, editable, active, pane, loaded, completed, applied]);
+  }, [files, editable, active, pane, loaded, completed, applied, focusTick]);
 
   return <Ctx.Provider value={value}>{children}</Ctx.Provider>;
 }

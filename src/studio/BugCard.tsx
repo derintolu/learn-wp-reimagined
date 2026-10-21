@@ -1,14 +1,13 @@
 import { useEffect, useRef, useState } from 'preact/hooks';
 import { codeFeedback } from '../ai/client';
 import { reportAiFailure, type AiState } from '../ai/useAiStatus';
-import { CheckList, type CheckResult } from '../components/Checkpoint';
 import { Markdown } from '../components/Markdown';
 import { tidy } from '../components/PlacementChat';
 import { SketchIcon } from '../components/SketchIcon';
 import { getRecordManager, useRecord } from '../record/useRecord';
 import { runChecks } from '../shared/checks';
-import type { Lesson } from '../shared/types';
-import { useStudioInternal } from './StudioContext';
+import type { Check, Lesson } from '../shared/types';
+import { useStudio } from './StudioContext';
 
 export const BUG_LABEL = 'AI-written code. We planted one bug. Find it.';
 /** After this many misses, show the failing checks as a hint. */
@@ -16,18 +15,54 @@ const MISSES_BEFORE_HINT = 2;
 
 const has = (o: object, k: string) => Object.prototype.hasOwnProperty.call(o, k);
 
+/** `passed: null` is a check that hasn't run yet. */
+type Row = { check: Check; passed: boolean | null };
+
+/**
+ * One neutral row per fix check. A row's message stays hidden (it would be the hint)
+ * until the hint is due, or the bug is caught.
+ */
+function FixChecks({ rows, hint, solved }: { rows: Row[]; hint: boolean; solved: boolean }) {
+  return (
+    <ul class="check-list">
+      {rows.map((r, i) => {
+        const state = r.passed === null ? 'is-pending' : r.passed ? 'is-pass' : 'is-fail';
+        const say = solved || (r.passed === false && hint);
+        return (
+          <li key={i} class={`check-list__item ${state}`}>
+            <span class="check-list__mark" aria-hidden="true">
+              {r.passed === null ? '○' : r.passed ? '✓' : '×'}
+            </span>
+            <span>
+              Check {i + 1}
+              {r.passed === true && ': passed'}
+              {r.passed === false && ': not yet'}
+              {say && (
+                <>
+                  . {r.passed === false && <span class="bug__hint-label">Hint</span>}
+                  {r.check.message}
+                </>
+              )}
+            </span>
+          </li>
+        );
+      })}
+    </ul>
+  );
+}
+
 /**
  * "Catch the AI": an AI-written file with one planted bug, put live in the workspace.
  * The learner fixes it there by hand. Only the authored fix checks can pass it.
  */
 export function BugCard({ lesson, ai, onSolved }: { lesson: Lesson; ai: AiState; onSolved: () => void }) {
   const bug = lesson.bug!;
-  const studio = useStudioInternal();
+  const studio = useStudio();
   const { record } = useRecord();
   const started = useRef(false);
-  const [results, setResults] = useState<CheckResult>(() => bug.fixChecks.map((check) => ({ check, passed: null })));
+  const [results, setResults] = useState<Row[]>(() => bug.fixChecks.map((check) => ({ check, passed: null })));
   const [misses, setMisses] = useState(0);
-  const [failed, setFailed] = useState<string[] | null>(null);
+  const [missed, setMissed] = useState(false);
   const [solved, setSolved] = useState(false);
   const [note, setNote] = useState<string | null>(null);
   const [noteBusy, setNoteBusy] = useState(false);
@@ -35,13 +70,15 @@ export function BugCard({ lesson, ai, onSolved }: { lesson: Lesson; ai: AiState;
   const ctl = useRef(new AbortController());
   useEffect(() => () => ctl.current.abort(), []);
 
-  // Start the hunt once the files are in: the learner's saved copy from this lesson (a reload
-  // mid-hunt), otherwise the planted bug. Either way, open it and put it live.
+  // Start the hunt once the files are in. A saved copy from this lesson that still fails the fix
+  // checks is a fix in progress (a reload mid-hunt), so it stays. Anything else, including an
+  // edit from the beats that already passes, gives way to the planted bug. Then open it and put it live.
   useEffect(() => {
     if (!studio.loaded || started.current) return;
     started.current = true;
     const savedHere = has(record.files, bug.file) && record.fileLessons?.[bug.file] === lesson.id;
-    if (!savedHere) studio.replaceFile(bug.file, bug.code);
+    const inProgress = savedHere && !runChecks(bug.fixChecks, { [bug.file]: record.files[bug.file] }).passed;
+    if (!inProgress) studio.replaceFile(bug.file, bug.code);
     studio.openFile(bug.file);
     void studio.apply([bug.file]);
   }, [studio.loaded]);
@@ -71,12 +108,12 @@ export function BugCard({ lesson, ai, onSolved }: { lesson: Lesson; ai: AiState;
     if (run.passed) {
       void studio.apply([bug.file]);
       setSolved(true);
-      setFailed(null);
+      setMissed(false);
       onSolved();
       return;
     }
     setMisses((n) => n + 1);
-    setFailed(failedMessages);
+    setMissed(true);
   }
 
   return (
@@ -98,27 +135,32 @@ export function BugCard({ lesson, ai, onSolved }: { lesson: Lesson; ai: AiState;
       <p class="bug__lead">
         Look at the preview on the right, then fix <code>{bug.file}</code> there by hand.
       </p>
-      <CheckList results={results} />
+      <FixChecks rows={results} hint={misses >= MISSES_BEFORE_HINT} solved={solved} />
       {!solved && (
         <div class="checkpoint__row">
           <button type="button" class="button" onClick={check}>
             Check my fix
           </button>
-          <button type="button" class="button button--quiet" onClick={() => studio.openFile(bug.file)}>
+          <button
+            type="button"
+            class="button button--quiet"
+            onClick={() => {
+              studio.openFile(bug.file);
+              studio.focusEditor();
+            }}
+          >
             Open {bug.file}
           </button>
           <span class="checkpoint__hint">The check looks for the real fix, not just a change.</span>
         </div>
       )}
       <div aria-live="polite" class="bug__live">
-        {failed && !solved && (
+        {missed && !solved && (
           <div class="bug__miss">
-            <p class="checkpoint__verdict">Not yet. The bug is still in there.</p>
-            {misses >= MISSES_BEFORE_HINT && (
-              <p class="bug__hint">
-                <span class="bug__hint-label">Hint</span> {failed.join(' ')}
-              </p>
-            )}
+            <p class="checkpoint__verdict">
+              Not yet. The bug is still in there.
+              {misses >= MISSES_BEFORE_HINT && ' The failing checks now say what to look for.'}
+            </p>
           </div>
         )}
         {solved && (

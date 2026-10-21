@@ -105,8 +105,9 @@ describe('Lesson editors only load files saved in that lesson', () => {
     expect(await editorText(/theme\.json/)).toBe(content.lessons[L1].bug!.code);
   });
 
-  it('the bug hunt does reopen the learner’s own work from that lesson', async () => {
-    const mine = content.lessons[L1].bug!.code.replace('"value"', '"color"');
+  it('the bug hunt does reopen the learner’s own work in progress from that lesson', async () => {
+    // Still fails the fix checks, so it is a fix in progress (a copy that passes gives way to the bug).
+    const mine = content.lessons[L1].bug!.code + '\n';
     use(at(L1, { ...newRecord(), files: { 'theme.json': mine }, fileLessons: { 'theme.json': L1 } }));
     history.replaceState(null, '', `/learn/${L1}`);
     render(<App />);

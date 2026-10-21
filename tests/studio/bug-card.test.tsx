@@ -109,17 +109,48 @@ describe('BugCard', () => {
     expect(box.textContent).toContain('AI-written code. We planted one bug. Find it.');
     expect(box.textContent).toContain(`Look at the preview on the right, then fix ${BUG_FILE} there by hand.`);
     expect(within(box).queryByRole('textbox')).toBeNull(); // the editor lives in the workspace
-    // Before the first check the checklist is grey: neither passed nor failed.
+    // Before the first check the checklist is grey and neutral: one row per fix check, no messages.
     const items = within(box).getAllByRole('listitem');
-    expect(items.map((li) => li.textContent)).toEqual([expect.stringContaining('Namespace the slug.')]);
+    expect(items.map((li) => li.textContent)).toEqual(['○Check 1']);
     expect(items[0].className).toContain('is-pending');
 
     act(() => studio.openFile('style.css'));
     fireEvent.click(within(box).getByRole('button', { name: `Open ${BUG_FILE}` }));
     expect(studio.active).toBe(BUG_FILE);
+    const view = await editorView(/hero\.php/);
+    await waitFor(() => expect(document.activeElement).toBe(view.contentDOM));
   });
 
-  it('reload mid-hunt restores the saved partial fix, not bug.code', async () => {
+  it('the checklist names no fix check until two misses, then shows the failing ones', async () => {
+    fakePlayground();
+    await useManager();
+    mountBug();
+    const box = await screen.findByRole('region', { name: /Catch the bug/ });
+    await waitFor(() => expect(studio.active).toBe(BUG_FILE));
+    const message = content.lessons['patterns'].bug!.fixChecks[0].message;
+    expect(box.textContent).not.toContain(message);
+
+    fireEvent.click(within(box).getByRole('button', { name: 'Check my fix' }));
+    await within(box).findByText('Not yet. The bug is still in there.');
+    expect(within(box).getAllByRole('listitem')[0].textContent).toContain('Check 1: not yet');
+    expect(box.textContent).not.toContain(message);
+
+    fireEvent.click(within(box).getByRole('button', { name: 'Check my fix' }));
+    await waitFor(() => expect(within(box).getAllByRole('listitem')[0].textContent).toContain(message));
+    expect(within(box).getAllByRole('listitem')[0].className).toContain('is-fail');
+  });
+
+  it('a saved copy that passes fixChecks is replaced by bug.code', async () => {
+    const bug = content.lessons['patterns'].bug!;
+    const { writes } = fakePlayground();
+    // e.g. edited during the beats: tagged with this lesson, but no bug in it.
+    await useManager((m) => m.dispatch({ type: 'fileEdited', file: BUG_FILE, content: FIX, lessonId: 'patterns' }));
+    mountBug();
+    await waitFor(() => expect(writes).toContainEqual({ path: `${DIR}/${BUG_FILE}`, data: bug.code }));
+    expect(studio.files[BUG_FILE]).toBe(bug.code);
+  });
+
+  it('reload mid-hunt: a saved partial fix that still fails is kept, not bug.code', async () => {
     const partial = '<?php\n/**\n * Title: Hero\n * Slug: mytheme\n */\n?>\n';
     const { writes } = fakePlayground();
     await useManager((m) => m.dispatch({ type: 'fileEdited', file: BUG_FILE, content: partial, lessonId: 'patterns' }));
