@@ -9,6 +9,7 @@ import './styles/tokens.css';
 import './styles/base.css';
 import './styles/components.css';
 import './styles/lesson.css';
+import './styles/studio.css';
 import { App } from './app';
 
 render(<App />, document.getElementById('app')!);

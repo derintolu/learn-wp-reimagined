@@ -46,12 +46,14 @@ export function CodeEditor({
   onChange,
   label,
   describedBy,
+  readOnly = false,
 }: {
   file: string;
   value: string;
   onChange: (v: string) => void;
   label?: string;
   describedBy?: string;
+  readOnly?: boolean;
 }) {
   const host = useRef<HTMLDivElement>(null);
   const view = useRef<EditorView | null>(null);
@@ -74,9 +76,11 @@ export function CodeEditor({
           keymap.of([...defaultKeymap, ...historyKeymap, indentWithTab]),
           languageFor(file),
           EditorView.lineWrapping,
+          EditorState.readOnly.of(readOnly),
           EditorView.contentAttributes.of({
             'aria-label': label ?? `Code editor for ${file}`,
             ...(describedBy ? { 'aria-describedby': describedBy } : {}),
+            ...(readOnly ? { 'aria-readonly': 'true' } : {}),
           }),
           EditorView.updateListener.of((u) => {
             if (u.docChanged) change.current(u.state.doc.toString());
@@ -91,7 +95,7 @@ export function CodeEditor({
     };
     // The editor owns its text after mount; a new file remounts via key.
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [file]);
+  }, [file, readOnly]);
 
   // Accept a replacement value from outside (e.g. a restored record) without fighting the learner's typing.
   useEffect(() => {

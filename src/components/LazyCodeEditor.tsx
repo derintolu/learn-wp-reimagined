@@ -74,6 +74,7 @@ export function CodeEditor(props: Props) {
           aria-label={label}
           aria-describedby={props.describedBy}
           spellcheck={false}
+          readOnly={props.readOnly}
           autocapitalize="off"
           autocomplete="off"
           rows={Math.min(18, Math.max(6, props.value.split('\n').length + 1))}

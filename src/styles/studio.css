@@ -1,0 +1,139 @@
+/* ---------- Learning studio: the workspace pane ---------- */
+
+.workspace {
+  display: grid;
+  grid-template-rows: auto minmax(0, 45fr) minmax(0, 55fr);
+  grid-template-columns: minmax(0, 1fr);
+  min-width: 0;
+  min-height: 0;
+  height: 100%;
+  border-left: 1px solid var(--rule);
+  background: var(--charcoal-2);
+  color: var(--on-dark);
+}
+.workspace :focus-visible { outline: 2px solid var(--wp-blue-light); outline-offset: -2px; }
+
+.ws-loading { margin: 0; padding: 1rem; color: var(--on-dark-muted); font-size: var(--step--1); }
+
+.ws-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.5rem;
+  padding-right: 0.5rem;
+  background: var(--charcoal);
+  border-bottom: 1px solid var(--rule-dark);
+}
+.ws-tabs { display: flex; min-width: 0; overflow-x: auto; }
+.ws-tab {
+  position: relative;
+  flex: none;
+  padding: 0.7rem 0.9rem;
+  border: 0;
+  border-right: 1px solid var(--rule-dark);
+  background: transparent;
+  color: var(--on-dark-muted);
+  font: 500 0.75rem / 1 var(--font-mono);
+  white-space: nowrap;
+  cursor: pointer;
+}
+.ws-tab:hover { color: var(--on-dark); }
+.ws-tab[aria-selected='true'] { background: var(--charcoal-2); color: var(--on-dark); }
+.ws-tab[aria-selected='true']::after {
+  content: '';
+  position: absolute;
+  inset: 0 0 auto;
+  height: 2px;
+  background: var(--wp-blue-light);
+}
+.ws-dot {
+  display: inline-block;
+  width: 6px;
+  height: 6px;
+  margin-left: 0.4rem;
+  border-radius: 50%;
+  background: var(--warn-on-dark);
+  vertical-align: middle;
+}
+.ws-apply {
+  flex: none;
+  padding: 0.35rem 0.7rem;
+  border: 1px solid var(--wp-blue);
+  border-radius: 6px;
+  background: var(--wp-blue);
+  color: var(--on-accent);
+  font: 500 0.75rem / 1.2 var(--font-ui);
+  white-space: nowrap;
+  cursor: pointer;
+}
+.ws-apply:hover { border-color: var(--wp-blue-light); }
+
+.ws-editor { display: flex; flex-direction: column; min-height: 0; overflow: hidden; }
+.ws-provided {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  margin: 0;
+  padding: 0.4rem 0.9rem;
+  border-bottom: 1px solid var(--rule-dark);
+  color: var(--on-dark-muted);
+  font-size: 0.75rem;
+}
+.ws-badge {
+  padding: 0.1rem 0.45rem;
+  border-radius: 999px;
+  background: var(--veil-on-dark);
+  color: var(--on-dark);
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  font-size: 0.68rem;
+}
+/* The shared editor, made to fill its row instead of sitting as a card in the lesson flow. */
+.ws-editor .code-editor {
+  display: flex;
+  flex: 1;
+  flex-direction: column;
+  min-height: 0;
+  margin: 0;
+  border: 0;
+  border-radius: 0;
+}
+.ws-editor .code-editor:focus-within { box-shadow: inset 0 0 0 2px var(--wp-blue-light); }
+.ws-editor .code-editor__host,
+.ws-editor .code-editor__loading,
+.ws-editor .code-editor__plain { flex: 1; min-height: 0; overflow: auto; }
+.ws-editor .code-editor__plain { resize: none; }
+.ws-editor .code-editor__host .cm-editor { height: 100%; max-height: none; }
+
+/* Live preview: its status line, then WordPress */
+.live-preview {
+  display: grid;
+  grid-template-rows: auto minmax(0, 1fr);
+  min-height: 0;
+  background: var(--paper);
+}
+.live-preview__status {
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
+  margin: 0;
+  padding: 0.45rem 0.75rem;
+  border-block: 1px solid var(--rule-dark);
+  background: var(--charcoal);
+  color: var(--on-dark-muted);
+  font-size: 0.75rem;
+}
+.live-preview__status::before {
+  content: '';
+  flex: none;
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: var(--warn-on-dark);
+}
+.live-preview[data-status='live'] .live-preview__status::before { background: var(--live); }
+.live-preview[data-status='failed'] .live-preview__status::before { background: var(--danger); }
+.live-preview__status a { color: var(--wp-blue-light); }
+.live-preview__frame { display: block; width: 100%; height: 100%; border: 0; }
+.live-preview__frame[hidden] { display: none; }
