@@ -8,13 +8,15 @@ import { Markdown } from '../components/Markdown';
 import { tidy } from '../components/PlacementChat';
 import { SketchIcon } from '../components/SketchIcon';
 import { Composer, MAX_CHARS } from './Composer';
+import { scrollBehavior } from './media';
 import { SectionCard } from './SectionCard';
 
 /** Server limit for /api/tutor: 12 messages. */
 const MAX_MESSAGES = 12;
 const WELCOME =
   "Hi. On the right is a real WordPress running your theme, and the files that make it. Everything we talk about, you'll see and change there.";
-const FAILURE = "I couldn't answer that just now. Try again in a moment, or check the sources linked at the top of the lesson.";
+export const REVIEW_DISCLAIMER = 'Adapted from Learn WordPress, not reviewed by the Training Team';
+const FAILURE = "I couldn't answer that just now. Try again in a moment, or check the sources under each section.";
 
 /** One message in the conversation, shown under the beat it was sent in. Not persisted. */
 export interface Turn {
@@ -88,7 +90,7 @@ export function Feed({
     if (step >= n) return;
     const el = activeHeading.current;
     el?.focus({ preventScroll: true });
-    el?.scrollIntoView?.({ block: 'start', behavior: 'smooth' });
+    el?.scrollIntoView?.({ block: 'start', behavior: scrollBehavior() });
   }, [step]);
 
   const turnCount = useRef(0);
@@ -170,6 +172,13 @@ export function Feed({
     <div class="stage">
       <div class="feed" id="feed" role="log" aria-live="polite" aria-label="Lesson conversation" ref={feedRef}>
         <div class="feed__inner">
+          <div class="feed-head">
+            <p class="feed-head__eyebrow">
+              Lesson {lessonNumber} · {lesson.minutes} min
+            </p>
+            <h1 class="feed-head__title">{lesson.title}</h1>
+            <p class="feed-head__note">{REVIEW_DISCLAIMER}</p>
+          </div>
           <TutorMsg>
             <p>{WELCOME}</p>
           </TutorMsg>

@@ -183,6 +183,11 @@ function Code({
   const seq = useRef(0);
   const ctl = useRef(new AbortController());
   useEffect(() => () => ctl.current.abort(), []);
+  // While this shows, the workspace editor for the file is described by the question.
+  useEffect(() => {
+    studio.setDescribedBy({ file, id: `cp-q-${lesson.id}` });
+    return () => studio.setDescribedBy(null);
+  }, []);
 
   function keepTrying() {
     setHelpHidden(true);

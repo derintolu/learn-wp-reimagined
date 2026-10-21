@@ -1,167 +1,3 @@
-/* ---------- Lesson header ---------- */
-
-.lesson-head { padding-block: clamp(2.25rem, 1.25rem + 3vw, 4rem) clamp(1.75rem, 1rem + 2vw, 2.5rem); }
-.lesson-head__crumbs {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 0 0.35rem;
-  margin: 0 0 1rem;
-  font-size: var(--step--1);
-  color: var(--on-dark-muted);
-}
-.lesson-head__title {
-  font-size: var(--step-4);
-  letter-spacing: -0.015em;
-  max-width: 22ch;
-  margin-bottom: 1.25rem;
-}
-.lesson-head__credit {
-  display: flex;
-  flex-wrap: wrap;
-  align-items: baseline;
-  gap: 0.35rem 1.25rem;
-  font-size: var(--step--1);
-  color: var(--on-dark-muted);
-}
-.lesson-head__credit p { margin: 0; }
-.lesson-head__label { color: var(--on-dark); font-weight: 600; }
-.lesson-head__disclaimer {
-  padding: 0.15rem 0.6rem;
-  border: 1px dashed var(--rule-dark);
-  border-radius: 0.75rem;
-  font-size: 0.8rem;
-}
-
-.progress {
-  display: flex;
-  gap: 0.3rem;
-  max-width: 28rem;
-  margin-top: 1.75rem;
-}
-.progress__seg {
-  flex: 1;
-  height: 0.3rem;
-  border-radius: 999px;
-  background: var(--rule-dark);
-  transition: background-color 300ms ease;
-}
-.progress__seg.is-on { background: var(--wp-blue-light); }
-.progress__seg.is-now { background: var(--paper); }
-
-/* ---------- Lesson layout: reading column plus docked tutor ---------- */
-
-.lesson {
-  display: grid;
-  grid-template-columns: minmax(0, 1fr) minmax(19rem, 23rem);
-  gap: clamp(2rem, 1rem + 4vw, 5rem);
-  align-items: start;
-  padding-block: clamp(1rem, 0.5rem + 2vw, 2rem) clamp(4rem, 3rem + 4vw, 7rem);
-}
-.lesson__read { max-width: 44rem; min-width: 0; }
-.lesson__post:focus { outline: none; }
-.lesson__skeleton { display: block; height: 14rem; margin-top: 2.5rem; border-radius: 1rem; }
-
-/* ---------- Beats ---------- */
-
-.beat {
-  padding-block: clamp(1.75rem, 1.25rem + 1.5vw, 2.5rem);
-  scroll-margin-top: 1.5rem;
-}
-.beat + .beat { border-top: 1px solid var(--rule); }
-.beat__step {
-  display: flex;
-  align-items: center;
-  gap: 0.75rem;
-  margin: 0 0 0.55rem;
-  font-size: 0.78rem;
-  font-weight: 600;
-  letter-spacing: 0.08em;
-  text-transform: uppercase;
-  color: var(--wp-blue);
-}
-.beat__done {
-  display: inline-flex;
-  gap: 0.3rem;
-  padding: 0.1rem 0.55rem;
-  border-radius: 999px;
-  background: var(--outcome-skip-wash);
-  color: var(--outcome-skip);
-  letter-spacing: 0.04em;
-}
-.beat__goal {
-  font-size: var(--step-2);
-  line-height: 1.15;
-  margin-bottom: 1.1rem;
-  scroll-margin-top: 1.5rem;
-}
-.beat__goal:focus,
-.beat__goal:focus-visible { outline: none; } /* a focus target only */
-.beat--done .beat__goal { color: var(--ink-muted); }
-
-.beat__tutor {
-  display: grid;
-  grid-template-columns: 2.4rem minmax(0, 1fr);
-  gap: 0 1rem;
-  align-items: start;
-}
-.beat__avatar { width: 2.4rem; height: 2.4rem; color: var(--wp-blue); margin-top: 0.1rem; }
-.beat__voice { font-size: 1.125rem; line-height: 1.65; }
-.beat__authored { font-size: 1.125rem; line-height: 1.65; }
-.beat__lines { display: grid; gap: 0.6rem; padding-top: 0.5rem; }
-.beat__lines span {
-  display: block;
-  height: 0.85rem;
-  border-radius: 999px;
-  background: linear-gradient(90deg, var(--surface-muted) 0%, var(--rule) 50%, var(--surface-muted) 100%) 0 0 / 200% 100%;
-  animation: skeleton 1.4s ease-in-out infinite;
-}
-.beat__lines span:nth-child(2) { width: 88%; }
-.beat__lines span:nth-child(3) { width: 62%; }
-
-.beat__note { font-size: var(--step--1); color: var(--ink-muted); font-style: italic; }
-.beat__question {
-  display: grid;
-  gap: 0.25rem;
-  margin-top: 1.25rem;
-  padding: 1rem 1.2rem;
-  border-radius: 0.9rem;
-  background: var(--tint);
-  font-family: var(--font-display);
-  font-size: var(--step-1);
-  line-height: 1.35;
-}
-.beat__question-label {
-  font: 600 0.75rem / 1.4 var(--font-ui);
-  letter-spacing: 0.08em;
-  text-transform: uppercase;
-  color: var(--wp-blue);
-}
-.beat__source {
-  margin: 1.25rem 0 0 3.4rem;
-  font-size: var(--step-0);
-  color: var(--ink);
-}
-.beat__source summary {
-  width: fit-content;
-  color: var(--wp-blue);
-  font-size: var(--step--1);
-  font-weight: 500;
-  cursor: pointer;
-}
-.beat__source[open] summary { margin-bottom: 0.6rem; }
-.beat__source[open] { padding: 0.9rem 1.1rem; border: 1px solid var(--rule); border-radius: 0.9rem; }
-.beat__question-plain { font-weight: 600; }
-.beat__actions {
-  display: flex;
-  flex-wrap: wrap;
-  align-items: center;
-  gap: 0.6rem 1rem;
-  margin-top: 1.75rem;
-}
-.beat--active .beat__tutor ~ .beat__actions,
-.beat--active .beat__authored ~ .beat__actions { padding-left: 0; }
-.beat__hint { font-size: var(--step--1); color: var(--ink-muted); }
-
 /* ---------- Markdown ---------- */
 
 .md > :last-child { margin-bottom: 0; }
@@ -186,9 +22,6 @@
 }
 .md-pre code { padding: 0; background: none; color: inherit; font: inherit; }
 .md blockquote { margin: 0 0 1em; padding: 0.75rem 1rem; border-radius: 0.75rem; background: var(--surface-muted); color: var(--ink); }
-.bubble .md p { margin-bottom: 0.6em; }
-.bubble .md p:last-child { margin-bottom: 0; }
-.bubble--learner .md code { background: var(--veil-on-accent); color: var(--on-accent); }
 
 /* ---------- Shared card ---------- */
 
@@ -443,7 +276,6 @@
 .bug__title { font-size: var(--step-3); line-height: 1.1; }
 .bug__label { margin: 0.3rem 0 0; font-weight: 600; color: var(--outcome-review); }
 .bug__miss { margin-top: 1rem; }
-.bug__hint { margin: 0; color: var(--ink); }
 .bug__hint-label {
   display: inline-block;
   margin-right: 0.35rem;
@@ -567,120 +399,6 @@
 .code-editor__host .cm-selectionBackground,
 .code-editor__host .cm-focused .cm-selectionBackground { background: color-mix(in srgb, var(--wp-blue-light) 45%, transparent) !important; }
 .code-editor__host .cm-cursor { border-left: 2px solid var(--wp-blue); }
-
-/* ---------- Tutor: docked beside the lesson ---------- */
-
-.tutor { position: sticky; top: 1.5rem; margin-top: clamp(1.75rem, 1.25rem + 1.5vw, 2.5rem); }
-.tutor__panel {
-  display: flex;
-  flex-direction: column;
-  max-height: min(calc(100vh - 3rem), 40rem);
-  max-height: min(calc(100dvh - 3rem), 40rem);
-  padding: 1.25rem;
-  background: var(--charcoal-2);
-  color: var(--on-dark);
-  border: 1px solid var(--rule-dark);
-  border-radius: 1.5rem;
-}
-.tutor__head { margin-bottom: 0.9rem; }
-.tutor__log {
-  flex: 1 1 auto;
-  min-height: 6rem;
-  overflow-y: auto;
-  overscroll-behavior: contain;
-  padding: 0.25rem;
-  margin-inline: -0.25rem;
-  scrollbar-width: thin;
-  scrollbar-color: var(--rule-dark) transparent;
-}
-.tutor__log:empty { display: none; }
-.tutor__log .bubble { max-width: 92%; animation: bubble-in 320ms var(--ease-out) both; }
-.tutor__form { margin-top: 1rem; }
-.tutor__loading { margin-top: 1rem; }
-.tutor__loading .placement__skeleton--field { margin-top: 0; }
-.tutor__cap { margin-top: 1rem; }
-.tutor__close {
-  margin-left: auto;
-  display: grid;
-  place-items: center;
-  width: 2.5rem;
-  height: 2.5rem;
-  border: 1px solid var(--rule-dark);
-  border-radius: 50%;
-  background: transparent;
-  color: var(--on-dark);
-  font-size: 1.4rem;
-  line-height: 1;
-  cursor: pointer;
-}
-.tutor__close:hover { border-color: var(--wp-blue-light); }
-.tutor :focus-visible { outline-color: var(--wp-blue-light); }
-.tutor .placement__field :focus-visible { outline: none; }
-
-/* ---------- Under 768px: one column, the tutor is a bottom sheet ---------- */
-
-@media (max-width: 767.98px) {
-  .lesson { grid-template-columns: minmax(0, 1fr); padding-bottom: 7rem; }
-  .tutor { position: static; margin: 0; }
-  .tutor__toggle {
-    position: fixed;
-    z-index: 30;
-    right: var(--gutter);
-    bottom: max(1rem, env(safe-area-inset-bottom));
-    display: inline-flex;
-    align-items: center;
-    gap: 0.6rem;
-    min-height: 3.25rem;
-    padding: 0.7rem 1.25rem 0.7rem 0.9rem;
-    border: 1px solid var(--rule-dark);
-    border-radius: 999px;
-    background: var(--charcoal);
-    color: var(--on-dark);
-    font: 600 var(--step-0) / 1.2 var(--font-ui);
-    box-shadow: var(--shadow-float);
-    cursor: pointer;
-  }
-  .tutor__toggle-icon { width: 1.8rem; height: 1.8rem; color: var(--wp-blue-light); }
-  .tutor.is-open .tutor__toggle { visibility: hidden; }
-  .tutor__scrim {
-    position: fixed;
-    inset: 0;
-    z-index: 40;
-    background: color-mix(in srgb, var(--charcoal) 50%, transparent);
-    animation: fade-in 200ms ease both;
-  }
-  .tutor__panel {
-    position: fixed;
-    z-index: 50;
-    left: 0;
-    right: 0;
-    bottom: 0;
-    max-height: 82vh;
-    max-height: 82dvh;
-    padding: 0.75rem var(--gutter) max(1rem, env(safe-area-inset-bottom));
-    border-radius: 1.25rem 1.25rem 0 0;
-    border-bottom: 0;
-    transform: translateY(100%);
-    visibility: hidden;
-    transition: transform 320ms var(--ease-out), visibility 0s linear 320ms;
-  }
-  .tutor__panel::before {
-    content: '';
-    display: block;
-    width: 2.5rem;
-    height: 0.3rem;
-    margin: 0 auto 0.75rem;
-    border-radius: 999px;
-    background: var(--rule-dark);
-  }
-  .tutor.is-open .tutor__panel {
-    transform: none;
-    visibility: visible;
-    transition: transform 320ms var(--ease-out), visibility 0s;
-  }
-  .tutor__log { min-height: 10rem; }
-}
-@keyframes fade-in { from { opacity: 0; } }
 
 /* ---------- Path overview ---------- */
 
@@ -814,12 +532,10 @@
 
 @media (prefers-reduced-motion: reduce) {
   /* Motion only: never hide content here. */
-  .checkpoint, .bug, .lesson-done, .moment, .bug__win, .record__panel, .tutor__log .bubble, .tutor__scrim {
+  .checkpoint, .bug, .lesson-done, .moment, .bug__win, .record__panel {
     animation: none;
     transition: none;
   }
   .branch-glyph__chosen { animation: none; stroke-dashoffset: 0; }
   .branch-glyph__end { animation: none; transform: none; }
-  .beat__lines span { animation: none; }
-  .tutor__panel { transition: none; }
 }

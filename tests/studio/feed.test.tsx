@@ -24,7 +24,7 @@ const status = vi.mocked(getStatus);
 const stream = vi.mocked(tutorStream);
 const lesson = content.lessons['theme-json-basics'];
 const QUESTION = 'What would you put in theme.json instead of CSS?';
-const FAILURE = "I couldn't answer that just now. Try again in a moment, or check the sources linked at the top of the lesson.";
+const FAILURE = "I couldn't answer that just now. Try again in a moment, or check the sources under each section.";
 
 /** A host that owns the step the way LessonView does. */
 function Host({ start = 0, readOnly = false }: { start?: number; readOnly?: boolean }) {

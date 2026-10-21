@@ -36,6 +36,7 @@ export function Workspace() {
   }
 
   const readOnly = !s.editable.includes(s.active);
+  const describedBy = s.describedBy?.file === s.active ? s.describedBy.id : undefined;
 
   const onKey = (e: KeyboardEvent) => {
     const i = names.indexOf(s.active);
@@ -98,10 +99,11 @@ export function Workspace() {
         )}
         {s.active && (
           <CodeEditor
-            key={s.active}
+            key={`${s.active}:${describedBy ?? ''}`}
             file={s.active}
             value={s.files[s.active] ?? ''}
             readOnly={readOnly}
+            describedBy={describedBy}
             onChange={(v) => s.setFile(s.active, v)}
           />
         )}

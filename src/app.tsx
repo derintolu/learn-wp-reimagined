@@ -8,6 +8,7 @@ import { Lesson } from './pages/Lesson';
 import { PathOverview } from './pages/PathOverview';
 import { Finale } from './pages/Finale';
 import { NotFound } from './pages/routes';
+import { content } from './content';
 
 /**
  * preact-iso turns same-origin links like "/#paths" into pushState, which never
@@ -48,17 +49,50 @@ function Shell() {
   return (
     <LocationProvider>
       <HashTarget />
+      <Frame />
+    </LocationProvider>
+  );
+}
+
+/** /learn/:lessonId for a lesson that exists: the studio, which brings its own course bar. */
+function isStudio(path: string): boolean {
+  const m = /^\/learn\/([^/]+)\/?$/.exec(path);
+  if (!m) return false;
+  try {
+    return Object.prototype.hasOwnProperty.call(content.lessons, decodeURIComponent(m[1]));
+  } catch {
+    return false;
+  }
+}
+
+function Frame() {
+  const { path } = useLocation();
+  const routes = (
+    <Router>
+      <Route path="/" component={Home} />
+      <Route path="/path/:pathId" component={PathOverview} />
+      <Route path="/learn/:lessonId" component={Lesson} />
+      <Route path="/finale" component={Finale} />
+      <Route default component={NotFound} />
+    </Router>
+  );
+  if (isStudio(path)) {
+    return (
+      <>
+        <a class="skip-link" href="#feed">
+          Skip to content
+        </a>
+        {routes}
+      </>
+    );
+  }
+  return (
+    <>
       <Header />
       <main id="main" tabIndex={-1}>
-        <Router>
-          <Route path="/" component={Home} />
-          <Route path="/path/:pathId" component={PathOverview} />
-          <Route path="/learn/:lessonId" component={Lesson} />
-          <Route path="/finale" component={Finale} />
-          <Route default component={NotFound} />
-        </Router>
+        {routes}
       </main>
       <Footer />
-    </LocationProvider>
+    </>
   );
 }

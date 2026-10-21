@@ -1,7 +1,7 @@
 // @vitest-environment happy-dom
 // @vitest-environment-options {"settings": {"enableIframePageLoading": true}}
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import { act, cleanup, render, screen, waitFor } from '@testing-library/preact';
+import { act, cleanup, fireEvent, render, screen, waitFor } from '@testing-library/preact';
 
 vi.mock('../../src/content', async () => {
   const { buildContent } = await import('../../scripts/build-content');
@@ -34,7 +34,6 @@ describe('routing', () => {
     ['/path/x', 'Nothing here'],
     ['/path/block-theme', 'Block theme developer'],
     ['/learn/x', 'Nothing here'],
-    ['/learn/theme-json-basics', 'theme.json basics'],
     ['/finale', 'Where this path ends up'], // a fresh record: 0 lessons done
     ['/no/such/page', 'Nothing here'],
   ])('renders %s', async (url, heading) => {
@@ -43,6 +42,25 @@ describe('routing', () => {
     const h1 = await screen.findByRole('heading', { level: 1 });
     expect(h1.textContent).toBe(heading);
     expect(document.querySelector('header .wordmark')).toBeTruthy();
+    expect(document.querySelector('footer')).toBeTruthy();
+  });
+
+  it('renders a lesson as the studio: course bar, no site header or footer', async () => {
+    history.replaceState(null, '', '/learn/theme-json-basics');
+    render(<App />);
+    expect((await screen.findByRole('heading', { level: 1 })).textContent).toBe('theme.json basics');
+    expect(document.querySelector('header.course-bar .wordmark')).toBeTruthy();
+    expect(document.querySelector('.site-header')).toBeNull();
+    expect(document.querySelector('footer')).toBeNull();
+  });
+
+  it('leaving the studio brings the site header and footer back', async () => {
+    history.replaceState(null, '', '/learn/theme-json-basics');
+    render(<App />);
+    await screen.findByRole('heading', { level: 1, name: 'theme.json basics' });
+    fireEvent.click(screen.getByRole('link', { name: /Learn WordPress, reimagined/ }));
+    expect((await screen.findByRole('heading', { level: 1 })).textContent).toBe('Learn WordPress, your way.');
+    expect(document.querySelector('.site-header')).toBeTruthy();
     expect(document.querySelector('footer')).toBeTruthy();
   });
 

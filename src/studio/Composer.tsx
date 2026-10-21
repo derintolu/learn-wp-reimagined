@@ -47,7 +47,7 @@ export function Composer({ ai, busy, onSend }: { ai: AiState; busy: boolean; onS
       {ai === 'loading' && (
         <div class="composer__loading" role="status">
           <span class="visually-hidden">Connecting to the tutor…</span>
-          <span class="placement__skeleton placement__skeleton--field" aria-hidden="true" />
+          <span class="composer__skeleton" aria-hidden="true" />
         </div>
       )}
       {(ai === 'capped' || ai === 'off') && <CapNotice />}

@@ -20,7 +20,6 @@ import { content } from '../../src/content';
 import { setRecordManager } from '../../src/record/useRecord';
 import { setPlaygroundImporter } from '../../src/studio/previewClient';
 import { resetSaveWarning } from '../../src/components/RecordPanel';
-import { clearDeliveries } from '../../src/components/BeatView';
 import { RecordManager, type RecordStore } from '../../src/record/store';
 import { applyEvent, newRecord, type LearningRecord } from '../../src/shared/record';
 
@@ -70,7 +69,6 @@ afterEach(() => {
   setRecordManager(null);
   setPlaygroundImporter(null);
   resetSaveWarning();
-  clearDeliveries();
   vi.restoreAllMocks();
 });
 

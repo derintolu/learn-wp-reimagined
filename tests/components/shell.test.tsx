@@ -1,16 +1,26 @@
 // @vitest-environment happy-dom
+// @vitest-environment-options {"settings": {"enableIframePageLoading": true}}
 import { afterEach, describe, expect, it, vi } from 'vitest';
-import { cleanup, render, screen } from '@testing-library/preact';
+import { cleanup, render, screen, within } from '@testing-library/preact';
 import { Header } from '../../src/components/Header';
 import { Footer } from '../../src/components/Footer';
 import { CapNotice } from '../../src/components/CapNotice';
 import { Bubble } from '../../src/components/Bubble';
 import { Swipe } from '../../src/components/Swipe';
 import { App } from '../../src/app';
+import { setRecordManager } from '../../src/record/useRecord';
+import { setPlaygroundImporter } from '../../src/studio/previewClient';
+import { content } from '../../src/content';
+import { memoryManager } from './helpers';
 
 vi.mock('../../src/ai/client', () => ({ getStatus: vi.fn(async () => ({ ai: 'off' })), placement: vi.fn() }));
 
-afterEach(cleanup);
+afterEach(() => {
+  cleanup();
+  setRecordManager(null);
+  setPlaygroundImporter(null);
+  history.replaceState(null, '', '/');
+});
 
 describe('Header', () => {
   it('renders the wordmark and the unofficial concept sticker', () => {
@@ -49,6 +59,23 @@ describe('Branding', () => {
       (img.getAttribute('alt') ?? '').toLowerCase().includes('wordpress logo'),
     );
     expect(logos).toHaveLength(0);
+  });
+});
+
+describe('Course bar', () => {
+  it('replaces the header on a lesson: wordmark home, the sticker, no WordPress logo, no footer', async () => {
+    setPlaygroundImporter(() => Promise.reject(new Error('no Playground in tests')));
+    setRecordManager(memoryManager(content));
+    history.replaceState(null, '', '/learn/bt-what-is-a-block-theme');
+    const { container } = render(<App />);
+    await screen.findByRole('heading', { level: 1 });
+    const bar = container.querySelector('header.course-bar') as HTMLElement;
+    expect(within(bar).getByRole('link', { name: /Learn WordPress, reimagined/ }).getAttribute('href')).toBe('/');
+    expect(within(bar).getByText('unofficial concept')).toBeTruthy();
+    expect(container.querySelectorAll('img').length).toBe(0);
+    expect(container.querySelector('.site-header')).toBeNull();
+    expect(container.querySelector('footer')).toBeNull();
+    expect(screen.getByRole('link', { name: 'Skip to content' }).getAttribute('href')).toBe('#feed');
   });
 });
 

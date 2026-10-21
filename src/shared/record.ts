@@ -133,6 +133,34 @@ export function branchSkippedLessons(r: LearningRecord, c: ContentBundle, pathId
   return [...out];
 }
 
+const LESSON_PREFIX = activityId(['lessons', '']);
+const lessonFromActivity = (id: unknown): string | null => {
+  if (typeof id !== 'string' || !id.startsWith(LESSON_PREFIX)) return null;
+  const rest = id.slice(LESSON_PREFIX.length);
+  if (!rest || rest.includes('/')) return null;
+  try {
+    return decodeURIComponent(rest);
+  } catch {
+    return null;
+  }
+};
+const OUTCOMES: readonly Outcome[] = ['advance', 'review', 'skip'];
+
+/** Every checkpoint branch the learner took, oldest first, read from the `branched` statements. */
+export function branchHistory(r: LearningRecord): { from: string; to: string; outcome: Outcome }[] {
+  const out: { from: string; to: string; outcome: Outcome }[] = [];
+  for (const st of r.statements) {
+    if (st.verb.id !== VERBS.branched.id) continue;
+    const ext = st.result?.extensions;
+    const outcome = ext?.[EXT_OUTCOME] as Outcome;
+    const from = lessonFromActivity(ext?.[EXT_FROM_LESSON]);
+    const to = lessonFromActivity(st.object.id);
+    if (!from || !to || !OUTCOMES.includes(outcome)) continue;
+    out.push({ from, to, outcome });
+  }
+  return out;
+}
+
 export function parseRecord(raw: unknown): { ok: true; record: LearningRecord } | { ok: false; error: string } {
   const fail = (error: string) => ({ ok: false as const, error });
   if (raw === null || typeof raw !== 'object' || Array.isArray(raw)) return fail('Record must be an object');

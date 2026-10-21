@@ -142,10 +142,10 @@
 
 .stage {
   display: flex;
+  flex: 1;
   flex-direction: column;
   min-width: 0;
   min-height: 0;
-  height: 100%;
   background: var(--paper);
 }
 .feed {
@@ -257,17 +257,26 @@
   font: inherit;
   resize: none;
 }
-.composer__input::placeholder { color: var(--ink-muted); opacity: 1; }
+.composer__input::placeholder { color: var(--ink-muted); opacity: 1; overflow: hidden; white-space: nowrap; text-overflow: ellipsis; }
 .composer__input:focus { outline: 2px solid var(--wp-blue); outline-offset: -1px; }
 .composer__send { flex: none; border-radius: 8px; }
 .composer__send:disabled { opacity: 0.5; cursor: not-allowed; }
 .composer__send:disabled:hover { background: var(--wp-blue); border-color: var(--wp-blue); }
-.composer__loading .placement__skeleton--field { height: 2.75rem; margin-top: 0; border-radius: 10px; }
+.composer__skeleton,
+.feed__skeleton {
+  display: block;
+  height: 2.75rem;
+  border-radius: 10px;
+  background: linear-gradient(90deg, var(--surface-muted) 0%, var(--rule) 50%, var(--surface-muted) 100%) 0 0 / 200% 100%;
+  animation: skeleton 1.4s ease-in-out infinite;
+}
+.feed__skeleton { height: 14rem; border-radius: 12px; }
 
 @media (prefers-reduced-motion: reduce) {
   .feed { scroll-behavior: auto; }
   .msg { animation: none; }
   .typing span { animation: none; opacity: 0.7; }
+  .composer__skeleton, .feed__skeleton { animation: none; }
 }
 
 /* ---------- Task cards: the bug hunt points at the workspace ---------- */
@@ -278,3 +287,227 @@
 .bug__lead code { font-family: var(--font-mono); font-size: 0.9em; }
 .task-card .check-list { margin-top: 0.5rem; }
 .check-list__item.is-pending .check-list__mark { background: var(--surface-muted); color: var(--ink-muted); }
+
+/* ---------- Learning studio: the frame ---------- */
+
+/* The page never scrolls: the bar, then three panes that each scroll on their own. */
+.studio-page {
+  display: grid;
+  grid-template-rows: auto minmax(0, 1fr);
+  height: 100vh;
+  height: 100dvh;
+  overflow: hidden;
+}
+.studio {
+  display: grid;
+  grid-template-columns: 248px minmax(0, 1fr) minmax(380px, 44%);
+  grid-template-rows: minmax(0, 1fr);
+  min-height: 0;
+}
+.studio__pane { display: flex; flex-direction: column; min-width: 0; min-height: 0; }
+.studio__pane[hidden] { display: none; }
+.studio__pane--lesson:focus { outline: none; }
+.studio__pane--lesson > .save-warning { flex: none; margin: 0.75rem clamp(1rem, 4vw, 3rem) 0; }
+.studio__pane--workspace > .workspace { flex: 1; }
+
+/* ---------- Course bar ---------- */
+
+.course-bar {
+  position: relative;
+  z-index: 20;
+  display: flex;
+  align-items: center;
+  gap: 1rem;
+  height: 56px;
+  padding: 0 1rem;
+  background: var(--charcoal);
+  color: var(--on-dark);
+  border-bottom: 1px solid var(--rule-dark);
+}
+.course-bar :focus-visible { outline-color: var(--wp-blue-light); }
+.course-bar__brand { font-size: 1.25rem; font-weight: 500; }
+.course-bar__brand em { color: var(--wp-blue-light); font-style: normal; }
+.course-bar__course { display: flex; align-items: center; gap: 0.75rem; min-width: 0; margin-left: 0.5rem; }
+.course-bar__label {
+  overflow: hidden;
+  color: var(--on-dark-muted);
+  font-size: 0.8125rem;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+}
+.course-bar__label b { color: var(--on-dark); font-weight: 600; }
+.course-bar__spacer { flex: 1; }
+.meter {
+  flex: none;
+  width: 120px;
+  height: 6px;
+  overflow: hidden;
+  border-radius: 3px;
+  background: var(--rule-dark);
+}
+.meter__fill { display: block; height: 100%; background: var(--wp-blue-light); transition: width 400ms var(--ease-out); }
+.course-bar .record__button { min-height: 2.25rem; }
+
+.panes { display: flex; flex: none; gap: 4px; }
+.panes button {
+  min-height: 2.25rem;
+  padding: 0.25rem 0.6rem;
+  border: 1px solid var(--rule-dark);
+  border-radius: 6px;
+  background: transparent;
+  color: var(--on-dark);
+  font: 500 0.8125rem / 1 var(--font-ui);
+  cursor: pointer;
+}
+.panes button:hover { border-color: var(--wp-blue-light); }
+.panes button[aria-pressed='true'] { background: var(--wp-blue); border-color: var(--wp-blue); color: var(--on-accent); }
+
+/* ---------- Outline ---------- */
+
+.outline {
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
+  padding: 1.25rem 0 1.5rem;
+  border-right: 1px solid var(--rule);
+  background: var(--paper);
+}
+.outline__kicker {
+  margin: 0 1.25rem 0.75rem;
+  color: var(--ink-muted);
+  font: 600 0.6875rem / 1 var(--font-ui);
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+.outline__title { margin: 0 1.25rem 0.25rem; font: 500 1.3rem / 1.2 var(--font-display); }
+.outline__title a { color: var(--ink); text-decoration: none; }
+.outline__title a:hover { color: var(--wp-blue-dark); text-decoration: underline; }
+.outline__meta { margin: 0 1.25rem 1.25rem; color: var(--ink-muted); font-size: 0.8125rem; }
+.outline__lessons { margin: 0; padding: 0; list-style: none; }
+.outline__row {
+  display: flex;
+  align-items: flex-start;
+  gap: 0.6rem;
+  padding: 0.5rem 1.25rem;
+  color: var(--ink-muted);
+  font-size: 0.875rem;
+  line-height: 1.45;
+  text-decoration: none;
+}
+.outline__row:hover { color: var(--ink); background: var(--surface-muted); }
+.outline__row:focus-visible { outline-offset: -2px; }
+.outline__num {
+  display: grid;
+  flex: none;
+  place-items: center;
+  width: 22px;
+  height: 22px;
+  margin-top: 1px;
+  border: 1.5px solid var(--rule);
+  border-radius: 50%;
+  font-size: 0.6875rem;
+  font-weight: 600;
+}
+.outline__name { flex: 1; min-width: 0; }
+.outline__skipped {
+  flex: none;
+  padding: 0.05rem 0.45rem;
+  border-radius: 999px;
+  background: var(--surface-muted);
+  color: var(--ink-muted);
+  font-size: 0.6875rem;
+  font-weight: 600;
+}
+.outline__lesson.is-current .outline__row { background: var(--tint); color: var(--ink); font-weight: 600; }
+.outline__lesson.is-current .outline__num { border-color: var(--wp-blue); color: var(--wp-blue); }
+.outline__lesson.is-done .outline__row { color: var(--ink); }
+.outline__lesson.is-done .outline__num { border-color: var(--wp-blue); background: var(--wp-blue); color: var(--on-accent); }
+
+.outline__sections { margin: 0 0 0.4rem; padding: 0.25rem 0 0.5rem 3.25rem; background: var(--tint); list-style: none; }
+.outline__section {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  padding: 0.25rem 1rem 0.25rem 0;
+  color: var(--ink-muted);
+  font-size: 0.8125rem;
+  line-height: 1.4;
+}
+.outline__section::before {
+  content: '';
+  flex: none;
+  width: 8px;
+  height: 8px;
+  border: 1.5px solid var(--ink-muted);
+  border-radius: 50%;
+}
+.outline__section-label { flex: 1; min-width: 0; }
+.outline__section.is-done { color: var(--ink); }
+.outline__section.is-done::before { border-color: var(--wp-blue); background: var(--wp-blue); }
+.outline__section.is-current { color: var(--wp-blue); font-weight: 600; }
+.outline__section.is-current::before { border-color: var(--wp-blue); box-shadow: 0 0 0 3px color-mix(in srgb, var(--wp-blue) 20%, transparent); }
+.outline__tag {
+  flex: none;
+  padding: 1px 6px;
+  border: 1px solid var(--rule);
+  border-radius: 4px;
+  background: var(--paper);
+  color: var(--ink-muted);
+  font-size: 0.625rem;
+  font-weight: 600;
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+}
+
+.outline__history { margin: 1.5rem 1.25rem 0; padding-top: 1rem; border-top: 1px solid var(--rule); }
+.outline__history .outline__kicker { margin: 0 0 0.5rem; }
+.outline__history ol { margin: 0; padding: 0; list-style: none; font-size: 0.8125rem; }
+.outline__history li { padding: 0.25rem 0; color: var(--ink-muted); }
+.outline__history b { color: var(--ink); font-weight: 600; }
+.outline__empty { margin: 0; color: var(--ink-muted); font-size: 0.8125rem; font-style: italic; }
+
+/* ---------- The lesson's head, at the top of the feed ---------- */
+
+.feed-head { padding-bottom: 1.1rem; border-bottom: 1px solid var(--rule); }
+.feed-head__eyebrow {
+  margin: 0;
+  color: var(--wp-blue);
+  font-size: 0.75rem;
+  font-weight: 600;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+.feed-head__title { margin: 0.4rem 0 0.5rem; font: 500 clamp(1.9rem, 1.2rem + 1.8vw, 2.6rem) / 1.1 var(--font-display); }
+.feed-head__note { margin: 0; color: var(--ink-muted); font-size: var(--step--1); }
+.feed__post { display: flex; flex-direction: column; gap: 1.1rem; scroll-margin-top: 1rem; }
+.feed__post:focus { outline: none; }
+.feed__post > * { margin-top: 0; }
+
+/* ---------- 960px and below: one pane at a time ---------- */
+
+@media (max-width: 960px) {
+  .studio { grid-template-columns: minmax(0, 1fr); }
+  .course-bar { gap: 0.5rem; padding: 0 0.6rem; }
+  .course-bar__brand,
+  .course-bar__course { display: none; }
+  .panes button { padding-inline: 0.5rem; font-size: 0.75rem; }
+  .outline { border-right: 0; }
+  .studio__pane--workspace > .workspace { border-left: 0; }
+}
+@media (max-width: 520px) {
+  .course-bar .sticker { font-size: 0.625rem; }
+  /* The record button keeps its dot; its words stay for screen readers. */
+  .course-bar .record__button { padding-inline: 0.65rem; }
+  .course-bar .record__button > span:not(.record__dot):not(.visually-hidden) {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    overflow: hidden;
+    clip: rect(0 0 0 0);
+    white-space: nowrap;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .meter__fill { transition: none; }
+}

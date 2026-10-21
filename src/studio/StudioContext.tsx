@@ -32,6 +32,9 @@ export interface Studio {
   focusEditor(): void;
   pane: Pane;
   setPane(p: Pane): void;
+  /** What describes a file's editor (e.g. the code checkpoint's question), while it shows. */
+  describedBy: { file: string; id: string } | null;
+  setDescribedBy(d: { file: string; id: string } | null): void;
 }
 
 /** What the workspace pane needs beyond the public interface. */
@@ -72,6 +75,7 @@ export function StudioProvider({ lesson, children }: { lesson: Lesson; children?
   const [editable, setEditable] = useState<string[]>([]);
   const [active, setActive] = useState('');
   const [pane, setPane] = useState<Pane>('lesson');
+  const [describedBy, setDescribedBy] = useState<Studio['describedBy']>(null);
   const [focusTick, setFocusTick] = useState(0);
   // What the preview has (or will have, once pending writes land). Dirty = differs from this.
   const [applied, setApplied] = useState<Record<string, string>>({});
@@ -141,6 +145,8 @@ export function StudioProvider({ lesson, children }: { lesson: Lesson; children?
       active,
       pane,
       setPane,
+      describedBy,
+      setDescribedBy,
       loaded,
       completed,
       dirty: Object.keys(files).filter((n) => files[n] !== applied[n]),
@@ -179,7 +185,7 @@ export function StudioProvider({ lesson, children }: { lesson: Lesson; children?
         if (waiting) void write(waiting);
       },
     };
-  }, [files, editable, active, pane, loaded, completed, applied, focusTick]);
+  }, [files, editable, active, pane, describedBy, loaded, completed, applied, focusTick]);
 
   return <Ctx.Provider value={value}>{children}</Ctx.Provider>;
 }

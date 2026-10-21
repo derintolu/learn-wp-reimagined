@@ -29,7 +29,6 @@ import { content } from '../../src/content';
 import { setRecordManager } from '../../src/record/useRecord';
 import { setPlaygroundImporter } from '../../src/studio/previewClient';
 import { resetSaveWarning } from '../../src/components/RecordPanel';
-import { clearDeliveries } from '../../src/components/BeatView';
 import { RecordManager, type RecordStore } from '../../src/record/store';
 import { applyEvent, newRecord, type LearningRecord } from '../../src/shared/record';
 import { memoryManager } from './helpers';
@@ -101,7 +100,6 @@ afterEach(() => {
   setRecordManager(null);
   setPlaygroundImporter(null);
   resetSaveWarning();
-  clearDeliveries();
   vi.restoreAllMocks();
 });
 
@@ -121,7 +119,10 @@ describe('Lesson page', () => {
     const current = await screen.findByRole('heading', { name: 'Set a content width.' });
     const beat = current.closest('[data-beat]') as HTMLElement;
     expect(beat.getAttribute('aria-current')).toBe('step');
-    expect(screen.getByText(/Step 3 of 3/)).toBeTruthy();
+    expect(within(beat).getByText('1.3')).toBeTruthy();
+    const outline = screen.getByRole('navigation', { name: 'Course outline' });
+    const sections = within(outline).getByRole('list', { name: 'Sections in this lesson' });
+    expect(within(sections).getAllByRole('listitem')[2].getAttribute('aria-current')).toBe('step');
     // Earlier beats stay readable, but are not the current one.
     const first = screen.getByRole('heading', { name: /control centre/ }).closest('[data-beat]') as HTMLElement;
     expect(first.getAttribute('aria-current')).toBeNull();
@@ -143,43 +144,26 @@ describe('Lesson page', () => {
     );
   });
 
-  it('with AI off, a beat shows the authored markdown and its question', async () => {
+  it('with AI off, a beat shows the authored markdown, then its question', async () => {
     use(managerWith(null));
     open('/learn/theme-json-basics');
     await screen.findByRole('heading', { name: /control centre/ });
     const beat = screen.getByRole('heading', { name: /control centre/ }).closest('[data-beat]') as HTMLElement;
     await waitFor(() => expect(beat.querySelector('code')?.textContent).toBe('theme.json'));
     expect(beat.textContent).toContain('declares your palette, typography and layout in one file.');
-    expect(beat.textContent).toContain('What would you put in theme.json instead of CSS?');
+    const q = within(screen.getByRole('log')).getByText('What would you put in theme.json instead of CSS?');
+    expect(beat.compareDocumentPosition(q) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
     expect(stream).not.toHaveBeenCalled();
   });
 
-  it('with AI on, a beat streams the tutor delivery in deliver mode', async () => {
+  it('with AI on, a beat still shows the authored text and the tutor waits to be asked', async () => {
     status.mockResolvedValue({ ai: 'on' });
-    stream.mockImplementation(async (_req, onText) => {
-      onText('Think of theme.json as ');
-      onText('your **control centre**.');
-    });
     use(managerWith(null));
     open('/learn/theme-json-basics');
     const beat = (await screen.findByRole('heading', { name: /control centre/ })).closest('[data-beat]') as HTMLElement;
-    await waitFor(() => expect(beat.textContent).toContain('Think of theme.json as your control centre.'));
-    expect(beat.querySelector('strong')?.textContent).toBe('control centre');
-    expect(stream).toHaveBeenCalledTimes(1);
-    expect(stream.mock.calls[0][0]).toEqual({ lessonId: 'theme-json-basics', beatIndex: 0, mode: 'deliver', messages: [] });
-  });
-
-  it('falls back to the authored beat when the stream fails', async () => {
-    status.mockResolvedValue({ ai: 'on' });
-    stream.mockImplementation(async (_req, onText) => {
-      onText('Half a sen');
-      throw new Error('truncated');
-    });
-    use(managerWith(null));
-    open('/learn/theme-json-basics');
-    const beat = (await screen.findByRole('heading', { name: /control centre/ })).closest('[data-beat]') as HTMLElement;
-    await waitFor(() => expect(beat.textContent).toContain('declares your palette'));
-    expect(beat.textContent).not.toContain('Half a sen');
+    expect(beat.textContent).toContain('declares your palette');
+    await screen.findByRole('button', { name: 'Send' });
+    expect(stream).not.toHaveBeenCalled();
   });
 });
 
@@ -413,21 +397,22 @@ describe('Catch the bug with AI on', () => {
   });
 });
 
+async function ask(text: string) {
+  const box = await screen.findByRole('textbox', { name: 'Message the tutor' });
+  fireEvent.input(box, { target: { value: text } });
+  fireEvent.click(screen.getByRole('button', { name: 'Send' }));
+}
+
 describe('Tutor', () => {
   it('answers questions in ask mode, grounded in the current beat', async () => {
     status.mockResolvedValue({ ai: 'on' });
-    stream.mockImplementation(async (req, onText) => {
-      onText(req.mode === 'ask' ? 'Presets are reusable values.' : 'Beat text.');
-    });
+    stream.mockImplementation(async (_req, onText) => onText('Presets are reusable values.'));
     use(managerWith(recordAt('theme-json-basics', 1)));
     open('/learn/theme-json-basics');
-    const tutor = await screen.findByRole('complementary', { name: /tutor/i });
-    const box = await within(tutor).findByLabelText(/Ask the tutor/);
-    fireEvent.input(box, { target: { value: 'What is a preset?' } });
-    fireEvent.click(within(tutor).getByRole('button', { name: 'Ask' }));
-    expect(await within(tutor).findByText('Presets are reusable values.')).toBeTruthy();
-    const ask = stream.mock.calls.find((c) => c[0].mode === 'ask')![0];
-    expect(ask).toEqual({
+    await ask('What is a preset?');
+    expect(await within(screen.getByRole('log')).findByText('Presets are reusable values.')).toBeTruthy();
+    expect(stream).toHaveBeenCalledTimes(1);
+    expect(stream.mock.calls[0][0]).toEqual({
       lessonId: 'theme-json-basics',
       beatIndex: 1,
       mode: 'ask',
@@ -438,9 +423,12 @@ describe('Tutor', () => {
   it('says the tutor is unavailable when AI is off, and the lesson still works', async () => {
     use(managerWith(null));
     open('/learn/theme-json-basics');
-    const tutor = await screen.findByRole('complementary', { name: /tutor/i });
-    await waitFor(() => expect(tutor.querySelector('[role="status"]')).toBeTruthy());
-    expect(within(tutor).queryByRole('button', { name: 'Ask' })).toBeNull();
+    await screen.findByRole('log');
+    const composer = document.querySelector('.composer') as HTMLElement;
+    await waitFor(() => expect(composer.querySelector('[role="status"]')?.textContent).toContain('switched off'));
+    expect(screen.queryByRole('button', { name: 'Send' })).toBeNull();
+    fireEvent.click(screen.getByRole('button', { name: /^Next/ }));
+    expect(await screen.findByRole('heading', { name: 'Add a colour palette.' })).toBeTruthy();
   });
 });
 
@@ -633,40 +621,35 @@ describe('Fix round 1', () => {
     expect(viewed).toEqual([{ type: 'beatViewed', lessonId: 'theme-json-basics', beatIndex: 1 }]);
   });
 
-  it('pressing Next mid-delivery does not abort it; the reply lands on the earlier beat when it arrives (R28)', async () => {
+  it('pressing Next mid-reply does not abort it; the reply lands on the earlier beat when it arrives (R28)', async () => {
     status.mockResolvedValue({ ai: 'on' });
     const signals: AbortSignal[] = [];
-    let finishFirst!: () => void;
+    let finish!: () => void;
     stream.mockImplementation(
-      (req, onText, signal) =>
+      (_req, onText, signal) =>
         new Promise<void>((res, rej) => {
           signals.push(signal!);
           signal!.addEventListener('abort', () => rej(new Error('aborted')));
-          if (req.beatIndex === 0) {
-            onText('Half way through');
-            finishFirst = () => {
-              onText(', and now done.');
-              res();
-            };
-          }
+          finish = () => {
+            onText('Presets, mostly.');
+            res();
+          };
         }),
     );
     use(managerWith(recordAt('theme-json-basics', 0)));
     open('/learn/theme-json-basics');
-    const beat = (await screen.findByRole('heading', { name: /control centre/ })).closest('[data-beat]') as HTMLElement;
+    await ask('Colours?');
     await waitFor(() => expect(signals).toHaveLength(1));
-    // No fake token streaming: partial text is not shown, the skeleton stays up.
-    expect(beat.textContent).not.toContain('Half way through');
-    expect(beat.textContent).toContain('The tutor is preparing this step');
     fireEvent.click(screen.getByRole('button', { name: /^Next/ }));
-    await screen.findByRole('heading', { name: 'Add a colour palette.' });
+    const second = (await screen.findByRole('heading', { name: 'Add a colour palette.' })).closest('[data-beat]') as HTMLElement;
     await new Promise((r) => setTimeout(r, 20));
     expect(signals[0].aborted).toBe(false);
-    act(() => finishFirst());
-    await waitFor(() => expect(beat.textContent).toContain('Half way through, and now done.'));
+    act(() => finish());
+    const reply = await screen.findByText('Presets, mostly.');
+    expect(reply.compareDocumentPosition(second) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
   });
 
-  it('leaving the lesson aborts an in-flight delivery (R28)', async () => {
+  it('leaving the lesson aborts an in-flight tutor reply (R28)', async () => {
     status.mockResolvedValue({ ai: 'on' });
     const signals: AbortSignal[] = [];
     stream.mockImplementation(
@@ -678,19 +661,22 @@ describe('Fix round 1', () => {
     );
     use(managerWith(recordAt('theme-json-basics', 0)));
     const { unmount } = open('/learn/theme-json-basics');
+    await ask('Colours?');
     await waitFor(() => expect(signals).toHaveLength(1));
     unmount();
     await waitFor(() => expect(signals[0].aborted).toBe(true));
   });
 
-  it('a stalled delivery (tutorStream timeout) falls back to the authored beat (R28)', async () => {
+  it('a stalled tutor reply (tutorStream timeout) shows the failure copy and the lesson carries on (R28)', async () => {
     status.mockResolvedValue({ ai: 'on' });
     const { AiFallbackError } = await vi.importActual<typeof import('../../src/ai/client')>('../../src/ai/client');
     stream.mockRejectedValue(new AiFallbackError('timeout'));
     use(managerWith(recordAt('theme-json-basics', 0)));
     open('/learn/theme-json-basics');
-    const beat = (await screen.findByRole('heading', { name: /control centre/ })).closest('[data-beat]') as HTMLElement;
-    await waitFor(() => expect(beat.textContent).toContain('The tutor dropped out for a moment'));
+    await ask('Colours?');
+    expect(await screen.findByText(/I couldn't answer that just now\. Try again in a moment, or check the sources under each section\./)).toBeTruthy();
+    fireEvent.click(screen.getByRole('button', { name: /^Next/ }));
+    expect(await screen.findByRole('heading', { name: 'Add a colour palette.' })).toBeTruthy();
   });
 
   it('unmounting aborts a pending judge call', async () => {

@@ -22,7 +22,6 @@ import { content } from '../../src/content';
 import { setRecordManager } from '../../src/record/useRecord';
 import { setPlaygroundImporter } from '../../src/studio/previewClient';
 import { resetSaveWarning } from '../../src/components/RecordPanel';
-import { clearDeliveries } from '../../src/components/BeatView';
 import { CapNotice } from '../../src/components/CapNotice';
 import { resetAiStatusForTests } from '../../src/ai/useAiStatus';
 import { RecordManager, type RecordStore } from '../../src/record/store';
@@ -48,7 +47,15 @@ function open(url: string) {
   history.replaceState(null, '', url);
   return render(<App />);
 }
-const tutorPanel = () => screen.findByRole('complementary', { name: /tutor/i });
+/** The tutor's message box under the lesson conversation. */
+async function tutorPanel(): Promise<HTMLElement> {
+  await screen.findByRole('log');
+  return document.querySelector('.composer') as HTMLElement;
+}
+async function ask(text: string) {
+  fireEvent.input(await screen.findByRole('textbox', { name: 'Message the tutor' }), { target: { value: text } });
+  fireEvent.click(screen.getByRole('button', { name: 'Send' }));
+}
 
 beforeEach(() => {
   setPlaygroundImporter(() => Promise.reject(new Error('no Playground in tests')));
@@ -61,7 +68,6 @@ afterEach(() => {
   setRecordManager(null);
   setPlaygroundImporter(null);
   resetSaveWarning();
-  clearDeliveries();
   resetAiStatusForTests();
 });
 
@@ -99,7 +105,7 @@ describe('Mid-session cap (503) on a lesson', () => {
     open('/learn/theme-json-basics');
     const tutor = await tutorPanel();
     // AI on: the tutor can be asked.
-    expect(await within(tutor).findByRole('button', { name: 'Ask' })).toBeTruthy();
+    expect(await within(tutor).findByRole('button', { name: 'Send' })).toBeTruthy();
     fireEvent.click(await screen.findByRole('button', { name: /checkpoint/i }));
     const cp = await screen.findByRole('region', { name: /Checkpoint/ });
     fireEvent.input(within(cp).getByLabelText('Your answer'), { target: { value: 'Presets and settings.' } });
@@ -109,7 +115,7 @@ describe('Mid-session cap (503) on a lesson', () => {
     expect(within(cp).getByRole('group', { name: 'Pick the closest answer' })).toBeTruthy();
     // The tutor panel, which never made a call itself, now says so too.
     await waitFor(() => expect(tutor.textContent).toContain('back after midnight UTC'));
-    expect(within(tutor).queryByRole('button', { name: 'Ask' })).toBeNull();
+    expect(within(tutor).queryByRole('button', { name: 'Send' })).toBeNull();
   });
 
   it('a tutor question that hits the monthly cap shows the monthly copy', async () => {
@@ -117,8 +123,7 @@ describe('Mid-session cap (503) on a lesson', () => {
     open('/learn/theme-json-basics');
     const tutor = await tutorPanel();
     stream.mockRejectedValue(new AiFallbackError('month-cap'));
-    fireEvent.input(await within(tutor).findByLabelText(/Ask the tutor/), { target: { value: 'What is a preset?' } });
-    fireEvent.click(within(tutor).getByRole('button', { name: 'Ask' }));
+    await ask('What is a preset?');
     await waitFor(() => expect(tutor.textContent).toContain('back on the 1st of next month (UTC)'));
   });
 });
@@ -129,8 +134,7 @@ describe('Rate limited (429)', () => {
     open('/learn/theme-json-basics');
     const tutor = await tutorPanel();
     stream.mockRejectedValue(new AiFallbackError('rate-limited', SLOW));
-    fireEvent.input(await within(tutor).findByLabelText(/Ask the tutor/), { target: { value: 'Why?' } });
-    fireEvent.click(within(tutor).getByRole('button', { name: 'Ask' }));
+    await ask('Why?');
     await waitFor(() => expect(tutor.querySelector('.cap-notice')?.textContent).toContain(SLOW));
   });
 
