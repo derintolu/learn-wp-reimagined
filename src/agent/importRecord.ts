@@ -16,7 +16,7 @@ export type Paste = { kind: 'handle'; handle: string } | { kind: 'json'; value: 
 
 export function classifyPaste(text: string): Paste {
   const t = text.trim();
-  if (isHandle(t)) return { kind: 'handle', handle: t };
+  if (isHandle(t as unknown)) return { kind: 'handle', handle: t };
   if (t.startsWith('{')) {
     try {
       return { kind: 'json', value: JSON.parse(t) };

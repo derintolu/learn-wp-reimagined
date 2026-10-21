@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from 'preact/hooks';
 import { useLocation } from 'preact-iso';
+import { FEATURES } from '../config';
 import { content } from '../content';
 import { downloadRecord, readRecordFile } from '../record/fileTransfer';
 import { supportsFolder } from '../record/folderStore';
@@ -7,6 +8,8 @@ import type { AttachResult } from '../record/store';
 import { cancelPendingEdits, flushPendingEdits } from '../record/useFileEdits';
 import { useRecord } from '../record/useRecord';
 import type { LearningRecord } from '../shared/record';
+import { AgentHandoff } from './AgentHandoff';
+import { ImportAgentProgress } from './ImportAgentProgress';
 
 /** Fired after a restore so an open lesson can pick up the restored place. */
 export const RESTORED_EVENT = 'learn:record-restored';
@@ -30,6 +33,18 @@ function summary(r: LearningRecord): string {
 
 type Msg = { tone: 'ok' | 'error'; text: string; href?: string };
 
+/** The lesson open on this page, if any. */
+function lessonInPath(): string | null {
+  const m = /^\/learn\/([^/]+)\/?$/.exec(location.pathname);
+  if (!m) return null;
+  try {
+    const id = decodeURIComponent(m[1]);
+    return Object.prototype.hasOwnProperty.call(content.lessons, id) ? id : null;
+  } catch {
+    return null;
+  }
+}
+
 /** The header menu for the learning record: where it's saved, and download, restore or save to a folder. */
 export function RecordPanel() {
   const { manager, record, persistent, notice } = useRecord();
@@ -37,6 +52,7 @@ export function RecordPanel() {
   const [pendingRestore, setPendingRestore] = useState<LearningRecord | null>(null);
   const [msg, setMsg] = useState<Msg | null>(null);
   const [busy, setBusy] = useState(false);
+  const [view, setView] = useState<'main' | 'handoff' | 'import'>('main');
   const rootRef = useRef<HTMLDivElement>(null);
   const buttonRef = useRef<HTMLButtonElement>(null);
   const panelRef = useRef<HTMLDivElement>(null);
@@ -54,7 +70,16 @@ export function RecordPanel() {
   const folder = manager.savingToFolder;
   const state: 'folder' | 'browser' | 'none' = folder ? 'folder' : persistent ? 'browser' : 'none';
   const attention = Boolean(notice || manager.folderError);
+  const handoffLesson = open ? (lessonInPath() ?? record.current?.lessonId ?? null) : null;
   const stateLabel = { folder: 'Saving to your folder', browser: 'Saved in this browser', none: 'Not saved' }[state];
+
+  useEffect(() => {
+    if (!open) setView('main');
+  }, [open]);
+
+  useEffect(() => {
+    panelRef.current?.focus();
+  }, [view]);
 
   useEffect(() => {
     if (!open) return;
@@ -181,7 +206,23 @@ export function RecordPanel() {
             </p>
           )}
 
-          {pendingRestore ? (
+          {view !== 'main' ? (
+            <div class="record__agent-view">
+              <div class="record__back">
+                <button type="button" class="button button--quiet" onClick={() => setView('main')}>
+                  Back
+                </button>
+              </div>
+              {view === 'handoff' && handoffLesson ? (
+                <AgentHandoff lessonId={handoffLesson} lessonTitle={titleOf(handoffLesson)} />
+              ) : (
+                <>
+                  <p class="record__confirm-q">Bring back your agent's progress</p>
+                  <ImportAgentProgress idPrefix="record-import" onDone={goToRestored} />
+                </>
+              )}
+            </div>
+          ) : pendingRestore ? (
             <div class="record__confirm" role="group" aria-labelledby="restore-q">
               <p id="restore-q" class="record__confirm-q">
                 Replace your progress with this file?
@@ -218,6 +259,19 @@ export function RecordPanel() {
               <button type="button" class="button button--quiet" onClick={() => fileRef.current?.click()} disabled={busy}>
                 Restore record
               </button>
+              {FEATURES.agent && (
+                <div class="record__agent record__actions record__actions--stack">
+                  <p class="record__agent-title">Your own AI agent</p>
+                  {handoffLesson && (
+                    <button type="button" class="button button--quiet" onClick={() => setView('handoff')}>
+                      Continue in your agent
+                    </button>
+                  )}
+                  <button type="button" class="button button--quiet" onClick={() => setView('import')}>
+                    Bring back your agent's progress
+                  </button>
+                </div>
+              )}
             </div>
           )}
           <input
