@@ -229,6 +229,7 @@ describe('workspace pane', () => {
     await waitFor(() => expect(releases).toHaveLength(1));
     releases[0](); // rejects
     await expect(first).resolves.toBeUndefined();
+    expect(studio.dirty).toEqual([]); // 'one' failed, but 'three' has been applied since
     await waitFor(() => expect(releases).toHaveLength(2));
     releases[1]();
     await second;
@@ -236,5 +237,41 @@ describe('workspace pane', () => {
     releases[2]();
     await third;
     expect(writes.map((w) => w.data)).toEqual(['two', 'three']);
+  });
+
+  it('a failed write leaves the file dirty, and the next apply retries it', async () => {
+    const { client, writes, boot } = fakePlayground();
+    client.writeFile.mockRejectedValueOnce(new Error('disk full'));
+    mount();
+    boot();
+    await live();
+    act(() => studio.replaceFile('theme.json', 'mine'));
+    await act(() => studio.apply());
+    expect(writes).toEqual([]);
+    expect(studio.dirty).toEqual(['theme.json']);
+    expect(screen.getByRole('tab', { name: /theme\.json/ }).querySelector('.ws-dot')).toBeTruthy();
+    await act(() => studio.apply());
+    expect(writes).toEqual([{ path: `${DIR}/theme.json`, data: 'mine' }]);
+    expect(studio.dirty).toEqual([]);
+  });
+
+  it('on a completed lesson every file is read-only, labelled "Lesson complete"', async () => {
+    fakePlayground();
+    manager = memoryManager(content);
+    await manager.init();
+    await manager.dispatch({ type: 'lessonCompleted', lessonId: 'templates-and-parts' });
+    expect(manager.record.completedLessons).toContain('templates-and-parts');
+    setRecordManager(manager);
+    render(
+      <StudioProvider lesson={lesson()}>
+        <Probe />
+        <Workspace />
+      </StudioProvider>,
+    );
+    const view = await editorView(/style\.css/);
+    expect(view.state.readOnly).toBe(true);
+    expect(studio.editable).toEqual([]);
+    expect(screen.getByRole('tabpanel').textContent).toContain('Lesson complete. Read-only.');
+    expect(screen.getByRole('tabpanel').textContent).not.toContain('Provided');
   });
 });

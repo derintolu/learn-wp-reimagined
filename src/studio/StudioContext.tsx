@@ -33,6 +33,8 @@ export interface Studio {
 /** What the workspace pane needs beyond the public interface. */
 interface StudioInternal extends Studio {
   loaded: boolean;
+  /** The lesson is completed, so nothing is editable (R22). */
+  completed: boolean;
   attachPreview(p: LivePreview): void;
 }
 
@@ -60,6 +62,7 @@ export function StudioProvider({ lesson, children }: { lesson: Lesson; children?
   const manager = getRecordManager();
   const { edit, flush } = useFileEdits(lesson.id);
   const [loaded, setLoaded] = useState(false);
+  const [completed, setCompleted] = useState(false);
   const [files, setFiles] = useState<Record<string, string>>({});
   const [editable, setEditable] = useState<string[]>([]);
   const [active, setActive] = useState('');
@@ -81,13 +84,15 @@ export function StudioProvider({ lesson, children }: { lesson: Lesson; children?
         if (!live) return;
         const r = manager.record;
         const w = workspaceFiles(content, r, lesson.id);
-        const canEdit = r.completedLessons.includes(lesson.id) ? [] : w.editable; // R22: a completed lesson is read-only
+        const done = r.completedLessons.includes(lesson.id);
+        const canEdit = done ? [] : w.editable; // R22: a completed lesson is read-only
         filesRef.current = w.files;
         appliedRef.current = w.files;
         editableRef.current = canEdit;
         setFiles(w.files);
         setApplied(w.files);
         setEditable(canEdit);
+        setCompleted(done);
         setActive(canEdit.find((f) => f in w.files) ?? Object.keys(w.files)[0] ?? '');
         setLoaded(true);
       },
@@ -105,7 +110,23 @@ export function StudioProvider({ lesson, children }: { lesson: Lesson; children?
     };
     const write = (batch: Record<string, string>) => {
       const p = preview.current!;
-      queue.current = queue.current.then(() => p.write(batch)).catch(() => {});
+      queue.current = queue.current
+        .then(() => p.write(batch))
+        .catch(() => {
+          // The preview never got these: make them dirty again, unless a newer apply has replaced them.
+          let changed = false;
+          const next = { ...appliedRef.current };
+          for (const [n, text] of Object.entries(batch)) {
+            if (next[n] === text) {
+              delete next[n];
+              changed = true;
+            }
+          }
+          if (changed) {
+            appliedRef.current = next;
+            setApplied(next);
+          }
+        });
       return queue.current;
     };
     return {
@@ -115,6 +136,7 @@ export function StudioProvider({ lesson, children }: { lesson: Lesson; children?
       pane,
       setPane,
       loaded,
+      completed,
       dirty: Object.keys(files).filter((n) => files[n] !== applied[n]),
       flush,
       openFile(name) {
@@ -147,7 +169,7 @@ export function StudioProvider({ lesson, children }: { lesson: Lesson; children?
         if (waiting) void write(waiting);
       },
     };
-  }, [files, editable, active, pane, loaded, applied]);
+  }, [files, editable, active, pane, loaded, completed, applied]);
 
   return <Ctx.Provider value={value}>{children}</Ctx.Provider>;
 }

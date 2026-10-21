@@ -71,7 +71,13 @@ export function Workspace() {
       <div class="ws-editor" id="ws-panel" role="tabpanel" aria-labelledby={s.active ? tabId(s.active) : undefined}>
         {readOnly && (
           <p class="ws-provided">
-            <span class="ws-badge">Provided</span> Read-only. This file comes with the lesson.
+            {s.completed ? (
+              'Lesson complete. Read-only.'
+            ) : (
+              <>
+                <span class="ws-badge">Provided</span> Read-only. This file comes with the lesson.
+              </>
+            )}
           </p>
         )}
         {s.active && (
