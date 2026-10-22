@@ -71,7 +71,9 @@ describe('/how-it-works', () => {
     expect(t).toContain(`refused ${oss[1]} of ${oss[2]}`);
     const runs = [...doc.matchAll(/Re-run: \d+% \((\d+)\/(\d+)\)/g)];
     const last = runs[runs.length - 1];
-    expect(t).toContain(`placement got ${last[1]} of ${last[2]} test conversations`);
+    expect(t).toContain(`placement got ${last[1]} of ${last[2]} test conversations right, measured on this site's own lessons`);
+    expect(doc).toMatch(/Re-run: \d+% \(\d+\/\d+\) on the real content/);
+    if (last[1] === last[2]) expect(t).not.toContain('The miss was');
     for (const f of ['docs/content-accuracy.md', 'docs/content-accuracy-learner.md', 'docs/content-accuracy-vibe-coder.md', 'content/paths/', 'docs/model-eval.md', 'functions/_lib/budget.ts', 'functions/_lib/mcp/gate.ts', 'functions/_lib/config.ts', 'docs/record-format.md']) {
       expect(t).toContain(f);
     }

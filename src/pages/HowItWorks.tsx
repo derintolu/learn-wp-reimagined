@@ -11,7 +11,7 @@ const MODELS = {
   chat: '@cf/meta/llama-4-scout-17b-16e-instruct',
 };
 const CAP = { month: 100, day: 10 };
-const EVAL = { refusalsTried: 4, tutorRefused: 4, structuredRefused: 3, placementOk: 13, placementCases: 14 };
+const EVAL = { refusalsTried: 4, tutorRefused: 4, structuredRefused: 3, placementOk: 14, placementCases: 14 };
 const MCP = { bodyMb: 1, global: '1,200', perHandle: 120, create: 60, windowMin: 10, relayDays: 30 };
 
 const SOURCES = [
@@ -180,9 +180,9 @@ export function HowItWorks() {
         <p>
           It isn't perfect. The tests tried {EVAL.refusalsTried} times to get the answer out of the AI. The tutor model
           refused all {EVAL.tutorRefused}. The placement and judge model refused {EVAL.structuredRefused} of{' '}
-          {EVAL.refusalsTried}, which is one reason it doesn't run the tutor. With all three paths live, placement got{' '}
-          {EVAL.placementOk} of {EVAL.placementCases} test conversations right in the latest run. The miss was a reply that
-          ran out of room and came back unreadable, and when that happens the site shows the path buttons instead.
+          {EVAL.refusalsTried}, which is one reason it doesn't run the tutor. In the latest run, placement got{' '}
+          {EVAL.placementOk} of {EVAL.placementCases} test conversations right, measured on this site's own lessons for all
+          three paths. If a reply ever comes back unreadable, the site shows the path buttons instead.
         </p>
 
         <h3>What it may do</h3>
