@@ -14,7 +14,7 @@ export interface RouteConfig {
 // 'wordpress-ai' to the provider union in providers/types.ts, a providers/wordpressAi.ts
 // implementing `Provider`, and one branch in providers/index.ts. Nothing else changes.
 export const ROUTES: Record<Task, RouteConfig> = {
-  placement: { provider: 'workers-ai', model: '@cf/openai/gpt-oss-120b', maxTokens: 400 },
+  placement: { provider: 'workers-ai', model: '@cf/openai/gpt-oss-120b', maxTokens: 800 },
   judge: { provider: 'workers-ai', model: '@cf/openai/gpt-oss-120b', maxTokens: 300 },
   tutor: { provider: 'workers-ai', model: '@cf/meta/llama-4-scout-17b-16e-instruct', maxTokens: 700 },
   feedback: { provider: 'workers-ai', model: '@cf/meta/llama-4-scout-17b-16e-instruct', maxTokens: 300 },

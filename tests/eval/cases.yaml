@@ -24,7 +24,7 @@ placement:
       - { role: user, content: "No, not at all. I just want to learn to build themes eventually." }
       - { role: assistant, content: "Got it. Would you rather start from the basics, or do you already know how themes work?" }
       - { role: user, content: "Total basics please, I know nothing about themes." }
-    expect: { done: any, start: [theme-json-basics, ln-what-is-wordpress] }
+    expect: { done: any, start: [ln-what-is-wordpress] }
   - id: p-page-builder
     note: Elementor user who knows CSS; early lesson is right.
     messages:

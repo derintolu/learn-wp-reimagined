@@ -421,7 +421,7 @@ describe('routeFor', () => {
     const r = routeFor('placement', { ...base, CF_ACCOUNT_ID: 'a', CF_AI_TOKEN: 't' })!;
     expect(r.provider.id).toBe('workers-ai');
     expect(r.model).toBe('@cf/openai/gpt-oss-120b');
-    expect(r.maxTokens).toBe(400);
+    expect(r.maxTokens).toBe(800);
     expect(routeFor('judge', { ...base, CF_ACCOUNT_ID: 'a', CF_AI_TOKEN: 't' })!.maxTokens).toBe(300);
     expect(routeFor('tutor', { ...base, CF_ACCOUNT_ID: 'a', CF_AI_TOKEN: 't' })!.maxTokens).toBe(700);
     expect(routeFor('feedback', { ...base, CF_ACCOUNT_ID: 'a', CF_AI_TOKEN: 't' })!.maxTokens).toBe(300);

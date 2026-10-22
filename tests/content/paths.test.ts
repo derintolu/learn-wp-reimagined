@@ -22,6 +22,10 @@ describe.each(live.map((p) => [p.id, p] as const))('%s content', (_id, path) => 
   const withCode = lessons.filter((l) => l.checkpoint?.kind === 'code');
   const withBug = lessons.filter((l) => l.bug);
 
+  it('placementHints name every lesson in the path', () => {
+    for (const id of path.lessons) expect(path.placementHints, id).toContain(id);
+  });
+
   it('every live path has a planted bug', () => {
     expect(withBug.length).toBeGreaterThan(0);
   });
