@@ -9,6 +9,7 @@ import { PathOverview } from './pages/PathOverview';
 import { Finale } from './pages/Finale';
 import { Connect } from './pages/Connect';
 import { HowItWorks } from './pages/HowItWorks';
+import { Proposal } from './pages/Proposal';
 import { NotFound } from './pages/routes';
 import { content } from './content';
 
@@ -78,6 +79,7 @@ function Frame() {
       <Route path="/finale/:pathId" component={Finale} />
       <Route path="/connect" component={Connect} />
       <Route path="/how-it-works" component={HowItWorks} />
+      <Route path="/proposal" component={Proposal} />
       <Route default component={NotFound} />
     </Router>
   );

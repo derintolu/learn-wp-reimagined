@@ -46,6 +46,7 @@ describe('routing', () => {
     ['/finale/nope', 'Nothing here', `Page not found · ${SITE}`],
     ['/connect', 'Connect your agent', `Connect your agent · ${SITE}`],
     ['/how-it-works', 'How this works', `How this works · ${SITE}`],
+    ['/proposal', 'The proposal', `The proposal · ${SITE}`],
     ['/no/such/page', 'Nothing here', `Page not found · ${SITE}`],
   ])('renders %s and sets its document title', async (url, heading, title) => {
     document.title = 'stale';
