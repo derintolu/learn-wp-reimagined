@@ -73,6 +73,23 @@ describe('learner path content', () => {
       expect(passes(k, about(done.replace('<!-- wp:heading -->\n<h2 class="wp-block-heading">What I\'m working on</h2>', '<!-- wp:heading {"level":3} -->\n<h3 class="wp-block-heading">What I\'m working on</h3>')))).toBe(true);
     });
 
+    it('ties the heading tag to the level setting: a bare comment means h2', () => {
+      const h3 = (open: string) =>
+        done.replace('<!-- wp:heading -->\n<h2 class="wp-block-heading">What I\'m working on</h2>', `${open}\n<h3 class="wp-block-heading">What I'm working on</h3>`);
+      expect(passes(k, about(h3('<!-- wp:heading -->')))).toBe(false);
+      expect(passes(k, about(h3('<!-- wp:heading {"level":3} -->')))).toBe(true);
+      expect(passes(k, about(h3('<!-- wp:heading {"level":4} -->')))).toBe(false);
+      expect(passes(k, about(done.replace('<!-- wp:heading -->', '<!-- wp:heading {"level":2} -->')))).toBe(true);
+    });
+
+    it('accepts inline formatting inside the heading and the paragraph', () => {
+      const rich = done
+        .replace('<p>Right now, I\'m learning how blocks work.</p>', '<p>Right <strong>now</strong>, I\'m learning how <em>blocks</em> work.</p>')
+        .replace("What I'm working on</h2>", "What I'm <em>working on</em></h2>");
+      expect(passes(k, about(rich))).toBe(true);
+      expect(passes(k, about(done.replace('<p>Right now, I\'m learning how blocks work.</p>', '<p><strong></strong></p>')))).toBe(false);
+    });
+
     it('fails a missing heading closer, a heading with no text, and a heading with no paragraph after it', () => {
       expect(passes(k, about(done.replace('<!-- /wp:heading -->', '')))).toBe(false);
       expect(passes(k, about(done.replace("What I'm working on", '')))).toBe(false);

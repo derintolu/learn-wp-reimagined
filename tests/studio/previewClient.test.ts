@@ -68,4 +68,17 @@ describe('writer targets the preview kind and lands on the lesson\'s page', () =
       'goTo /',
     ]);
   });
+  it('boots the site kind logged in, and the theme and plugin kinds logged out', async () => {
+    const cases = [
+      [{ kind: 'site' }, { 'pages/home.html': 'home' }, true],
+      [{ kind: 'theme', slug: 'my-block-theme' }, { 'style.css': 'a' }, false],
+      [{ kind: 'plugin', slug: 'hello-learn' }, { 'hello-learn/hello-learn.php': '<?php' }, false],
+    ] as const;
+    for (const [preview, files, login] of cases) {
+      const { startPlaygroundWeb } = fake();
+      await startLivePreview(document.createElement('iframe'), { ...files }, preview, '/wp-admin/');
+      const opts = startPlaygroundWeb.mock.calls[0][0] as { blueprint: { login: boolean } };
+      expect(opts.blueprint.login, preview.kind).toBe(login);
+    }
+  });
 });

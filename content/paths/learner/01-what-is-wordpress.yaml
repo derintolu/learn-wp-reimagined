@@ -33,7 +33,7 @@ beats:
       - **The site itself**, which is what your visitors see.
       - **The dashboard** (also called the admin area), where you manage everything. It lives at your site's address plus `/wp-admin`, for example `example.com/wp-admin`, and you log in to reach it.
 
-      The live preview in your workspace is a real WordPress site, open at its dashboard. If it asks you to log in, use the username and password it shows you: it's a practice site.
+      The live preview in your workspace is a real WordPress site, open at its dashboard and already logged in.
 
       To jump to the public side, use the black toolbar at the top. On a wide screen, hover over your site's name and choose **Visit Site**. In a narrow window, like the preview, the site name shrinks to a **house icon**. Once you're on the site, the same spot in the toolbar takes you back to the dashboard.
     question: Before you look, what do you expect to find in the dashboard that visitors never see?
@@ -79,9 +79,10 @@ checkpoint:
     Advance if the answer names Media for uploading a photo and Appearance (or the Site Editor, Appearance
     > Editor, or Themes) for changing how the whole site looks. Wording can be loose. Review if it gets
     either one wrong (for example Posts or Pages for uploading, or Settings or Plugins for the look),
-    names only one of the two, or is unsure. Skip only if the answer gets both right and also correctly
-    places other parts of the dashboard, such as Pages for an About page, Settings for the site title,
-    or Plugins for adding features.
+    names only one of the two, or is unsure. Skip only if the answer gets both right and also
+    shows the learner already knows the difference between posts and pages, for example that a blog
+    article goes in Posts but an About or Contact page goes in Pages, or that posts are dated and pages
+    are not. Correctly naming other menu items alone is not enough to skip.
   branches:
     - outcome: advance
       to: ln-posts-and-pages
@@ -91,7 +92,7 @@ checkpoint:
       message: Let's take the dashboard tour once more. It's quick, and you'll use it in every lesson.
     - outcome: skip
       to: ln-blocks
-      message: You know your way around already, so we'll skip ahead to blocks.
+      message: You know your way around, and you know posts from pages, so we'll skip ahead to blocks.
   fallback:
     - label: Media for the photo, and Appearance for the look of the site
       outcome: advance

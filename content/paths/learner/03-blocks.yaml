@@ -54,7 +54,7 @@ beats:
 
       Settings you choose go inside the opening comment, as a little bit of data. A level 3 heading starts `<!-- wp:heading {"level":3} -->`, for example. A few blocks have nothing inside them, so they close themselves in one comment ending in `/-->`.
 
-      For everything else, the opening and closing comments come in pairs. If a closing comment goes missing, WordPress can't tell where that block ends. It reads on until the next closing comment it finds, so the blocks after it end up **inside** the unclosed one.
+      For everything else, the opening and closing comments come in pairs. If a closing comment goes missing, WordPress can't tell where that block ends. It treats every block after it as being **inside** the unclosed one, and the unclosed block runs on to the end of the page. (The next closing comment it meets just closes the nested block.)
 
       The sneaky part is that your visitors may never notice: the page can still look fine. But open it in the editor and a block you wrote can seem to vanish, because it's now tucked inside another block that doesn't show it. Anyone editing the page from there is working without it.
     question: If you were checking someone's block markup by eye, what would you look for first?
@@ -65,7 +65,7 @@ beats:
 
       Edit it, then choose **Apply to site** to update the About page in your preview, which opens at your new page's address, `/about/`. In the dashboard, you'd find the same page under **Pages**.
 
-      Next, an AI assistant has written an About page for you. It looks fine at a glance. Have a careful look.
+      Next, an AI assistant has written an About page for you. The page itself may look fine in the preview, so don't trust your eyes there: read the markup, and count the comments.
     question: Why might it be useful to read block markup, even if you mostly use the visual editor?
 starterFiles:
   pages/about.html: |
@@ -89,7 +89,7 @@ bug:
   explanation: >-
     The first paragraph had its opening wp:paragraph comment but no closing /wp:paragraph comment.
     Every block with content needs its closing comment, straight after its HTML. Without it,
-    WordPress reads on to the next closing comment, so the second paragraph ends up inside the first.
+    WordPress treats the second paragraph as being inside the first, which runs on to the end of the page.
     Visitors still see both paragraphs, but in the editor the second one disappears, so whoever edits
     the page next can't see or change it. A missing closing comment is an easy slip for an AI assistant (or a person)
     to make, and hard to spot unless you count the pairs. Your fixed file is now your site's About page.
@@ -113,12 +113,13 @@ bug:
 checkpoint:
   id: cp-about-heading-code
   question: >-
-    Now make the About page yours. In pages/about.html, add a heading block, then a paragraph
-    block under it, after the two paragraphs that are there. Write whatever you like in them.
+    Now make the About page yours. In pages/about.html, add a heading block (level 2 to 6; a
+    plain heading block is level 2), then a paragraph block under it, after the two paragraphs
+    that are there. Write whatever you like in them.
   kind: code
   rubric: >-
     pages/about.html keeps its two paragraph blocks, then has a heading block (opening and closing
-    comments around an h2 to h6 element) followed directly by a paragraph block (opening and closing
+    comments around an h2, or an h3 to h6 whose level matches a "level" setting in the opening comment) followed directly by a paragraph block (opening and closing
     comments around a p element), and every paragraph's opening comment has its closing comment.
   file: pages/about.html
   checks:
@@ -132,11 +133,11 @@ checkpoint:
       message: Close your heading block with a /wp:heading comment, straight after the heading's HTML.
     - type: regex
       file: pages/about.html
-      pattern: '<!--\s*wp:heading(?:\s+\{[^}]*\})?\s*-->\s*<h([2-6])\b[^>]*>[^<]*\S[^<]*</h\1>\s*<!--\s*/wp:heading\s*-->'
-      message: Between the heading's two comments, put a heading element with some text, like an h2 with the wp-block-heading class.
+      pattern: '(?:<!--\s*wp:heading(?:\s+\{(?![^}]*"level")[^}]*\})?\s*-->\s*<h2\b[^>]*>(?:\s|<(?!/h[1-6]>)[^>]*>)*[^\s<](?:(?!</h[1-6]>)[\s\S])*</h2>|<!--\s*wp:heading\s+\{[^}]*"level"\s*:\s*([2-6])\b[^}]*\}\s*-->\s*<h\1\b[^>]*>(?:\s|<(?!/h[1-6]>)[^>]*>)*[^\s<](?:(?!</h[1-6]>)[\s\S])*</h\1>)\s*<!--\s*/wp:heading\s*-->'
+      message: Between the heading's two comments, put a heading element with some text. A plain wp:heading comment means an h2. For h3 to h6, the opening comment needs the matching level setting, like {"level":3}.
     - type: regex
       file: pages/about.html
-      pattern: '<!--\s*/wp:heading\s*-->\s*<!--\s*wp:paragraph\s*-->\s*<p>[^<]*\S[^<]*</p>\s*<!--\s*/wp:paragraph\s*-->'
+      pattern: '<!--\s*/wp:heading\s*-->\s*<!--\s*wp:paragraph\s*-->\s*<p>(?:\s|<(?!/p>)[^>]*>)*[^\s<](?:(?!</p>)[\s\S])*</p>\s*<!--\s*/wp:paragraph\s*-->'
       message: Straight after the heading, add a paragraph block with some text, with its opening and closing comments.
     - type: regex
       file: pages/about.html

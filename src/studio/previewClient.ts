@@ -55,7 +55,7 @@ function writerFor(client: Client, files: Record<string, string>, preview: Previ
 
 /**
  * Boot WordPress Playground in the iframe with the lesson's preview (theme, plugin or pages) at
- * `landing`, then hand back a writer that pushes edited files in and reloads that page. A plugin
+ * `landing` (the site kind boots logged in, since its lessons land in wp-admin), then hand back a writer that pushes edited files in and reloads that page. A plugin
  * boots on `known`'s main file (the path's previewFiles), then gets the full workspace written.
  * Rejects if the client can't load, boot takes longer than PREVIEW_BOOT_TIMEOUT_MS, or the signal aborts. If it timed out but
  * the boot finishes later (and the signal hasn't aborted), `onLateReady` gets the writer.
@@ -87,7 +87,7 @@ export async function startLivePreview(
     const client = await startPlaygroundWeb({
       iframe,
       remoteUrl: REMOTE_URL,
-      blueprint: playgroundBlueprint(files, preview, { login: false, landing, known }) as never,
+      blueprint: playgroundBlueprint(files, preview, { login: preview.kind === 'site', landing, known }) as never,
     });
     await client.isReady();
     const writer = writerFor(client, files, preview, landing);
