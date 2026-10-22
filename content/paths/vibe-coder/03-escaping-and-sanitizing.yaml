@@ -198,14 +198,14 @@ checkpoint:
       message: Keep the isset() check, so the code only reads the name when the link has one.
   branches:
     - outcome: advance
-      to: vc-escaping-and-sanitizing
-      message: Sanitized on the way in, escaped on the way out. That's the habit that keeps a plugin safe.
+      to: vc-template-hierarchy
+      message: Sanitized on the way in, escaped on the way out. That's the habit that keeps a plugin safe. Next, how the theme picks a template for each page.
     - outcome: review
       to: vc-escaping-and-sanitizing
       message: Let's go back over sanitizing and escaping, then have another go.
     - outcome: skip
-      to: vc-escaping-and-sanitizing
-      message: You've got the security basics. More lessons are on the way.
+      to: vc-template-hierarchy
+      message: You've got the security basics. On to the template hierarchy.
   fallback:
     - label: Review escaping and sanitizing
       outcome: review

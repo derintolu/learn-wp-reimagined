@@ -14,6 +14,9 @@ const php = (text: string) => ({ [MAIN]: text });
 const l1 = L['vc-actions-and-filters'];
 const l2 = L['vc-enqueueing'];
 const l3 = L['vc-escaping-and-sanitizing'];
+const l4 = L['vc-template-hierarchy'];
+const l5 = L['vc-theme-json-from-code'];
+const l6 = L['vc-ship-it'];
 
 describe('vibe coder path content', () => {
   it('is live on the plugin preview: lesson 1 a bug and a free-text checkpoint, 2 code, 3 a bug and code', () => {
@@ -34,11 +37,34 @@ describe('vibe coder path content', () => {
     expect(l3.landing).toBe('/hello-world/?reader=%3Cmark%3ESam%3C%2Fmark%3E');
   });
 
-  it('branches: lesson 1 leads to 2 (skip to 3), lesson 2 to 3, and review stays put', () => {
+  it('lessons 4 to 6: 4 a free-text checkpoint on a category archive, 5 code, 6 no checkpoint', () => {
+    const p = c.paths['vibe-coder'];
+    expect(p.lessons).toEqual([
+      'vc-actions-and-filters', 'vc-enqueueing', 'vc-escaping-and-sanitizing',
+      'vc-template-hierarchy', 'vc-theme-json-from-code', 'vc-ship-it',
+    ]);
+    expect(l4.checkpoint?.kind).toBe('free-text');
+    expect(l4.landing).toBe('/category/uncategorized/');
+    expect(l4.bug).toBeUndefined();
+    const fb = l4.checkpoint!.fallback.map((f) => f.outcome);
+    expect(fb).toContain('advance');
+    expect(fb).toContain('review');
+    expect(l5.checkpoint?.kind).toBe('code');
+    expect(l5.checkpoint?.file).toBe(MAIN);
+    expect(l5.landing).toBe('/hello-world/');
+    expect(l6.checkpoint).toBeUndefined();
+    expect(l6.bug).toBeUndefined();
+    for (const l of [l1, l2, l3, l4, l5, l6]) expect(l.beats.length).toBeGreaterThanOrEqual(3);
+  });
+
+  it('branches flow 1 to 6: advance and skip go forward, review goes back or stays put', () => {
     const to = (l: typeof l1, o: string) => l.checkpoint!.branches.find((b) => b.outcome === o)!.to;
     expect([to(l1, 'advance'), to(l1, 'review'), to(l1, 'skip')]).toEqual(['vc-enqueueing', 'vc-actions-and-filters', 'vc-escaping-and-sanitizing']);
     expect([to(l2, 'advance'), to(l2, 'review'), to(l2, 'skip')]).toEqual(['vc-escaping-and-sanitizing', 'vc-enqueueing', 'vc-escaping-and-sanitizing']);
-    expect(to(l3, 'review')).toBe(l3.id);
+    expect([to(l3, 'advance'), to(l3, 'review'), to(l3, 'skip')]).toEqual(['vc-template-hierarchy', 'vc-escaping-and-sanitizing', 'vc-template-hierarchy']);
+    expect([to(l4, 'advance'), to(l4, 'review'), to(l4, 'skip')]).toEqual(['vc-theme-json-from-code', 'vc-template-hierarchy', 'vc-theme-json-from-code']);
+    expect([to(l5, 'advance'), to(l5, 'review'), to(l5, 'skip')]).toEqual(['vc-ship-it', 'vc-theme-json-from-code', 'vc-ship-it']);
+    for (const l of [l1, l2, l3, l4, l5]) for (const b of l.checkpoint!.branches) expect(b.message).not.toMatch(/more lessons are on the way/i);
   });
 
   it('every file lives under my-first-plugin/', () => {
@@ -46,7 +72,7 @@ describe('vibe coder path content', () => {
     const files = [
       ...Object.keys(p.previewFiles ?? {}),
       ...Object.keys(p.finalFiles ?? {}),
-      ...[l1, l2, l3].flatMap((l) => [...Object.keys(l.starterFiles ?? {}), l.checkpoint?.file, l.bug?.file].filter(Boolean)),
+      ...[l1, l2, l3, l4, l5, l6].flatMap((l) => [...Object.keys(l.starterFiles ?? {}), l.checkpoint?.file, l.bug?.file].filter(Boolean)),
     ];
     for (const f of files) expect(f).toMatch(/^my-first-plugin\//);
   });
@@ -253,6 +279,131 @@ add_action( 'wp_head', 'my_first_plugin_styles' );
     it('fails another sanitizer, and dropping the isset check', () => {
       expect(passes(k, php(done.replace('sanitize_text_field(', 'sanitize_email(')))).toBe(false);
       expect(passes(k, php(done.replace("isset( $_GET['reader'] )", "$_GET['reader']")))).toBe(false);
+    });
+  });
+  describe('L5 checkpoint: a wp_theme_json_data_theme callback that calls update_with and returns the object', () => {
+    const k = l5.checkpoint!.checks!;
+    const start = l5.starterFiles![MAIN];
+    const done = SOLUTIONS['cp-theme-json-filter-code'][MAIN];
+    const ret = 'return $theme_json->update_with( $new_data );';
+    const hook = "add_filter( 'wp_theme_json_data_theme', 'my_first_plugin_theme_json' );";
+    const fn = done.slice(done.indexOf('/**\n * Give the theme'));
+    /** Replace, and insist the replacement happened, so a passing variant is never just the unchanged answer. */
+    const edit = (from: string, to: string, text = done) => {
+      expect(text).toContain(from);
+      return text.replace(from, to);
+    };
+    const arr = `array(
+		'version' => 3,
+		'styles'  => array(
+			'elements' => array(
+				'heading' => array(
+					'color' => array(
+						'text' => 'var:preset|color|accent-3',
+					),
+				),
+			),
+		),
+	)`;
+
+    it('the starter is the lesson 3 answer, which fails; the intended answer passes', () => {
+      expect(start).toBe(SOLUTIONS['cp-sanitize-name-code'][MAIN]);
+      expect(passes(k, php(start))).toBe(false);
+      expect(passes(k, php(done))).toBe(true);
+      expect(fn.startsWith('/**')).toBe(true);
+      expect(done).toContain(arr);
+    });
+
+    it('accepts update_with then returning the object, the array inline, and hooking before the function', () => {
+      expect(passes(k, php(edit(ret, '$theme_json->update_with( $new_data );\n\n\treturn $theme_json;')))).toBe(true);
+      expect(passes(k, php(edit('$new_data = ' + arr + ';\n\n\t' + ret, 'return $theme_json->update_with( ' + arr + ' );')))).toBe(true);
+      const hookFirst = edit(fn, hook + '\n' + fn.replace(hook, ''));
+      expect(hookFirst).not.toBe(done);
+      expect(passes(k, php(hookFirst))).toBe(true);
+    });
+
+    it('accepts another variable name, short array syntax, the h1 element, the CSS var form and version 2', () => {
+      expect(passes(k, php(done.replaceAll('$theme_json', '$data')))).toBe(true);
+      const short = edit(fn, `function my_first_plugin_theme_json( $theme_json ) {
+	return $theme_json->update_with( [
+		"version" => 3,
+		"styles"  => [ "elements" => [ "heading" => [ "color" => [ "text" => "var:preset|color|accent-3" ] ] ] ],
+	] );
+}
+${hook}
+`);
+      expect(passes(k, php(short))).toBe(true);
+      expect(passes(k, php(edit("'heading' =>", "'h1' =>")))).toBe(true);
+      expect(passes(k, php(edit('var:preset|color|accent-3', 'var(--wp--preset--color--accent-3)')))).toBe(true);
+      expect(passes(k, php(edit("'version' => 3", "'version' => 2")))).toBe(true);
+    });
+
+    it('accepts an anonymous function or an arrow function as the callback', () => {
+      const anon = start + `
+add_filter( 'wp_theme_json_data_theme', function ( $theme_json ) {
+	return $theme_json->update_with( ${arr} );
+} );
+`;
+      const arrow = start + `
+add_filter( 'wp_theme_json_data_theme', fn( $theme_json ) => $theme_json->update_with( ${arr} ) );
+`;
+      expect(passes(k, php(anon))).toBe(true);
+      expect(passes(k, php(arrow))).toBe(true);
+    });
+
+    it('fails calling update_with but returning nothing, the array, or get_data()', () => {
+      expect(passes(k, php(edit(ret, '$theme_json->update_with( $new_data );')))).toBe(false);
+      expect(passes(k, php(edit(ret, '$theme_json->update_with( $new_data );\n\n\treturn $new_data;')))).toBe(false);
+      expect(passes(k, php(edit(ret, '$theme_json->update_with( $new_data );\n\n\treturn $theme_json->get_data();')))).toBe(false);
+    });
+
+    it('fails returning the array without update_with', () => {
+      expect(passes(k, php(edit(ret, 'return $new_data;')))).toBe(false);
+    });
+
+    it('fails a missing version', () => {
+      expect(passes(k, php(edit("\t\t'version' => 3,\n", '')))).toBe(false);
+    });
+
+    it('fails the wrong layer, add_action, or a mismatched callback name', () => {
+      for (const layer of ['wp_theme_json_data_default', 'wp_theme_json_data_blocks', 'wp_theme_json_data_user']) {
+        expect(passes(k, php(edit("'wp_theme_json_data_theme'", `'${layer}'`)))).toBe(false);
+      }
+      expect(passes(k, php(edit(hook, "add_action( 'wp_theme_json_data_theme', 'my_first_plugin_theme_json' );")))).toBe(false);
+      expect(passes(k, php(edit(hook, "add_filter( 'wp_theme_json_data_theme', 'my_first_plugin_json' );")))).toBe(false);
+    });
+
+    it('fails the colour set as a palette, under settings, or as another colour', () => {
+      const palette = edit(fn, `function my_first_plugin_theme_json( $theme_json ) {
+	return $theme_json->update_with( array(
+		'version'  => 3,
+		'settings' => array(
+			'color' => array(
+				'palette' => array(
+					array( 'name' => 'Heading', 'slug' => 'heading', 'color' => '#503AA8' ),
+				),
+			),
+		),
+	) );
+}
+${hook}
+`);
+      expect(passes(k, php(palette))).toBe(false);
+      expect(passes(k, php(edit("'styles'  =>", "'settings' =>")))).toBe(false);
+      expect(passes(k, php(edit('accent-3', 'accent-1')))).toBe(false);
+      expect(passes(k, php(edit("'text' =>", "'background' =>")))).toBe(false);
+    });
+
+    it('fails when the the_content filter from lesson 1 is removed', () => {
+      expect(passes(k, php(edit("add_filter( 'the_content', 'my_first_plugin_add_note' );", '')))).toBe(false);
+    });
+
+    it('the finished plugin is the lesson 5 answer, and it still passes every earlier check', () => {
+      const p = c.paths['vibe-coder'];
+      expect(p.finalFiles![MAIN]).toBe(done);
+      expect(passes(l1.bug!.fixChecks, php(done))).toBe(true);
+      expect(passes(l2.checkpoint!.checks!, php(done))).toBe(true);
+      expect(passes([...l3.bug!.fixChecks, ...l3.checkpoint!.checks!], php(done))).toBe(true);
     });
   });
 });

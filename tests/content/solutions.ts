@@ -296,4 +296,66 @@ function my_first_plugin_enqueue_styles() {
 }
 add_action( 'wp_enqueue_scripts', 'my_first_plugin_enqueue_styles' );
 ` },
+  'cp-theme-json-filter-code': { 'my-first-plugin/my-first-plugin.php': `<?php
+/**
+ * Plugin Name: My First Plugin
+ * Description: My first WordPress plugin, built with Learn WordPress, reimagined.
+ * Version: 1.0.0
+ * Requires at least: 6.6
+ * Requires PHP: 7.4
+ * Author: You
+ * License: GPL v2 or later
+ * License URI: https://www.gnu.org/licenses/gpl-2.0.html
+ * Text Domain: my-first-plugin
+ */
+
+if ( ! defined( 'ABSPATH' ) ) {
+	exit; // Stop if this file is opened directly, outside WordPress.
+}
+
+/**
+ * Add a short thank-you note to the end of every post.
+ */
+function my_first_plugin_add_note( $content ) {
+	$note = '<p class="my-first-plugin-note">Thanks for reading! This note was added by my first plugin.</p>';
+
+	// Greet the visitor by name when the link ends in ?reader=Something.
+	if ( isset( $_GET['reader'] ) ) {
+		$reader = sanitize_text_field( wp_unslash( $_GET['reader'] ) );
+		$note = '<p class="my-first-plugin-note">Thanks for reading, ' . esc_html( $reader ) . '! This note was added by my first plugin.</p>';
+	}
+
+	return $content . $note;
+}
+add_filter( 'the_content', 'my_first_plugin_add_note' );
+
+/**
+ * Load the plugin's stylesheet on the front of the site.
+ */
+function my_first_plugin_enqueue_styles() {
+	wp_enqueue_style( 'my-first-plugin', plugins_url( 'style.css', __FILE__ ), array(), '1.0.0' );
+}
+add_action( 'wp_enqueue_scripts', 'my_first_plugin_enqueue_styles' );
+
+/**
+ * Give the theme's headings the purple from its own palette.
+ */
+function my_first_plugin_theme_json( $theme_json ) {
+	$new_data = array(
+		'version' => 3,
+		'styles'  => array(
+			'elements' => array(
+				'heading' => array(
+					'color' => array(
+						'text' => 'var:preset|color|accent-3',
+					),
+				),
+			),
+		),
+	);
+
+	return $theme_json->update_with( $new_data );
+}
+add_filter( 'wp_theme_json_data_theme', 'my_first_plugin_theme_json' );
+` },
 };

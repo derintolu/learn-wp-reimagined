@@ -1,0 +1,91 @@
+id: vc-template-hierarchy
+title: Which template renders this page?
+minutes: 7
+landing: /category/uncategorized/
+sources:
+  - title: Templates (Learn WordPress lesson)
+    url: https://learn.wordpress.org/lesson/templates-3/
+  - title: Template Hierarchy (Theme Handbook)
+    url: https://developer.wordpress.org/themes/templates/template-hierarchy/
+  - title: Introduction to Templates (Theme Handbook)
+    url: https://developer.wordpress.org/themes/templates/introduction-to-templates/
+  - title: template_include hook (Code Reference)
+    url: https://developer.wordpress.org/reference/hooks/template_include/
+  - title: register_block_template() (Code Reference)
+    url: https://developer.wordpress.org/reference/functions/register_block_template/
+  - title: Twenty Twenty-Five templates folder (WordPress core source)
+    url: https://github.com/WordPress/wordpress-develop/tree/7.1/src/wp-content/themes/twentytwentyfive/templates
+beats:
+  - id: how-wordpress-picks
+    goal: Know how WordPress chooses a template for each request.
+    content: |
+      Your plugin adds to pages, but it's the **theme** that decides what each page looks like. It does that with **templates**: one for a single post, one for a page, one for a list of posts, and so on.
+
+      On every request, WordPress first works out what was asked for: a single post, a page, a category, search results, or something that doesn't exist. Then it walks a list of template names, from the most specific to the most general, and uses the **first one the theme has**. That list is the **template hierarchy**.
+
+      At the end of every list is `index`. It's the one template every block theme must have, so there's always something to fall back on.
+    question: Why do you think WordPress tries the most specific template name first?
+  - id: the-lists
+    goal: Read the hierarchy for posts and categories.
+    content: |
+      In a block theme, templates are `.html` files of block markup in the theme's `templates/` folder. (Classic themes use `.php` files instead, but the names follow the same hierarchy.) Two of the lists:
+
+      - **A single post:** `single-post-{slug}`, then `single-post`, then `single`, then `singular`, then `index`.
+      - **A category archive:** `category-{slug}`, then `category-{id}`, then `category`, then `archive`, then `index`.
+
+      So for the "Hello world!" post, slug `hello-world`, WordPress looks for `single-post-hello-world.html` first, and keeps going down the list until a file exists.
+
+      Your preview runs on **Twenty Twenty-Five**, the default theme. Its `templates/` folder has eight files: `404.html`, `archive.html`, `home.html`, `index.html`, `page-no-title.html`, `page.html`, `search.html` and `single.html`.
+
+      One more twist: if someone edits a template in the Site Editor, their version is saved in the site's database, and it's used in place of the theme's file.
+    question: Which of those eight files does the Hello world! post use?
+  - id: what-a-plugin-may-change
+    goal: Know what a plugin may and may not change about templates.
+    content: |
+      Templates belong to the theme. A plugin should **never edit the theme's files**: they're replaced whenever the theme updates, and the site owner may switch themes tomorrow. Plugins change templates through hooks instead:
+
+      - The `{$type}_template_hierarchy` filters, such as `category_template_hierarchy`, let you add a name to the list. WordPress looks block templates up from that same list, so this works with block themes too.
+      - Since WordPress 6.7, `register_block_template()` lets a plugin register a block template of its own. Its name takes the form `plugin-slug//template-name`, and it shows up in the Site Editor, where people can edit it.
+      - The `template_include` filter is the last word on which PHP file renders the page.
+
+      That last one is where AI-written code often goes wrong. It's a classic-theme habit. In a block theme, by the time `template_include` runs, WordPress has already picked the block template, and the file it hands over is core's `template-canvas.php`, which renders it. Swap in your own PHP file there and the whole block template is skipped: the header, the footer, and any changes the site owner made in the Site Editor.
+    question: Why is swapping the file in template_include risky on a block theme?
+  - id: predict-the-template
+    goal: Predict the template for a real URL.
+    content: |
+      Your preview is open on `/category/uncategorized/`, the list of posts in the Uncategorized category, on Twenty Twenty-Five.
+
+      Before you look too closely, walk the category list against the eight files above and predict which one renders this page. The page itself holds a clue: whichever template it is puts the category's name at the top, above the posts.
+    question: Which file do you predict, and which names did WordPress try before it?
+checkpoint:
+  id: cp-predict-template
+  question: >-
+    Your preview shows /category/uncategorized/ on Twenty Twenty-Five. Which of the theme's template files
+    renders it, and why that one?
+  kind: free-text
+  rubric: >-
+    Advance if the answer names archive.html (or "the archive template") and gives a sensible reason:
+    Twenty Twenty-Five has no category-uncategorized, category-1 or category template, so WordPress falls
+    back down the category list to archive. Wording can be loose. Review if it names index.html, home.html,
+    single.html, page.html or a category.html file, says the plugin chooses the template, or is unsure. Skip
+    only if the answer is right and also accurately says how a plugin could change it without editing the
+    theme, such as adding a name with the category_template_hierarchy filter or registering a block
+    template with register_block_template(), or that swapping the file in template_include would bypass the
+    block template.
+  branches:
+    - outcome: advance
+      to: vc-theme-json-from-code
+      message: That's how WordPress picks it, one name at a time. Next, let's change how the theme looks from your plugin.
+    - outcome: review
+      to: vc-template-hierarchy
+      message: Let's walk the category list against Twenty Twenty-Five's files once more, then have another go.
+    - outcome: skip
+      to: vc-theme-json-from-code
+      message: You know the hierarchy and how plugins hook into it. On to theme.json from code.
+  fallback:
+    - label: archive.html, because the theme has no category templates, so WordPress falls back to archive
+      outcome: advance
+    - label: index.html, because a category list always uses index
+      outcome: review
+    - label: I'm not sure yet
+      outcome: review

@@ -8,6 +8,9 @@ placementHints: >-
   Start at vc-actions-and-filters if hooks, actions or filters are new to them, or if they are unsure.
   Start at vc-enqueueing if they can explain the difference between an action and a filter but have never loaded a stylesheet or script from a plugin.
   Start at vc-escaping-and-sanitizing if they write hooks and enqueue assets already and want to learn to secure input and output.
+  Start at vc-template-hierarchy if they already escape output and sanitize input, but don't know how WordPress picks a template or what a plugin may change about it.
+  Start at vc-theme-json-from-code if they know the template hierarchy and want to change a block theme's theme.json settings and styles from a plugin.
+  Start at vc-ship-it only if they have built a plugin before and just want to get it ready to share.
 # The finished reference plugin. The finale uses these files wherever a learner's own edit is missing or
 # doesn't pass its lesson's checks. Must pass every lesson's checks (enforced by scripts/build-content.ts).
 # Sources: docs/content-accuracy-vibe-coder.md, "Finale reference plugin".
@@ -53,6 +56,27 @@ finalFiles:
     	wp_enqueue_style( 'my-first-plugin', plugins_url( 'style.css', __FILE__ ), array(), '1.0.0' );
     }
     add_action( 'wp_enqueue_scripts', 'my_first_plugin_enqueue_styles' );
+
+    /**
+     * Give the theme's headings the purple from its own palette.
+     */
+    function my_first_plugin_theme_json( $theme_json ) {
+    	$new_data = array(
+    		'version' => 3,
+    		'styles'  => array(
+    			'elements' => array(
+    				'heading' => array(
+    					'color' => array(
+    						'text' => 'var:preset|color|accent-3',
+    					),
+    				),
+    			),
+    		),
+    	);
+
+    	return $theme_json->update_with( $new_data );
+    }
+    add_filter( 'wp_theme_json_data_theme', 'my_first_plugin_theme_json' );
   my-first-plugin/style.css: |
     /* Styles for My First Plugin. WordPress loads this file once the plugin enqueues it. */
     .my-first-plugin-note {
