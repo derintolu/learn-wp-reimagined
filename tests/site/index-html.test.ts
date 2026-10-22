@@ -26,4 +26,16 @@ describe('index.html social metadata', () => {
     expect(existsSync(resolve(root, 'public/og.png'))).toBe(true);
     expect([png.readUInt32BE(16), png.readUInt32BE(20)]).toEqual([1200, 630]);
   });
+
+  it('has a canonical link and a theme colour', () => {
+    expect(html).toContain(`<link rel="canonical" href="${SITE}">`);
+    expect(meta('name', 'theme-color')).toBe('#1E1E1E');
+  });
+
+  it('serves a robots.txt that keeps crawlers off /api/', () => {
+    const robots = readFileSync(resolve(root, 'public/robots.txt'), 'utf8');
+    expect(robots).toMatch(/^User-agent: \*$/m);
+    expect(robots).toMatch(/^Allow: \/$/m);
+    expect(robots).toMatch(/^Disallow: \/api\/$/m);
+  });
 });
