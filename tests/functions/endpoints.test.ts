@@ -67,6 +67,13 @@ describe('POST /api/placement', () => {
     expect(await res.json()).toEqual({ reply: 'Great, start at templates.', placement: validPlacement });
   });
 
+  it("passes the route's reasoning effort to the provider", async () => {
+    h.route = { provider: fake, model: MODEL, maxTokens: 300, reasoningEffort: 'low' };
+    chatReturns(JSON.stringify({ reply: 'Great, start at templates.', done: true, placement: validPlacement }));
+    await post(placement, { messages: [{ role: 'user', content: 'I know theme.json' }] });
+    expect(fake.chat.mock.calls[0][0].reasoningEffort).toBe('low');
+  });
+
   it('drops a placement for a coming-soon path but keeps the reply', async () => {
     chatReturns(
       JSON.stringify({

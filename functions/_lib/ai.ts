@@ -95,6 +95,7 @@ export async function callChat(
       messages,
       maxTokens: route.maxTokens,
       json: schema,
+      ...(route.reasoningEffort ? { reasoningEffort: route.reasoningEffort } : {}),
       signal: AbortSignal.timeout(CHAT_TIMEOUT_MS),
     });
     usage = res.usage;

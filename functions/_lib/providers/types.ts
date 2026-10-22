@@ -16,8 +16,12 @@ export interface ChatOptions {
   maxTokens: number;
   /** JSON schema the reply must satisfy. */
   json?: object;
+  /** Reasoning effort for a reasoning model (Workers AI `reasoning_effort`); omitted when unset. */
+  reasoningEffort?: ReasoningEffort;
   signal?: AbortSignal;
 }
+
+export type ReasoningEffort = 'low' | 'medium' | 'high';
 
 export interface StreamOptions {
   model: string;

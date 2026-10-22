@@ -14,6 +14,10 @@ export function wrapLearner(text: string): string {
   return `<learner_input>${safe}</learner_input>`;
 }
 
+/** How judge and code feedback speak: to the learner, and never agreeing with a wrong idea. */
+export const LEARNER_VOICE =
+  "Write feedback to the learner as 'you'. For a review outcome, kindly name what's missing or wrong; never praise or agree with an idea the rubric marks as wrong.";
+
 function sources(lesson: Lesson): string {
   return lesson.sources.map((s) => `- ${s.title}: ${s.url}`).join('\n');
 }
@@ -28,6 +32,11 @@ export function placementPrompt(c: ContentBundle): string {
     SCOPE,
     'Ask one short question at a time. Choose ONLY from these paths and lesson ids; never invent any:',
     paths,
+    ...(c.paths.learner?.status === 'live' && c.paths.learner.lessons[0]
+      ? [
+          `Decide quickly. If the learner has never used WordPress, place them on the learner path at its first lesson (pathId "learner", startLessonId "${c.paths.learner.lessons[0]}").`,
+        ]
+      : []),
     'Reply with JSON only: {"reply": string, "done": boolean, "placement"?: {"pathId": string, "startLessonId": string, "skip": string[], "reason": string}}.',
     'Include "placement" only when done is true. "skip" may only list lessons that come before startLessonId. "reason" is one sentence under 300 characters.',
   ].join('\n\n');
@@ -43,6 +52,7 @@ export function judgePrompt(lesson: Lesson): string {
     `Rubric: ${cp?.rubric ?? ''}`,
     `Choose exactly one outcome from: ${outcomes}. "advance" means the answer meets the rubric, "review" means the learner should revisit the material, "skip" only if the answer clearly shows mastery beyond the lesson.`,
     'Reply with JSON only: {"outcome": string, "feedback": string}. feedback is one or two encouraging sentences that do not give away a full solution.',
+    LEARNER_VOICE,
     `Lesson sources:\n${sources(lesson)}`,
   ].join('\n\n');
 }
@@ -102,7 +112,8 @@ export function feedbackPrompt(lesson: Lesson, file: string): string {
     `You give short feedback on the learner's code in "${file}" for the lesson "${lesson.title}".`,
     SCOPE,
     'You are told which authored checks failed. Explain in one to three sentences what to look at next, as a hint. Never paste corrected code or the full solution. ' +
-      'If every check passed, say briefly what the learner got right; do not suggest extra features or settings.',
+      'If every check passed, say briefly what you got right; do not suggest extra features or settings.',
+    LEARNER_VOICE,
     FEEDBACK_GROUNDING,
     `Lesson material:\n${material}`,
     `Lesson sources:\n${sources(lesson)}`,

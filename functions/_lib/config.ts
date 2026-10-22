@@ -1,9 +1,15 @@
-import type { Task } from './providers/types';
+import type { ReasoningEffort, Task } from './providers/types';
 
 export interface RouteConfig {
   provider: 'workers-ai' | 'anthropic';
   model: string;
   maxTokens: number;
+  /**
+   * gpt-oss reasoning effort (low, medium (default), high: developers.cloudflare.com/workers-ai/models/gpt-oss-120b/),
+   * sent as the Chat Completions `reasoning_effort` field. Low keeps placement and judging from reasoning up to the cap.
+   * Not inherited when an AI_ROUTES override changes the model.
+   */
+  reasoningEffort?: ReasoningEffort;
 }
 
 // Default routes, chosen by measurement (docs/model-eval.md, scripts/eval-models.ts, 2026-10-19):
@@ -14,8 +20,8 @@ export interface RouteConfig {
 // 'wordpress-ai' to the provider union in providers/types.ts, a providers/wordpressAi.ts
 // implementing `Provider`, and one branch in providers/index.ts. Nothing else changes.
 export const ROUTES: Record<Task, RouteConfig> = {
-  placement: { provider: 'workers-ai', model: '@cf/openai/gpt-oss-120b', maxTokens: 800 },
-  judge: { provider: 'workers-ai', model: '@cf/openai/gpt-oss-120b', maxTokens: 300 },
+  placement: { provider: 'workers-ai', model: '@cf/openai/gpt-oss-120b', maxTokens: 800, reasoningEffort: 'low' },
+  judge: { provider: 'workers-ai', model: '@cf/openai/gpt-oss-120b', maxTokens: 300, reasoningEffort: 'low' },
   tutor: { provider: 'workers-ai', model: '@cf/meta/llama-4-scout-17b-16e-instruct', maxTokens: 700 },
   feedback: { provider: 'workers-ai', model: '@cf/meta/llama-4-scout-17b-16e-instruct', maxTokens: 300 },
 };

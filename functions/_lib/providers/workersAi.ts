@@ -81,6 +81,7 @@ export function createWorkersAi(accountId: string, token: string): Provider {
         messages: o.messages,
         max_tokens: o.maxTokens,
       };
+      if (o.reasoningEffort) body.reasoning_effort = o.reasoningEffort;
       if (o.json) {
         body.response_format = {
           type: 'json_schema',

@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { buildContent } from '../../scripts/build-content';
-import { DELIVER_GROUNDING, FEEDBACK_GROUNDING, askPrompt, deliverPrompt, feedbackPrompt, placementPrompt, wrapLearner } from '../../functions/_lib/prompts';
+import { DELIVER_GROUNDING, FEEDBACK_GROUNDING, LEARNER_VOICE, askPrompt, deliverPrompt, feedbackPrompt, judgePrompt, placementPrompt, wrapLearner } from '../../functions/_lib/prompts';
 
 const content = buildContent('tests/fixtures/content');
 const lesson = content.lessons['theme-json-basics'];
@@ -33,6 +33,23 @@ describe('feedbackPrompt', () => {
     expect(FEEDBACK_GROUNDING).toContain('appear in the lesson material');
     expect(p).toContain('do not suggest extra features or settings');
     expect(p).toContain('"theme.json"');
+  });
+
+  it('speaks to the learner as "you" and never praises what the rubric marks wrong', () => {
+    const p = feedbackPrompt(lesson, 'theme.json');
+    expect(p).toContain(LEARNER_VOICE);
+    expect(p).toContain('say briefly what you got right');
+    expect(p).not.toContain('what the learner got right');
+  });
+});
+
+describe('judgePrompt', () => {
+  it('writes feedback to the learner as "you", kindly naming what is missing on review', () => {
+    expect(LEARNER_VOICE).toBe(
+      "Write feedback to the learner as 'you'. For a review outcome, kindly name what's missing or wrong; never praise or agree with an idea the rubric marks as wrong.",
+    );
+    const withCp = Object.values(content.lessons).find((l) => l.checkpoint)!;
+    expect(judgePrompt(withCp)).toContain(LEARNER_VOICE);
   });
 });
 
@@ -75,5 +92,14 @@ describe('placementPrompt', () => {
     }
     expect(p).toContain('ln-what-is-wordpress, ln-posts-and-pages');
     expect(p).toContain('vc-actions-and-filters, vc-enqueueing');
+  });
+
+  it('tells the model to decide quickly and where a total beginner starts, from content', () => {
+    const p = placementPrompt(content);
+    expect(p).toContain(
+      `Decide quickly. If the learner has never used WordPress, place them on the learner path at its first lesson (pathId "learner", startLessonId "${content.paths.learner.lessons[0]}").`,
+    );
+    const soon = { ...content, paths: { ...content.paths, learner: { ...content.paths.learner, status: 'coming-soon' as const } } };
+    expect(placementPrompt(soon)).not.toContain('never used WordPress, place them');
   });
 });

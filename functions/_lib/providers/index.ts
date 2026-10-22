@@ -1,7 +1,7 @@
 import { PRICES, ROUTES, type RouteConfig } from '../config';
 import type { Env } from '../env';
 import { createAnthropic } from './anthropic';
-import type { Provider, Task } from './types';
+import type { Provider, ReasoningEffort, Task } from './types';
 import { createWorkersAi } from './workersAi';
 
 export * from './types';
@@ -61,9 +61,11 @@ function build(name: string | undefined, env: Env): Provider | null {
 export function routeFor(
   task: Task,
   env: Env,
-): { provider: Provider; model: string; maxTokens: number } | null {
+): { provider: Provider; model: string; maxTokens: number; reasoningEffort?: ReasoningEffort } | null {
   const o = validOverride(task, overrides(env)[task]);
   let route: RouteConfig = { ...ROUTES[task], ...(o ?? {}) };
+  // The default effort belongs to the default model; another model doesn't inherit it.
+  if (route.model !== ROUTES[task].model) delete route.reasoningEffort;
   let provider = build(route.provider, env);
   if (!provider) {
     if (o?.provider) console.warn(`AI route for "${task}" names provider "${route.provider}" which is not configured; using default`);
@@ -72,5 +74,10 @@ export function routeFor(
     provider = build(route.provider, env);
   }
   if (!provider) return null;
-  return { provider, model: route.model, maxTokens: route.maxTokens };
+  return {
+    provider,
+    model: route.model,
+    maxTokens: route.maxTokens,
+    ...(route.reasoningEffort ? { reasoningEffort: route.reasoningEffort } : {}),
+  };
 }

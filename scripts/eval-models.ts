@@ -1,7 +1,10 @@
 // Evaluates Workers AI candidate models against the real prompts and adapter.
 //
 //   npx tsx scripts/eval-models.ts [--models glm-4.7-flash,kimi-k2.6] [--tokens placement=400,judge=300,tutor=700,feedback=300]
-//                                  [--only placement,judge] [--out results.json] [--probe]
+//                                  [--only placement,judge] [--out results.json] [--probe] [--content content]
+//
+// --content picks the content directory (default tests/fixtures/content). On any other directory a placement
+// case is checked against its `contentStart` lesson ids when it has them, since the fixture ids don't exist there.
 //
 // Reads CF_ACCOUNT_ID and CF_AI_TOKEN from .env.server (never printed). Each case runs once per candidate.
 // A candidate whose JSON validity is clearly poor (under 50% after 8 placement/judge calls) is stopped early.
@@ -15,9 +18,26 @@ import { askPrompt, feedbackPrompt, judgePrompt, placementPrompt, wrapLearner } 
 import { createWorkersAi } from '../functions/_lib/providers/workersAi.ts';
 import { parseObject } from '../functions/_lib/ai.ts';
 import { validatePlacement } from '../src/shared/engine.ts';
-import type { ChatMessage, Task, Usage } from '../functions/_lib/providers/types.ts';
+import type { ChatMessage, ReasoningEffort, Task, Usage } from '../functions/_lib/providers/types.ts';
 
 const ROOT = resolve(fileURLToPath(import.meta.url), '../..');
+export const FIXTURE_CONTENT = 'tests/fixtures/content';
+
+/** The content directory from `--content <dir>`, relative to the repo root; the fixtures by default. */
+export function contentDirFrom(args: string[]): string {
+  const i = args.indexOf('--content');
+  return i >= 0 && args[i + 1] ? args[i + 1] : FIXTURE_CONTENT;
+}
+
+/** The start lessons a placement case accepts on this content: `contentStart` off the fixtures, when given. */
+export function expectedStarts(e: { start?: string[]; contentStart?: string[] }, contentDir: string): string[] {
+  return (contentDir !== FIXTURE_CONTENT && e.contentStart) || e.start || [];
+}
+
+/** The route's reasoning effort, sent only when the candidate is the model the route uses (as routeFor does). */
+export function effortFor(task: Task, model: string): ReasoningEffort | undefined {
+  return ROUTES[task].model === model ? ROUTES[task].reasoningEffort : undefined;
+}
 
 // Eval-only prices for candidates that are not (yet) routed, so not in config.ts PRICES. Checked against
 // https://developers.cloudflare.com/workers-ai/platform/pricing/ on 2026-10-19 (USD per million tokens).
@@ -61,7 +81,7 @@ const JUDGE_SCHEMA = {
 
 interface TextExpect { include?: string[]; exclude?: string[] }
 interface Cases {
-  placement: { id: string; messages: { role: 'user' | 'assistant'; content: string }[]; expect: { done: boolean | 'any'; start?: string[] } }[];
+  placement: { id: string; messages: { role: 'user' | 'assistant'; content: string }[]; expect: { done: boolean | 'any'; start?: string[]; contentStart?: string[] } }[];
   judge: { id: string; lessonId: string; answer: string; expect: { outcome: string[] } }[];
   tutor: { id: string; lessonId: string; solutionRequest?: boolean; messages: { role: 'user' | 'assistant'; content: string }[]; expect: TextExpect }[];
   feedback: { id: string; lessonId: string; solutionRequest?: boolean; file: string; code: string; passed: boolean; failedMessages: string[]; expect: TextExpect }[];
@@ -104,9 +124,10 @@ async function runModel(
   tokens: Record<Task, number>,
   only: Set<string>,
   creds: { id: string; token: string },
+  contentDir: string,
 ): Promise<{ results: CaseResult[]; stoppedEarly: boolean }> {
   const provider = createWorkersAi(creds.id, creds.token);
-  const content = buildContent(resolve(ROOT, 'tests/fixtures/content'));
+  const content = buildContent(resolve(ROOT, contentDir));
   const results: CaseResult[] = [];
   const timeout = () => AbortSignal.timeout(90_000);
   const learner = (m: { role: 'user' | 'assistant'; content: string }): ChatMessage => ({
@@ -130,7 +151,7 @@ async function runModel(
     for (const c of cases.placement) {
       const { v, ms, error } = await time(() =>
         provider.chat({
-          model, maxTokens: tokens.placement, json: PLACEMENT_SCHEMA, signal: timeout(),
+          model, maxTokens: tokens.placement, json: PLACEMENT_SCHEMA, reasoningEffort: effortFor('placement', model), signal: timeout(),
           messages: [{ role: 'system', content: placementPrompt(content) }, ...c.messages.map(learner)],
         }),
       );
@@ -140,7 +161,7 @@ async function runModel(
       let correct = false;
       if (valid) {
         const placed = parsed!.done === true && parsed!.placement !== undefined ? validatePlacement(content, parsed!.placement) : null;
-        const okPlacement = placed?.ok === true && (c.expect.start ?? []).includes(placed.placement.startLessonId);
+        const okPlacement = placed?.ok === true && expectedStarts(c.expect, contentDir).includes(placed.placement.startLessonId);
         if (c.expect.done === false) correct = parsed!.done !== true;
         else if (c.expect.done === true) correct = okPlacement;
         else correct = parsed!.done !== true || okPlacement;
@@ -155,7 +176,7 @@ async function runModel(
       const authored = lesson.checkpoint!.branches.map((b) => b.outcome as string);
       const { v, ms, error } = await time(() =>
         provider.chat({
-          model, maxTokens: tokens.judge, json: JUDGE_SCHEMA, signal: timeout(),
+          model, maxTokens: tokens.judge, json: JUDGE_SCHEMA, reasoningEffort: effortFor('judge', model), signal: timeout(),
           messages: [{ role: 'system', content: judgePrompt(lesson) }, { role: 'user', content: wrapLearner(c.answer) }],
         }),
       );
@@ -311,8 +332,12 @@ async function main() {
   }
 
   const cases = parse(readFileSync(resolve(ROOT, 'tests/eval/cases.yaml'), 'utf8')) as Cases;
-  console.log(`maxTokens: ${JSON.stringify(tokens)}; cases: ${Object.values(cases).reduce((n, c) => n + c.length, 0)}`);
-  const all = await Promise.all(models.map(async (m) => ({ m, ...(await runModel(m, cases, tokens, only, creds)) })));
+  const contentDir = contentDirFrom(args);
+  if (contentDir !== FIXTURE_CONTENT && [...only].some((t) => t !== 'placement')) {
+    throw new Error('Only placement cases can run on --content other than the fixtures; add --only placement');
+  }
+  console.log(`content: ${contentDir}; maxTokens: ${JSON.stringify(tokens)}; cases: ${Object.values(cases).reduce((n, c) => n + c.length, 0)}`);
+  const all = await Promise.all(models.map(async (m) => ({ m, ...(await runModel(m, cases, tokens, only, creds, contentDir)) })));
 
   const head = ['Model', 'JSON valid', 'Placement ok', 'Judge ok', 'Tutor ok', 'Refuses solutions', 'Empty reply', 'Errors', 'p50 latency', '$/1000 learners'];
   console.log('\n' + table([head, ...all.map((r) => summarise(r.m, r.results, r.stoppedEarly))]));

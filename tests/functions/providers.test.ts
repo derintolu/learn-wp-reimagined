@@ -76,6 +76,15 @@ describe('workers-ai adapter', () => {
     expect(body.response_format.type).toBe('json_schema');
     expect(body.response_format.json_schema.schema).toEqual(schema);
   });
+  it('chat sends reasoning_effort only when the route sets one', async () => {
+    const f = mockFetch(Response.json({ choices: [{ message: { content: '{}' } }] }));
+    await cf().chat({ model: '@cf/openai/gpt-oss-120b', messages: msgs, maxTokens: 50, reasoningEffort: 'low' });
+    expect(JSON.parse((f.mock.calls[0] as unknown as [string, RequestInit])[1].body as string).reasoning_effort).toBe('low');
+    const g = mockFetch(Response.json({ choices: [{ message: { content: '{}' } }] }));
+    await cf().chat({ model: '@cf/openai/gpt-oss-120b', messages: msgs, maxTokens: 50 });
+    expect(JSON.parse((g.mock.calls[0] as unknown as [string, RequestInit])[1].body as string)).not.toHaveProperty('reasoning_effort');
+  });
+
   it('chat turns a scalar-only reply (a number or boolean) into text, so .trim() never breaks', async () => {
     mockFetch(Response.json({ choices: [{ message: { content: 42 } }] }));
     expect((await cf().chat({ model: 'm', messages: msgs, maxTokens: 5 })).text).toBe('42');
@@ -425,6 +434,18 @@ describe('routeFor', () => {
     expect(routeFor('judge', { ...base, CF_ACCOUNT_ID: 'a', CF_AI_TOKEN: 't' })!.maxTokens).toBe(300);
     expect(routeFor('tutor', { ...base, CF_ACCOUNT_ID: 'a', CF_AI_TOKEN: 't' })!.maxTokens).toBe(700);
     expect(routeFor('feedback', { ...base, CF_ACCOUNT_ID: 'a', CF_AI_TOKEN: 't' })!.maxTokens).toBe(300);
+  });
+  it('placement and judge ask gpt-oss for low reasoning effort; tutor and feedback set none', () => {
+    const env = { ...base, CF_ACCOUNT_ID: 'a', CF_AI_TOKEN: 't' };
+    expect(routeFor('placement', env)!.reasoningEffort).toBe('low');
+    expect(routeFor('judge', env)!.reasoningEffort).toBe('low');
+    expect(routeFor('tutor', env)!.reasoningEffort).toBeUndefined();
+    expect(routeFor('feedback', env)!.reasoningEffort).toBeUndefined();
+    // A model override doesn't inherit the default model's effort.
+    const other = { ...env, AI_ROUTES: JSON.stringify({ placement: { model: '@cf/meta/llama-4-scout-17b-16e-instruct' } }) };
+    expect(routeFor('placement', other)!.reasoningEffort).toBeUndefined();
+    const tokensOnly = { ...env, AI_ROUTES: JSON.stringify({ placement: { maxTokens: 900 } }) };
+    expect(routeFor('placement', tokensOnly)!.reasoningEffort).toBe('low');
   });
   it('AI_ROUTES override wins, including anthropic when key set', () => {
     const env: Env = {
