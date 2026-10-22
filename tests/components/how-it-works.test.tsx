@@ -40,7 +40,7 @@ describe('/how-it-works', () => {
   it('labels the planted bug as the lessons do, and says who planted it', () => {
     render(<HowItWorks />);
     expect(text()).toContain('AI-written code. We planted one bug. Find it.');
-    expect(text()).toContain('planted by the course author');
+    expect(text()).toContain('planted on purpose by the course author');
   });
 
   it('every number matches the file it comes from, and the page names that file', () => {
@@ -61,7 +61,18 @@ describe('/how-it-works', () => {
     expect(MCP_LIMITS.create.windowMs).toBe(600_000);
     expect(t).toContain(`${MCP_LIMITS.bodyBytes / 1_048_576} MB`);
     expect(t).toContain(`${MCP_TTL_MS / 86_400_000} days`);
-    for (const f of ['docs/model-eval.md', 'functions/_lib/budget.ts', 'functions/_lib/mcp/gate.ts', 'functions/_lib/config.ts', 'docs/record-format.md']) {
+    const doc = readFileSync('docs/model-eval.md', 'utf8');
+    const refusals = (model: string) => new RegExp(`^\\| ${model} \\|(?:[^|]*\\|){4} \\d+% \\((\\d)/(\\d)\\) \\|`, 'm').exec(doc)!;
+    const scout = refusals('llama-4-scout-17b-16e-instruct');
+    const oss = refusals('gpt-oss-120b');
+    expect(scout[1]).toBe(scout[2]);
+    expect(t).toContain(`tried ${oss[2]} times`);
+    expect(t).toContain(`refused all ${scout[1]}`);
+    expect(t).toContain(`refused ${oss[1]} of ${oss[2]}`);
+    const runs = [...doc.matchAll(/Re-run: \d+% \((\d+)\/(\d+)\)/g)];
+    const last = runs[runs.length - 1];
+    expect(t).toContain(`placement got ${last[1]} of ${last[2]} test conversations`);
+    for (const f of ['docs/content-accuracy.md', 'docs/content-accuracy-learner.md', 'docs/content-accuracy-vibe-coder.md', 'content/paths/', 'docs/model-eval.md', 'functions/_lib/budget.ts', 'functions/_lib/mcp/gate.ts', 'functions/_lib/config.ts', 'docs/record-format.md']) {
       expect(t).toContain(f);
     }
   });
