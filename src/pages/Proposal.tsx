@@ -114,7 +114,7 @@ export function Proposal() {
             <strong>Learning Pathways are set by role and level.</strong> The 2024 relaunch introduced pathways that guide
             learners from beginner through intermediate to advanced (<a href={LEARN.relaunch}>the relaunch post</a>). The{' '}
             <a href={LEARN.userPathway}>User pathway</a>, for example, is Beginner, Intermediate and Advanced WordPress User.
-            Every learner sees the same pathway, whatever they already know.
+            Learners pick a level themselves; nothing places them.
           </li>
           <li>
             <strong>The team's April 2026 AI work helps authors.</strong> The{' '}
@@ -150,7 +150,7 @@ export function Proposal() {
             each result explains itself. The AI changes the route through the course, not just the text beside it.
           </li>
           <li>
-            <strong>Coding still matters.</strong> The AI never hands over working code and moves on. Learners predict what
+            <strong>Coding still matters.</strong> The AI is told never to hand over working code and move on. Learners predict what
             code does, explain it, find a bug planted in AI-written code, and make the fix by hand. Checks that don't depend
             on the AI decide whether the fix is right.
           </li>
@@ -254,8 +254,8 @@ export function Proposal() {
         <h3>Accessibility</h3>
         <p>
           The target is WCAG 2.2 AA. A test checks that every animation in the stylesheets has a reduced-motion override (
-          <Cite to="src-motion">the guard</Cite>). Pages are checked for heading order and for no sideways scrolling at
-          phone width. Full keyboard use is a requirement. Nothing here has had an outside accessibility audit, and that
+          <Cite to="src-motion">the guard</Cite>). Tests check each page's heading order, and the pages were checked in the
+          browser for no sideways scrolling at phone width. Full keyboard use is a requirement. Nothing here has had an outside accessibility audit, and that
           would come before Learn adopted any of it.
         </p>
         <h3>Upkeep</h3>
@@ -285,7 +285,7 @@ export function Proposal() {
         <ul class="decisions">
           <li>
             <strong>Authored branching, not AI-invented paths.</strong> The AI judges and chooses among outcomes a person
-            wrote, so every route through a course can be reviewed and nothing surprises the reviewer.{' '}
+            wrote, so every route can be reviewed before a learner sees it.{' '}
             <em>The cost:</em> someone has to write a rubric and three outcomes for every checkpoint, and the course only
             adapts in the ways its authors foresaw.
           </li>

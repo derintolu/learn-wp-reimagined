@@ -18,7 +18,7 @@ const COURSE_RULES = [
 
 function courseDescription(liveTitles: string[]): string {
   const list = liveTitles.length > 1 ? `${liveTitles.slice(0, -1).join(', ')} and ${liveTitles[liveTitles.length - 1]}` : liveTitles[0] ?? 'WordPress';
-  return `An unofficial concept course adapted from Learn WordPress, build something real one hand edit at a time. Paths: ${list}.`;
+  return `An unofficial concept course adapted from Learn WordPress. Build something real, one hand edit at a time. Paths: ${list}.`;
 }
 
 /** The learning-mcp course object for a content bundle (not yet validated). */

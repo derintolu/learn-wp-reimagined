@@ -114,7 +114,8 @@ describe('BugCard', () => {
 
     const box = screen.getByRole('region', { name: /Catch the bug/ });
     expect(box.textContent).toContain('AI-written code. We planted one bug. Find it.');
-    expect(box.textContent).toContain(`Look at the preview on the right, then fix ${BUG_FILE} there by hand.`);
+    expect(box.textContent).toContain(`Read ${BUG_FILE} and the preview on the right, then fix it by hand.`);
+    expect(box.textContent).not.toContain('Look at the preview');
     expect(within(box).queryByRole('textbox')).toBeNull(); // the editor lives in the workspace
     // Before the first check the checklist is grey and neutral: one row per fix check, no messages.
     const items = within(box).getAllByRole('listitem');

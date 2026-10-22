@@ -59,6 +59,7 @@ describe('course conversion', () => {
     expect(text).not.toMatch(/your theme/i);
     expect(course.rules[2]).toBe('The learner edits their files by hand. Never write a whole file for them; explain, hint and let them type it.');
     for (const p of live) expect(course.description).toContain(p.title);
+    expect(course.description).toMatch(/^An unofficial concept course adapted from Learn WordPress\. Build something real, one hand edit at a time\. Paths: /);
   });
 
   it('keeps coming-soon paths with no lessons', () => {

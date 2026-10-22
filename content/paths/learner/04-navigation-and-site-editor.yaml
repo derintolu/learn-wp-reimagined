@@ -13,6 +13,8 @@ sources:
     url: https://wordpress.org/documentation/article/site-editor/
   - title: Navigation block (WordPress documentation)
     url: https://wordpress.org/documentation/article/navigation-block/
+  - title: Site Editor navigation (WordPress documentation)
+    url: https://wordpress.org/documentation/article/site-editor-navigation/
 beats:
   - id: two-editors
     goal: Tell the block editor and the Site Editor apart.

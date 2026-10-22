@@ -110,6 +110,18 @@ describe('/proposal', () => {
     for (let i = 1; i < levels.length; i++) expect(levels[i] - levels[i - 1]).toBeLessThanOrEqual(1);
   });
 
+  it('states only what the demo can show', () => {
+    render(<Proposal />);
+    const t = text();
+    expect(t).not.toContain('Every learner sees the same pathway');
+    expect(t).toContain('Learners pick a level themselves; nothing places them.');
+    expect(t).not.toContain('The AI never hands over working code');
+    expect(t).toContain('The AI is told never to hand over working code');
+    expect(t).not.toContain('nothing surprises the reviewer');
+    expect(t).toContain('every route can be reviewed');
+    expect(t).toContain('were checked in the browser');
+  });
+
   it('has no emoji and no sales language', () => {
     render(<Proposal />);
     const t = text();

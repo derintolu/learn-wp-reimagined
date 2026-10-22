@@ -163,7 +163,7 @@ export function BugCard({ lesson, ai, onSolved }: { lesson: Lesson; ai: AiState;
         </div>
       </div>
       <p class="bug__lead">
-        Look at the preview {narrow ? 'in the Workspace tab' : 'on the right'}, then fix <code>{bug.file}</code> there by hand.
+        Read <code>{bug.file}</code> and the preview {narrow ? 'in the Workspace tab' : 'on the right'}, then fix it by hand.
       </p>
       <FixChecks rows={results} hint={misses >= MISSES_BEFORE_HINT} solved={solved} />
       {!solved && (

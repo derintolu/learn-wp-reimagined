@@ -53,6 +53,15 @@ describe('learner path content', () => {
     for (const l of [l3, l4, l5]) expect(to(l, 'review')).toBe(l.id);
   });
 
+  it('lesson 5 states what the AI plugin does accurately, and lesson 4 cites the Site Editor navigation docs', () => {
+    const beat = (id: string) => l5.beats.find((b) => b.id === id)!.content;
+    expect(beat('the-ai-plugin')).toContain('Nothing runs until you switch a feature on, and most only run when you click.');
+    expect(beat('the-ai-plugin')).not.toContain('Nothing runs until you ask');
+    expect(beat('connectors')).toContain("There's no key, and the AI plugin isn't installed here, so nothing can be generated in this practice site.");
+    expect(beat('connectors')).not.toContain('the course this lesson is adapted from');
+    expect(l4.sources.map((s) => s.url)).toContain('https://wordpress.org/documentation/article/site-editor-navigation/');
+  });
+
   it('every page file is a pages/<slug>.html file', () => {
     const files = [
       ...Object.keys(c.paths.learner.previewFiles ?? {}),

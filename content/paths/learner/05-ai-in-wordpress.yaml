@@ -37,7 +37,7 @@ beats:
 
       Treat that key like a password. The screen masks it, but a key typed in here is stored in your site's database without encryption.
 
-      You won't connect one in this practice site, and you don't need to. There's no key, and the course this lesson is adapted from points out that its AI tools need a connected provider, so they can't generate anything in Playground. Notice the banner at the top, though: it says the **AI plugin** can use your connectors to generate alt text, titles, excerpts and more. That's where the writing features live.
+      You won't connect one in this practice site, and you don't need to. There's no key, and the AI plugin isn't installed here, so nothing can be generated in this practice site. Notice the banner at the top, though: it says the **AI plugin** can use your connectors to generate alt text, titles, excerpts and more. That's where the writing features live.
     question: Where would you keep an API key safe, if you had one?
   - id: the-ai-plugin
     goal: Know what the AI plugin adds, and that it's opt-in.
@@ -50,7 +50,7 @@ beats:
       - **Editorial Notes**: notes on each block about accessibility, readability, grammar and SEO.
       - **Content Resizing**: shorten, expand or rephrase a block.
 
-      Nothing runs until you ask. The plugin describes itself as experimental, so its features may change, and it suggests trying it on a test site first.
+      Nothing runs until you switch a feature on, and most only run when you click. The plugin describes itself as experimental, so its features may change, and it suggests trying it on a test site first.
     question: Which of these would save you the most time, do you think?
   - id: drafts-not-answers
     goal: Treat AI output as a draft.

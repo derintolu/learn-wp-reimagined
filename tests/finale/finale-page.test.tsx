@@ -118,7 +118,8 @@ describe('Finale page', () => {
 
   it('says what to do next and that this is an unofficial concept', () => {
     render(<Finale />);
-    expect(screen.getByText(/Appearance → Themes → Add New Theme → Upload Theme/)).toBeTruthy();
+    expect(screen.getByText(/Appearance → Themes → Add Theme → Upload Theme/)).toBeTruthy();
+    expect(screen.queryByText(/Add New/)).toBeNull();
     expect(screen.getByText(/unofficial concept/i)).toBeTruthy();
   });
 });
@@ -146,6 +147,8 @@ describe('Finale per path', () => {
     expect(bp).toContain('"activatePlugin"');
     expect(bp).toContain('my-first-plugin/my-first-plugin.php');
     expect(screen.getByRole('list', { name: 'Files in your plugin' })).toBeTruthy();
+    expect(screen.getByText(/Plugins → Add Plugin → Upload Plugin/)).toBeTruthy();
+    expect(screen.queryByText(/Add New/)).toBeNull();
   });
 
   it('/finale/learner offers "Open your site in Playground" and no download', async () => {
@@ -155,6 +158,8 @@ describe('Finale per path', () => {
     expect(link.getAttribute('href')!.startsWith('https://playground.wordpress.net/#')).toBe(true);
     expect(screen.queryByRole('button', { name: /Download/ })).toBeNull();
     expect(screen.getByRole('list', { name: 'Pages in your site' }).textContent).toContain('pages/home.html');
+    const lede = screen.getByText(/finished reference site/).textContent!;
+    expect(lede.match(/\bsite\b/g)!.length).toBe(1);
   });
 
   it('shows the path-specific h1 once lessons are done', async () => {

@@ -54,7 +54,7 @@ const THEME_COPY: Copy = {
     title: 'Install it on a real site',
     body: (slug) => (
       <>
-        In any WordPress site, go to Appearance → Themes → Add New Theme → Upload Theme, choose <code>{slug}.zip</code> and activate it.
+        In any WordPress site, go to Appearance → Themes → Add Theme → Upload Theme, choose <code>{slug}.zip</code> and activate it.
         Then open the Site Editor and keep shaping it.
       </>
     ),
@@ -78,13 +78,13 @@ const PLUGIN_COPY: Copy = {
   none: "Here's the plugin this path builds. Open the finished reference plugin in a real WordPress site, then work through the lessons to make it yours.",
   download: 'Download your plugin (.zip)',
   open: 'Open in WordPress Playground',
-  tooBig: 'Your plugin is too big for a Playground link. Download the zip, open playground.wordpress.net and upload it under Plugins → Add New Plugin.',
+  tooBig: 'Your plugin is too big for a Playground link. Download the zip, open playground.wordpress.net and upload it under Plugins → Add Plugin.',
   fine: 'Playground runs WordPress entirely in your browser. It takes a few seconds to start, then opens a site with your plugin already active. Nothing is uploaded anywhere.',
   next: {
     title: 'Install it on a real site',
     body: (slug) => (
       <>
-        In any WordPress site, go to Plugins → Add New Plugin → Upload Plugin, choose <code>{slug}.zip</code> and activate it. Try it on a
+        In any WordPress site, go to Plugins → Add Plugin → Upload Plugin, choose <code>{slug}.zip</code> and activate it. Try it on a
         test site first, the way you would with any code an AI wrote for you.
       </>
     ),
@@ -104,7 +104,7 @@ const SITE_COPY: Copy = {
   lessonsLabel: 'Lessons in your site',
   made: "That's a real WordPress site, and you built it. Watch it run in a full WordPress site in your browser.",
   finished: "Here's the finished site from the path, running in a real WordPress site in your browser.",
-  none: "Here's the site this path builds. Open the finished reference site in a real WordPress site, then work through the lessons to make it yours.",
+  none: "Here's what this path builds. Open the finished reference site in WordPress Playground, then work through the lessons to make it yours.",
   download: null,
   open: 'Open your site in Playground',
   tooBig: 'Your site is too big for a Playground link. Head back to the lessons and trim a page or two.',

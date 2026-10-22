@@ -344,7 +344,7 @@ describe('Studio', () => {
     await new Promise((res) => setTimeout(res, 30)); // let the opening effects settle, as a real click would
     fireEvent.click(go);
     const box = await screen.findByRole('region', { name: /Catch the bug/ });
-    expect(box.textContent).toContain('Look at the preview in the Workspace tab, then fix');
+    expect(box.textContent).toMatch(/Read \S+ and the preview in the Workspace tab, then fix it by hand\./);
     const lessonPane = document.querySelector('[data-pane-id="lesson"]') as HTMLElement;
     await new Promise((res) => setTimeout(res, 30));
     expect(lessonPane.hidden).toBe(false);
