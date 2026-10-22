@@ -136,6 +136,10 @@ export function playgroundBlueprint(
 }
 
 /** The blueprint as minified, URI-encoded JSON in the fragment, as the Playground docs show. */
-export function playgroundUrl(files: Record<string, string>, preview: Preview): string {
-  return `https://playground.wordpress.net/#${encodeURIComponent(JSON.stringify(playgroundBlueprint(files, preview)))}`;
+export function playgroundUrl(
+  files: Record<string, string>,
+  preview: Preview,
+  opts?: Parameters<typeof playgroundBlueprint>[2],
+): string {
+  return `https://playground.wordpress.net/#${encodeURIComponent(JSON.stringify(playgroundBlueprint(files, preview, opts)))}`;
 }

@@ -41,6 +41,12 @@ describe('playgroundBlueprint by preview kind', () => {
     expect(JSON.parse(decodeURIComponent(url.slice(url.indexOf('#') + 1)))).toEqual(SNAPSHOT);
   });
 
+  it('playgroundUrl passes its options through to the blueprint', () => {
+    const url = playgroundUrl(themeFiles, THEME, { landing: '/about/', login: false });
+    expect(JSON.parse(decodeURIComponent(url.slice(url.indexOf('#') + 1)))).toEqual(playgroundBlueprint(themeFiles, THEME, { landing: '/about/', login: false }));
+    expect(playgroundUrl(themeFiles, THEME, {})).toBe(playgroundUrl(themeFiles, THEME));
+  });
+
   it('lands on opts.landing', () => {
     expect(playgroundBlueprint(themeFiles, THEME, { landing: '/about/' }).landingPage).toBe('/about/');
   });

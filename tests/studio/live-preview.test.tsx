@@ -66,8 +66,36 @@ describe('live preview', () => {
     render(<LivePreview files={files} preview={PV} landing="/" onReady={() => {}} />);
     expect(await screen.findByText(/Couldn't start WordPress here\./)).toBeTruthy();
     const link = screen.getByRole('link', { name: 'Open in Playground' }) as HTMLAnchorElement;
-    expect(link.href).toBe(playgroundUrl(files, PV));
+    expect(link.href).toBe(playgroundUrl(files, PV, { landing: '/', login: false }));
     expect(link.target).toBe('_blank');
+  });
+
+  it("the fallback link boots a plugin on the known main file and opens on the lesson's page", async () => {
+    setPlaygroundImporter(async () => {
+      throw new Error('offline');
+    });
+    const PLUGIN = { kind: 'plugin', slug: 'hello-learn' } as const;
+    const MAIN = 'hello-learn/hello-learn.php';
+    const GOOD = '<?php\n/* Plugin Name: Hello Learn */\n';
+    const mine = { [MAIN]: '<?php fatal(' };
+    render(<LivePreview files={mine} preview={PLUGIN} landing="/wp-admin/plugins.php" known={{ [MAIN]: GOOD }} onReady={() => {}} />);
+    const link = (await screen.findByRole('link', { name: 'Open in Playground' })) as HTMLAnchorElement;
+    const bp = JSON.parse(decodeURIComponent(link.href.slice(link.href.indexOf('#') + 1)));
+    expect(bp).toEqual(playgroundBlueprint(mine, PLUGIN, { landing: '/wp-admin/plugins.php', known: { [MAIN]: GOOD }, login: false }));
+    expect(bp.landingPage).toBe('/wp-admin/plugins.php');
+    expect(bp.steps.find((s: { path?: string }) => s.path?.endsWith(MAIN)).data).toBe(GOOD);
+  });
+
+  it('the fallback link for a site logs in, as the live preview does', async () => {
+    setPlaygroundImporter(async () => {
+      throw new Error('offline');
+    });
+    const pages = { 'pages/home.html': '<p>hi</p>' };
+    render(<LivePreview files={pages} preview={{ kind: 'site' }} landing="/wp-admin/" onReady={() => {}} />);
+    const link = (await screen.findByRole('link', { name: 'Open in Playground' })) as HTMLAnchorElement;
+    const bp = JSON.parse(decodeURIComponent(link.href.slice(link.href.indexOf('#') + 1)));
+    expect(bp.login).toBe(true);
+    expect(bp.landingPage).toBe('/wp-admin/');
   });
 
   it('shows booting then live and hands over the preview', async () => {

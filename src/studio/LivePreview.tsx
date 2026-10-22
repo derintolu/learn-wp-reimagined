@@ -58,7 +58,7 @@ export function LivePreview({
         {status === 'failed' && (
           <>
             Couldn't start WordPress here.{' '}
-            <a href={playgroundUrl(files, preview)} target="_blank" rel="noopener noreferrer">
+            <a href={playgroundUrl(files, preview, { landing, known, login: preview.kind === 'site' })} target="_blank" rel="noopener noreferrer">
               Open in Playground
             </a>
           </>
