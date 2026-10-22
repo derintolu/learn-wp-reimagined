@@ -404,8 +404,8 @@ describe('Home', () => {
     expect(text).toContain('is also a remote MCP server');
     expect(text).not.toContain('will also be a remote MCP server');
     expect(screen.getByRole('link', { name: 'Connect your agent' }).getAttribute('href')).toBe('/connect');
-    expect(text).not.toContain('Each path has a moment');
-    expect(text).toContain('The block theme path has a moment');
+    expect(text).toContain('Every path has a moment');
+    expect(text).not.toContain('The block theme path has a moment');
   });
 
   it('never skips a heading level inside the hero card', async () => {

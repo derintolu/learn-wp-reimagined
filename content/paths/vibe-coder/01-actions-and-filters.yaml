@@ -1,0 +1,195 @@
+id: vc-actions-and-filters
+title: Hooks, actions and filters
+minutes: 6
+landing: /hello-world/
+sources:
+  - title: WordPress Hooks (Learn WordPress lesson)
+    url: https://learn.wordpress.org/lesson/wordpress-hooks/
+  - title: Action Hooks (Learn WordPress lesson)
+    url: https://learn.wordpress.org/lesson/action-hooks/
+  - title: Filter Hooks (Learn WordPress lesson)
+    url: https://learn.wordpress.org/lesson/filter-hooks/
+  - title: Hooks (Plugin Handbook)
+    url: https://developer.wordpress.org/plugins/hooks/
+  - title: Actions (Plugin Handbook)
+    url: https://developer.wordpress.org/plugins/hooks/actions/
+  - title: Filters (Plugin Handbook)
+    url: https://developer.wordpress.org/plugins/hooks/filters/
+  - title: the_content filter (Code Reference)
+    url: https://developer.wordpress.org/reference/hooks/the_content/
+beats:
+  - id: what-hooks-are
+    goal: Know what a hook is, and where your plugin's code runs.
+    content: |
+      You don't change WordPress itself to make it do something new. You **hook** into it. Hooks are named spots, all through WordPress, where it stops and lets other code join in. Plugins and themes are built on them, and WordPress uses them a lot itself.
+
+      Your plugin is one PHP file, `my-first-plugin/my-first-plugin.php`. The comment at the top is its header. `Plugin Name` is the only line WordPress requires, and it's what you see on the Plugins screen. The plugin is already active in your preview.
+
+      ```php
+      <?php
+      /**
+       * Plugin Name: My First Plugin
+       */
+      ```
+
+      WordPress loads every active plugin early, on every request. So code you put in the file runs straight away, long before the page exists. That's why plugins don't do much directly: they hand WordPress a function to call later, at the right hook.
+
+      There are two kinds of hooks: **actions** and **filters**.
+    question: If an AI assistant pasted a block of code straight into this file, when would you expect it to run?
+  - id: actions-do-something
+    goal: See what an action is.
+    content: |
+      An **action** is a moment: "WordPress has just done this, do you want to do something now?" You attach a function, called a **callback**, with `add_action()`:
+
+      ```php
+      function my_first_plugin_setup() {
+      	// Do something useful here.
+      }
+      add_action( 'init', 'my_first_plugin_setup' );
+      ```
+
+      - The first argument is the hook's name. `init` fires once WordPress has loaded, on every request.
+      - The second is the callback. Here it's the name of the function, as a string.
+      - You can also pass a priority (lower runs earlier, and the default is 10) and how many arguments your callback accepts.
+
+      An action's callback does its job and **returns nothing**. WordPress doesn't use anything it gives back.
+
+      Your function names start with `my_first_plugin_` for a reason: every plugin shares the same PHP world, so a unique prefix stops your function clashing with someone else's.
+    question: Why might two plugins that both define a function called setup() break a site?
+  - id: filters-give-back
+    goal: See what a filter is, and why it must return.
+    content: |
+      A **filter** is different. WordPress hands your callback a value, and your callback hands back a value, usually the same one changed a little. Here's the line in WordPress that shows a post's content:
+
+      ```php
+      $content = apply_filters( 'the_content', $content );
+      ```
+
+      WordPress passes the post's content to every callback on `the_content`, and keeps **whatever comes back** as the new content. So a filter callback looks like this:
+
+      ```php
+      function my_first_plugin_shout( $title ) {
+      	return $title . '!';
+      }
+      add_filter( 'the_title', 'my_first_plugin_shout' );
+      ```
+
+      The rule from the Plugin Handbook: a filter takes the value, changes it, and **returns** it. Filters should work on their own, with no side effects, and that includes not printing anything to the page.
+    question: What do you think WordPress would show for the post if a the_content callback gave back nothing at all?
+  - id: echo-versus-return
+    goal: Tell echo from return.
+    content: |
+      This is the slip AI assistants make most with filters, and it's easy to miss when you skim:
+
+      - `echo` prints something **right now**, wherever PHP happens to be in building the page.
+      - `return` hands a value **back** to whoever called the function. Nothing is printed.
+
+      In a filter, WordPress wants the value back, so it can put it in the right place. Your preview is open on the default "Hello world!" post, showing your plugin running on a real site.
+
+      Next, an AI assistant has written your plugin's first feature: a short thank-you note at the end of every post. Before you look at the preview, read the callback and predict what you'll see.
+    question: Before you look, where do you think the post's content will end up?
+starterFiles:
+  my-first-plugin/my-first-plugin.php: |
+    <?php
+    /**
+     * Plugin Name: My First Plugin
+     * Description: My first WordPress plugin, built with Learn WordPress, reimagined.
+     * Version: 1.0.0
+     * Requires at least: 6.6
+     * Requires PHP: 7.4
+     * Author: You
+     * License: GPL v2 or later
+     * License URI: https://www.gnu.org/licenses/gpl-2.0.html
+     * Text Domain: my-first-plugin
+     */
+
+    if ( ! defined( 'ABSPATH' ) ) {
+    	exit; // Stop if this file is opened directly, outside WordPress.
+    }
+
+    // Your plugin's code goes below this line.
+bug:
+  id: bug-filter-echo
+  file: my-first-plugin/my-first-plugin.php
+  code: |
+    <?php
+    /**
+     * Plugin Name: My First Plugin
+     * Description: My first WordPress plugin, built with Learn WordPress, reimagined.
+     * Version: 1.0.0
+     * Requires at least: 6.6
+     * Requires PHP: 7.4
+     * Author: You
+     * License: GPL v2 or later
+     * License URI: https://www.gnu.org/licenses/gpl-2.0.html
+     * Text Domain: my-first-plugin
+     */
+
+    if ( ! defined( 'ABSPATH' ) ) {
+    	exit; // Stop if this file is opened directly, outside WordPress.
+    }
+
+    /**
+     * Add a short thank-you note to the end of every post.
+     */
+    function my_first_plugin_add_note( $content ) {
+    	$note = '<p class="my-first-plugin-note">Thanks for reading! This note was added by my first plugin.</p>';
+
+    	echo $content . $note;
+    }
+    add_filter( 'the_content', 'my_first_plugin_add_note' );
+  explanation: >-
+    The callback used echo where a filter needs return. echo printed the post and the note straight away,
+    while WordPress was still building the page, so they landed at the very top, above the site's header.
+    The callback then gave nothing back, and WordPress used that nothing as the post's content, so the
+    post's own spot came up empty. Filters receive a value and must return it: return $content . $note
+    puts the note after the post, where it belongs. It's an easy mistake for an AI assistant, because echo
+    is right in so much other PHP. Your fixed file is now your plugin.
+  fixChecks:
+    - type: regex
+      file: my-first-plugin/my-first-plugin.php
+      pattern: '^(?![\s\S]*(?:^|\n)(?![^\S\n]*(?://|#|/?\*))[^\n]*\b(?:echo|print|printf)\b)'
+      message: A filter callback shouldn't print anything. Look for the line that sends the content straight to the page.
+    - type: regex
+      file: my-first-plugin/my-first-plugin.php
+      pattern: '\breturn\s*\(?\s*(?:\$content\s*\.\s*\$note|\$note\s*\.\s*\$content)\s*\)?\s*;|\$content\s*\.=\s*\$note\s*;[\s\S]*?\breturn\s*\(?\s*\$content\s*\)?\s*;'
+      message: The callback should give the post's content back to WordPress, with the note added to it. A filter returns the value it was given.
+    - type: regex
+      file: my-first-plugin/my-first-plugin.php
+      pattern: '\badd_filter\(\s*[''"]the_content[''"]\s*,\s*(?:[''"]my_first_plugin_add_note[''"]|(?:static\s+)?function\b|fn\b)'
+      message: Keep the add_filter line that hooks the callback to the_content.
+    - type: contains
+      file: my-first-plugin/my-first-plugin.php
+      value: class="my-first-plugin-note"
+      message: Keep the note itself, with its my-first-plugin-note class. The next lesson styles it.
+checkpoint:
+  id: cp-filter-returns
+  question: >-
+    In a sentence or two: what does a filter callback have to give back to WordPress, and what happens
+    to the post if it prints the content with echo instead?
+  kind: free-text
+  rubric: >-
+    Advance if the answer says a filter callback must return a value: the value it was given (the content),
+    usually changed. Wording can be loose ("hand it back", "return the content"). Credit any sensible
+    consequence of echoing: the content comes up empty or missing, or it prints in the wrong place, at the
+    top of the page. Review if it says the callback should echo or print, says it doesn't need to return
+    anything, mixes up return and echo, or is unsure. Skip only if the answer gets the filter rule right and
+    also correctly explains how actions differ (an action's callback does something and returns nothing, or
+    WordPress ignores what it returns).
+  branches:
+    - outcome: advance
+      to: vc-enqueueing
+      message: That's the rule, and you'll catch it in AI code from now on. Next, let's give that note some style.
+    - outcome: review
+      to: vc-actions-and-filters
+      message: Let's go over filters and return once more. It's the idea everything else here builds on.
+    - outcome: skip
+      to: vc-escaping-and-sanitizing
+      message: You know actions from filters already, so we'll skip ahead to keeping your plugin safe.
+  fallback:
+    - label: It must return the content, changed or not. With echo, the post's content goes missing.
+      outcome: advance
+    - label: It should echo the new content, so the visitor sees it.
+      outcome: review
+    - label: I'm not sure yet
+      outcome: review

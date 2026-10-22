@@ -169,7 +169,14 @@ describe('Finale per path', () => {
     render(<Finale pathId="nope" />);
     expect(screen.getByRole('heading', { level: 1 }).textContent).toBe('Nothing here');
     cleanup();
-    render(<Finale pathId="vibe-coder" />);
-    expect(screen.getByRole('heading', { level: 1 }).textContent).toBe('Nothing here');
+    // Every real path is live now, so make one coming-soon for this check.
+    const saved = content.paths['vibe-coder'];
+    content.paths['vibe-coder'] = { ...saved, status: 'coming-soon' };
+    try {
+      render(<Finale pathId="vibe-coder" />);
+      expect(screen.getByRole('heading', { level: 1 }).textContent).toBe('Nothing here');
+    } finally {
+      content.paths['vibe-coder'] = saved;
+    }
   });
 });

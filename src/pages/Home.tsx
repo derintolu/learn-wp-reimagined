@@ -101,7 +101,7 @@ export function Home() {
               <li>
                 <h3>Coding still matters</h3>
                 <p>
-                  The block theme path has a moment where the AI's code is wrong on purpose. You read it, find the
+                  Every path has a moment where the AI's code is wrong on purpose. You read it, find the
                   bug and fix it by hand before you move on.
                 </p>
               </li>
