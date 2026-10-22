@@ -11,13 +11,24 @@ const live = Object.values(c.paths).filter((p) => p.status === 'live');
 const has = (o: object, k: string) => Object.prototype.hasOwnProperty.call(o, k);
 
 describe('there is at least one live path', () => {
-  it('has live paths', () => expect(live.length).toBeGreaterThan(0));
+  it('has live paths, block theme among them', () => {
+    expect(live.length).toBeGreaterThan(0);
+    expect(live.map((p) => p.id)).toContain('block-theme');
+  });
 });
 
 describe.each(live.map((p) => [p.id, p] as const))('%s content', (_id, path) => {
   const lessons = path.lessons.map((id) => c.lessons[id]);
   const withCode = lessons.filter((l) => l.checkpoint?.kind === 'code');
   const withBug = lessons.filter((l) => l.bug);
+
+  it('every live path has a planted bug', () => {
+    expect(withBug.length).toBeGreaterThan(0);
+  });
+
+  it('every live path has a code checkpoint', () => {
+    expect(withCode.length).toBeGreaterThan(0);
+  });
 
   it('lesson 1 has a checkpoint', () => {
     expect(lessons[0].checkpoint).toBeTruthy();

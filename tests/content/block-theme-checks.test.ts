@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest';
 import { buildContent } from '../../scripts/build-content';
 import { runChecks } from '../../src/shared/checks';
 import type { Check } from '../../src/shared/types';
+import { SOLUTIONS } from './solutions';
 
 /** The real block-theme path: every starter fails its checks, intended answers pass, plausible mistakes fail. */
 const c = buildContent('content');
@@ -13,7 +14,7 @@ const l2 = L['bt-style-css-and-theme-json'];
 const l3 = L['bt-templates-and-parts'];
 const l4 = L['bt-global-styles'];
 const l5 = L['bt-patterns'];
-const afterL2 = l4.starterFiles!['theme.json'];
+const afterL2 = SOLUTIONS['cp-settings-code']['theme.json'];
 
 describe('block theme path content', () => {
   it('is live with at least 3 checkpoints, one of them code, and lesson 1 has a checkpoint and a bug', () => {

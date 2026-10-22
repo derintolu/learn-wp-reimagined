@@ -18,7 +18,7 @@ const COURSE_RULES = [
 
 function courseDescription(liveTitles: string[]): string {
   const list = liveTitles.length > 1 ? `${liveTitles.slice(0, -1).join(', ')} and ${liveTitles[liveTitles.length - 1]}` : liveTitles[0] ?? 'WordPress';
-  return `An unofficial concept course adapted from Learn WordPress, with paths for ${list}: build something real, one hand edit at a time.`;
+  return `An unofficial concept course adapted from Learn WordPress, build something real one hand edit at a time. Paths: ${list}.`;
 }
 
 /** The learning-mcp course object for a content bundle (not yet validated). */
@@ -69,7 +69,7 @@ export function toCourse(bundle: ContentBundle): unknown {
   return {
     id: COURSE_ID,
     title: 'Learn WordPress, reimagined',
-    description: courseDescription(Object.values(bundle.paths).filter((p) => p.status === 'live').map((p) => p.title.toLowerCase())),
+    description: courseDescription(Object.values(bundle.paths).filter((p) => p.status === 'live').map((p) => p.title)),
     version: COURSE_VERSION,
     language: 'en',
     activityBase: COURSE_ACTIVITY_BASE,

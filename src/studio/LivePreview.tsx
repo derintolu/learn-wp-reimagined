@@ -6,7 +6,6 @@ import { startLivePreview, type LivePreview as Preview } from './previewClient';
 
 type Status = 'booting' | 'live' | 'failed';
 
-
 export function LivePreview({
   files,
   preview,

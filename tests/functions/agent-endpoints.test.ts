@@ -62,11 +62,16 @@ describe('POST /api/agent/handoff', () => {
 
   it("every live path's lessons convert and seed", async () => {
     const bundle = buildContent('content');
-    const live = Object.values(bundle.paths).filter((p) => p.status === 'live');
+    const all = Object.values(bundle.paths);
     const covered = new Set<string>();
+    const skipped = new Set<string>();
     const { client, call } = await connectMcp(routeFetch(mcpRoute, env), 'legacy');
     open.push(client);
-    for (const p of live) {
+    for (const p of all) {
+      if (p.status !== 'live') {
+        skipped.add(p.id);
+        continue;
+      }
       for (const lessonId of [p.lessons[0], p.lessons[p.lessons.length - 1]]) {
         const lesson = bundle.lessons[lessonId];
         const r = await post(handoff, { lessonId, files: { ...(lesson.starterFiles ?? {}) } });
@@ -82,7 +87,10 @@ describe('POST /api/agent/handoff', () => {
         covered.add(p.id);
       }
     }
-    expect([...covered].sort()).toEqual(live.map((p) => p.id).sort());
+    expect(covered.has('block-theme')).toBe(true);
+    expect([...covered].sort()).toEqual(all.filter((p) => p.status === 'live').map((p) => p.id).sort());
+    expect([...skipped].sort()).toEqual(all.filter((p) => p.status !== 'live').map((p) => p.id).sort());
+    expect(covered.size + skipped.size).toBe(all.length);
   });
 
   it("keeps the path's files and drops others and oversized ones", async () => {
