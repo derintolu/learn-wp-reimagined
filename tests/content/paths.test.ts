@@ -23,7 +23,10 @@ describe.each(live.map((p) => [p.id, p] as const))('%s content', (_id, path) => 
   const withBug = lessons.filter((l) => l.bug);
 
   it('placementHints name every lesson in the path', () => {
-    for (const id of path.lessons) expect(path.placementHints, id).toContain(id);
+    for (const id of path.lessons) {
+      const whole = new RegExp('(?<![\\w-])' + id.replace(/[.*+?^${}()|[\]\\]/g, '\\$&') + '(?![\\w-])');
+      expect(whole.test(path.placementHints), id).toBe(true);
+    }
   });
 
   it('every live path has a planted bug', () => {
