@@ -148,6 +148,12 @@ function my_first_plugin_styles() {
       expect(passes(k, php(`${start}\nadd_action( 'wp_enqueue_scripts', fn() => wp_enqueue_style( 'my-first-plugin', plugins_url( 'style.css', __FILE__ ) ) );\n`))).toBe(true);
     });
 
+    it('accepts a return type on the callback, named, anonymous and arrow', () => {
+      expect(passes(k, php(done.replace('function my_first_plugin_enqueue_styles() {', 'function my_first_plugin_enqueue_styles(): void {')))).toBe(true);
+      expect(passes(k, php(`${start}\nadd_action( 'wp_enqueue_scripts', function (): void {\n\t${enqueue}\n} );\n`))).toBe(true);
+      expect(passes(k, php(`${start}\nadd_action( 'wp_enqueue_scripts', fn(): bool => wp_enqueue_style( 'my-first-plugin', plugins_url( 'style.css', __FILE__ ) ) );\n`))).toBe(true);
+    });
+
     it('fails hooking to init, or calling the enqueue loose in the file', () => {
       expect(passes(k, php(done.replace("add_action( 'wp_enqueue_scripts'", "add_action( 'init'")))).toBe(false);
       expect(passes(k, php(`${start}\n${enqueue}\n`))).toBe(false);
@@ -355,6 +361,36 @@ add_filter( 'wp_theme_json_data_theme', fn( $theme_json ) => $theme_json->update
       expect(passes(k, php(edit(ret, '$theme_json->update_with( $new_data );')))).toBe(false);
       expect(passes(k, php(edit(ret, '$theme_json->update_with( $new_data );\n\n\treturn $new_data;')))).toBe(false);
       expect(passes(k, php(edit(ret, '$theme_json->update_with( $new_data );\n\n\treturn $theme_json->get_data();')))).toBe(false);
+    });
+
+    it('fails a call chained after update_with, such as ->get_data(), named or arrow', () => {
+      expect(passes(k, php(edit(ret, 'return $theme_json->update_with( $new_data )->get_data();')))).toBe(false);
+      const arrowChained = start + `
+add_filter( 'wp_theme_json_data_theme', fn( $theme_json ) => $theme_json->update_with( ${arr} )->get_data() );
+`;
+      expect(passes(k, php(arrowChained))).toBe(false);
+    });
+
+    it('accepts typed signatures and return types, named, anonymous and arrow', () => {
+      expect(passes(k, php(edit('function my_first_plugin_theme_json( $theme_json ) {', 'function my_first_plugin_theme_json( WP_Theme_JSON_Data $theme_json ): WP_Theme_JSON_Data {')))).toBe(true);
+      expect(passes(k, php(edit('function my_first_plugin_theme_json( $theme_json ) {', 'function my_first_plugin_theme_json( \\WP_Theme_JSON_Data $theme_json ) : \\WP_Theme_JSON_Data {')))).toBe(true);
+      const anonTyped = start + `
+add_filter( 'wp_theme_json_data_theme', function ( WP_Theme_JSON_Data $theme_json ): WP_Theme_JSON_Data {
+	return $theme_json->update_with( ${arr} );
+} );
+`;
+      const arrowTyped = start + `
+add_filter( 'wp_theme_json_data_theme', fn( WP_Theme_JSON_Data $theme_json ): WP_Theme_JSON_Data => $theme_json->update_with( ${arr} ) );
+`;
+      expect(passes(k, php(anonTyped))).toBe(true);
+      expect(passes(k, php(arrowTyped))).toBe(true);
+    });
+
+    it('the beats teach the pattern with a different style, not the finished answer', () => {
+      const beats = l5.beats.map((b) => b.content).join('\n');
+      expect(beats).toContain('update_with(');
+      expect(beats).not.toContain("'heading' => array(");
+      expect(passes(k, php(start + '\n' + (beats.match(/```php\n([\s\S]*?)```/)?.[1] ?? '')))).toBe(false);
     });
 
     it('fails returning the array without update_with', () => {

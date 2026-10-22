@@ -117,7 +117,7 @@ checkpoint:
       message: Call wp_enqueue_style() with a handle, then the stylesheet's URL from plugins_url( 'style.css', __FILE__ ) (or plugin_dir_url( __FILE__ ) . 'style.css').
     - type: regex
       file: my-first-plugin/my-first-plugin.php
-      pattern: 'function\s+(\w+)\s*\([^)]*\)\s*\{(?:(?!\bfunction\b)[\s\S])*?\bwp_enqueue_style\s*\([\s\S]*?\badd_action\(\s*[''"]wp_enqueue_scripts[''"]\s*,\s*[''"]\1[''"]|\badd_action\(\s*[''"]wp_enqueue_scripts[''"]\s*,\s*[''"](\w+)[''"][\s\S]*?function\s+\2\s*\([^)]*\)\s*\{(?:(?!\bfunction\b)[\s\S])*?\bwp_enqueue_style\s*\(|\badd_action\(\s*[''"]wp_enqueue_scripts[''"]\s*,\s*(?:static\s+)?(?:function\s*\([^)]*\)\s*(?:use\s*\([^)]*\)\s*)?\{(?:(?!\bfunction\b)[\s\S])*?|fn\s*\([^)]*\)\s*=>\s*)\bwp_enqueue_style\s*\('
+      pattern: 'function\s+(\w+)\s*\([^)]*\)(?:\s*:\s*\??[\w\\]+)?\s*\{(?:(?!\bfunction\b)[\s\S])*?\bwp_enqueue_style\s*\([\s\S]*?\badd_action\(\s*[''"]wp_enqueue_scripts[''"]\s*,\s*[''"]\1[''"]|\badd_action\(\s*[''"]wp_enqueue_scripts[''"]\s*,\s*[''"](\w+)[''"][\s\S]*?function\s+\2\s*\([^)]*\)(?:\s*:\s*\??[\w\\]+)?\s*\{(?:(?!\bfunction\b)[\s\S])*?\bwp_enqueue_style\s*\(|\badd_action\(\s*[''"]wp_enqueue_scripts[''"]\s*,\s*(?:static\s+)?(?:function\s*\([^)]*\)\s*(?:use\s*\([^)]*\)\s*)?(?::\s*\??[\w\\]+\s*)?\{(?:(?!\bfunction\b)[\s\S])*?|fn\s*\([^)]*\)\s*(?::\s*\??[\w\\]+\s*)?=>\s*)\bwp_enqueue_style\s*\('
       message: Put the wp_enqueue_style() call inside a function, and hook that function with add_action to wp_enqueue_scripts (not init). Check the function name in add_action matches.
     - type: regex
       file: my-first-plugin/my-first-plugin.php

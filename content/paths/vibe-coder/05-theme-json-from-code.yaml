@@ -33,24 +33,27 @@ beats:
   - id: the-filter
     goal: Write a callback for wp_theme_json_data_theme.
     content: |
-      This filter doesn't hand your callback an array. It hands it an object, a `WP_Theme_JSON_Data`, holding the theme's data. You change it with the object's `update_with()` method, then **return the object**:
+      This filter doesn't hand your callback an array. It hands it an object, a `WP_Theme_JSON_Data`, holding the theme's data. You change it with the object's `update_with()` method, then **return the object**. Here's the pattern, with a callback that makes the site's body text Twenty Twenty-Five's grey, `accent-4`:
 
       ```php
-      function my_first_plugin_theme_json( $theme_json ) {
+      function my_first_plugin_grey_text( $theme_json ) {
       	$new_data = array(
-      		'version'  => 3,
-      		'settings' => array( /* ... */ ),
-      		'styles'   => array( /* ... */ ),
+      		'version' => 3,
+      		'styles'  => array(
+      			'color' => array(
+      				'text' => 'var:preset|color|accent-4',
+      			),
+      		),
       	);
 
       	return $theme_json->update_with( $new_data );
       }
-      add_filter( 'wp_theme_json_data_theme', 'my_first_plugin_theme_json' );
+      add_filter( 'wp_theme_json_data_theme', 'my_first_plugin_grey_text' );
       ```
 
-      `update_with()` merges your array into the theme's data and gives back the same object, so you can return its result straight away.
+      `update_with()` merges your array into the theme's data and gives back the same object, so you can return its result straight away. `var:preset|color|accent-4` is theme.json's way of saying "the palette colour with the slug `accent-4`", so if the theme's grey ever changes, your text follows.
 
-      It's still a filter, so the rule from lesson 1 holds. If your callback calls `update_with()` but returns nothing, or returns the array instead of the object, WordPress tries to call a method on what came back, and the page stops with a fatal error.
+      It's still a filter, so the rule from lesson 1 holds. If your callback calls `update_with()` but returns nothing, or returns an array instead of the object (even `get_data()` of it), WordPress tries to call a method on what came back, and the page stops with a fatal error.
     question: What would you return if your callback decided not to change anything?
   - id: version-and-merging
     goal: Get the shape of the array right.
@@ -69,24 +72,12 @@ beats:
   - id: your-turn
     goal: Change a style the theme really uses.
     content: |
-      Twenty Twenty-Five doesn't set a colour for its headings, so they take the text colour. Give them its purple instead, from your plugin.
+      Twenty Twenty-Five doesn't set a colour for its headings, so they take the text colour. Your job: give every heading the theme's purple, `accent-3`, from your plugin.
 
-      In `my-first-plugin/my-first-plugin.php`, add a callback on `wp_theme_json_data_theme` that calls `update_with()` with `version` 3 and this style, then returns the data object:
+      Styles for kinds of element, like links, buttons and headings, sit under `elements` in `styles`. Headings are `heading` (or `h1` to `h6` one at a time), and their colour goes in `color` > `text`, just like the body text in the example.
 
-      ```php
-      'styles' => array(
-      	'elements' => array(
-      		'heading' => array(
-      			'color' => array(
-      				'text' => 'var:preset|color|accent-3',
-      			),
-      		),
-      	),
-      ),
-      ```
-
-      `var:preset|color|accent-3` is theme.json's way of saying "the palette colour with the slug `accent-3`", so if the theme's purple ever changes, your headings follow. Choose **Apply to site** and the "Hello world!" title in your preview should turn purple.
-    question: Which part of the array would you change to make only the h1 purple?
+      Write it yourself in `my-first-plugin/my-first-plugin.php`: a callback on `wp_theme_json_data_theme`, with its own prefixed name, that calls `update_with()` with `version` 3 and that heading colour, and returns the data object. Choose **Apply to site** and the "Hello world!" title in your preview should turn purple.
+    question: Where in the array does the heading colour go, compared with the body text in the example?
 starterFiles:
   my-first-plugin/my-first-plugin.php: |
     <?php
@@ -141,16 +132,16 @@ checkpoint:
     array that has 'version' => 3 (2 is also fine, WordPress migrates it) and styles > elements > heading (or h1)
     > color > text set to var:preset|color|accent-3, and it returns that object (return
     $theme_json->update_with( ... ), or the object after calling update_with). Returning nothing, the array or
-    get_data() fails. The the_content filter from lesson 1 is still there.
+    get_data() (even chained, update_with( ... )->get_data()) fails. A typed signature or return type is fine. The the_content filter from lesson 1 is still there.
   file: my-first-plugin/my-first-plugin.php
   checks:
     - type: regex
       file: my-first-plugin/my-first-plugin.php
-      pattern: 'function\s+(\w+)\s*\([^)]*\)\s*\{(?:(?!\bfunction\b)[\s\S])*?->\s*update_with\s*\([\s\S]*?\badd_filter\(\s*[''"]wp_theme_json_data_theme[''"]\s*,\s*[''"]\1[''"]|\badd_filter\(\s*[''"]wp_theme_json_data_theme[''"]\s*,\s*[''"](\w+)[''"][\s\S]*?function\s+\2\s*\([^)]*\)\s*\{(?:(?!\bfunction\b)[\s\S])*?->\s*update_with\s*\(|\badd_filter\(\s*[''"]wp_theme_json_data_theme[''"]\s*,\s*(?:static\s+)?(?:function\s*\([^)]*\)\s*(?:use\s*\([^)]*\)\s*)?\{(?:(?!\bfunction\b)[\s\S])*?|fn\s*\([^)]*\)\s*=>\s*)\$\w+\s*->\s*update_with\s*\('
+      pattern: 'function\s+(\w+)\s*\([^)]*\)(?:\s*:\s*\??[\w\\]+)?\s*\{(?:(?!\bfunction\b)[\s\S])*?->\s*update_with\s*\([\s\S]*?\badd_filter\(\s*[''"]wp_theme_json_data_theme[''"]\s*,\s*[''"]\1[''"]|\badd_filter\(\s*[''"]wp_theme_json_data_theme[''"]\s*,\s*[''"](\w+)[''"][\s\S]*?function\s+\2\s*\([^)]*\)(?:\s*:\s*\??[\w\\]+)?\s*\{(?:(?!\bfunction\b)[\s\S])*?->\s*update_with\s*\(|\badd_filter\(\s*[''"]wp_theme_json_data_theme[''"]\s*,\s*(?:static\s+)?(?:function\s*\([^)]*\)\s*(?:use\s*\([^)]*\)\s*)?(?::\s*\??[\w\\]+\s*)?\{(?:(?!\bfunction\b)[\s\S])*?|fn\s*\([^)]*\)\s*(?::\s*\??[\w\\]+\s*)?=>\s*)\$\w+\s*->\s*update_with\s*\('
       message: Put the update_with() call inside a function, and hook that function with add_filter to wp_theme_json_data_theme. Check the function name in add_filter matches.
     - type: regex
       file: my-first-plugin/my-first-plugin.php
-      pattern: '\breturn\s+\$(\w+)\s*->\s*update_with\s*\(|\$(\w+)\s*->\s*update_with\s*\([\s\S]*?\breturn\s+\$\2\s*;|\bfn\s*\([^)]*\)\s*=>\s*\$\w+\s*->\s*update_with\s*\('
+      pattern: '\breturn\s+\$(\w+)\s*->\s*update_with\s*\((?:(?!->)[^;])*;|\$(\w+)\s*->\s*update_with\s*\([\s\S]*?\breturn\s+\$\2\s*;|\bfn\s*\([^)]*\)\s*(?::\s*\??[\w\\]+\s*)?=>\s*\$\w+\s*->\s*update_with\s*\((?:(?!->)[^;])*;'
       message: Return the data object. Either return $theme_json->update_with( ... ) directly, or call update_with() and then return $theme_json. Returning nothing, or the array, stops the page with a fatal error.
     - type: regex
       file: my-first-plugin/my-first-plugin.php
