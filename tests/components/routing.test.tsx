@@ -33,31 +33,36 @@ afterEach(() => {
 });
 
 describe('routing', () => {
+  const SITE = 'Learn WordPress, reimagined';
   it.each([
-    ['/', 'Learn WordPress, your way.'],
-    ['/path/x', 'Nothing here'],
-    ['/path/block-theme', 'Block theme developer'],
-    ['/learn/x', 'Nothing here'],
-    ['/finale', 'Where this path ends up'], // a fresh record: 0 lessons done
-    ['/finale/block-theme', 'Where this path ends up'],
-    ['/finale/learner', 'Where this path ends up'],
-    ['/finale/vibe-coder', 'Where this path ends up'],
-    ['/finale/nope', 'Nothing here'],
-    ['/connect', 'Connect your agent'],
-    ['/no/such/page', 'Nothing here'],
-  ])('renders %s', async (url, heading) => {
+    ['/', 'Learn WordPress, your way.', SITE],
+    ['/path/x', 'Nothing here', `Page not found · ${SITE}`],
+    ['/path/block-theme', 'Block theme developer', `Block theme developer · ${SITE}`],
+    ['/learn/x', 'Nothing here', `Page not found · ${SITE}`],
+    ['/finale', 'Where this path ends up', `Finale: Block theme developer · ${SITE}`], // a fresh record: 0 lessons done
+    ['/finale/block-theme', 'Where this path ends up', `Finale: Block theme developer · ${SITE}`],
+    ['/finale/learner', 'Where this path ends up', `Finale: Learner · ${SITE}`],
+    ['/finale/vibe-coder', 'Where this path ends up', `Finale: Vibe coder · ${SITE}`],
+    ['/finale/nope', 'Nothing here', `Page not found · ${SITE}`],
+    ['/connect', 'Connect your agent', `Connect your agent · ${SITE}`],
+    ['/how-it-works', 'How this works', `How this works · ${SITE}`],
+    ['/no/such/page', 'Nothing here', `Page not found · ${SITE}`],
+  ])('renders %s and sets its document title', async (url, heading, title) => {
+    document.title = 'stale';
     history.replaceState(null, '', url);
     render(<App />);
     const h1 = await screen.findByRole('heading', { level: 1 });
     expect(h1.textContent).toBe(heading);
     expect(document.querySelector('header .wordmark')).toBeTruthy();
     expect(document.querySelector('footer')).toBeTruthy();
+    await waitFor(() => expect(document.title).toBe(title));
   });
 
   it('renders a lesson as the studio: course bar, no site header or footer', async () => {
     history.replaceState(null, '', '/learn/theme-json-basics');
     render(<App />);
     expect((await screen.findByRole('heading', { level: 1 })).textContent).toBe('theme.json basics');
+    await waitFor(() => expect(document.title).toBe('theme.json basics · Learn WordPress, reimagined'));
     expect(document.querySelector('header.course-bar .wordmark')).toBeTruthy();
     expect(document.querySelector('.site-header')).toBeNull();
     expect(document.querySelector('footer')).toBeNull();

@@ -7,6 +7,7 @@ import { Bubble } from '../components/Bubble';
 import { SketchIcon } from '../components/SketchIcon';
 import { Swipe } from '../components/Swipe';
 import { NotFound } from './routes';
+import { usePageTitle } from '../usePageTitle';
 import type { PathId, Preview } from '../shared/types';
 
 function downloadZip(files: Record<string, string>, preview: Preview) {
@@ -139,6 +140,7 @@ export function Finale({ pathId }: { pathId?: string }) {
 function FinaleFor({ pathId }: { pathId: PathId }) {
   const { record } = useRecord();
   const path = content.paths[pathId];
+  usePageTitle(`Finale: ${path.title}`);
   const preview = path.preview!;
   const copy = COPY[preview.kind];
   const lessons = path.lessons.map((id) => content.lessons[id]).filter(Boolean);

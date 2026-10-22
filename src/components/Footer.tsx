@@ -18,6 +18,8 @@ export function Footer() {
                 kind words are all welcome.
               </p>
               <ul class="site-footer__links">
+                <li><a href="/how-it-works">How this works</a></li>
+                <li><a href="/proposal">The proposal</a></li>
                 <li><a href={REPO_URL}>Source on GitHub</a></li>
                 <li><a href="mailto:hello@derintolu.com">hello@derintolu.com</a></li>
               </ul>

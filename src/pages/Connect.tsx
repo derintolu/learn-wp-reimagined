@@ -3,10 +3,12 @@ import { CopyField } from '../components/CopyField';
 import { ImportAgentProgress } from '../components/ImportAgentProgress';
 import { Swipe } from '../components/Swipe';
 import { MCP_URL } from '../shared/course-meta';
+import { usePageTitle } from '../usePageTitle';
 import '../components/agent.css';
 
 /** /connect: setup for each agent, and bringing the agent's progress back. */
 export function Connect() {
+  usePageTitle('Connect your agent');
   return (
     <>
       <section class="band band--light connect" aria-labelledby="connect-title">

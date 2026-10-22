@@ -4,10 +4,12 @@ import { PlacementChat } from '../components/PlacementChat';
 import { SketchIcon } from '../components/SketchIcon';
 import { Sticker } from '../components/Sticker';
 import { Swipe } from '../components/Swipe';
+import { usePageTitle } from '../usePageTitle';
 
 const AGENTS = ['Claude', 'ChatGPT', 'Claude Code', 'Cursor', 'Any MCP client'];
 
 export function Home() {
+  usePageTitle(null);
   return (
     <>
       <section class="band band--dark hero" aria-labelledby="hero-title">
@@ -106,6 +108,9 @@ export function Home() {
                 </p>
               </li>
             </ol>
+            <p class="how-more">
+              <a href="/how-it-works">More on how this works</a>
+            </p>
           </div>
         </div>
       </section>

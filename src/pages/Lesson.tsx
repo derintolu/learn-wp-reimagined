@@ -18,6 +18,7 @@ import { Outline } from '../studio/Outline';
 import { StudioProvider, useStudio, type Pane } from '../studio/StudioContext';
 import { Workspace } from '../studio/WorkspacePane';
 import { NotFound } from './routes';
+import { usePageTitle } from '../usePageTitle';
 
 const has = (o: object, k: string) => Object.prototype.hasOwnProperty.call(o, k);
 
@@ -38,6 +39,7 @@ export function Lesson() {
 function LessonView({ lesson, onRestart }: { lesson: LessonT; onRestart: () => void }) {
   const { manager, record } = useRecord();
   const { ai } = useAiStatus();
+  usePageTitle(lesson.title);
   const n = lesson.beats.length;
   const [step, setStepState] = useState<number | null>(null);
   // Mirrors step synchronously, so a double click on Next can't advance (and record) twice.

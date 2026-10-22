@@ -29,6 +29,12 @@ describe('Header', () => {
     expect(home.getAttribute('href')).toBe('/');
     expect(screen.getByText('unofficial concept')).toBeTruthy();
   });
+
+  it('links to How this works in the main nav', () => {
+    render(<Header />);
+    const nav = screen.getByRole('navigation', { name: 'Main' });
+    expect(within(nav).getByRole('link', { name: 'How this works' }).getAttribute('href')).toBe('/how-it-works');
+  });
 });
 
 describe('Footer', () => {
@@ -49,6 +55,12 @@ describe('Footer', () => {
     expect(text).toContain('GPL-2.0-or-later');
     expect(screen.getByRole('link', { name: 'CC BY-SA 4.0' }).getAttribute('href')).toBe('https://creativecommons.org/licenses/by-sa/4.0/');
     expect(screen.getByRole('link', { name: 'GPL-2.0-or-later' }).getAttribute('href')).toBe('https://www.gnu.org/licenses/old-licenses/gpl-2.0.html');
+  });
+
+  it('links to How this works and the Proposal', () => {
+    render(<Footer />);
+    expect(screen.getByRole('link', { name: 'How this works' }).getAttribute('href')).toBe('/how-it-works');
+    expect(screen.getByRole('link', { name: 'The proposal' }).getAttribute('href')).toBe('/proposal');
   });
 });
 

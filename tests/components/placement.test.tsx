@@ -408,6 +408,8 @@ describe('Home', () => {
       'Continue in the agent you already use',
       'How this works',
     ]);
+    const how = document.getElementById('how-title')!.closest('section')!;
+    expect(within(how).getByRole('link', { name: 'More on how this works' }).getAttribute('href')).toBe('/how-it-works');
   });
 
   it('does not claim features that are not live yet', () => {

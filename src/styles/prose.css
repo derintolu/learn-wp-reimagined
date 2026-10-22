@@ -1,0 +1,70 @@
+/* ---------- Prose: long-form reading column ---------- */
+
+.prose { max-width: var(--measure); font-size: var(--step-0); line-height: 1.65; }
+.prose > :first-child { margin-top: 0; }
+.prose > :last-child { margin-bottom: 0; }
+
+.prose h2 { font-size: var(--step-3); margin: 2em 0 0.5em; }
+.prose h3 { font-size: var(--step-2); margin: 1.8em 0 0.45em; }
+.prose h4 { font: 600 var(--step-0) / 1.4 var(--font-ui); margin: 1.5em 0 0.4em; }
+
+.prose ul,
+.prose ol { margin: 0 0 1.1em; padding-left: 1.3em; }
+.prose li + li { margin-top: 0.55em; }
+.prose li::marker { color: var(--wp-blue); }
+.prose strong { font-weight: 600; }
+
+.prose code {
+  padding: 0.08em 0.35em;
+  border-radius: 0.3rem;
+  background: var(--tint);
+  color: var(--charcoal);
+  font: 0.88em / 1.4 var(--font-mono);
+  overflow-wrap: anywhere;
+}
+
+.prose blockquote {
+  margin: 0 0 1.1em;
+  padding: 0.75rem 1rem;
+  border-left: 3px solid var(--wp-blue);
+  border-radius: 0 0.75rem 0.75rem 0;
+  background: var(--surface-muted);
+  color: var(--ink);
+}
+.prose blockquote > :last-child { margin-bottom: 0; }
+
+.prose q { font-style: italic; }
+
+/* Tables scroll inside their own box rather than widening the page. */
+.prose__table { margin: 0 0 1.25em; overflow-x: auto; }
+.prose table { width: 100%; border-collapse: collapse; font-size: var(--step--1); }
+.prose caption { text-align: left; font-weight: 600; padding-bottom: 0.5rem; }
+.prose th,
+.prose td { padding: 0.55rem 0.75rem 0.55rem 0; border-bottom: 1px solid var(--rule); text-align: left; vertical-align: top; }
+.prose thead th { font-weight: 600; color: var(--ink-muted); border-bottom-width: 2px; }
+.prose tbody th { font-weight: 500; }
+
+/* Inline pointers to the sources list, and the list itself. */
+.prose__cite { text-decoration-style: dotted; }
+.prose__sources { font-size: var(--step--1); }
+.prose__sources li { scroll-margin-top: 1.5rem; }
+.prose__sources li:target { background: var(--tint); border-radius: 0.3rem; outline: none; }
+.prose__sources li:focus { outline: none; }
+
+/* On charcoal bands */
+.band--dark .prose,
+.band--dark-2 .prose { color: var(--on-dark); }
+.band--dark .prose li::marker,
+.band--dark-2 .prose li::marker { color: var(--wp-blue-light); }
+.band--dark .prose code,
+.band--dark-2 .prose code { background: var(--veil-on-dark); color: var(--on-dark); }
+.band--dark .prose blockquote,
+.band--dark-2 .prose blockquote { background: var(--veil-on-dark); color: var(--on-dark); border-left-color: var(--wp-blue-light); }
+.band--dark .prose th,
+.band--dark .prose td,
+.band--dark-2 .prose th,
+.band--dark-2 .prose td { border-bottom-color: var(--rule-dark); }
+.band--dark .prose thead th,
+.band--dark-2 .prose thead th { color: var(--on-dark-muted); }
+.band--dark .prose__sources li:target,
+.band--dark-2 .prose__sources li:target { background: var(--veil-on-dark); }

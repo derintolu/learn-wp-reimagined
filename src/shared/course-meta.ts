@@ -22,3 +22,6 @@ export const BRANCH_WHEN: Record<Outcome, string> = {
 /** What the learner pastes into their agent after "Continue in your agent". */
 export const agentPrompt = (handle: string): string =>
   `Continue my "Learn WordPress, reimagined" course with the learn-wp-reimagined tools. My record handle is ${handle}. Call start_placement with that handle, then next_beat. Keep the handle private.`;
+
+/** Estimated AI cost per 1000 learners at the chosen model mix (docs/model-eval.md, October 2026). */
+export const COST_PER_1000_LEARNERS_USD = 4.97;

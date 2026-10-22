@@ -14,6 +14,7 @@ export function Header() {
         <nav class="site-nav" aria-label="Main">
           <ul>
             <li><a href="/#paths">Paths</a></li>
+            <li class="nav-optional"><a href="/how-it-works">How this works</a></li>
             <li class="nav-optional"><a href={REPO_URL}>GitHub</a></li>
           </ul>
           <RecordPanel />

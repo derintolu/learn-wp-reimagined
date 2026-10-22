@@ -6,7 +6,8 @@ import { branchSkippedLessons } from '../shared/record';
 import type { PathId } from '../shared/types';
 import { SketchIcon } from '../components/SketchIcon';
 import { Swipe } from '../components/Swipe';
-import { NotFound } from './routes';
+import { NOT_FOUND_TITLE, NotFound } from './routes';
+import { usePageTitle } from '../usePageTitle';
 
 const has = (o: object, k: string) => Object.prototype.hasOwnProperty.call(o, k);
 
@@ -23,7 +24,9 @@ function swiped(title: string) {
 export function PathOverview() {
   const { params } = useRoute();
   const { record } = useRecord();
-  if (!has(content.paths, params.pathId)) return <NotFound />;
+  const known = has(content.paths, params.pathId);
+  usePageTitle(known ? content.paths[params.pathId as PathId].title : NOT_FOUND_TITLE);
+  if (!known) return <NotFound />;
   const pathId = params.pathId as PathId;
   const path = content.paths[pathId];
   const lessons = path.lessons.map((id) => content.lessons[id]).filter(Boolean);
