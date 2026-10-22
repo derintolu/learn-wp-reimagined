@@ -196,6 +196,23 @@ describe('PlacementChat (AI on)', () => {
     expect(await screen.findByRole('heading', { level: 1, name: 'Templates and template parts' })).toBeTruthy();
   });
 
+  it('a placement into vibe-coder opens /learn/<vc lesson>', async () => {
+    const vc = {
+      pathId: 'vibe-coder' as const,
+      startLessonId: 'vc-enqueueing',
+      skip: ['vc-actions-and-filters'],
+      reason: 'You already read hooks, so we start with loading a stylesheet.',
+    };
+    place.mockResolvedValue({ ok: true, data: { reply: 'Got it.', placement: vc } });
+    render(<App />);
+    await send('I ship with Cursor and I know what a filter is.');
+    fireEvent.click(await screen.findByRole('button', { name: 'Start here' }));
+    await waitFor(() => expect(manager.dispatch).toHaveBeenCalledWith({ type: 'placed', placement: vc }));
+    await waitFor(() => expect(location.pathname).toBe('/learn/vc-enqueueing'));
+    expect(manager.record.placement).toEqual(vc);
+    expect(await screen.findByRole('heading', { level: 1, name: 'Enqueueing styles' })).toBeTruthy();
+  });
+
   it('a double click on "Start here" dispatches placed only once', async () => {
     place.mockResolvedValue({ ok: true, data: { reply: 'Got it.', placement: PLACED } });
     render(<App />);
@@ -335,51 +352,46 @@ describe('PlacementChat (AI off or capped)', () => {
 
   it('coming-soon paths in the chooser cannot be picked', async () => {
     status.mockResolvedValue({ ai: 'off' });
-    render(<App />);
-    const group = await screen.findByRole('group', { name: 'Choose your path' });
-    const learner = within(group).getByRole('button', { name: /Learner/ }) as HTMLButtonElement;
-    expect(learner.disabled).toBe(true);
-    expect(learner.textContent).toContain('Coming soon');
+    // All three fixture paths are live; make Learner coming soon for this case.
+    const saved = content.paths.learner;
+    content.paths.learner = { ...saved, status: 'coming-soon', lessons: [] };
+    try {
+      render(<App />);
+      const group = await screen.findByRole('group', { name: 'Choose your path' });
+      const learner = within(group).getByRole('button', { name: /Learner/ }) as HTMLButtonElement;
+      expect(learner.disabled).toBe(true);
+      expect(learner.textContent).toContain('Coming soon');
+      const vibe = within(group).getByRole('button', { name: /Vibe coder/ }) as HTMLButtonElement;
+      expect(vibe.disabled).toBe(false);
+    } finally {
+      content.paths.learner = saved;
+    }
   });
 });
 
 describe('PathCards', () => {
-  it('links live paths and leaves coming-soon cards unclickable', () => {
-    const { container } = render(
-      <LocationProvider>
-        <PathCards />
-      </LocationProvider>,
-    );
-    const cards = Array.from(container.querySelectorAll('.path-card'));
-    expect(cards).toHaveLength(3);
-    const live = cards.find((c) => c.textContent?.includes('Block theme developer'))!;
-    expect(live.querySelector('a')?.getAttribute('href')).toBe('/path/block-theme');
-    for (const name of ['Learner', 'Vibe coder']) {
-      const card = cards.find((c) => c.querySelector('h3')?.textContent === name)!;
-      expect(card.querySelector('a')).toBeNull();
-      expect(card.textContent).toContain('Coming soon');
-    }
-  });
-
-  it('the learner path card links to /path/learner', async () => {
-    // The fixtures keep Learner coming soon; this case uses the real Learner path, which is live.
-    const { buildContent } = await import('../../scripts/build-content');
-    const real = buildContent('content');
-    const saved = { path: content.paths.learner, lessons: { ...content.lessons } };
-    content.paths.learner = real.paths.learner;
-    for (const id of real.paths.learner.lessons) content.lessons[id] = real.lessons[id];
-    try {
-      const { container } = render(
+  it('links all three live paths and leaves a coming-soon card unclickable', () => {
+    const renderCards = () =>
+      render(
         <LocationProvider>
           <PathCards />
         </LocationProvider>,
-      );
-      const card = Array.from(container.querySelectorAll('.path-card')).find((c) => c.querySelector('h3')?.textContent === 'Learner')!;
-      expect(card.querySelector('a')?.getAttribute('href')).toBe('/path/learner');
-      expect(card.textContent).not.toContain('Coming soon');
+      ).container;
+    const cardFor = (c: Element, title: string) => Array.from(c.querySelectorAll('.path-card')).find((x) => x.querySelector('h3')?.textContent === title)!;
+    const container = renderCards();
+    expect(container.querySelectorAll('.path-card')).toHaveLength(3);
+    expect(cardFor(container, 'Block theme developer').querySelector('a')?.getAttribute('href')).toBe('/path/block-theme');
+    expect(cardFor(container, 'Learner').querySelector('a')?.getAttribute('href')).toBe('/path/learner');
+    expect(cardFor(container, 'Vibe coder').querySelector('a')?.getAttribute('href')).toBe('/path/vibe-coder');
+    cleanup();
+    const saved = content.paths['vibe-coder'];
+    content.paths['vibe-coder'] = { ...saved, status: 'coming-soon', lessons: [] };
+    try {
+      const card = cardFor(renderCards(), 'Vibe coder');
+      expect(card.querySelector('a')).toBeNull();
+      expect(card.textContent).toContain('Coming soon');
     } finally {
-      content.paths.learner = saved.path;
-      for (const id of Object.keys(content.lessons)) if (!(id in saved.lessons)) delete content.lessons[id];
+      content.paths['vibe-coder'] = saved;
     }
   });
 });

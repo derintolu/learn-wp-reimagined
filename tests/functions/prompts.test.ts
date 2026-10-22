@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { buildContent } from '../../scripts/build-content';
-import { DELIVER_GROUNDING, FEEDBACK_GROUNDING, askPrompt, deliverPrompt, feedbackPrompt, wrapLearner } from '../../functions/_lib/prompts';
+import { DELIVER_GROUNDING, FEEDBACK_GROUNDING, askPrompt, deliverPrompt, feedbackPrompt, placementPrompt, wrapLearner } from '../../functions/_lib/prompts';
 
 const content = buildContent('tests/fixtures/content');
 const lesson = content.lessons['theme-json-basics'];
@@ -61,5 +61,19 @@ describe('wrapLearner', () => {
   it('still strips whole and variant tags, but not lookalike words', () => {
     expect(wrapLearner('x < / LEARNER_INPUT y="1"> z')).toBe('<learner_input>x [tag removed] z</learner_input>');
     expect(wrapLearner('<learner_inputs>')).toBe('<learner_input><learner_inputs></learner_input>');
+  });
+});
+
+describe('placementPrompt', () => {
+  it('lists all three live paths with their hints and lesson ids', () => {
+    const p = placementPrompt(content);
+    for (const id of ['block-theme', 'learner', 'vibe-coder'] as const) {
+      const path = content.paths[id];
+      expect(path.status).toBe('live');
+      expect(p).toContain(`pathId "${id}" (${path.title}): ${path.placementHints}`);
+      expect(p).toContain(`lessons in order: ${path.lessons.join(', ')}`);
+    }
+    expect(p).toContain('ln-what-is-wordpress, ln-posts-and-pages');
+    expect(p).toContain('vc-actions-and-filters, vc-enqueueing');
   });
 });

@@ -1,0 +1,39 @@
+id: vc-enqueueing
+title: Enqueueing styles
+minutes: 10
+sources:
+  - title: Including CSS and JavaScript
+    url: https://developer.wordpress.org/themes/basics/including-css-javascript/
+beats:
+  - id: enqueue
+    goal: Load a stylesheet from a plugin.
+    content: |
+      Use wp_enqueue_style on the wp_enqueue_scripts action.
+starterFiles:
+  my-first-plugin/enqueue.php: |
+    <?php
+    add_action( 'wp_enqueue_scripts', 'my_first_plugin_styles' );
+checkpoint:
+  id: cp-enqueue
+  question: Enqueue the stylesheet with wp_enqueue_style.
+  kind: code
+  rubric: The plugin calls wp_enqueue_style.
+  file: my-first-plugin/enqueue.php
+  checks:
+    - { type: contains, file: my-first-plugin/enqueue.php, value: 'wp_enqueue_style', message: Call wp_enqueue_style. }
+  branches:
+    - { outcome: advance, to: vc-enqueueing, message: Your plugin loads its stylesheet. }
+    - { outcome: review, to: vc-enqueueing, message: Let's revisit enqueueing. }
+    - { outcome: skip, to: vc-enqueueing, message: Moving on. }
+  fallback:
+    - { label: Show me the answer, outcome: review }
+    - { label: Skip this one, outcome: skip }
+bug:
+  id: bug-enqueue-hook
+  file: my-first-plugin/enqueue.php
+  code: |
+    <?php
+    add_action( 'init', 'my_first_plugin_styles' );
+  explanation: Styles belong on wp_enqueue_scripts, not init.
+  fixChecks:
+    - { type: regex, file: my-first-plugin/enqueue.php, pattern: 'wp_enqueue_scripts', message: Use the wp_enqueue_scripts hook. }

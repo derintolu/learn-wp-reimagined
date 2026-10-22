@@ -4,6 +4,7 @@ status: live
 preview: { kind: theme, slug: my-block-theme }
 placementHints: >-
   For people who know some HTML and CSS and want to build a WordPress block theme.
+  Not for people who have never used WordPress or who don't write code: send them to the learner path.
   Start at bt-what-is-a-block-theme if block themes or theme.json are new to them, or if they are unsure.
   Start at bt-style-css-and-theme-json if they know what a block theme is but have never edited theme.json.
   Start at bt-templates-and-parts if they have edited theme.json settings but not written templates.

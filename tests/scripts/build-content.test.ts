@@ -1,4 +1,4 @@
-import { cpSync, mkdtempSync, readFileSync, writeFileSync } from 'node:fs';
+import { cpSync, mkdtempSync, readFileSync, readdirSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { describe, expect, it } from 'vitest';
@@ -12,6 +12,13 @@ function copyFixture(): string {
   return dir;
 }
 
+/** The fixture's learner path is live; this turns it back into a coming-soon path with no lessons. */
+function makeLearnerComingSoon(dir: string) {
+  const learnerDir = join(dir, 'paths/learner');
+  for (const f of readdirSync(learnerDir)) if (f !== 'path.yaml') rmSync(join(learnerDir, f));
+  writeFileSync(join(learnerDir, 'path.yaml'), 'title: Learner\ntagline: t\nstatus: coming-soon\nplacementHints: h\n');
+}
+
 function edit(file: string, from: string | RegExp, to: string) {
   const text = readFileSync(file, 'utf8');
   const next = text.replace(from, to);
@@ -22,11 +29,21 @@ function edit(file: string, from: string | RegExp, to: string) {
 describe('buildContent', () => {
   it('builds the fixture with lessons keyed by id', () => {
     const b = buildContent(FIXTURE);
-    expect(Object.keys(b.lessons).sort()).toEqual(['patterns', 'templates-and-parts', 'theme-json-basics']);
+    expect(Object.keys(b.lessons).sort()).toEqual([
+      'ln-posts-and-pages',
+      'ln-what-is-wordpress',
+      'patterns',
+      'templates-and-parts',
+      'theme-json-basics',
+      'vc-actions-and-filters',
+      'vc-enqueueing',
+    ]);
     expect(b.lessons['patterns'].pathId).toBe('block-theme');
     expect(b.paths['block-theme'].id).toBe('block-theme');
-    expect(b.paths.learner.status).toBe('coming-soon');
-    expect(b.paths.learner.lessons).toEqual([]);
+    expect(b.paths.learner.status).toBe('live');
+    expect(b.paths.learner.lessons).toEqual(['ln-what-is-wordpress', 'ln-posts-and-pages']);
+    expect(b.paths['vibe-coder'].status).toBe('live');
+    expect(b.paths['vibe-coder'].lessons).toEqual(['vc-actions-and-filters', 'vc-enqueueing']);
     expect(b.lessons['patterns'].bug?.file).toBe('patterns/hero.php');
   });
 
@@ -95,6 +112,7 @@ describe('buildContent', () => {
 
     it('rejects finalFiles on a path that is not live', () => {
       const dir = copyFixture();
+      makeLearnerComingSoon(dir);
       writeFileSync(join(dir, 'paths/learner/path.yaml'), readFileSync(join(dir, 'paths/learner/path.yaml'), 'utf8') + 'finalFiles:\n  a.css: x\n');
       expect(() => buildContent(dir)).toThrow(/finalFiles/);
     });
@@ -134,6 +152,7 @@ describe('buildContent', () => {
 
     it('rejects previewFiles on a path that is not live', () => {
       const dir = copyFixture();
+      makeLearnerComingSoon(dir);
       writeFileSync(join(dir, 'paths/learner/path.yaml'), readFileSync(join(dir, 'paths/learner/path.yaml'), 'utf8') + 'previewFiles:\n  a.css: x\n');
       expect(() => buildContent(dir)).toThrow(/previewFiles/);
     });
@@ -164,8 +183,9 @@ ${extra}checkpoint:
     - { label: yes, outcome: advance }
     - { label: no, outcome: review }
 `;
-    /** Turns the coming-soon learner path into a live one with two checkpointed lessons. */
+    /** Rewrites the learner path as a live one with two checkpointed lessons. */
     function makeLearnerLive(dir: string, pathYaml: string, extra = '') {
+      makeLearnerComingSoon(dir);
       writeFileSync(join(dir, 'paths/learner/path.yaml'), pathYaml);
       writeFileSync(join(dir, 'paths/learner/01-a.yaml'), lessonYaml('l-a', 'l-b', extra));
       writeFileSync(join(dir, 'paths/learner/02-b.yaml'), lessonYaml('l-b', 'l-a'));
@@ -180,6 +200,7 @@ ${extra}checkpoint:
 
     it('rejects preview on a path that is not live', () => {
       const dir = copyFixture();
+      makeLearnerComingSoon(dir);
       writeFileSync(join(dir, 'paths/learner/path.yaml'), readFileSync(join(dir, 'paths/learner/path.yaml'), 'utf8') + 'preview: { kind: site }\n');
       expect(() => buildContent(dir)).toThrow(/preview/);
     });
