@@ -1,11 +1,11 @@
 import { useEffect, useRef, useState } from 'preact/hooks';
 import { playgroundUrl } from '../finale/playground';
 import type { Preview as PreviewKind } from '../shared/types';
+import { buildNoun } from './workspace';
 import { startLivePreview, type LivePreview as Preview } from './previewClient';
 
 type Status = 'booting' | 'live' | 'failed';
 
-const WHAT: Record<PreviewKind['kind'], string> = { theme: 'your theme', plugin: 'your plugin', site: 'your site' };
 
 export function LivePreview({
   files,
@@ -55,7 +55,7 @@ export function LivePreview({
     <div class="live-preview" data-status={status}>
       <p class="live-preview__status" role="status">
         {status === 'booting' && 'Starting WordPress Playground'}
-        {status === 'live' && `Live: ${WHAT[preview.kind]} in WordPress Playground`}
+        {status === 'live' && `Live: your ${buildNoun(preview)} in WordPress Playground`}
         {status === 'failed' && (
           <>
             Couldn't start WordPress here.{' '}
@@ -65,7 +65,7 @@ export function LivePreview({
           </>
         )}
       </p>
-      <iframe ref={frame} class="live-preview__frame" title={`Live preview of ${WHAT[preview.kind]}`} hidden={status === 'failed'} />
+      <iframe ref={frame} class="live-preview__frame" title={`Live preview of your ${buildNoun(preview)}`} hidden={status === 'failed'} />
     </div>
   );
 }

@@ -50,6 +50,17 @@ describe('course conversion', () => {
     }
   });
 
+  it('course text names no single path', () => {
+    const course = toCourse(real()) as { description: string; rules: string[]; placement: { intro: string } };
+    const live = Object.values(real().paths).filter((x) => x.status === 'live');
+    let text = [course.description, ...course.rules, course.placement.intro].join('\n');
+    for (const p of live) text = text.replace(p.title.toLowerCase(), ''); // the description may name each live path by title
+    expect(text).not.toMatch(/block theme/i);
+    expect(text).not.toMatch(/your theme/i);
+    expect(course.rules[2]).toBe('The learner edits their files by hand. Never write a whole file for them; explain, hint and let them type it.');
+    for (const p of live) expect(course.description).toContain(p.title.toLowerCase());
+  });
+
   it('keeps coming-soon paths with no lessons', () => {
     const c = buildCourse(real());
     const soon = Object.values(c.paths).filter((p) => p.status === 'coming-soon');

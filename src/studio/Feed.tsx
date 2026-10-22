@@ -7,17 +7,18 @@ import type { Lesson } from '../shared/types';
 import { Markdown } from '../components/Markdown';
 import { tidy } from '../components/PlacementChat';
 import { SketchIcon } from '../components/SketchIcon';
+import { buildNoun } from './workspace';
 import { Composer, MAX_CHARS } from './Composer';
 import { NARROW, scrollBehavior, useMedia } from './media';
 import { SectionCard } from './SectionCard';
 
 /** Server limit for /api/tutor: 12 messages. */
 const MAX_MESSAGES = 12;
-const WELCOME =
-  "Hi. On the right is a real WordPress running your theme, and the files that make it. Everything we talk about, you'll see and change there.";
+const welcome = (noun: string) =>
+  `Hi. On the right is a real WordPress running your ${noun}, and the files that make it. Everything we talk about, you'll see and change there.`;
 /** Phones show one pane at a time, so there is no "right". */
-const WELCOME_NARROW =
-  "Hi. Your theme runs in a real WordPress in the Workspace tab, next to the files that make it. Everything we talk about, you'll see and change there.";
+const welcomeNarrow = (noun: string) =>
+  `Hi. Your ${noun} runs in a real WordPress in the Workspace tab, next to the files that make it. Everything we talk about, you'll see and change there.`;
 export const REVIEW_DISCLAIMER = 'Adapted from Learn WordPress, not reviewed by the Training Team';
 const FAILURE = "I couldn't answer that just now. Try again in a moment, or check the sources under each section.";
 
@@ -72,6 +73,7 @@ export function Feed({
 }) {
   const { ai } = useAiStatus();
   const n = lesson.beats.length;
+  const noun = buildNoun(content.paths[lesson.pathId].preview);
   const lessonNumber = content.paths[lesson.pathId].lessons.indexOf(lesson.id) + 1;
   const [turns, setTurns] = useState<Turn[]>([]);
   const [busy, setBusy] = useState(false);
@@ -195,7 +197,7 @@ export function Feed({
             <p class="feed-head__note">{REVIEW_DISCLAIMER}</p>
           </div>
           <TutorMsg>
-            <p>{narrow ? WELCOME_NARROW : WELCOME}</p>
+            <p>{narrow ? welcomeNarrow(noun) : welcome(noun)}</p>
           </TutorMsg>
           {lesson.beats.slice(0, shown).map((beat, i) => (
             <Fragment key={i}>

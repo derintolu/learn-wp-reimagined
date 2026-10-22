@@ -1,6 +1,11 @@
 import { runChecks } from '../shared/checks';
 import type { LearningRecord } from '../shared/record';
-import type { ContentBundle, Lesson } from '../shared/types';
+import type { ContentBundle, Lesson, Preview } from '../shared/types';
+
+/** The word for what a path builds, for copy that must not name one path. */
+export function buildNoun(preview: Preview | undefined): 'theme' | 'plugin' | 'site' {
+  return preview?.kind ?? 'theme';
+}
 
 const has = (o: object, k: string) => Object.prototype.hasOwnProperty.call(o, k);
 

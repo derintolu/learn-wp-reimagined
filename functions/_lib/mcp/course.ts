@@ -13,8 +13,13 @@ const PLACEMENT_INTRO =
 const COURSE_RULES = [
   'These lessons are adapted from Learn WordPress (learn.wordpress.org) and have not been reviewed by the WordPress Training Team. Say so when it matters, and link the lesson\'s sources.',
   'When you are unsure about a WordPress fact, say so and point to one of the lesson\'s sources instead of guessing.',
-  'The learner edits their theme files by hand. Never write a whole file for them; explain, hint and let them type it.',
+  'The learner edits their files by hand. Never write a whole file for them; explain, hint and let them type it.',
 ];
+
+function courseDescription(liveTitles: string[]): string {
+  const list = liveTitles.length > 1 ? `${liveTitles.slice(0, -1).join(', ')} and ${liveTitles[liveTitles.length - 1]}` : liveTitles[0] ?? 'WordPress';
+  return `An unofficial concept course adapted from Learn WordPress, with paths for ${list}: build something real, one hand edit at a time.`;
+}
 
 /** The learning-mcp course object for a content bundle (not yet validated). */
 export function toCourse(bundle: ContentBundle): unknown {
@@ -64,7 +69,7 @@ export function toCourse(bundle: ContentBundle): unknown {
   return {
     id: COURSE_ID,
     title: 'Learn WordPress, reimagined',
-    description: 'An unofficial concept course adapted from Learn WordPress: build your first block theme, one hand edit at a time.',
+    description: courseDescription(Object.values(bundle.paths).filter((p) => p.status === 'live').map((p) => p.title.toLowerCase())),
     version: COURSE_VERSION,
     language: 'en',
     activityBase: COURSE_ACTIVITY_BASE,

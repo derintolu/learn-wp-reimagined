@@ -1,4 +1,5 @@
 import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest';
+import { buildContent } from '../../scripts/build-content';
 import { createSqliteD1 } from '../../dev/sqliteD1';
 import { POST as handoff } from '../../functions/api/agent/handoff';
 import { POST as getRecord } from '../../functions/api/agent/record';
@@ -57,6 +58,31 @@ describe('POST /api/agent/handoff', () => {
     const rec: LearningRecord = (await call('get_record', { handle })).data.record;
     expect(rec.courses[COURSE_ID].files).toEqual({ 'theme.json': '{"version":3}' });
     expect(rec.statements[0].result?.response).toBe(SEED_REASON);
+  });
+
+  it("every live path's lessons convert and seed", async () => {
+    const bundle = buildContent('content');
+    const live = Object.values(bundle.paths).filter((p) => p.status === 'live');
+    const covered = new Set<string>();
+    const { client, call } = await connectMcp(routeFetch(mcpRoute, env), 'legacy');
+    open.push(client);
+    for (const p of live) {
+      for (const lessonId of [p.lessons[0], p.lessons[p.lessons.length - 1]]) {
+        const lesson = bundle.lessons[lessonId];
+        const r = await post(handoff, { lessonId, files: { ...(lesson.starterFiles ?? {}) } });
+        expect(r.status, lessonId).toBe(200);
+        const { handle } = r.body;
+        const rec: LearningRecord = (await call('get_record', { handle })).data.record;
+        expect(rec.courses[COURSE_ID].files, lessonId).toEqual(lesson.starterFiles ?? {});
+        const beat = await call('next_beat', { handle });
+        expect(beat.data, lessonId).toMatchObject({ step: 'beat', lesson: { id: lessonId } });
+        const got = await call('get_lesson', { lessonId });
+        expect(got.isError, lessonId).toBe(false);
+        expect(got.data.beats.map((b: { id: string }) => b.id), lessonId).toEqual(lesson.beats.map((b) => b.id));
+        covered.add(p.id);
+      }
+    }
+    expect([...covered].sort()).toEqual(live.map((p) => p.id).sort());
   });
 
   it("keeps the path's files and drops others and oversized ones", async () => {

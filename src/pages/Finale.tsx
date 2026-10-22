@@ -182,7 +182,7 @@ function FinaleFor({ pathId }: { pathId: PathId }) {
               {doneCount === lessons.length
                 ? `All ${lessons.length} lessons done.`
                 : doneCount > 0
-                  ? `${doneCount} of ${lessons.length} lessons done. Anything you skipped comes from the finished reference theme, so it's still complete.`
+                  ? `${doneCount} of ${lessons.length} lessons done. Anything you skipped comes from the finished reference ${copy.noun}, so it's still complete.`
                   : `0 of ${lessons.length} lessons done.`}
             </p>
             <div class="finale-actions">

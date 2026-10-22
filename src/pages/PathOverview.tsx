@@ -36,7 +36,7 @@ export function PathOverview() {
           <h1 class="split__title path-hero__title">{swiped(path.title)}</h1>
           <div class="split__body">
             <p class="lede">{path.tagline}</p>
-            <p class="path-hero__soon">This path is coming soon. The block theme path is the one to try today.</p>
+            <p class="path-hero__soon">This path is coming soon. Have a look at the other paths in the meantime.</p>
             <a class="button button--quiet" href="/#paths">
               See all paths
             </a>
