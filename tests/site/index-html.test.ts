@@ -27,8 +27,8 @@ describe('index.html social metadata', () => {
     expect([png.readUInt32BE(16), png.readUInt32BE(20)]).toEqual([1200, 630]);
   });
 
-  it('has a canonical link and a theme colour', () => {
-    expect(html).toContain(`<link rel="canonical" href="${SITE}">`);
+  it('has a theme colour and no static canonical (one canonical would mark every SPA route as the home page)', () => {
+    expect(html).not.toContain('rel="canonical"');
     expect(meta('name', 'theme-color')).toBe('#1E1E1E');
   });
 

@@ -56,4 +56,13 @@ describe('finale links', () => {
     const link = await screen.findByRole('link', { name: /Go to the finale/ });
     expect(link.getAttribute('href')).toBe('/finale/learner');
   });
+
+  it("progress on another path doesn't make this one say continue", async () => {
+    await completed('theme-json-basics');
+    history.replaceState(null, '', '/path/vibe-coder');
+    render(<App />);
+    const link = await screen.findByRole('link', { name: /Start with/ });
+    expect(link.getAttribute('href')).toBe('/learn/vc-first-plugin');
+    expect(screen.queryByRole('link', { name: /Continue where you left off/ })).toBeNull();
+  });
 });

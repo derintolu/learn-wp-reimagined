@@ -52,7 +52,8 @@ export function PathOverview() {
   const placement = record.placement?.pathId === pathId ? record.placement : undefined;
   // Skipped by placement, or jumped over by a checkpoint's skip branch.
   const skip = [...new Set([...(placement?.skip ?? []), ...branchSkippedLessons(record, content, pathId)])];
-  const done = new Set(record.completedLessons);
+  // Only this path's lessons: progress on another path mustn't make this one say "continue".
+  const done = new Set(record.completedLessons.filter((id) => path.lessons.includes(id)));
   const here = record.current?.pathId === pathId && path.lessons.includes(record.current.lessonId) ? record.current.lessonId : null;
   const firstOpen = path.lessons.find((id) => !done.has(id) && !skip.includes(id)) ?? null;
   const allDone = path.lessons.every((id) => done.has(id) || skip.includes(id)) && done.size > 0;
