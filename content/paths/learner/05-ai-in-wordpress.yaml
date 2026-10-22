@@ -1,0 +1,109 @@
+id: ln-ai-in-wordpress
+title: AI in WordPress 7, and checking what it writes
+minutes: 7
+landing: /wp-admin/options-connectors.php
+sources:
+  - title: What is WordPress AI? (Learn WordPress lesson, AI-Powered WordPress)
+    url: https://learn.wordpress.org/lesson/what-is-wordpress-ai/
+  - title: Installing the AI Plugin and Connecting a Provider (Learn WordPress lesson, AI-Powered WordPress)
+    url: https://learn.wordpress.org/lesson/installing-the-ai-plugin-and-connecting-a-provider/
+  - title: "Writing Assistance: Titles, Excerpts, and Summaries (Learn WordPress lesson, AI-Powered WordPress)"
+    url: https://learn.wordpress.org/lesson/writing-assistance-titles-excerpts-and-summaries/
+  - title: Generating Alt Text for Images (Learn WordPress lesson, AI-Powered WordPress)
+    url: https://learn.wordpress.org/lesson/generating-alt-text-for-images/
+  - title: Reviewing and Improving Content with Editorial Tools (Learn WordPress lesson, AI-Powered WordPress)
+    url: https://learn.wordpress.org/lesson/reviewing-and-improving-content-with-editorial-tools/
+  - title: Building AI into Your Publishing Workflow (Learn WordPress lesson, AI-Powered WordPress)
+    url: https://learn.wordpress.org/lesson/building-ai-into-your-publishing-workflow/
+  - title: Introducing the Connectors API in WordPress 7.0 (Make WordPress Core)
+    url: https://make.wordpress.org/core/2026/03/18/introducing-the-connectors-api-in-wordpress-7-0/
+  - title: AI (WordPress.org plugin)
+    url: https://wordpress.org/plugins/ai/
+beats:
+  - id: whats-built-in
+    goal: Know what AI WordPress 7 has built in.
+    content: |
+      WordPress 7.0 brought AI into WordPress itself. What's built in is the plumbing, not a robot writer:
+
+      - The **AI Client** is a messenger. It sends a request from your site to an AI **provider** and brings the answer back. The provider does the thinking.
+      - WordPress doesn't come with a provider. You connect one, such as Anthropic (Claude), Google (Gemini) or OpenAI (GPT). Those need an API key from the provider, and using them can cost money. You can also run a model on your own computer, with tools like Ollama, if your hardware is up to it.
+
+      You set the provider up once, and every plugin that uses the AI Client can share it.
+    question: What would you want an AI helper to do for your site, if anything?
+  - id: connectors
+    goal: Find the Connectors screen.
+    content: |
+      The preview is open at **Settings > Connectors**, which is new in WordPress 7. It lists three AI providers, Anthropic, Google and OpenAI, each with an **Install** button. Each connector is a small plugin, and once it's installed, a field appears here for your API key.
+
+      Treat that key like a password. The screen masks it, but a key typed in here is stored in your site's database without encryption.
+
+      You won't connect one in this practice site, and you don't need to. There's no key, and the course this lesson is adapted from points out that its AI tools need a connected provider, so they can't generate anything in Playground. Notice the banner at the top, though: it says the **AI plugin** can use your connectors to generate alt text, titles, excerpts and more. That's where the writing features live.
+    question: Where would you keep an API key safe, if you had one?
+  - id: the-ai-plugin
+    goal: Know what the AI plugin adds, and that it's opt-in.
+    content: |
+      **AI** is a free plugin from the WordPress.org team. Once a provider is connected, you switch its features on one at a time under **Settings > AI**. Some of what it offers in the editor:
+
+      - **Title Generation**: a **Generate** button above the title suggests a few titles from what you've written, and you pick one.
+      - **Excerpt Generation** and **Content Summarization**: a draft excerpt, or a summary block added to your post that you can edit or delete.
+      - **Alt Text Generation**: when you upload an image, its alt text field is filled in for you.
+      - **Editorial Notes**: notes on each block about accessibility, readability, grammar and SEO.
+      - **Content Resizing**: shorten, expand or rephrase a block.
+
+      Nothing runs until you ask. The plugin describes itself as experimental, so its features may change, and it suggests trying it on a test site first.
+    question: Which of these would save you the most time, do you think?
+  - id: drafts-not-answers
+    goal: Treat AI output as a draft.
+    content: |
+      The *AI-Powered WordPress* course is clear about this. AI suggestions are "a starting point, not a final answer". Generated alt text "is a draft". And after you apply AI changes, "reading the post once more after applying is not optional."
+
+      Here's what that reading looks for:
+
+      - **Is it true?** A model can get things wrong. The course warns that alt text can misidentify what's in a photo or miss the point of it. Check names, dates, prices and anything else a reader will rely on.
+      - **Is it useful?** Good alt text says what the image means, not just what's in it. And a purely decorative image should have empty alt text. The plugin writes some anyway, so it's your job to clear it.
+      - **Does it sound like you?** Grammar and readability notes can flag choices you made on purpose. Keep what's right for your readers.
+      - **Did it change what you meant?** Shorten, rephrase and translate all rewrite your words. Read the result closely before you publish.
+    question: What's one thing on your own site you'd never publish without checking yourself?
+  - id: you-check
+    goal: See why understanding still matters.
+    content: |
+      Remember lesson 3? An AI assistant wrote your About page. It looked fine in the preview, but one closing comment was missing, and only reading the markup gave it away.
+
+      Words work the same way. AI can draft a title, an excerpt or alt text in seconds, and it'll look finished. Whether it's *right* is still on you, because you're the one who knows your site, your readers and the facts.
+
+      That's why this path had you read block markup instead of just clicking: you can only check what you understand. **The AI drafts, you check.**
+    question: Has an AI tool ever given you something that looked right but wasn't?
+checkpoint:
+  id: cp-check-ai-text
+  question: >-
+    The AI plugin has written a title, an excerpt and alt text for the bakery's new post about pumpkin
+    loaves. What would you check before you publish, and why not just publish it as it is?
+  kind: free-text
+  rubric: >-
+    Advance if the answer names at least two concrete things to check, such as whether facts like
+    prices, dates, opening times or ingredients are right; whether the alt text describes what is
+    really in the photo (or should be empty for a decorative image); whether it sounds like the bakery
+    or reads naturally; or spelling and grammar. It must also give a reason not to publish it as it is,
+    such as AI getting things wrong, the output being a draft or starting point, or the person
+    publishing being responsible for it. Wording can be loose. Review if the answer would publish it as
+    it is, trusts the AI to be right, names only one check or only a vague one ("check it"), gives no
+    reason, or is unsure. Skip only if the answer meets the advance bar and also correctly brings in a
+    WordPress detail, such as connecting a provider under Settings > Connectors, switching features on
+    under Settings > AI, using Editorial Notes, or clearing alt text on a decorative image.
+  branches:
+    - outcome: advance
+      to: ln-publish
+      message: Exactly. The AI drafts, you check. Last stop, publishing and what comes next.
+    - outcome: review
+      to: ln-ai-in-wordpress
+      message: Let's look again at what AI gets wrong, and what to read for before anything goes live.
+    - outcome: skip
+      to: ln-publish
+      message: You check AI output like an editor. On to publishing.
+  fallback:
+    - label: I'd check the facts, the alt text and the tone, because AI can get things wrong
+      outcome: advance
+    - label: I'd publish it as it is, the AI wrote it
+      outcome: review
+    - label: I'm not sure yet
+      outcome: review

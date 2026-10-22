@@ -13,6 +13,9 @@ const about = (text: string) => ({ 'pages/about.html': text });
 const l1 = L['ln-what-is-wordpress'];
 const l2 = L['ln-posts-and-pages'];
 const l3 = L['ln-blocks'];
+const l4 = L['ln-navigation-and-site-editor'];
+const l5 = L['ln-ai-in-wordpress'];
+const l6 = L['ln-publish'];
 
 describe('learner path content', () => {
   it('is live on the site preview, lessons 1 and 2 free-text, lesson 3 a bug and a code checkpoint', () => {
@@ -28,11 +31,33 @@ describe('learner path content', () => {
     expect(l2.landing).toBe('/wp-admin/edit.php?post_type=page');
   });
 
+  it('has six lessons: 4 and 5 free-text, 6 with no checkpoint, and each one leads to the next', () => {
+    expect(c.paths.learner.lessons).toEqual([
+      'ln-what-is-wordpress',
+      'ln-posts-and-pages',
+      'ln-blocks',
+      'ln-navigation-and-site-editor',
+      'ln-ai-in-wordpress',
+      'ln-publish',
+    ]);
+    expect(l4.checkpoint?.kind).toBe('free-text');
+    expect(l5.checkpoint?.kind).toBe('free-text');
+    expect(l6.checkpoint).toBeUndefined();
+    expect(l6.bug).toBeUndefined();
+    expect(l4.landing).toBe('/wp-admin/site-editor.php');
+    expect(l5.landing).toBe('/wp-admin/options-connectors.php');
+    const to = (l: typeof l3, o: string) => l.checkpoint!.branches.find((b) => b.outcome === o)!.to;
+    expect([to(l3, 'advance'), to(l3, 'skip')]).toEqual(['ln-navigation-and-site-editor', 'ln-navigation-and-site-editor']);
+    expect([to(l4, 'advance'), to(l4, 'skip')]).toEqual(['ln-ai-in-wordpress', 'ln-ai-in-wordpress']);
+    expect([to(l5, 'advance'), to(l5, 'skip')]).toEqual(['ln-publish', 'ln-publish']);
+    for (const l of [l3, l4, l5]) expect(to(l, 'review')).toBe(l.id);
+  });
+
   it('every page file is a pages/<slug>.html file', () => {
     const files = [
       ...Object.keys(c.paths.learner.previewFiles ?? {}),
       ...Object.keys(c.paths.learner.finalFiles ?? {}),
-      ...[l1, l2, l3].flatMap((l) => [...Object.keys(l.starterFiles ?? {}), l.checkpoint?.file, l.bug?.file].filter(Boolean)),
+      ...[l1, l2, l3, l4, l5, l6].flatMap((l) => [...Object.keys(l.starterFiles ?? {}), l.checkpoint?.file, l.bug?.file].filter(Boolean)),
     ];
     for (const f of files) expect(f).toMatch(/^pages\/[a-z0-9-]+\.html$/);
   });

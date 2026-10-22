@@ -149,14 +149,14 @@ checkpoint:
       message: Keep the two paragraphs that were there, and add your heading after them.
   branches:
     - outcome: advance
-      to: ln-blocks
-      message: Your About page has a heading of its own now, written by hand. Nice work.
+      to: ln-navigation-and-site-editor
+      message: Your About page has a heading of its own now, written by hand. Next, let's see how it got into your site's menu.
     - outcome: review
       to: ln-blocks
       message: Let's look at how block comments pair up once more, then have another go.
     - outcome: skip
-      to: ln-blocks
-      message: You can read and write block markup. That's a real skill.
+      to: ln-navigation-and-site-editor
+      message: You can read and write block markup. That's a real skill. On to the Site Editor.
   fallback:
     - label: Review block markup and the Code editor
       outcome: review
