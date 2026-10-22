@@ -1,18 +1,20 @@
 import { useMemo } from 'preact/hooks';
 import { content } from '../content';
 import { useRecord } from '../record/useRecord';
-import { resolveTheme, themeZip, THEME_SLUG } from '../finale/themeZip';
+import { pathZip, resolveFiles } from '../finale/themeZip';
 import { PLAYGROUND_URL_LIMIT, playgroundUrl } from '../finale/playground';
 import { Bubble } from '../components/Bubble';
 import { SketchIcon } from '../components/SketchIcon';
 import { Swipe } from '../components/Swipe';
+import { NotFound } from './routes';
+import type { PathId, Preview } from '../shared/types';
 
-function downloadZip(files: Record<string, string>) {
-  const blob = new Blob([themeZip(files) as BlobPart], { type: 'application/zip' });
+function downloadZip(files: Record<string, string>, preview: Preview) {
+  const blob = new Blob([pathZip(files, preview) as BlobPart], { type: 'application/zip' });
   const url = URL.createObjectURL(blob);
   const a = document.createElement('a');
   a.href = url;
-  a.download = `${THEME_SLUG}.zip`;
+  a.download = `${preview.kind === 'site' ? 'site' : preview.slug}.zip`;
   document.body.appendChild(a);
   a.click();
   a.remove();
@@ -20,29 +22,153 @@ function downloadZip(files: Record<string, string>) {
   setTimeout(() => URL.revokeObjectURL(url), 10_000);
 }
 
-export function Finale() {
+interface Copy {
+  noun: string;
+  filesLabel: string;
+  lessonsLabel: string;
+  made: string;
+  finished: string;
+  none: string;
+  download: string | null;
+  open: string;
+  tooBig: string;
+  fine: string;
+  next: { title: string; body: (slug: string) => preact.ComponentChildren };
+  keepLearning: preact.ComponentChildren;
+  closing: string;
+}
+
+const THEME_COPY: Copy = {
+  noun: 'theme',
+  filesLabel: 'Files in your theme',
+  lessonsLabel: 'Lessons in your theme',
+  made: "That's a real WordPress block theme, and you wrote it. Take it home as a zip, or watch it run in a full WordPress site in your browser.",
+  finished: "Here's the finished theme from the path, a real WordPress block theme. Take it home as a zip, or watch it run in a full WordPress site in your browser.",
+  none: "Here's the block theme this path builds. Open the finished reference theme in a real WordPress site, then work through the lessons to make it yours.",
+  download: 'Download your theme (.zip)',
+  open: 'Open in WordPress Playground',
+  tooBig: 'Your theme is too big for a Playground link. Download the zip, open playground.wordpress.net and upload it under Appearance → Themes.',
+  fine: "Playground runs WordPress entirely in your browser. It takes a few seconds to start, then shows your theme's front page. Nothing is uploaded anywhere.",
+  next: {
+    title: 'Install it on a real site',
+    body: (slug) => (
+      <>
+        In any WordPress site, go to Appearance → Themes → Add New Theme → Upload Theme, choose <code>{slug}.zip</code> and activate it.
+        Then open the Site Editor and keep shaping it.
+      </>
+    ),
+  },
+  keepLearning: (
+    <>
+      The <a href="https://learn.wordpress.org/">Learn WordPress</a> courses and the{' '}
+      <a href="https://developer.wordpress.org/themes/">Theme Handbook</a> go deeper on everything here. The Create Block Theme plugin
+      exports whatever you change in the Site Editor back to files.
+    </>
+  ),
+  closing: 'The theme, though, is entirely yours.',
+};
+
+const PLUGIN_COPY: Copy = {
+  noun: 'plugin',
+  filesLabel: 'Files in your plugin',
+  lessonsLabel: 'Lessons in your plugin',
+  made: "That's a real WordPress plugin, and you shaped it, bugs caught and all. Take it home as a zip, or switch it on in a full WordPress site in your browser.",
+  finished: "Here's the finished plugin from the path, a real WordPress plugin. Take it home as a zip, or switch it on in a full WordPress site in your browser.",
+  none: "Here's the plugin this path builds. Open the finished reference plugin in a real WordPress site, then work through the lessons to make it yours.",
+  download: 'Download your plugin (.zip)',
+  open: 'Open in WordPress Playground',
+  tooBig: 'Your plugin is too big for a Playground link. Download the zip, open playground.wordpress.net and upload it under Plugins → Add New Plugin.',
+  fine: 'Playground runs WordPress entirely in your browser. It takes a few seconds to start, then opens a site with your plugin already active. Nothing is uploaded anywhere.',
+  next: {
+    title: 'Install it on a real site',
+    body: (slug) => (
+      <>
+        In any WordPress site, go to Plugins → Add New Plugin → Upload Plugin, choose <code>{slug}.zip</code> and activate it. Try it on a
+        test site first, the way you would with any code an AI wrote for you.
+      </>
+    ),
+  },
+  keepLearning: (
+    <>
+      The <a href="https://learn.wordpress.org/">Learn WordPress</a> courses and the{' '}
+      <a href="https://developer.wordpress.org/plugins/">Plugin Handbook</a> go deeper on everything here.
+    </>
+  ),
+  closing: 'The plugin, though, is entirely yours.',
+};
+
+const SITE_COPY: Copy = {
+  noun: 'site',
+  filesLabel: 'Pages in your site',
+  lessonsLabel: 'Lessons in your site',
+  made: "That's a real WordPress site, and you built it. Watch it run in a full WordPress site in your browser.",
+  finished: "Here's the finished site from the path, running in a real WordPress site in your browser.",
+  none: "Here's the site this path builds. Open the finished reference site in a real WordPress site, then work through the lessons to make it yours.",
+  download: null,
+  open: 'Open your site in Playground',
+  tooBig: 'Your site is too big for a Playground link. Head back to the lessons and trim a page or two.',
+  fine: 'Playground runs WordPress entirely in your browser. It takes a few seconds to start, then shows your pages. Nothing is uploaded anywhere.',
+  next: {
+    title: 'Make it a real site',
+    body: () => (
+      <>
+        Pick a host, or run WordPress on your own computer with Local. Then paste each page's markup into the code editor of a new page
+        and publish it.
+      </>
+    ),
+  },
+  keepLearning: (
+    <>
+      The <a href="https://learn.wordpress.org/">Learn WordPress</a> courses and the{' '}
+      <a href="https://wordpress.org/documentation/">WordPress documentation</a> go deeper on everything here.
+    </>
+  ),
+  closing: 'The site, though, is entirely yours.',
+};
+
+const COPY = { theme: THEME_COPY, plugin: PLUGIN_COPY, site: SITE_COPY };
+
+/** /finale (the block theme) and /finale/:pathId. An unknown or non-live path is NotFound. */
+export function Finale({ pathId }: { pathId?: string }) {
+  const id = pathId ?? 'block-theme';
+  const path = Object.prototype.hasOwnProperty.call(content.paths, id) ? content.paths[id as PathId] : undefined;
+  if (!path || path.status !== 'live' || !path.preview) return <NotFound />;
+  return <FinaleFor pathId={path.id} />;
+}
+
+function FinaleFor({ pathId }: { pathId: PathId }) {
   const { record } = useRecord();
-  const path = content.paths['block-theme'];
+  const path = content.paths[pathId];
+  const preview = path.preview!;
+  const copy = COPY[preview.kind];
   const lessons = path.lessons.map((id) => content.lessons[id]).filter(Boolean);
   const done = new Set(record.completedLessons);
   const doneCount = lessons.filter((l) => done.has(l.id)).length;
-  const theme = useMemo(() => resolveTheme(content, record), [record]);
-  const files = theme.files;
-  const url = useMemo(() => playgroundUrl(files, path.preview ?? { kind: 'theme', slug: THEME_SLUG }), [files, path]);
+  const resolved = useMemo(() => resolveFiles(content, record, pathId), [record, pathId]);
+  const files = resolved.files;
+  const url = useMemo(() => playgroundUrl(files, preview), [files, preview]);
   const fits = url.length < PLAYGROUND_URL_LIMIT;
   const names = Object.keys(files).sort((a, b) => a.split('/').length - b.split('/').length || a.localeCompare(b));
+  const slug = preview.kind === 'site' ? '' : preview.slug;
+  const root = preview.kind === 'theme' ? `${slug}/` : preview.kind === 'plugin' ? 'wp-content/plugins/' : null;
 
   return (
     <>
       <section class="band band--dark finale-hero" aria-labelledby="finale-title">
         <div class="wrap split">
           <div class="finale-hero__head">
-            <SketchIcon name="block-theme" class="finale-hero__icon" />
+            <SketchIcon name={pathId} class="finale-hero__icon" />
             <h1 class="split__title finale-hero__title" id="finale-title">
               {doneCount > 0 ? (
-                <>
-                  You made it <Swipe>this far</Swipe>
-                </>
+                preview.kind === 'theme' ? (
+                  <>
+                    You made it <Swipe>this far</Swipe>
+                  </>
+                ) : (
+                  <>
+                    Your first {copy.noun}, <Swipe>built</Swipe>
+                  </>
+                )
               ) : (
                 <>
                   Where this path <Swipe>ends up</Swipe>
@@ -51,22 +177,7 @@ export function Finale() {
             </h1>
           </div>
           <div class="split__body finale-hero__body">
-            {doneCount > 0 && theme.used.length > 0 ? (
-              <p class="lede">
-                That's a real WordPress block theme, and you wrote it. Take it home as a zip, or watch it run in a full
-                WordPress site in your browser.
-              </p>
-            ) : doneCount > 0 ? (
-              <p class="lede">
-                Here's the finished theme from the path, a real WordPress block theme. Take it home as a zip, or watch it
-                run in a full WordPress site in your browser.
-              </p>
-            ) : (
-              <p class="lede">
-                Here's the block theme this path builds. Open the finished reference theme in a real WordPress site, then
-                work through the lessons to make it yours.
-              </p>
-            )}
+            <p class="lede">{doneCount > 0 && resolved.used.length > 0 ? copy.made : doneCount > 0 ? copy.finished : copy.none}</p>
             <p class="finale-hero__meta">
               {doneCount === lessons.length
                 ? `All ${lessons.length} lessons done.`
@@ -75,27 +186,23 @@ export function Finale() {
                   : `0 of ${lessons.length} lessons done.`}
             </p>
             <div class="finale-actions">
-              <button type="button" class="button" onClick={() => downloadZip(files)}>
-                Download your theme (.zip)
-              </button>
+              {copy.download && (
+                <button type="button" class="button" onClick={() => downloadZip(files, preview)}>
+                  {copy.download}
+                </button>
+              )}
               {fits ? (
                 <a class="button button--quiet" href={url} target="_blank" rel="noopener noreferrer">
-                  Open in WordPress Playground
+                  {copy.open}
                   <span aria-hidden="true">↗</span>
                   <span class="visually-hidden"> (opens in a new tab)</span>
                 </a>
               ) : (
-                <p class="finale-actions__note">
-                  Your theme is too big for a Playground link. Download the zip, open playground.wordpress.net and upload
-                  it under Appearance → Themes.
-                </p>
+                <p class="finale-actions__note">{copy.tooBig}</p>
               )}
             </div>
             {fits && (
-              <p class="finale-hero__fine">
-                Playground runs WordPress entirely in your browser. It takes a few seconds to start, then shows your theme's
-                front page. Nothing is uploaded anywhere.
-              </p>
+              <p class="finale-hero__fine">{copy.fine}</p>
             )}
           </div>
         </div>
@@ -104,31 +211,33 @@ export function Finale() {
       <section class="band band--light" aria-labelledby="theme-title">
         <div class="wrap split">
           <h2 class="split__title" id="theme-title">
-            What's in <Swipe>your theme</Swipe>
+            What's in <Swipe>your {copy.noun}</Swipe>
           </h2>
           <div class="split__body split__body--wide finale-theme">
             <div class="finale-files">
-              <p class="finale-files__root">
-                <span aria-hidden="true">▾ </span>
-                {THEME_SLUG}/
-              </p>
-              <ul class="finale-files__list" aria-label="Files in your theme">
+              {root && (
+                <p class="finale-files__root">
+                  <span aria-hidden="true">▾ </span>
+                  {root}
+                </p>
+              )}
+              <ul class="finale-files__list" aria-label={copy.filesLabel}>
                 {names.map((f) => (
                   <li key={f}>
                     <code>{f}</code>
-                    {theme.used.includes(f) && <span class="chip chip--here">Your edit</span>}
+                    {resolved.used.includes(f) && <span class="chip chip--here">Your edit</span>}
                   </li>
                 ))}
               </ul>
-              {theme.replaced.length > 0 && (
+              {resolved.replaced.length > 0 && (
                 <ul class="finale-files__notes">
-                  {theme.replaced.map((n) => (
+                  {resolved.replaced.map((n) => (
                     <li key={n.file}>{n.message}</li>
                   ))}
                 </ul>
               )}
             </div>
-            <ol class="lesson-list finale-lessons" aria-label="Lessons in your theme">
+            <ol class="lesson-list finale-lessons" aria-label={copy.lessonsLabel}>
               {lessons.map((l, i) => (
                 <li class="lesson-row" key={l.id}>
                   <span class="lesson-row__n" aria-hidden="true">
@@ -157,25 +266,18 @@ export function Finale() {
           <div class="split__body">
             <ol class="finale-next">
               <li>
-                <h3>Install it on a real site</h3>
-                <p>
-                  In any WordPress site, go to Appearance → Themes → Add New Theme → Upload Theme, choose{' '}
-                  <code>{THEME_SLUG}.zip</code> and activate it. Then open the Site Editor and keep shaping it.
-                </p>
+                <h3>{copy.next.title}</h3>
+                <p>{copy.next.body(slug)}</p>
               </li>
               <li>
                 <h3>Keep learning</h3>
-                <p>
-                  The <a href="https://learn.wordpress.org/">Learn WordPress</a> courses and the{' '}
-                  <a href="https://developer.wordpress.org/themes/">Theme Handbook</a> go deeper on everything here. The
-                  Create Block Theme plugin exports whatever you change in the Site Editor back to files.
-                </p>
+                <p>{copy.keepLearning}</p>
               </li>
             </ol>
             <div class="chat finale-chat">
               <Bubble from="tutor">
                 One last thing: this site is an unofficial concept, a picture of what Learn WordPress could feel like. It
-                isn't run by WordPress.org. The theme, though, is entirely yours.
+                isn't run by WordPress.org. {copy.closing}
               </Bubble>
             </div>
             <a class="button button--quiet finale-home" href="/">

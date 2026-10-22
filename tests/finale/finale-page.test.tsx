@@ -1,5 +1,5 @@
 // @vitest-environment happy-dom
-import { afterEach, describe, expect, it, vi } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { cleanup, fireEvent, render, screen, waitFor } from '@testing-library/preact';
 
 vi.mock('../../src/content', async () => {
@@ -11,6 +11,7 @@ import { Finale } from '../../src/pages/Finale';
 import { setRecordManager } from '../../src/record/useRecord';
 import { content } from '../../src/content';
 import { memoryManager } from '../components/helpers';
+import { makeLive } from './livePaths';
 
 afterEach(() => {
   cleanup();
@@ -119,5 +120,56 @@ describe('Finale page', () => {
     render(<Finale />);
     expect(screen.getByText(/Appearance → Themes → Add New Theme → Upload Theme/)).toBeTruthy();
     expect(screen.getByText(/unofficial concept/i)).toBeTruthy();
+  });
+});
+
+describe('Finale per path', () => {
+  let restore = () => {};
+  beforeEach(() => {
+    restore = makeLive(content);
+  });
+  afterEach(() => restore());
+
+  it('/finale/vibe-coder downloads my-first-plugin.zip and opens Playground with the plugin active', async () => {
+    await withLessons([]);
+    const create = vi.spyOn(URL, 'createObjectURL').mockReturnValue('blob:x');
+    vi.spyOn(URL, 'revokeObjectURL').mockImplementation(() => {});
+    const click = vi.spyOn(HTMLAnchorElement.prototype, 'click').mockImplementation(() => {});
+    render(<Finale pathId="vibe-coder" />);
+    expect(screen.getByRole('heading', { level: 1 }).textContent).toBe('Where this path ends up');
+    fireEvent.click(screen.getByRole('button', { name: /Download your plugin \(\.zip\)/ }));
+    expect(create).toHaveBeenCalledTimes(1);
+    const a = click.mock.instances[0] as unknown as HTMLAnchorElement;
+    expect(a.download).toBe('my-first-plugin.zip');
+    const link = await screen.findByRole('link', { name: /Open in WordPress Playground/ });
+    const bp = decodeURIComponent(link.getAttribute('href')!);
+    expect(bp).toContain('"activatePlugin"');
+    expect(bp).toContain('my-first-plugin/my-first-plugin.php');
+    expect(screen.getByRole('list', { name: 'Files in your plugin' })).toBeTruthy();
+  });
+
+  it('/finale/learner offers "Open your site in Playground" and no download', async () => {
+    await withLessons([]);
+    render(<Finale pathId="learner" />);
+    const link = await screen.findByRole('link', { name: /Open your site in Playground/ });
+    expect(link.getAttribute('href')!.startsWith('https://playground.wordpress.net/#')).toBe(true);
+    expect(screen.queryByRole('button', { name: /Download/ })).toBeNull();
+    expect(screen.getByRole('list', { name: 'Pages in your site' }).textContent).toContain('pages/home.html');
+  });
+
+  it('shows the path-specific h1 once lessons are done', async () => {
+    await withLessons(['vc-first-plugin']);
+    render(<Finale pathId="vibe-coder" />);
+    expect(screen.getByRole('heading', { level: 1 }).textContent).toBe('Your first plugin, built');
+  });
+
+  it('an unknown or non-live path renders NotFound', async () => {
+    await withLessons([]);
+    restore();
+    render(<Finale pathId="nope" />);
+    expect(screen.getByRole('heading', { level: 1 }).textContent).toBe('Nothing here');
+    cleanup();
+    render(<Finale pathId="vibe-coder" />);
+    expect(screen.getByRole('heading', { level: 1 }).textContent).toBe('Nothing here');
   });
 });

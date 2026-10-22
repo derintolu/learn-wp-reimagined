@@ -20,7 +20,7 @@ function parses(text: string): boolean {
 
 /**
  * The files to open a lesson with, from the lesson's own path only. Starts from the path's read-only `previewFiles`, then
- * applies each earlier lesson's starters. The R25 rule from `resolveTheme`, restricted to
+ * applies each earlier lesson's starters. The R25 rule from `resolveFiles`, restricted to
  * earlier lessons: the learner's edit to a file wins only if it was made in the last earlier
  * lesson that owns the file, passes that lesson's checks for it, and, for .json, parses.
  * Then this lesson's starters, then this lesson's own saved edits.

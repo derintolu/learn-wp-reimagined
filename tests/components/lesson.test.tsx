@@ -372,7 +372,7 @@ describe('Catch the bug', () => {
       expect(dispatched()).toContainEqual({ type: 'fileEdited', file: 'patterns/hero.php', content: expect.stringContaining('mytheme/hero'), lessonId: 'patterns' }),
     );
     // patterns is the last lesson of the path
-    expect(screen.getByRole('link', { name: /Continue to the finale/ }).getAttribute('href')).toBe('/finale');
+    expect(screen.getByRole('link', { name: /Continue to the finale/ }).getAttribute('href')).toBe('/finale/block-theme');
   });
 });
 
@@ -605,7 +605,7 @@ describe('Fix round 1', () => {
     const summary = await screen.findByTestId('completed-summary');
     expect(summary.textContent).toContain('You caught the planted bug.');
     expect(screen.queryByRole('region', { name: /Catch the bug/ })).toBeNull();
-    expect(within(summary).getByRole('link', { name: /Continue/ }).getAttribute('href')).toBe('/finale');
+    expect(within(summary).getByRole('link', { name: /Continue/ }).getAttribute('href')).toBe('/finale/block-theme');
     expect(dispatched()).toEqual([]);
   });
 

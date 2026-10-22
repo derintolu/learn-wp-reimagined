@@ -18,12 +18,16 @@ import { RecordManager } from '../../src/record/store';
 import { content } from '../../src/content';
 import { setPlaygroundImporter } from '../../src/studio/previewClient';
 import { memoryManager } from './helpers';
+import { makeLive } from '../finale/livePaths';
 
+let restoreLive = () => {};
 beforeEach(() => {
+  restoreLive = makeLive(content);
   setPlaygroundImporter(() => Promise.reject(new Error('no Playground in tests')));
 });
 afterEach(() => {
   cleanup();
+  restoreLive();
   setRecordManager(null);
   setPlaygroundImporter(null);
 });
@@ -35,6 +39,11 @@ describe('routing', () => {
     ['/path/block-theme', 'Block theme developer'],
     ['/learn/x', 'Nothing here'],
     ['/finale', 'Where this path ends up'], // a fresh record: 0 lessons done
+    ['/finale/block-theme', 'Where this path ends up'],
+    ['/finale/learner', 'Where this path ends up'],
+    ['/finale/vibe-coder', 'Where this path ends up'],
+    ['/finale/nope', 'Nothing here'],
+    ['/connect', 'Connect your agent'],
     ['/no/such/page', 'Nothing here'],
   ])('renders %s', async (url, heading) => {
     history.replaceState(null, '', url);

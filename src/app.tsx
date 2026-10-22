@@ -74,6 +74,7 @@ function Frame() {
       <Route path="/path/:pathId" component={PathOverview} />
       <Route path="/learn/:lessonId" component={Lesson} />
       <Route path="/finale" component={Finale} />
+      <Route path="/finale/:pathId" component={Finale} />
       <Route path="/connect" component={Connect} />
       <Route default component={NotFound} />
     </Router>

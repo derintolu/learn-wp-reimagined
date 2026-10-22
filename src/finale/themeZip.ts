@@ -1,13 +1,12 @@
 import { strToU8, zipSync } from 'fflate';
 import { runChecks } from '../shared/checks';
 import type { LearningRecord } from '../shared/record';
-import type { ContentBundle, Lesson } from '../shared/types';
+import type { ContentBundle, Lesson, PathId, Preview } from '../shared/types';
 import { ownedFiles } from '../studio/workspace';
 
 /** The theme's folder name, matching the Text Domain in the starter style.css. */
 export const THEME_SLUG = 'my-block-theme';
 
-const PATH_ID = 'block-theme';
 const has = (o: object, k: string) => Object.prototype.hasOwnProperty.call(o, k);
 
 export interface ResolvedTheme {
@@ -25,8 +24,8 @@ export interface ResolvedTheme {
  * Otherwise the path's finished `finalFiles` version is used, else the latest starter.
  * Only files a lesson owns or `finalFiles` lists are included.
  */
-export function resolveTheme(c: ContentBundle, r: LearningRecord): ResolvedTheme {
-  const path = c.paths[PATH_ID];
+export function resolveFiles(c: ContentBundle, r: LearningRecord, pathId: PathId): ResolvedTheme {
+  const path = c.paths[pathId];
   const lessons = (path?.lessons ?? []).map((id) => c.lessons[id]).filter(Boolean);
   const files: Record<string, string> = {};
   const owner: Record<string, { lesson: Lesson; n: number }> = {};
@@ -40,7 +39,7 @@ export function resolveTheme(c: ContentBundle, r: LearningRecord): ResolvedTheme
   const replaced: ResolvedTheme['replaced'] = [];
   for (const [file, text] of Object.entries(r.files)) {
     const o = has(owner, file) ? owner[file] : undefined;
-    if (!o) continue; // not part of this theme
+    if (!o) continue; // not part of this path
     const finished = path?.finalFiles && has(path.finalFiles, file) ? 'the finished version' : 'the starter version';
     const madeIn = r.fileLessons && has(r.fileLessons, file) ? r.fileLessons[file] : o.lesson.id;
     let why: string | null = null;
@@ -71,13 +70,14 @@ function parses(text: string): boolean {
   }
 }
 
-export function buildThemeFiles(c: ContentBundle, r: LearningRecord): Record<string, string> {
-  return resolveTheme(c, r).files;
-}
-
-/** A zip of the theme with every file under `my-block-theme/`, ready for Upload Theme. */
-export function themeZip(files: Record<string, string>): Uint8Array {
+/**
+ * A zip of the path's files, ready to upload. Theme files go under `<slug>/`; plugin file names
+ * already carry `<slug>/`. A site has pages only, so it has no zip.
+ */
+export function pathZip(files: Record<string, string>, preview: Preview): Uint8Array {
+  if (preview.kind === 'site') throw new Error('A site has no zip');
+  const prefix = preview.kind === 'theme' ? `${preview.slug}/` : '';
   const entries: Record<string, Uint8Array> = {};
-  for (const [p, data] of Object.entries(files)) entries[`${THEME_SLUG}/${p}`] = strToU8(data);
+  for (const [p, data] of Object.entries(files)) entries[`${prefix}${p}`] = strToU8(data);
   return zipSync(entries, { level: 6 });
 }

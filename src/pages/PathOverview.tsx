@@ -57,7 +57,7 @@ export function PathOverview() {
 
   let cta: { href: string; label: string };
   if (here && !(allDone && done.has(here))) cta = { href: `/learn/${here}`, label: 'Continue where you left off' };
-  else if (allDone) cta = { href: '/finale', label: 'Go to the finale' };
+  else if (allDone) cta = { href: `/finale/${pathId}`, label: 'Go to the finale' };
   else if (firstOpen && done.size > 0) cta = { href: `/learn/${firstOpen}`, label: 'Continue where you left off' };
   else cta = { href: `/learn/${start ?? path.lessons[0]}`, label: `Start with “${content.lessons[start ?? path.lessons[0]].title}”` };
 

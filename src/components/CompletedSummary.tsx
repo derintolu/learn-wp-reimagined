@@ -55,7 +55,7 @@ export function CompletedSummary({ lesson, record }: { lesson: Lesson; record: L
         </p>
       )}
       {lesson.bug && <p class="lesson-done__answer">You caught the planted bug.</p>}
-      <a class="button" href={to ? `/learn/${to}` : '/finale'}>
+      <a class="button" href={to ? `/learn/${to}` : `/finale/${lesson.pathId}`}>
         {title ? `Continue to “${title}”` : 'Continue to the finale'}
         <span aria-hidden="true">→</span>
       </a>

@@ -2,10 +2,15 @@ import { describe, expect, it } from 'vitest';
 import { strFromU8, unzipSync } from 'fflate';
 import { buildContent } from '../../scripts/build-content';
 import { applyEvent, newRecord, type LearningRecord, type RecordEvent } from '../../src/shared/record';
-import { buildThemeFiles, resolveTheme, themeZip, THEME_SLUG } from '../../src/finale/themeZip';
+import { pathZip, resolveFiles, THEME_SLUG } from '../../src/finale/themeZip';
+import { liveFixturePaths } from './livePaths';
+import type { ContentBundle } from '../../src/shared/types';
 import { PLAYGROUND_URL_LIMIT, playgroundBlueprint, playgroundUrl } from '../../src/finale/playground';
 
 const c = buildContent('content');
+const resolveTheme = (b: ContentBundle, r: LearningRecord) => resolveFiles(b, r, 'block-theme');
+const buildThemeFiles = (b: ContentBundle, r: LearningRecord) => resolveTheme(b, r).files;
+const themeZip = (files: Record<string, string>) => pathZip(files, { kind: 'theme', slug: THEME_SLUG });
 const L = c.lessons;
 const FINAL = c.paths['block-theme'].finalFiles!;
 
@@ -163,5 +168,32 @@ describe('playground blueprint', () => {
     );
     expect(big.used.sort()).toEqual(['parts/header.html', 'patterns/hero.php', 'templates/index.html', 'theme.json']);
     expect(playgroundUrl(big.files, BT).length).toBeLessThan(PLAYGROUND_URL_LIMIT);
+  });
+});
+
+describe('legacy and per-path finales', () => {
+  const live = liveFixturePaths(c);
+
+  it('legacy /finale still resolves the block theme: same files and zip entries as before Plan C', () => {
+    const files = resolveFiles(c, newRecord(), 'block-theme').files;
+    expect(Object.keys(files).sort()).toEqual(Object.keys(FINAL).sort());
+    const out = unzipSync(pathZip(files, c.paths['block-theme'].preview!));
+    expect(Object.keys(out).sort()).toEqual(Object.keys(FINAL).map((f) => `my-block-theme/${f}`).sort());
+  });
+
+  it('resolveFiles resolves only the named path', () => {
+    const t = resolveFiles(live, newRecord(), 'vibe-coder');
+    expect(Object.keys(t.files)).toEqual(['my-first-plugin/my-first-plugin.php']);
+    expect(Object.keys(resolveFiles(live, newRecord(), 'learner').files)).toEqual(['pages/home.html']);
+  });
+
+  it('a plugin zip needs no extra prefix', () => {
+    const files = resolveFiles(live, newRecord(), 'vibe-coder').files;
+    const out = unzipSync(pathZip(files, { kind: 'plugin', slug: 'my-first-plugin' }));
+    expect(Object.keys(out)).toEqual(['my-first-plugin/my-first-plugin.php']);
+  });
+
+  it('a site has no zip', () => {
+    expect(() => pathZip({ 'pages/home.html': 'x' }, { kind: 'site' })).toThrow();
   });
 });

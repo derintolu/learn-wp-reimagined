@@ -164,6 +164,6 @@ describe('Path overview after a checkpoint skip branch', () => {
     render(<App />);
     const list = await screen.findByRole('list', { name: /Lessons/ });
     await waitFor(() => expect(within(list).getAllByText('Skipped')).toHaveLength(jumped.length));
-    expect(screen.getByRole('link', { name: /Go to the finale/ }).getAttribute('href')).toBe('/finale');
+    expect(screen.getByRole('link', { name: /Go to the finale/ }).getAttribute('href')).toBe('/finale/block-theme');
   });
 });

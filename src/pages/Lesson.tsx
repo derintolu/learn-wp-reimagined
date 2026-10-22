@@ -163,7 +163,7 @@ function LessonView({ lesson, onRestart }: { lesson: LessonT; onRestart: () => v
                   <h2 class="lesson-done__title" id="done-title" tabIndex={-1}>
                     {after ? 'Nicely done. On to the next one.' : `That's the ${path.title} path, done.`}
                   </h2>
-                  <a class="button" href={after ? `/learn/${after}` : '/finale'}>
+                  <a class="button" href={after ? `/learn/${after}` : `/finale/${lesson.pathId}`}>
                     {after ? `Continue to “${content.lessons[after].title}”` : 'Continue to the finale'}
                     <span aria-hidden="true">→</span>
                   </a>
