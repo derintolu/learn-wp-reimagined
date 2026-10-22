@@ -138,4 +138,128 @@ describe('buildContent', () => {
       expect(() => buildContent(dir)).toThrow(/previewFiles/);
     });
   });
+  describe('preview kinds', () => {
+    const btPath = (dir: string) => join(dir, 'paths/block-theme/path.yaml');
+    const lessonYaml = (id: string, other: string, extra = '') =>
+      `id: ${id}
+title: ${id}
+minutes: 5
+sources:
+  - title: Source
+    url: https://developer.wordpress.org/
+beats:
+  - id: b
+    goal: g
+    content: c
+${extra}checkpoint:
+  id: cp-${id}
+  question: q
+  kind: free-text
+  rubric: r
+  branches:
+    - { outcome: advance, to: ${other}, message: ok }
+    - { outcome: review, to: ${id}, message: again }
+    - { outcome: skip, to: ${other}, message: skip }
+  fallback:
+    - { label: yes, outcome: advance }
+    - { label: no, outcome: review }
+`;
+    /** Turns the coming-soon learner path into a live one with two checkpointed lessons. */
+    function makeLearnerLive(dir: string, pathYaml: string, extra = '') {
+      writeFileSync(join(dir, 'paths/learner/path.yaml'), pathYaml);
+      writeFileSync(join(dir, 'paths/learner/01-a.yaml'), lessonYaml('l-a', 'l-b', extra));
+      writeFileSync(join(dir, 'paths/learner/02-b.yaml'), lessonYaml('l-b', 'l-a'));
+    }
+    const learnerHead = 'title: Learner\ntagline: t\nstatus: live\nplacementHints: h\n';
+
+    it('a live path without preview is rejected', () => {
+      const dir = copyFixture();
+      edit(btPath(dir), /preview: [^\n]*\n/, '');
+      expect(() => buildContent(dir)).toThrow(/path\.yaml.*preview/);
+    });
+
+    it('rejects preview on a path that is not live', () => {
+      const dir = copyFixture();
+      writeFileSync(join(dir, 'paths/learner/path.yaml'), readFileSync(join(dir, 'paths/learner/path.yaml'), 'utf8') + 'preview: { kind: site }\n');
+      expect(() => buildContent(dir)).toThrow(/preview/);
+    });
+
+    it('rejects a slug that is not lowercase letters, digits and hyphens', () => {
+      const dir = copyFixture();
+      edit(btPath(dir), 'fixture-theme', 'Bad_Slug');
+      expect(() => buildContent(dir)).toThrow(/slug/);
+    });
+
+    it('theme preview still requires style.css and templates/index.html', () => {
+      const dir = copyFixture();
+      edit(btPath(dir), '  style.css:', '  other.css:');
+      expect(() => buildContent(dir)).toThrow(/previewFiles must include style\.css/);
+    });
+
+    describe('plugin', () => {
+      const pluginPath =
+        learnerHead +
+        'preview: { kind: plugin, slug: my-plugin }\n' +
+        'previewFiles:\n  my-plugin/my-plugin.php: "<?php\\n/**\\n * Plugin Name: My Plugin\\n */\\n"\n';
+
+      it('accepts a plugin path whose files all sit under <slug>/', () => {
+        const dir = copyFixture();
+        makeLearnerLive(dir, pluginPath, 'starterFiles:\n  my-plugin/inc.php: "<?php\\n"\n');
+        expect(buildContent(dir).paths.learner.preview).toEqual({ kind: 'plugin', slug: 'my-plugin' });
+      });
+
+      it('requires every file under <slug>/', () => {
+        const dir = copyFixture();
+        makeLearnerLive(dir, pluginPath, 'starterFiles:\n  stray.php: "<?php\\n"\n');
+        expect(() => buildContent(dir)).toThrow(/learner[\\/]path\.yaml.*stray\.php.*my-plugin\//);
+      });
+
+      it('requires <slug>/<slug>.php with a Plugin Name header', () => {
+        const dir = copyFixture();
+        makeLearnerLive(dir, pluginPath.replace('Plugin Name: My Plugin', 'Nothing here'));
+        expect(() => buildContent(dir)).toThrow(/Plugin Name/);
+        const dir2 = copyFixture();
+        makeLearnerLive(dir2, pluginPath.replace('my-plugin/my-plugin.php', 'my-plugin/other.php'));
+        expect(() => buildContent(dir2)).toThrow(/my-plugin\/my-plugin\.php/);
+      });
+    });
+
+    describe('site', () => {
+      const sitePath =
+        learnerHead + 'preview: { kind: site }\n' + 'previewFiles:\n  pages/home.html: "<!-- wp:paragraph --><p>Hi</p><!-- /wp:paragraph -->"\n';
+
+      it('accepts files named pages/<slug>.html', () => {
+        const dir = copyFixture();
+        makeLearnerLive(dir, sitePath, 'starterFiles:\n  pages/about.html: "<p>x</p>"\n');
+        expect(buildContent(dir).paths.learner.preview).toEqual({ kind: 'site' });
+      });
+
+      it('requires files named pages/<slug>.html', () => {
+        const dir = copyFixture();
+        makeLearnerLive(dir, sitePath, 'starterFiles:\n  about.html: "<p>x</p>"\n');
+        expect(() => buildContent(dir)).toThrow(/learner[\\/]path\.yaml.*about\.html.*pages\//);
+      });
+    });
+
+    it('two live paths may not own the same file name', () => {
+      const dir = copyFixture();
+      makeLearnerLive(
+        dir,
+        learnerHead + 'preview: { kind: theme, slug: other-theme }\npreviewFiles:\n  style.css: "/* x */"\n  templates/index.html: "x"\n',
+      );
+      expect(() => buildContent(dir)).toThrow(/style\.css.*block-theme.*learner|style\.css.*learner.*block-theme/);
+    });
+
+    it('landing must start with /', () => {
+      const dir = copyFixture();
+      edit(join(dir, 'paths/block-theme/01-theme-json.yaml'), 'minutes: 10\n', 'minutes: 10\nlanding: about\n');
+      expect(() => buildContent(dir)).toThrow(/01-theme-json\.yaml.*landing/);
+    });
+
+    it('accepts a landing that starts with /', () => {
+      const dir = copyFixture();
+      edit(join(dir, 'paths/block-theme/01-theme-json.yaml'), 'minutes: 10\n', 'minutes: 10\nlanding: /about/\n');
+      expect(buildContent(dir).lessons['theme-json-basics'].landing).toBe('/about/');
+    });
+  });
 });

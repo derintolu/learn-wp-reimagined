@@ -1,6 +1,7 @@
 title: Block theme developer
 tagline: Build a modern block theme with theme.json, templates and patterns.
 status: live
+preview: { kind: theme, slug: fixture-theme }
 placementHints: For people who know HTML and CSS and want to build block themes.
 previewFiles:
   style.css: "/* Theme Name: Fixture */\n"

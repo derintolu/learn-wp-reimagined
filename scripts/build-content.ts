@@ -57,10 +57,28 @@ export function buildContent(dir: string): ContentBundle {
     pathFile[pathId] = rel(pfile);
   }
 
+  /** Every file a path owns: lesson starters, checkpoint and bug files, plus its preview and final files. */
+  const ownedByPath = (p: Path): string[] => [
+    ...new Set([
+      ...p.lessons.flatMap((id) => [...Object.keys(lessons[id].starterFiles ?? {}), lessons[id].checkpoint?.file, lessons[id].bug?.file]),
+      ...Object.keys(p.previewFiles ?? {}),
+      ...Object.keys(p.finalFiles ?? {}),
+    ].filter((f): f is string => !!f)),
+  ];
+
   // Cross-reference checks, after the per-file zod parse, so errors name the file.
   for (const lesson of Object.values(lessons)) {
     for (const br of lesson.checkpoint?.branches ?? []) {
       if (!lessons[br.to]) fail(lessonFile[lesson.id], `checkpoint "${lesson.checkpoint!.id}" branch "${br.outcome}" targets unknown lesson "${br.to}"`);
+    }
+  }
+  const fileOwner: Record<string, PathId> = {};
+  for (const [pid, p] of Object.entries(paths) as [PathId, Path][]) {
+    if (p.status !== 'live') continue;
+    for (const file of ownedByPath(p)) {
+      const other = Object.prototype.hasOwnProperty.call(fileOwner, file) ? fileOwner[file] : undefined;
+      if (other && other !== pid) fail(pathFile[pid]!, `file "${file}" is owned by both "${other}" and "${pid}"; live paths may not share file names`);
+      fileOwner[file] = pid;
     }
   }
   for (const [pid, p] of Object.entries(paths) as [PathId, Path][]) {
@@ -80,8 +98,24 @@ export function buildContent(dir: string): ContentBundle {
     }
     const previewFiles = p.previewFiles;
     if (!previewFiles) fail(pathFile[pid]!, 'a live path needs previewFiles');
-    for (const required of ['style.css', 'templates/index.html']) {
-      if (!Object.prototype.hasOwnProperty.call(previewFiles, required)) fail(pathFile[pid]!, `previewFiles must include ${required}`);
+    const preview = p.preview;
+    if (!preview) fail(pathFile[pid]!, 'a live path needs preview (kind: theme, plugin or site)');
+    const owned = ownedByPath(p);
+    if (preview.kind === 'theme') {
+      for (const required of ['style.css', 'templates/index.html']) {
+        if (!Object.prototype.hasOwnProperty.call(previewFiles, required)) fail(pathFile[pid]!, `previewFiles must include ${required}`);
+      }
+    } else if (preview.kind === 'plugin') {
+      const main = `${preview.slug}/${preview.slug}.php`;
+      if (!Object.prototype.hasOwnProperty.call(previewFiles, main)) fail(pathFile[pid]!, `previewFiles must include ${main}`);
+      if (!/^\s*\*\s*Plugin Name:\s*\S/m.test(previewFiles[main])) fail(pathFile[pid]!, `${main} needs a Plugin Name header`);
+      for (const file of owned) {
+        if (!file.startsWith(`${preview.slug}/`)) fail(pathFile[pid]!, `plugin file "${file}" must live under ${preview.slug}/`);
+      }
+    } else {
+      for (const file of owned) {
+        if (!/^pages\/[a-z0-9-]+\.html$/.test(file)) fail(pathFile[pid]!, `site file "${file}" must be named pages/<slug>.html`);
+      }
     }
     for (const [file, text] of Object.entries(previewFiles)) {
       if (file.endsWith('.json')) {

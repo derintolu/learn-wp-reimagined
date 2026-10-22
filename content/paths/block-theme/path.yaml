@@ -1,6 +1,7 @@
 title: Block theme developer
 tagline: Build your first block theme with theme.json, templates, parts and patterns.
 status: live
+preview: { kind: theme, slug: my-block-theme }
 placementHints: >-
   For people who know some HTML and CSS and want to build a WordPress block theme.
   Start at bt-what-is-a-block-theme if block themes or theme.json are new to them, or if they are unsure.

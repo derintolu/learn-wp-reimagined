@@ -3,6 +3,8 @@ export type Outcome = 'advance' | 'review' | 'skip';
 
 export interface Source { title: string; url: string }
 
+export type Preview = { kind: 'theme'; slug: string } | { kind: 'plugin'; slug: string } | { kind: 'site' };
+
 export interface Path {
   id: PathId;
   title: string;
@@ -14,6 +16,8 @@ export interface Path {
   finalFiles?: Record<string, string>;
   /** Read-only scaffold files so the live preview renders from the first lesson. Live paths only. */
   previewFiles?: Record<string, string>;
+  /** What the live preview runs: a theme, a plugin on the default theme, or block-markup pages. Required on live paths. */
+  preview?: Preview;
 }
 
 export interface Beat { id: string; goal: string; content: string; question?: string }
@@ -43,6 +47,8 @@ export interface Lesson {
   pathId: PathId;
   title: string;
   minutes: number;
+  /** URL path the preview opens for this lesson. Starts with /. Default /. */
+  landing?: string;
   sources: Source[];
   beats: Beat[];
   starterFiles?: Record<string, string>;

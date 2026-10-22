@@ -48,12 +48,19 @@ export const PlantedBugSchema = z
   .object({ id: nonEmpty, file: nonEmpty, code: nonEmpty, explanation: nonEmpty, fixChecks: z.array(CheckSchema).min(1) })
   .strict();
 
+export const PreviewSchema = z.discriminatedUnion('kind', [
+  z.object({ kind: z.literal('theme'), slug: z.string().regex(/^[a-z0-9-]+$/) }).strict(),
+  z.object({ kind: z.literal('plugin'), slug: z.string().regex(/^[a-z0-9-]+$/) }).strict(),
+  z.object({ kind: z.literal('site') }).strict(),
+]);
+
 export const LessonSchema = z
   .object({
     id: nonEmpty,
     pathId: PathIdSchema,
     title: nonEmpty,
     minutes: z.number().int().positive(),
+    landing: z.string().startsWith('/').optional(),
     sources: z.array(SourceSchema).min(1),
     beats: z.array(BeatSchema).min(1),
     starterFiles: z.record(z.string(), z.string()).optional(),
@@ -72,6 +79,7 @@ export const PathSchema = z
     placementHints: nonEmpty,
     finalFiles: z.record(z.string(), z.string()).optional(),
     previewFiles: z.record(z.string(), z.string()).optional(),
+    preview: PreviewSchema.optional(),
   })
   .strict()
   .superRefine((p, ctx) => {
@@ -83,6 +91,9 @@ export const PathSchema = z
     }
     if (p.previewFiles && p.status !== 'live') {
       ctx.addIssue({ code: 'custom', path: ['previewFiles'], message: 'previewFiles are only allowed on a live path' });
+    }
+    if (p.preview && p.status !== 'live') {
+      ctx.addIssue({ code: 'custom', path: ['preview'], message: 'preview is only allowed on a live path' });
     }
   });
 
