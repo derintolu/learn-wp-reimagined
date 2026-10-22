@@ -113,6 +113,10 @@ function my_first_plugin_styles() {
       expect(passes(k, php(hookFirst))).toBe(true);
     });
 
+    it('accepts plugin_dir_url( __FILE__ ) . \'style.css\' as the URL', () => {
+      expect(passes(k, php(done.replace("plugins_url( 'style.css', __FILE__ )", "plugin_dir_url( __FILE__ ) . 'style.css'")))).toBe(true);
+    });
+
     it('accepts an anonymous function or an arrow function as the callback', () => {
       expect(passes(k, php(`${start}\nadd_action( 'wp_enqueue_scripts', function () {\n\t${enqueue}\n} );\n`))).toBe(true);
       expect(passes(k, php(`${start}\nadd_action( 'wp_enqueue_scripts', fn() => wp_enqueue_style( 'my-first-plugin', plugins_url( 'style.css', __FILE__ ) ) );\n`))).toBe(true);
@@ -179,6 +183,26 @@ add_action( 'wp_head', 'my_first_plugin_styles' );
       expect(passes(b.fixChecks, php(interp))).toBe(false);
     });
 
+    it('fails a raw $reader in any other sink: sprintf, esc_html only in a comment, a stray echo', () => {
+      const line = "'<p class=\"my-first-plugin-note\">Thanks for reading, ' . esc_html( $reader ) . '! This note was added by my first plugin.</p>'";
+      expect(fixed).toContain(line);
+      const sprintfRaw = fixed.replace(line, "sprintf( '<p class=\"my-first-plugin-note\">Thanks for reading, %s!</p>', $reader )");
+      const wrongVar = fixed.replace(line, "sprintf( '<p class=\"my-first-plugin-note\">Thanks for reading, %s!</p>', $reader );\n\t\t$safe = esc_html( $reader )");
+      const commentOnly = sprintfRaw.replace('\t\t$note =', '\t\t// Escaped: esc_html( $reader )\n\t\t$note =');
+      const strayEcho = fixed.replace('\treturn $content . $note;', '\techo $reader;\n\treturn $content . $note;');
+      for (const bad of [sprintfRaw, wrongVar, commentOnly, strayEcho]) {
+        expect(bad).not.toBe(fixed);
+        expect(passes(b.fixChecks, php(bad))).toBe(false);
+      }
+    });
+
+    it('accepts sprintf with esc_html( $reader )', () => {
+      const line = "'<p class=\"my-first-plugin-note\">Thanks for reading, ' . esc_html( $reader ) . '! This note was added by my first plugin.</p>'";
+      const ok = fixed.replace(line, "sprintf( '<p class=\"my-first-plugin-note\">Thanks for reading, %s!</p>', esc_html( $reader ) )");
+      expect(ok).not.toBe(fixed);
+      expect(passes(b.fixChecks, php(ok))).toBe(true);
+    });
+
     it('fails when the greeting is deleted instead of fixed', () => {
       expect(passes(b.fixChecks, php(l3.starterFiles![MAIN]))).toBe(false);
     });
@@ -198,6 +222,20 @@ add_action( 'wp_head', 'my_first_plugin_styles' );
     it('accepts sanitize_text_field without wp_unslash, and no spaces', () => {
       expect(passes(k, php(done.replace("sanitize_text_field( wp_unslash( $_GET['reader'] ) )", "sanitize_text_field( $_GET['reader'] )")))).toBe(true);
       expect(passes(k, php(done.replace("sanitize_text_field( wp_unslash( $_GET['reader'] ) )", 'sanitize_text_field(wp_unslash($_GET["reader"]))')))).toBe(true);
+    });
+
+    it('accepts the ternary form of the sanitized assignment', () => {
+      const ternary = done.replace(
+        "$reader = sanitize_text_field( wp_unslash( $_GET['reader'] ) );",
+        "$reader = isset( $_GET['reader'] ) ? sanitize_text_field( wp_unslash( $_GET['reader'] ) ) : '';",
+      );
+      expect(ternary).not.toBe(done);
+      expect(passes(k, php(ternary))).toBe(true);
+    });
+
+    it('fails a raw $reader passed to sprintf even with the input sanitized', () => {
+      const line = "'<p class=\"my-first-plugin-note\">Thanks for reading, ' . esc_html( $reader ) . '! This note was added by my first plugin.</p>'";
+      expect(passes(k, php(done.replace(line, "sprintf( '<p>Thanks, %s!</p>', $reader )")))).toBe(false);
     });
 
     it('fails sanitizing but dropping the escape on output', () => {

@@ -53,6 +53,8 @@ beats:
       plugins_url( 'style.css', __FILE__ )
       // https://example.com/wp-content/plugins/my-first-plugin/style.css
       ```
+
+      The other form you'll often see, in AI-written code too, is `plugin_dir_url( __FILE__ ) . 'style.css'`. It gives the same URL: `plugin_dir_url()` returns your plugin's folder URL with a slash on the end.
     question: Why does plugins_url() need __FILE__ to find your stylesheet?
   - id: your-turn
     goal: Load the stylesheet yourself.
@@ -106,13 +108,13 @@ checkpoint:
   rubric: >-
     my-first-plugin.php has a callback hooked with add_action to wp_enqueue_scripts (not init, and not a
     loose call in the file), and inside it wp_enqueue_style() with a handle and plugins_url( 'style.css',
-    __FILE__ ) as the source. The the_content filter from lesson 1 is still there.
+    __FILE__ ) (or plugin_dir_url( __FILE__ ) . 'style.css') as the source. The the_content filter from lesson 1 is still there.
   file: my-first-plugin/my-first-plugin.php
   checks:
     - type: regex
       file: my-first-plugin/my-first-plugin.php
-      pattern: '\bwp_enqueue_style\(\s*[''"][^''"]+[''"]\s*,\s*plugins_url\(\s*[''"]/?style\.css[''"]\s*,\s*__FILE__\s*\)'
-      message: Call wp_enqueue_style() with a handle, then the stylesheet's URL from plugins_url( 'style.css', __FILE__ ).
+      pattern: '\bwp_enqueue_style\(\s*[''"][^''"]+[''"]\s*,\s*(?:plugins_url\(\s*[''"]/?style\.css[''"]\s*,\s*__FILE__\s*\)|plugin_dir_url\(\s*__FILE__\s*\)\s*\.\s*[''"]style\.css[''"])'
+      message: Call wp_enqueue_style() with a handle, then the stylesheet's URL from plugins_url( 'style.css', __FILE__ ) (or plugin_dir_url( __FILE__ ) . 'style.css').
     - type: regex
       file: my-first-plugin/my-first-plugin.php
       pattern: 'function\s+(\w+)\s*\([^)]*\)\s*\{(?:(?!\bfunction\b)[\s\S])*?\bwp_enqueue_style\s*\([\s\S]*?\badd_action\(\s*[''"]wp_enqueue_scripts[''"]\s*,\s*[''"]\1[''"]|\badd_action\(\s*[''"]wp_enqueue_scripts[''"]\s*,\s*[''"](\w+)[''"][\s\S]*?function\s+\2\s*\([^)]*\)\s*\{(?:(?!\bfunction\b)[\s\S])*?\bwp_enqueue_style\s*\(|\badd_action\(\s*[''"]wp_enqueue_scripts[''"]\s*,\s*(?:static\s+)?(?:function\s*\([^)]*\)\s*(?:use\s*\([^)]*\)\s*)?\{(?:(?!\bfunction\b)[\s\S])*?|fn\s*\([^)]*\)\s*=>\s*)\bwp_enqueue_style\s*\('

@@ -158,8 +158,8 @@ bug:
       message: Escape the name where it's put into the note's HTML. Text inside an HTML element needs esc_html().
     - type: regex
       file: my-first-plugin/my-first-plugin.php
-      pattern: '^(?![\s\S]*(?:\.\s*\$reader\b|\$reader\s*\.(?!=)|"[^";\n]*\$reader\b[^";\n]*"))'
-      message: Every place $reader goes into the note should be escaped. Look for a spot where it's joined into the HTML as it is.
+      pattern: '^(?![\s\S]*(?<!esc_html\(\s*)\$reader\b(?!\s*=(?!=)))'
+      message: Every place $reader is used, other than setting it, should be wrapped in esc_html(). Look for a spot where it goes into the HTML as it is.
     - type: regex
       file: my-first-plugin/my-first-plugin.php
       pattern: '\$_GET\[\s*[''"]reader[''"]\s*\]'
@@ -182,7 +182,7 @@ checkpoint:
   checks:
     - type: regex
       file: my-first-plugin/my-first-plugin.php
-      pattern: '\$reader\s*=\s*sanitize_text_field\(\s*(?:wp_unslash\(\s*\$_GET\[\s*[''"]reader[''"]\s*\]\s*\)|\$_GET\[\s*[''"]reader[''"]\s*\])\s*\)'
+      pattern: '\$reader\s*=\s*(?:isset\(\s*\$_GET\[\s*[''"]reader[''"]\s*\]\s*\)\s*\?\s*)?sanitize_text_field\(\s*(?:wp_unslash\(\s*\$_GET\[\s*[''"]reader[''"]\s*\]\s*\)|\$_GET\[\s*[''"]reader[''"]\s*\])\s*\)'
       message: Set $reader from sanitize_text_field(), with $_GET['reader'] inside it (unslashed with wp_unslash() first).
     - type: regex
       file: my-first-plugin/my-first-plugin.php
@@ -190,8 +190,8 @@ checkpoint:
       message: Keep esc_html() around $reader in the note. Sanitizing the input doesn't replace escaping the output.
     - type: regex
       file: my-first-plugin/my-first-plugin.php
-      pattern: '^(?![\s\S]*(?:\.\s*\$reader\b|\$reader\s*\.(?!=)|"[^";\n]*\$reader\b[^";\n]*"))'
-      message: Every place $reader goes into the note should still be escaped with esc_html().
+      pattern: '^(?![\s\S]*(?<!esc_html\(\s*)\$reader\b(?!\s*=(?!=)))'
+      message: Every place $reader is used, other than setting it, should still be wrapped in esc_html().
     - type: regex
       file: my-first-plugin/my-first-plugin.php
       pattern: '\bisset\(\s*\$_GET\[\s*[''"]reader[''"]\s*\]\s*\)'
