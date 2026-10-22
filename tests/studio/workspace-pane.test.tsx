@@ -19,7 +19,8 @@ import type { RecordManager } from '../../src/record/store';
 import { RecordManager as Manager } from '../../src/record/store';
 import { memoryManager } from '../components/helpers';
 
-const DIR = '/wordpress/wp-content/themes/my-block-theme';
+// The fixture block-theme path previews { kind: theme, slug: fixture-theme }.
+const DIR = '/wordpress/wp-content/themes/fixture-theme';
 const lesson = () => content.lessons['templates-and-parts']; // owns theme.json; style.css and templates/index.html are provided
 
 /** A fake Playground client. `hold` makes each writeFile wait until released, in call order. */

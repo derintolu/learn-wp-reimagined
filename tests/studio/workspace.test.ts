@@ -84,3 +84,43 @@ describe('workspaceFiles', () => {
     expect(w.files['style.css']).toBe('/* base */');
   });
 });
+
+describe('workspaceFiles follows the lesson path', () => {
+  it('workspace never mixes paths', () => {
+    const c = structuredClone(buildContent('content'));
+    const MAIN = 'hello-learn/hello-learn.php';
+    c.paths['vibe-coder'] = {
+      ...c.paths['vibe-coder'],
+      status: 'live',
+      lessons: ['vc-fixture'],
+      preview: { kind: 'plugin', slug: 'hello-learn' },
+      previewFiles: { [MAIN]: '<?php\n/**\n * Plugin Name: Hello Learn\n */\n' },
+    };
+    c.lessons['vc-fixture'] = {
+      id: 'vc-fixture',
+      pathId: 'vibe-coder',
+      title: 'Fixture',
+      minutes: 5,
+      sources: [],
+      beats: [],
+      starterFiles: { 'hello-learn/includes/greet.php': '<?php // greet' },
+    };
+    const themeJson = JSON.stringify({
+      version: 3,
+      settings: {
+        color: { palette: [{ slug: 'accent', name: 'Accent', color: '#3858E9' }] },
+        layout: { contentSize: '40rem', wideSize: '64rem' },
+      },
+    });
+    const r = { ...newRecord(), files: { 'theme.json': themeJson }, fileLessons: { 'theme.json': 'bt-style-css-and-theme-json' } };
+    // Sanity: the block-theme path does carry it forward.
+    const btNext = c.paths['block-theme'].lessons[c.paths['block-theme'].lessons.indexOf('bt-style-css-and-theme-json') + 1];
+    expect(workspaceFiles(c, r, btNext).files['theme.json']).toBe(themeJson);
+
+    const w = workspaceFiles(c, r, 'vc-fixture');
+    const btNames = new Set([...Object.keys(c.paths['block-theme'].previewFiles ?? {}), 'theme.json', 'style.css']);
+    expect(Object.keys(w.files).filter((f) => btNames.has(f))).toEqual([]);
+    expect(Object.keys(w.files).sort()).toEqual(['hello-learn/hello-learn.php', 'hello-learn/includes/greet.php']);
+    expect(w.editable).toEqual(['hello-learn/includes/greet.php']);
+  });
+});

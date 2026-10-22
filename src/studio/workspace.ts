@@ -2,7 +2,6 @@ import { runChecks } from '../shared/checks';
 import type { LearningRecord } from '../shared/record';
 import type { ContentBundle, Lesson } from '../shared/types';
 
-const PATH_ID = 'block-theme';
 const has = (o: object, k: string) => Object.prototype.hasOwnProperty.call(o, k);
 
 /** Every file a lesson supplies or tests: its starters, checkpoint file and planted-bug file. */
@@ -20,15 +19,16 @@ function parses(text: string): boolean {
 }
 
 /**
- * The files to open a lesson with. Starts from the path's read-only `previewFiles`, then
+ * The files to open a lesson with, from the lesson's own path only. Starts from the path's read-only `previewFiles`, then
  * applies each earlier lesson's starters. The R25 rule from `resolveTheme`, restricted to
  * earlier lessons: the learner's edit to a file wins only if it was made in the last earlier
  * lesson that owns the file, passes that lesson's checks for it, and, for .json, parses.
  * Then this lesson's starters, then this lesson's own saved edits.
  */
 export function workspaceFiles(c: ContentBundle, r: LearningRecord, lessonId: string): { files: Record<string, string>; editable: string[] } {
-  const path = c.paths[PATH_ID];
   const current = c.lessons[lessonId];
+  const path = current ? c.paths[current.pathId] : undefined;
+  if (!path) return { files: {}, editable: [] };
   const upTo = path.lessons.indexOf(lessonId);
   const earlier = (upTo < 0 ? path.lessons : path.lessons.slice(0, upTo)).map((id) => c.lessons[id]).filter(Boolean);
 

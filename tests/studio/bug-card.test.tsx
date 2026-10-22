@@ -27,7 +27,8 @@ import type { RecordManager } from '../../src/record/store';
 import type { Lesson } from '../../src/shared/types';
 import { memoryManager } from '../components/helpers';
 
-const DIR = '/wordpress/wp-content/themes/my-block-theme';
+// The fixture block-theme path previews { kind: theme, slug: fixture-theme }.
+const DIR = '/wordpress/wp-content/themes/fixture-theme';
 const BUG_FILE = 'patterns/hero.php';
 const HUNT_KEY = 'lwr:hunt:patterns';
 /** Still fails the fix check (the slug has no namespace). */

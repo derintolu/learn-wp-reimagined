@@ -123,10 +123,11 @@ describe('themeZip', () => {
 });
 
 describe('playground blueprint', () => {
+  const BT = { kind: 'theme', slug: 'my-block-theme' } as const;
   const files = buildThemeFiles(c, newRecord());
 
   it('writes every file into the theme folder, then activates it', () => {
-    const bp = playgroundBlueprint(files);
+    const bp = playgroundBlueprint(files, BT);
     expect(bp.landingPage).toBe('/');
     expect(bp.preferredVersions).toEqual({ wp: 'latest', php: '8.3' });
     const writes = bp.steps.filter((s) => s.step === 'writeFile');
@@ -142,9 +143,9 @@ describe('playground blueprint', () => {
   });
 
   it('encodes the blueprint in the URL fragment and round-trips', () => {
-    const url = playgroundUrl(files);
+    const url = playgroundUrl(files, BT);
     expect(url.startsWith('https://playground.wordpress.net/#')).toBe(true);
-    expect(JSON.parse(decodeURIComponent(url.slice(url.indexOf('#') + 1)))).toEqual(playgroundBlueprint(files));
+    expect(JSON.parse(decodeURIComponent(url.slice(url.indexOf('#') + 1)))).toEqual(playgroundBlueprint(files, BT));
   });
 
   it('keeps a large realistic theme, using only files the path owns, under the URL limit', () => {
@@ -161,6 +162,6 @@ describe('playground blueprint', () => {
       ),
     );
     expect(big.used.sort()).toEqual(['parts/header.html', 'patterns/hero.php', 'templates/index.html', 'theme.json']);
-    expect(playgroundUrl(big.files).length).toBeLessThan(PLAYGROUND_URL_LIMIT);
+    expect(playgroundUrl(big.files, BT).length).toBeLessThan(PLAYGROUND_URL_LIMIT);
   });
 });

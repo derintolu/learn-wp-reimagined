@@ -8,6 +8,7 @@ import { playgroundBlueprint, playgroundUrl } from '../../src/finale/playground'
 
 const files = { 'style.css': '/* t */', 'templates/index.html': '<p>hi</p>' };
 const DIR = '/wordpress/wp-content/themes/my-block-theme';
+const PV = { kind: 'theme', slug: 'my-block-theme' } as const;
 
 function fake() {
   const calls: string[] = [];
@@ -33,19 +34,19 @@ describe('live preview', () => {
   it('boots with the theme blueprint and login false', async () => {
     const { startPlaygroundWeb } = fake();
     const iframe = document.createElement('iframe');
-    await startLivePreview(iframe, files);
+    await startLivePreview(iframe, files, PV, '/');
     expect(startPlaygroundWeb).toHaveBeenCalledWith({
       iframe,
       remoteUrl: 'https://playground.wordpress.net/remote.html',
-      blueprint: playgroundBlueprint(files, { login: false }),
+      blueprint: playgroundBlueprint(files, PV, { login: false }),
     });
-    expect(playgroundBlueprint(files, { login: false }).login).toBe(false);
-    expect(playgroundBlueprint(files).login).toBe(true);
+    expect(playgroundBlueprint(files, PV, { login: false }).login).toBe(false);
+    expect(playgroundBlueprint(files, PV).login).toBe(true);
   });
 
   it('write() mkdirs new folders, writes each file under the theme dir, then goTo("/")', async () => {
     const { calls } = fake();
-    const p = await startLivePreview(document.createElement('iframe'), files);
+    const p = await startLivePreview(document.createElement('iframe'), files, PV, '/');
     await p.write({ ...files, 'parts/header.html': 'h', 'parts/x/y.html': 'y' });
     expect(calls).toEqual([
       `mkdir ${DIR}/parts`,
@@ -62,17 +63,17 @@ describe('live preview', () => {
     setPlaygroundImporter(async () => {
       throw new Error('offline');
     });
-    render(<LivePreview files={files} onReady={() => {}} />);
+    render(<LivePreview files={files} preview={PV} landing="/" onReady={() => {}} />);
     expect(await screen.findByText(/Couldn't start WordPress here\./)).toBeTruthy();
     const link = screen.getByRole('link', { name: 'Open in Playground' }) as HTMLAnchorElement;
-    expect(link.href).toBe(playgroundUrl(files));
+    expect(link.href).toBe(playgroundUrl(files, PV));
     expect(link.target).toBe('_blank');
   });
 
   it('shows booting then live and hands over the preview', async () => {
     fake();
     const onReady = vi.fn();
-    render(<LivePreview files={files} onReady={onReady} />);
+    render(<LivePreview files={files} preview={PV} landing="/" onReady={onReady} />);
     expect(screen.getByText('Starting WordPress Playground')).toBeTruthy();
     expect(await screen.findByText('Live: your theme in WordPress Playground')).toBeTruthy();
     expect(onReady).toHaveBeenCalledOnce();
@@ -81,7 +82,7 @@ describe('live preview', () => {
   it('boot exceeding PREVIEW_BOOT_TIMEOUT_MS -> failed state', async () => {
     vi.useFakeTimers();
     setPlaygroundImporter(async () => ({ startPlaygroundWeb: () => new Promise(() => {}) }) as never);
-    render(<LivePreview files={files} onReady={() => {}} />);
+    render(<LivePreview files={files} preview={PV} landing="/" onReady={() => {}} />);
     await act(async () => {
       await vi.advanceTimersByTimeAsync(PREVIEW_BOOT_TIMEOUT_MS + 1);
     });
@@ -95,7 +96,7 @@ describe('live preview', () => {
     client.isReady.mockImplementation(() => new Promise<void>((r) => (finish = r)));
     const onReady = vi.fn();
     const onFailed = vi.fn();
-    render(<LivePreview files={files} onReady={onReady} onFailed={onFailed} />);
+    render(<LivePreview files={files} preview={PV} landing="/" onReady={onReady} onFailed={onFailed} />);
     await act(async () => {
       await vi.advanceTimersByTimeAsync(PREVIEW_BOOT_TIMEOUT_MS + 1);
     });
@@ -122,7 +123,7 @@ describe('live preview', () => {
     let finish!: () => void;
     client.isReady.mockImplementation(() => new Promise<void>((r) => (finish = r)));
     const onReady = vi.fn();
-    const { unmount } = render(<LivePreview files={files} onReady={onReady} />);
+    const { unmount } = render(<LivePreview files={files} preview={PV} landing="/" onReady={onReady} />);
     await act(async () => {
       await vi.advanceTimersByTimeAsync(PREVIEW_BOOT_TIMEOUT_MS + 1);
     });
@@ -142,7 +143,7 @@ describe('live preview', () => {
     process.on('unhandledRejection', unhandled);
     let fail!: (e: Error) => void;
     setPlaygroundImporter(async () => ({ startPlaygroundWeb: () => new Promise((_, r) => (fail = r)) }) as never);
-    const { unmount } = render(<LivePreview files={files} onReady={() => {}} />);
+    const { unmount } = render(<LivePreview files={files} preview={PV} landing="/" onReady={() => {}} />);
     await act(async () => {});
     unmount();
     fail(new Error('torn down'));

@@ -1,4 +1,5 @@
-import { THEME_DIR, playgroundBlueprint } from '../finale/playground';
+import { pageNames, playgroundBlueprint, previewTarget, sitePagesPhp } from '../finale/playground';
+import type { Preview } from '../shared/types';
 
 type Mod = typeof import('@wp-playground/client');
 
@@ -27,33 +28,46 @@ function dirsOf(files: Record<string, string>): Set<string> {
 
 type Client = Awaited<ReturnType<Mod['startPlaygroundWeb']>>;
 
-/** A writer that pushes edited files into the theme and reloads the page. */
-function writerFor(client: Client, files: Record<string, string>): LivePreview {
+/**
+ * A writer that pushes edited files under the preview's target, then reloads the lesson's page.
+ * For the site kind it also re-runs the pages PHP, over every page file written so far.
+ */
+function writerFor(client: Client, files: Record<string, string>, preview: Preview, landing: string): LivePreview {
+  const base = previewTarget(preview);
   const known = dirsOf(files);
+  const pages = new Set(pageNames(files));
   return {
     async write(next) {
       for (const dir of [...dirsOf(next)].sort()) {
         if (known.has(dir)) continue;
-        await client.mkdir(`${THEME_DIR}/${dir}`);
+        await client.mkdir(`${base}/${dir}`);
         known.add(dir);
       }
-      for (const [p, data] of Object.entries(next)) await client.writeFile(`${THEME_DIR}/${p}`, data);
-      await client.goTo('/');
+      for (const [p, data] of Object.entries(next)) await client.writeFile(`${base}/${p}`, data);
+      if (preview.kind === 'site') {
+        for (const n of pageNames(next)) pages.add(n);
+        await client.run({ code: sitePagesPhp([...pages].sort()) });
+      }
+      await client.goTo(landing);
     },
   };
 }
 
 /**
- * Boot WordPress Playground in the iframe with the theme active, then hand back a writer
- * that pushes edited files in and reloads the page. Rejects if the client can't load,
- * boot takes longer than PREVIEW_BOOT_TIMEOUT_MS, or the signal aborts. If it timed out but
+ * Boot WordPress Playground in the iframe with the lesson's preview (theme, plugin or pages) at
+ * `landing`, then hand back a writer that pushes edited files in and reloads that page. A plugin
+ * boots on `known`'s main file (the path's previewFiles), then gets the full workspace written.
+ * Rejects if the client can't load, boot takes longer than PREVIEW_BOOT_TIMEOUT_MS, or the signal aborts. If it timed out but
  * the boot finishes later (and the signal hasn't aborted), `onLateReady` gets the writer.
  */
 export async function startLivePreview(
   iframe: HTMLIFrameElement,
   files: Record<string, string>,
+  preview: Preview,
+  landing: string,
   signal?: AbortSignal,
   onLateReady?: (p: LivePreview) => void,
+  known?: Record<string, string>,
 ): Promise<LivePreview> {
   let timer: ReturnType<typeof setTimeout> | undefined;
   let timedOut = false;
@@ -73,20 +87,22 @@ export async function startLivePreview(
     const client = await startPlaygroundWeb({
       iframe,
       remoteUrl: REMOTE_URL,
-      blueprint: playgroundBlueprint(files, { login: false }) as never,
+      blueprint: playgroundBlueprint(files, preview, { login: false, landing, known }) as never,
     });
     await client.isReady();
-    return client;
+    const writer = writerFor(client, files, preview, landing);
+    if (preview.kind === 'plugin') await writer.write(files);
+    return writer;
   })();
   boot.then(
-    (client) => {
-      if (timedOut && !signal?.aborted) onLateReady?.(writerFor(client, files));
+    (writer) => {
+      if (timedOut && !signal?.aborted) onLateReady?.(writer);
     },
     () => {},
   );
 
   try {
-    return writerFor(await Promise.race([boot, guard]), files);
+    return await Promise.race([boot, guard]);
   } finally {
     clearTimeout(timer);
   }

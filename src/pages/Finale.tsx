@@ -28,7 +28,7 @@ export function Finale() {
   const doneCount = lessons.filter((l) => done.has(l.id)).length;
   const theme = useMemo(() => resolveTheme(content, record), [record]);
   const files = theme.files;
-  const url = useMemo(() => playgroundUrl(files), [files]);
+  const url = useMemo(() => playgroundUrl(files, path.preview ?? { kind: 'theme', slug: THEME_SLUG }), [files, path]);
   const fits = url.length < PLAYGROUND_URL_LIMIT;
   const names = Object.keys(files).sort((a, b) => a.split('/').length - b.split('/').length || a.localeCompare(b));
 

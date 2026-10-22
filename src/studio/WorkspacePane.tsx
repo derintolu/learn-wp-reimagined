@@ -1,7 +1,13 @@
 import { useEffect, useRef } from 'preact/hooks';
 import { CodeEditor } from '../components/LazyCodeEditor';
+import { content } from '../content';
+import { THEME_SLUG } from '../finale/themeZip';
+import type { Preview } from '../shared/types';
 import { LivePreview } from './LivePreview';
 import { useStudioInternal } from './StudioContext';
+
+/** Live paths always declare a preview (Task 1's build rule); the block theme is the fallback. */
+const FALLBACK: Preview = { kind: 'theme', slug: THEME_SLUG };
 
 const tabId = (name: string) => `ws-tab-${name.replace(/[^a-z0-9]+/gi, '-')}`;
 
@@ -36,6 +42,7 @@ export function Workspace() {
   }
 
   const readOnly = !s.editable.includes(s.active);
+  const path = content.paths[s.lesson.pathId];
   const describedBy = s.describedBy?.file === s.active ? s.describedBy.id : undefined;
 
   const onKey = (e: KeyboardEvent) => {
@@ -120,7 +127,14 @@ export function Workspace() {
           />
         )}
       </div>
-      <LivePreview files={s.files} onReady={s.attachPreview} onFailed={s.failPreview} />
+      <LivePreview
+        files={s.files}
+        preview={path?.preview ?? FALLBACK}
+        landing={s.lesson.landing ?? '/'}
+        known={path?.previewFiles}
+        onReady={s.attachPreview}
+        onFailed={s.failPreview}
+      />
     </section>
   );
 }

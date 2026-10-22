@@ -39,6 +39,8 @@ export interface Studio {
 
 /** What the workspace pane needs beyond the public interface. */
 interface StudioInternal extends Studio {
+  /** The open lesson: its path decides what the preview runs and where it lands. */
+  lesson: Lesson;
   /** Bumped by focusEditor; the workspace pane focuses its editor when it changes. */
   focusTick: number;
   /** The lesson is completed, so nothing is editable (R22). */
@@ -184,6 +186,7 @@ export function StudioProvider({ lesson, children }: { lesson: Lesson; children?
         }
         return write(batch);
       },
+      lesson,
       previewFailed,
       failPreview() {
         failedRef.current = true;
@@ -198,7 +201,7 @@ export function StudioProvider({ lesson, children }: { lesson: Lesson; children?
         if (waiting) void write(waiting);
       },
     };
-  }, [files, editable, active, pane, describedBy, loaded, completed, applied, focusTick, previewFailed]);
+  }, [lesson, files, editable, active, pane, describedBy, loaded, completed, applied, focusTick, previewFailed]);
 
   return <Ctx.Provider value={value}>{children}</Ctx.Provider>;
 }
