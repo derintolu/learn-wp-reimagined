@@ -128,4 +128,28 @@ export const SOLUTIONS: Record<string, Record<string, string>> = {
 </section>
 <!-- /wp:group -->
 ` },
+  'bug-paragraph-closer': { 'pages/about.html': `<!-- wp:paragraph -->
+<p>Hi there. This is my first WordPress site, and I'm building it myself.</p>
+<!-- /wp:paragraph -->
+
+<!-- wp:paragraph -->
+<p>I'm learning as I go, so expect it to change a lot.</p>
+<!-- /wp:paragraph -->
+` },
+  'cp-about-heading-code': { 'pages/about.html': `<!-- wp:paragraph -->
+<p>Hi there. This is my first WordPress site, and I'm building it myself.</p>
+<!-- /wp:paragraph -->
+
+<!-- wp:paragraph -->
+<p>I'm learning as I go, so expect it to change a lot.</p>
+<!-- /wp:paragraph -->
+
+<!-- wp:heading -->
+<h2 class="wp-block-heading">What I'm working on</h2>
+<!-- /wp:heading -->
+
+<!-- wp:paragraph -->
+<p>Right now, I'm learning how blocks work.</p>
+<!-- /wp:paragraph -->
+` },
 };

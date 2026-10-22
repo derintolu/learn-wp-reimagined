@@ -1,0 +1,101 @@
+id: ln-what-is-wordpress
+title: What WordPress is, and a tour of the dashboard
+minutes: 5
+landing: /wp-admin/
+sources:
+  - title: Introduction to WordPress (Learn WordPress lesson)
+    url: https://learn.wordpress.org/lesson/introduction-to-wordpress-2/
+  - title: Getting started with the WordPress dashboard (Learn WordPress lesson)
+    url: https://learn.wordpress.org/lesson/getting-started-with-the-wordpress-dashboard/
+  - title: Dashboard screen (WordPress documentation)
+    url: https://wordpress.org/documentation/article/dashboard-screen/
+  - title: Administration Screens (WordPress documentation)
+    url: https://wordpress.org/documentation/article/administration-screens/
+beats:
+  - id: what-wordpress-is
+    goal: Know what WordPress is and why so many sites use it.
+    content: |
+      WordPress is a **content management system**: software that lets you build a website and keep it up to date without writing code. Blogs, shops, portfolios and small business sites can all run on it.
+
+      A few things worth knowing from the start:
+
+      - It's **free and open source**. Anyone can download it and use it, and anyone can help improve it.
+      - It's everywhere. More than 40% of all the websites in the world are built with WordPress.
+      - A **theme** decides how your site looks. **Plugins** add features, like a contact form or an online shop.
+
+      You won't need any code for most of this path. In lesson 3 you'll peek under the hood, though, because that's where the interesting bits are.
+    question: What kind of site would you like to build with WordPress?
+  - id: two-sides
+    goal: See the two sides of every WordPress site.
+    content: |
+      Every WordPress site has two sides:
+
+      - **The site itself**, which is what your visitors see.
+      - **The dashboard** (also called the admin area), where you manage everything. It lives at your site's address plus `/wp-admin`, for example `example.com/wp-admin`, and you log in to reach it.
+
+      The live preview in your workspace is a real WordPress site, open at its dashboard. If it asks you to log in, use the username and password it shows you: it's a practice site.
+
+      To jump to the public side, use the black toolbar at the top. On a wide screen, hover over your site's name and choose **Visit Site**. In a narrow window, like the preview, the site name shrinks to a **house icon**. Once you're on the site, the same spot in the toolbar takes you back to the dashboard.
+    question: Before you look, what do you expect to find in the dashboard that visitors never see?
+  - id: dashboard-home
+    goal: Read the dashboard's home screen.
+    content: |
+      The first screen you land on is the dashboard's home. It's made of boxes called **widgets**:
+
+      - **At a Glance** counts your posts, pages and comments, and names your theme and WordPress version.
+      - **Activity** shows recently published posts, scheduled posts and the latest comments.
+      - **Quick Draft** lets you jot down an idea and save it as a draft post.
+      - **WordPress Events and News** lists nearby meetups and news from the WordPress project.
+
+      Don't want one of them? Open **Screen Options** at the top right and untick it. You can also drag widgets around to rearrange them. Your dashboard may look a little different from someone else's, because plugins and hosts can add widgets of their own.
+    question: Which of these widgets do you think you'd actually use?
+  - id: the-menu
+    goal: Know where things live in the left-hand menu.
+    content: |
+      The menu down the left side is how you get around. (In a narrow window, like the preview, it folds away behind the menu button at the top left.) Your content sits near the top:
+
+      - **Posts**: articles that appear by date, like blog posts or news.
+      - **Media**: your images, videos, audio and documents.
+      - **Pages**: content that doesn't change often, like an About or Contact page.
+      - **Comments**: what readers have said, ready to approve, reply to or mark as spam.
+
+      Below those are the tools for the site as a whole:
+
+      - **Appearance**: change your theme and how the site looks. With a block theme like the one in your preview, **Appearance > Editor** opens the Site Editor.
+      - **Plugins**: add, turn on and remove plugins.
+      - **Users**: the people who can log in, and what each one is allowed to do.
+      - **Tools**: import and export content, and check your Site Health.
+      - **Settings**: site-wide options, such as your site's title.
+
+      Have a click around the preview. You can't break anything that matters here: it's a practice site.
+    question: Which menu item would you open first, and why?
+checkpoint:
+  id: cp-dashboard-tour
+  question: >-
+    Imagine it's your site. Which part of the dashboard would you use to upload a photo, and which
+    would you use to change how the whole site looks?
+  kind: free-text
+  rubric: >-
+    Advance if the answer names Media for uploading a photo and Appearance (or the Site Editor, Appearance
+    > Editor, or Themes) for changing how the whole site looks. Wording can be loose. Review if it gets
+    either one wrong (for example Posts or Pages for uploading, or Settings or Plugins for the look),
+    names only one of the two, or is unsure. Skip only if the answer gets both right and also correctly
+    places other parts of the dashboard, such as Pages for an About page, Settings for the site title,
+    or Plugins for adding features.
+  branches:
+    - outcome: advance
+      to: ln-posts-and-pages
+      message: Spot on. Next, let's sort out posts and pages, the two main kinds of content.
+    - outcome: review
+      to: ln-what-is-wordpress
+      message: Let's take the dashboard tour once more. It's quick, and you'll use it in every lesson.
+    - outcome: skip
+      to: ln-blocks
+      message: You know your way around already, so we'll skip ahead to blocks.
+  fallback:
+    - label: Media for the photo, and Appearance for the look of the site
+      outcome: advance
+    - label: Posts for the photo, and Settings for the look of the site
+      outcome: review
+    - label: I'm not sure yet
+      outcome: review

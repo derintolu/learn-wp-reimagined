@@ -1,0 +1,96 @@
+import { describe, expect, it } from 'vitest';
+import { buildContent } from '../../scripts/build-content';
+import { runChecks } from '../../src/shared/checks';
+import type { Check } from '../../src/shared/types';
+import { SOLUTIONS } from './solutions';
+
+/** The real Learner path: starters fail their checks, intended answers pass, plausible mistakes fail. */
+const c = buildContent('content');
+const L = c.lessons;
+const passes = (checks: Check[], files: Record<string, string>) => runChecks(checks, files).passed;
+const about = (text: string) => ({ 'pages/about.html': text });
+
+const l1 = L['ln-what-is-wordpress'];
+const l2 = L['ln-posts-and-pages'];
+const l3 = L['ln-blocks'];
+
+describe('learner path content', () => {
+  it('is live on the site preview, lessons 1 and 2 free-text, lesson 3 a bug and a code checkpoint', () => {
+    const p = c.paths.learner;
+    expect(p.status).toBe('live');
+    expect(p.preview).toEqual({ kind: 'site' });
+    expect(p.lessons.slice(0, 3)).toEqual(['ln-what-is-wordpress', 'ln-posts-and-pages', 'ln-blocks']);
+    expect(l1.checkpoint?.kind).toBe('free-text');
+    expect(l2.checkpoint?.kind).toBe('free-text');
+    expect(l3.checkpoint?.kind).toBe('code');
+    expect(l3.bug?.file).toBe('pages/about.html');
+    expect(l1.landing).toBe('/wp-admin/');
+    expect(l2.landing).toBe('/wp-admin/edit.php?post_type=page');
+  });
+
+  it('every page file is a pages/<slug>.html file', () => {
+    const files = [
+      ...Object.keys(c.paths.learner.previewFiles ?? {}),
+      ...Object.keys(c.paths.learner.finalFiles ?? {}),
+      ...[l1, l2, l3].flatMap((l) => [...Object.keys(l.starterFiles ?? {}), l.checkpoint?.file, l.bug?.file].filter(Boolean)),
+    ];
+    for (const f of files) expect(f).toMatch(/^pages\/[a-z0-9-]+\.html$/);
+  });
+
+  describe('L3 bug: a paragraph missing its closing comment', () => {
+    const b = l3.bug!;
+    const fixed = SOLUTIONS['bug-paragraph-closer']['pages/about.html'];
+
+    it('fails the planted bug and passes the fix and the starter', () => {
+      expect(passes(b.fixChecks, about(b.code))).toBe(false);
+      expect(passes(b.fixChecks, about(fixed))).toBe(true);
+      expect(passes(b.fixChecks, about(l3.starterFiles!['pages/about.html']))).toBe(true);
+    });
+
+    it('fails the closer in the wrong place, an extra closer, and deleting the opener', () => {
+      expect(passes(b.fixChecks, about(`${b.code}<!-- /wp:paragraph -->\n`))).toBe(false);
+      expect(passes(b.fixChecks, about(`${fixed}<!-- /wp:paragraph -->\n`))).toBe(false);
+      expect(passes(b.fixChecks, about(b.code.replace('<!-- wp:paragraph -->\n<p>Hi there', '<p>Hi there')))).toBe(false);
+    });
+
+    it('fails when the first paragraph is deleted instead of fixed', () => {
+      expect(passes(b.fixChecks, about(b.code.replace(/^[\s\S]*?(?=<!-- wp:paragraph -->\n<p>I'm)/, '')))).toBe(false);
+    });
+  });
+
+  describe('L3 checkpoint: add a heading and a paragraph', () => {
+    const k = l3.checkpoint!.checks!;
+    const start = l3.starterFiles!['pages/about.html'];
+    const done = SOLUTIONS['cp-about-heading-code']['pages/about.html'];
+
+    it('fails the starter and passes the intended answer', () => {
+      expect(passes(k, about(start))).toBe(false);
+      expect(passes(k, about(done))).toBe(true);
+    });
+
+    it('accepts a heading without the class, or at another level', () => {
+      expect(passes(k, about(done.replace('<h2 class="wp-block-heading">', '<h2>')))).toBe(true);
+      expect(passes(k, about(done.replace('<!-- wp:heading -->\n<h2 class="wp-block-heading">What I\'m working on</h2>', '<!-- wp:heading {"level":3} -->\n<h3 class="wp-block-heading">What I\'m working on</h3>')))).toBe(true);
+    });
+
+    it('fails a missing heading closer, a heading with no text, and a heading with no paragraph after it', () => {
+      expect(passes(k, about(done.replace('<!-- /wp:heading -->', '')))).toBe(false);
+      expect(passes(k, about(done.replace("What I'm working on", '')))).toBe(false);
+      expect(passes(k, about(done.replace(/<!-- wp:paragraph -->\n<p>Right now[\s\S]*$/, '')))).toBe(false);
+    });
+
+    it('fails a plain HTML heading with no block comments', () => {
+      const plain = done.replace('<!-- wp:heading -->\n', '').replace('<!-- /wp:heading -->\n', '');
+      expect(passes(k, about(plain))).toBe(false);
+    });
+
+    it('fails when the new paragraph is missing its closing comment', () => {
+      expect(passes(k, about(done.replace(/(<p>Right now[^\n]*\n)<!-- \/wp:paragraph -->\n/, '$1')))).toBe(false);
+    });
+
+    it('fails when the original paragraphs are removed', () => {
+      const onlyNew = done.slice(done.indexOf('<!-- wp:heading'));
+      expect(passes(k, about(onlyNew))).toBe(false);
+    });
+  });
+});

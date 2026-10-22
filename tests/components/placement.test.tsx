@@ -360,6 +360,28 @@ describe('PathCards', () => {
       expect(card.textContent).toContain('Coming soon');
     }
   });
+
+  it('the learner path card links to /path/learner', async () => {
+    // The fixtures keep Learner coming soon; this case uses the real Learner path, which is live.
+    const { buildContent } = await import('../../scripts/build-content');
+    const real = buildContent('content');
+    const saved = { path: content.paths.learner, lessons: { ...content.lessons } };
+    content.paths.learner = real.paths.learner;
+    for (const id of real.paths.learner.lessons) content.lessons[id] = real.lessons[id];
+    try {
+      const { container } = render(
+        <LocationProvider>
+          <PathCards />
+        </LocationProvider>,
+      );
+      const card = Array.from(container.querySelectorAll('.path-card')).find((c) => c.querySelector('h3')?.textContent === 'Learner')!;
+      expect(card.querySelector('a')?.getAttribute('href')).toBe('/path/learner');
+      expect(card.textContent).not.toContain('Coming soon');
+    } finally {
+      content.paths.learner = saved.path;
+      for (const id of Object.keys(content.lessons)) if (!(id in saved.lessons)) delete content.lessons[id];
+    }
+  });
 });
 
 describe('Home', () => {
