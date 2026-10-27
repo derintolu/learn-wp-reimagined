@@ -89,7 +89,7 @@ export function HowItWorks() {
               <strong>Real Sensei LMS.</strong> The lessons are stored in Sensei LMS {SENSEI_VERSION}, the same plugin Learn
               runs on, on a WordPress install that belongs to this prototype. Authors edit them in the block editor, and the
               studio shows the edit. You can read any lesson as Sensei shows it on{' '}
-              <a href={BACKEND_VIEW_PATH}>the backend view</a>. That view is Sensei's own page, with no AI and no branching,
+              <a href={BACKEND_VIEW_PATH} target="_blank" rel="noopener noreferrer">the backend view<span class="visually-hidden"> (opens in a new tab)</span></a>. That view is Sensei's own page, with no AI and no branching,
               and it is not the learner experience. Take the lesson in the studio.
             </li>
           )}

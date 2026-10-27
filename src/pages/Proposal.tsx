@@ -182,7 +182,7 @@ export function Proposal() {
           {FEATURES.wordpressContent ? (
             <>
               Lessons live in Sensei, written and reviewed as they are now. In this concept they do: all 18 are stored in
-              Sensei, and you can read each one on <a href={BACKEND_VIEW_PATH}>the backend view</a>.
+              Sensei, and you can read each one on <a href={BACKEND_VIEW_PATH} target="_blank" rel="noopener noreferrer">the backend view<span class="visually-hidden"> (opens in a new tab)</span></a>.
             </>
           ) : (
             'Lessons stay in Sensei, written and reviewed as they are now.'

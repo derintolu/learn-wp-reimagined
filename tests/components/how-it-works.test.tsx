@@ -121,14 +121,21 @@ describe('/how-it-works with the Sensei content flag', () => {
     expect(text()).not.toContain('backend view');
     expect(text()).not.toContain(SENSEI_VERSION);
     expect(hrefs(container)).not.toContain(BACKEND_VIEW_PATH);
+    expect(text()).toContain('authored as plain files in the repo');
   });
 
   it('on: links the backend view, and the new copy has no emoji', () => {
     flags.wordpressContent = true;
     const { container } = view();
     expect(hrefs(container)).toContain(BACKEND_VIEW_PATH);
-    expect(screen.getAllByRole('link', { name: 'the backend view' }).length).toBeGreaterThan(0);
+    expect(screen.getAllByRole('link', { name: /^the backend view/ }).length).toBeGreaterThan(0);
     expect(text()).not.toMatch(/\p{Extended_Pictographic}/u);
+    // preact-iso's router (src/router.js, the click handler's `!/^(_?self)?$/i.test(link.target)` check) skips links
+    // with a non-self target, so this opens Sensei's page from the server instead of routing client-side to NotFound.
+    const link = container.querySelector(`a[href="${BACKEND_VIEW_PATH}"]`)!;
+    expect(link.getAttribute('target')).toBe('_blank');
+    expect(link.getAttribute('rel')).toBe('noopener noreferrer');
+    expect(link.textContent).toContain('(opens in a new tab)');
   });
 
   it('on: names Sensei with the pinned version, and updates the branching, concept and sources lines', () => {
