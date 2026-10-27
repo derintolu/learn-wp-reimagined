@@ -15,6 +15,11 @@ export async function ensureSchema(db: D1Like): Promise<void> {
       'CREATE TABLE IF NOT EXISTS decisions (id VARCHAR(40) PRIMARY KEY, lesson_id VARCHAR(120), outcome VARCHAR(10), created BIGINT, used INT, used_by VARCHAR(64))',
     )
     .run();
+  await db
+    .prepare(
+      'CREATE TABLE IF NOT EXISTS sessions (sid_hash VARCHAR(64) PRIMARY KEY, actor_name VARCHAR(64), wp_user_id BIGINT NULL, created BIGINT, touched BIGINT)',
+    )
+    .run();
 }
 
 /** True only for duplicate-key errors (SQLite UNIQUE constraint, MySQL 1062 / ER_DUP_ENTRY). */

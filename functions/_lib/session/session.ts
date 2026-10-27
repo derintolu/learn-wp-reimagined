@@ -1,0 +1,110 @@
+import type { Env } from '../env';
+import { ensureSchema } from '../db';
+
+export const SESSION_COOKIE = 'lwr_sid';
+export const SESSION_IDLE_MS = 180 * 24 * 60 * 60 * 1000;
+export const TOUCH_EVERY_MS = 3_600_000;
+const MAX_AGE_S = 15_552_000;
+
+export interface Session {
+  sidHash: string;
+  actorName: string;
+  wpUserId: number | null;
+  createdAt: number;
+  touchedAt: number;
+}
+
+const enc = new TextEncoder();
+
+function b64url(bytes: Uint8Array): string {
+  let s = '';
+  for (const b of bytes) s += String.fromCharCode(b);
+  return btoa(s).replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, '');
+}
+
+async function hashSid(key: string, value: string): Promise<string> {
+  const k = await crypto.subtle.importKey('raw', enc.encode(key), { name: 'HMAC', hash: 'SHA-256' }, false, ['sign']);
+  const sig = new Uint8Array(await crypto.subtle.sign('HMAC', k, enc.encode(value)));
+  return Array.from(sig, (b) => b.toString(16).padStart(2, '0')).join('');
+}
+
+export function cookieValue(req: Request): string | null {
+  const header = req.headers.get('cookie');
+  if (!header) return null;
+  for (const part of header.split(';')) {
+    const i = part.indexOf('=');
+    if (i > 0 && part.slice(0, i).trim() === SESSION_COOKIE) {
+      const v = part.slice(i + 1).trim();
+      return v && v.length <= 128 ? v : null;
+    }
+  }
+  return null;
+}
+
+interface Row {
+  sid_hash: string;
+  actor_name: string;
+  wp_user_id: number | string | null;
+  created: number | string;
+  touched: number | string;
+}
+
+export async function readSession(req: Request, env: Env, now: number): Promise<Session | null> {
+  if (!env.SESSION_KEY) return null;
+  const value = cookieValue(req);
+  if (!value) return null;
+  await ensureSchema(env.DB);
+  const sidHash = await hashSid(env.SESSION_KEY, value);
+  const row = await env.DB
+    .prepare('SELECT sid_hash, actor_name, wp_user_id, created, touched FROM sessions WHERE sid_hash = ?')
+    .bind(sidHash)
+    .first<Row>();
+  if (!row) return null;
+  const session: Session = {
+    sidHash,
+    actorName: row.actor_name,
+    wpUserId: row.wp_user_id == null ? null : Number(row.wp_user_id),
+    createdAt: Number(row.created),
+    touchedAt: Number(row.touched),
+  };
+  if (now - session.touchedAt > SESSION_IDLE_MS) {
+    await deleteSession(env, session);
+    return null;
+  }
+  if (now - session.touchedAt >= TOUCH_EVERY_MS) {
+    await env.DB.prepare('UPDATE sessions SET touched = ? WHERE sid_hash = ?').bind(now, sidHash).run();
+    session.touchedAt = now;
+  }
+  return session;
+}
+
+export async function createSession(
+  env: Env,
+  now: number,
+  actorName?: string,
+): Promise<{ session: Session; cookie: string }> {
+  if (!env.SESSION_KEY) throw new Error('SESSION_KEY is not set');
+  await ensureSchema(env.DB);
+  const value = b64url(crypto.getRandomValues(new Uint8Array(32)));
+  const sidHash = await hashSid(env.SESSION_KEY, value);
+  const session: Session = {
+    sidHash,
+    actorName: actorName ?? crypto.randomUUID(),
+    wpUserId: null,
+    createdAt: now,
+    touchedAt: now,
+  };
+  await env.DB
+    .prepare('INSERT INTO sessions (sid_hash, actor_name, wp_user_id, created, touched) VALUES (?, ?, NULL, ?, ?)')
+    .bind(sidHash, session.actorName, now, now)
+    .run();
+  return { session, cookie: `${SESSION_COOKIE}=${value}; HttpOnly; Secure; SameSite=Lax; Path=/; Max-Age=${MAX_AGE_S}` };
+}
+
+export async function deleteSession(env: Env, s: Session): Promise<void> {
+  await env.DB.prepare('DELETE FROM sessions WHERE sid_hash = ?').bind(s.sidHash).run();
+}
+
+export function clearCookie(): string {
+  return `${SESSION_COOKIE}=; HttpOnly; Secure; SameSite=Lax; Path=/; Max-Age=0`;
+}

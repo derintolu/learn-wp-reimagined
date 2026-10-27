@@ -20,6 +20,8 @@ export interface Env {
   TRUSTED_IP_HEADER?: string;
   /** Bearer token the daily /api/mcp-sweep cron must send. */
   CRON_SECRET?: string;
+  /** HMAC key for hashing session cookies; sessions are off without it. */
+  SESSION_KEY?: string;
 }
 
 export type Handler = (

@@ -41,4 +41,4 @@ export const PRICES: Record<string, { inPerM: number; outPerM: number }> = {
 };
 
 /** Server-side behaviour switches. Rollback = set to false and republish. */
-export const SERVER_FLAGS = { serverEvents: true };
+export const SERVER_FLAGS = { serverEvents: true, sessions: false };
