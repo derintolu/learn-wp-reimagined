@@ -62,4 +62,36 @@ Both finalists run well under the configured `maxTokens`, so `config.ts` keeps 4
 - 26 cases, one run per candidate (two for the finalists). Differences of one case are noise. The decision rests on the clear gaps: the three reasoning models fail the JSON rule at the configured budgets, and gpt-oss was the only finalist to leak a solution.
 - The expectations are mechanical (outcome sets, substring include/exclude), not a grader's opinion. Tutor answer quality beyond those checks was not scored.
 - Only the `block-theme` fixture lessons were used; real lesson content is longer, so input costs will be higher than measured.
-- Re-run `npx tsx scripts/eval-models.ts` when adding a candidate; `--models`, `--tokens`, `--only` and `--probe` (raw stream shape) are supported.
+- Re-run `npx tsx scripts/eval-models.ts` when adding a candidate; `--models`, `--tokens`, `--only`, `--probe` (raw stream shape) and `--content <dir>` (placement only, on real content) are supported.
+
+## Placement across three live paths (2026-10-22)
+
+Command: `npx tsx scripts/eval-models.ts --only placement --models @cf/openai/gpt-oss-120b`, at the placement budget in force for the two runs below (`maxTokens` 400; raised to 800 afterwards, see the follow-up), against the fixtures, which now have three live paths (block-theme with 3 lessons, learner and vibe-coder with 2 lessons each). 14 placement cases: the 8 earlier ones (p-beginner and p-vibe-coder expectations widened to allow the new paths) plus 6 new ones, three per new path (beginner, mid-level and ambiguous).
+
+Cost: estimated 14 calls x about $0.000293 = $0.0041 before the run; actual $0.0055 and $0.0058 for the two runs (the prompt now lists three paths, so input is larger).
+
+| Run | Placement ok | Miss |
+|---|---|---|
+| Block-theme only (2026-10-19) | 100% (8/8) | none |
+| Three paths, first run | 93% (13/14) | p-beginner: invalid (output hit the 400-token cap, JSON cut off) |
+| After one placementHints change | 93% (13/14) | p-vibe-coder: invalid (empty reply, reasoning used the whole 400 tokens) |
+
+hint change: the block-theme and learner hints now say which of the two a never-used-WordPress, no-code learner belongs on. Both misses are token-budget truncations (400 of 400 output tokens), not wrong placements; every reply that finished placed the learner correctly on all three paths. The longer three-path prompt makes gpt-oss reason for longer. Raising the placement `maxTokens` (for example to 800) would likely close this; at about $0.0003 a call the cost is small. That is a routing config change, not content, so it is left for a decision.
+
+Follow-up (same day): placement `maxTokens` raised 400 to 800 (ruling R8), p-beginner narrowed to `ln-what-is-wordpress` only. Re-run: 93% (13/14), spend $0.0064. 13 replies finished (largest 693 of 800 tokens, so p-vibe-coder now fits). p-beginner was still truncated: it used all 800 tokens and returned invalid JSON, so the cap alone does not fix that case. It is the same case as run 1's miss, which suggests it is a reasoning loop on that conversation rather than a budget that is slightly too small. Not widened.
+
+## Placement on the real content (2026-10-22, final fix wave)
+
+The runs above used the fixtures. This one uses the live site's content: the three real paths with six lessons each, so the placement prompt is the one learners get.
+
+Changes before the run:
+- Placement and judge send `reasoning_effort: "low"` to gpt-oss (Chat Completions field; the model page lists Reasoning `low`, `medium` (default), `high`: https://developers.cloudflare.com/workers-ai/models/gpt-oss-120b/). Set in `functions/_lib/config.ts`, passed through `functions/_lib/providers/workersAi.ts`.
+- `placementPrompt` adds: "Decide quickly. If the learner has never used WordPress, place them on the learner path at its first lesson" (with the first lesson id from content).
+- `scripts/eval-models.ts` gained `--content <dir>`. Placement cases whose fixture lesson ids don't exist in real content carry `contentStart` expectations (block-theme ids, and every real id for p-injection).
+
+Command: `npx tsx scripts/eval-models.ts --only placement --models @cf/openai/gpt-oss-120b --content content`, `maxTokens` 800.
+
+Cost: estimated at most $0.033 before the run (14 calls, prompt characters counted as tokens, 800 output tokens each); actual $0.0073.
+
+Re-run: 100% (14/14) on the real content, JSON valid 14/14, p50 latency 2421 ms. p-beginner passed: a valid reply in 125 output tokens (it used all 800 before). The case expects `done: any`, so a pass is either a placement at `ln-what-is-wordpress` or one more question; the script records pass/fail, not the reply text. The largest reply was 264 tokens (p-php-dev). No retry on an invalid reply was needed, so none was added.
+
