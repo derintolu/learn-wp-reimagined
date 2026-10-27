@@ -1,0 +1,842 @@
+{
+ "beat": {
+  "event": {
+   "type": "beatViewed",
+   "lessonId": "theme-json-basics",
+   "beatIndex": 1
+  },
+  "statements": [
+   {
+    "id": "",
+    "actor": {
+     "objectType": "Agent",
+     "account": {
+      "homePage": "https://learn-wp-reimagined.space.fast",
+      "name": "learner-1"
+     }
+    },
+    "verb": {
+     "id": "http://adlnet.gov/expapi/verbs/experienced",
+     "display": {
+      "en-US": "experienced"
+     }
+    },
+    "object": {
+     "objectType": "Activity",
+     "id": "https://learn-wp-reimagined.space.fast/activities/lessons/theme-json-basics/beats/1",
+     "definition": {
+      "name": {
+       "en-US": "theme.json basics: palette"
+      }
+     }
+    },
+    "timestamp": "",
+    "context": {
+     "contextActivities": {
+      "parent": [
+       {
+        "objectType": "Activity",
+        "id": "https://learn-wp-reimagined.space.fast/activities/paths/block-theme"
+       }
+      ]
+     }
+    }
+   }
+  ]
+ },
+ "missingBeat": {
+  "event": {
+   "type": "beatViewed",
+   "lessonId": "theme-json-basics",
+   "beatIndex": 99
+  },
+  "statements": [
+   {
+    "id": "",
+    "actor": {
+     "objectType": "Agent",
+     "account": {
+      "homePage": "https://learn-wp-reimagined.space.fast",
+      "name": "learner-1"
+     }
+    },
+    "verb": {
+     "id": "http://adlnet.gov/expapi/verbs/experienced",
+     "display": {
+      "en-US": "experienced"
+     }
+    },
+    "object": {
+     "objectType": "Activity",
+     "id": "https://learn-wp-reimagined.space.fast/activities/lessons/theme-json-basics/beats/99",
+     "definition": {
+      "name": {
+       "en-US": "theme.json basics"
+      }
+     }
+    },
+    "timestamp": "",
+    "context": {
+     "contextActivities": {
+      "parent": [
+       {
+        "objectType": "Activity",
+        "id": "https://learn-wp-reimagined.space.fast/activities/paths/block-theme"
+       }
+      ]
+     }
+    }
+   }
+  ]
+ },
+ "unknownBeat": {
+  "event": {
+   "type": "beatViewed",
+   "lessonId": "nope",
+   "beatIndex": 0
+  },
+  "statements": [
+   {
+    "id": "",
+    "actor": {
+     "objectType": "Agent",
+     "account": {
+      "homePage": "https://learn-wp-reimagined.space.fast",
+      "name": "learner-1"
+     }
+    },
+    "verb": {
+     "id": "http://adlnet.gov/expapi/verbs/experienced",
+     "display": {
+      "en-US": "experienced"
+     }
+    },
+    "object": {
+     "objectType": "Activity",
+     "id": "https://learn-wp-reimagined.space.fast/activities/lessons/nope/beats/0",
+     "definition": {
+      "name": {
+       "en-US": "nope"
+      }
+     }
+    },
+    "timestamp": ""
+   }
+  ]
+ },
+ "advance": {
+  "event": {
+   "type": "checkpointAnswered",
+   "lessonId": "theme-json-basics",
+   "response": "ans",
+   "outcome": "advance",
+   "to": "templates-and-parts"
+  },
+  "statements": [
+   {
+    "id": "",
+    "actor": {
+     "objectType": "Agent",
+     "account": {
+      "homePage": "https://learn-wp-reimagined.space.fast",
+      "name": "learner-1"
+     }
+    },
+    "verb": {
+     "id": "http://adlnet.gov/expapi/verbs/answered",
+     "display": {
+      "en-US": "answered"
+     }
+    },
+    "object": {
+     "objectType": "Activity",
+     "id": "https://learn-wp-reimagined.space.fast/activities/lessons/theme-json-basics/checkpoint",
+     "definition": {
+      "name": {
+       "en-US": "theme.json basics: checkpoint"
+      }
+     }
+    },
+    "timestamp": "",
+    "result": {
+     "response": "ans"
+    },
+    "context": {
+     "contextActivities": {
+      "parent": [
+       {
+        "objectType": "Activity",
+        "id": "https://learn-wp-reimagined.space.fast/activities/paths/block-theme"
+       }
+      ]
+     }
+    }
+   },
+   {
+    "id": "",
+    "actor": {
+     "objectType": "Agent",
+     "account": {
+      "homePage": "https://learn-wp-reimagined.space.fast",
+      "name": "learner-1"
+     }
+    },
+    "verb": {
+     "id": "http://adlnet.gov/expapi/verbs/passed",
+     "display": {
+      "en-US": "passed"
+     }
+    },
+    "object": {
+     "objectType": "Activity",
+     "id": "https://learn-wp-reimagined.space.fast/activities/lessons/theme-json-basics/checkpoint",
+     "definition": {
+      "name": {
+       "en-US": "theme.json basics: checkpoint"
+      }
+     }
+    },
+    "timestamp": "",
+    "result": {
+     "success": true
+    },
+    "context": {
+     "contextActivities": {
+      "parent": [
+       {
+        "objectType": "Activity",
+        "id": "https://learn-wp-reimagined.space.fast/activities/paths/block-theme"
+       }
+      ]
+     }
+    }
+   },
+   {
+    "id": "",
+    "actor": {
+     "objectType": "Agent",
+     "account": {
+      "homePage": "https://learn-wp-reimagined.space.fast",
+      "name": "learner-1"
+     }
+    },
+    "verb": {
+     "id": "https://learn-wp-reimagined.space.fast/xapi/verbs/branched",
+     "display": {
+      "en-US": "branched"
+     }
+    },
+    "object": {
+     "objectType": "Activity",
+     "id": "https://learn-wp-reimagined.space.fast/activities/lessons/templates-and-parts",
+     "definition": {
+      "name": {
+       "en-US": "Templates and template parts"
+      }
+     }
+    },
+    "timestamp": "",
+    "result": {
+     "extensions": {
+      "https://learn-wp-reimagined.space.fast/xapi/extensions/outcome": "advance",
+      "https://learn-wp-reimagined.space.fast/xapi/extensions/from-lesson": "https://learn-wp-reimagined.space.fast/activities/lessons/theme-json-basics"
+     }
+    },
+    "context": {
+     "contextActivities": {
+      "parent": [
+       {
+        "objectType": "Activity",
+        "id": "https://learn-wp-reimagined.space.fast/activities/paths/block-theme"
+       }
+      ]
+     }
+    }
+   }
+  ]
+ },
+ "skip": {
+  "event": {
+   "type": "checkpointAnswered",
+   "lessonId": "theme-json-basics",
+   "response": "ans",
+   "outcome": "skip",
+   "to": "templates-and-parts"
+  },
+  "statements": [
+   {
+    "id": "",
+    "actor": {
+     "objectType": "Agent",
+     "account": {
+      "homePage": "https://learn-wp-reimagined.space.fast",
+      "name": "learner-1"
+     }
+    },
+    "verb": {
+     "id": "http://adlnet.gov/expapi/verbs/answered",
+     "display": {
+      "en-US": "answered"
+     }
+    },
+    "object": {
+     "objectType": "Activity",
+     "id": "https://learn-wp-reimagined.space.fast/activities/lessons/theme-json-basics/checkpoint",
+     "definition": {
+      "name": {
+       "en-US": "theme.json basics: checkpoint"
+      }
+     }
+    },
+    "timestamp": "",
+    "result": {
+     "response": "ans"
+    },
+    "context": {
+     "contextActivities": {
+      "parent": [
+       {
+        "objectType": "Activity",
+        "id": "https://learn-wp-reimagined.space.fast/activities/paths/block-theme"
+       }
+      ]
+     }
+    }
+   },
+   {
+    "id": "",
+    "actor": {
+     "objectType": "Agent",
+     "account": {
+      "homePage": "https://learn-wp-reimagined.space.fast",
+      "name": "learner-1"
+     }
+    },
+    "verb": {
+     "id": "http://adlnet.gov/expapi/verbs/passed",
+     "display": {
+      "en-US": "passed"
+     }
+    },
+    "object": {
+     "objectType": "Activity",
+     "id": "https://learn-wp-reimagined.space.fast/activities/lessons/theme-json-basics/checkpoint",
+     "definition": {
+      "name": {
+       "en-US": "theme.json basics: checkpoint"
+      }
+     }
+    },
+    "timestamp": "",
+    "result": {
+     "success": true
+    },
+    "context": {
+     "contextActivities": {
+      "parent": [
+       {
+        "objectType": "Activity",
+        "id": "https://learn-wp-reimagined.space.fast/activities/paths/block-theme"
+       }
+      ]
+     }
+    }
+   },
+   {
+    "id": "",
+    "actor": {
+     "objectType": "Agent",
+     "account": {
+      "homePage": "https://learn-wp-reimagined.space.fast",
+      "name": "learner-1"
+     }
+    },
+    "verb": {
+     "id": "https://learn-wp-reimagined.space.fast/xapi/verbs/branched",
+     "display": {
+      "en-US": "branched"
+     }
+    },
+    "object": {
+     "objectType": "Activity",
+     "id": "https://learn-wp-reimagined.space.fast/activities/lessons/templates-and-parts",
+     "definition": {
+      "name": {
+       "en-US": "Templates and template parts"
+      }
+     }
+    },
+    "timestamp": "",
+    "result": {
+     "extensions": {
+      "https://learn-wp-reimagined.space.fast/xapi/extensions/outcome": "skip",
+      "https://learn-wp-reimagined.space.fast/xapi/extensions/from-lesson": "https://learn-wp-reimagined.space.fast/activities/lessons/theme-json-basics"
+     }
+    },
+    "context": {
+     "contextActivities": {
+      "parent": [
+       {
+        "objectType": "Activity",
+        "id": "https://learn-wp-reimagined.space.fast/activities/paths/block-theme"
+       }
+      ]
+     }
+    }
+   }
+  ]
+ },
+ "review": {
+  "event": {
+   "type": "checkpointAnswered",
+   "lessonId": "theme-json-basics",
+   "response": "ans",
+   "outcome": "review",
+   "to": "theme-json-basics"
+  },
+  "statements": [
+   {
+    "id": "",
+    "actor": {
+     "objectType": "Agent",
+     "account": {
+      "homePage": "https://learn-wp-reimagined.space.fast",
+      "name": "learner-1"
+     }
+    },
+    "verb": {
+     "id": "http://adlnet.gov/expapi/verbs/answered",
+     "display": {
+      "en-US": "answered"
+     }
+    },
+    "object": {
+     "objectType": "Activity",
+     "id": "https://learn-wp-reimagined.space.fast/activities/lessons/theme-json-basics/checkpoint",
+     "definition": {
+      "name": {
+       "en-US": "theme.json basics: checkpoint"
+      }
+     }
+    },
+    "timestamp": "",
+    "result": {
+     "response": "ans"
+    },
+    "context": {
+     "contextActivities": {
+      "parent": [
+       {
+        "objectType": "Activity",
+        "id": "https://learn-wp-reimagined.space.fast/activities/paths/block-theme"
+       }
+      ]
+     }
+    }
+   },
+   {
+    "id": "",
+    "actor": {
+     "objectType": "Agent",
+     "account": {
+      "homePage": "https://learn-wp-reimagined.space.fast",
+      "name": "learner-1"
+     }
+    },
+    "verb": {
+     "id": "http://adlnet.gov/expapi/verbs/failed",
+     "display": {
+      "en-US": "failed"
+     }
+    },
+    "object": {
+     "objectType": "Activity",
+     "id": "https://learn-wp-reimagined.space.fast/activities/lessons/theme-json-basics/checkpoint",
+     "definition": {
+      "name": {
+       "en-US": "theme.json basics: checkpoint"
+      }
+     }
+    },
+    "timestamp": "",
+    "result": {
+     "success": false
+    },
+    "context": {
+     "contextActivities": {
+      "parent": [
+       {
+        "objectType": "Activity",
+        "id": "https://learn-wp-reimagined.space.fast/activities/paths/block-theme"
+       }
+      ]
+     }
+    }
+   },
+   {
+    "id": "",
+    "actor": {
+     "objectType": "Agent",
+     "account": {
+      "homePage": "https://learn-wp-reimagined.space.fast",
+      "name": "learner-1"
+     }
+    },
+    "verb": {
+     "id": "https://learn-wp-reimagined.space.fast/xapi/verbs/branched",
+     "display": {
+      "en-US": "branched"
+     }
+    },
+    "object": {
+     "objectType": "Activity",
+     "id": "https://learn-wp-reimagined.space.fast/activities/lessons/theme-json-basics",
+     "definition": {
+      "name": {
+       "en-US": "theme.json basics"
+      }
+     }
+    },
+    "timestamp": "",
+    "result": {
+     "extensions": {
+      "https://learn-wp-reimagined.space.fast/xapi/extensions/outcome": "review",
+      "https://learn-wp-reimagined.space.fast/xapi/extensions/from-lesson": "https://learn-wp-reimagined.space.fast/activities/lessons/theme-json-basics"
+     }
+    },
+    "context": {
+     "contextActivities": {
+      "parent": [
+       {
+        "objectType": "Activity",
+        "id": "https://learn-wp-reimagined.space.fast/activities/paths/block-theme"
+       }
+      ]
+     }
+    }
+   }
+  ]
+ },
+ "unknownCp": {
+  "event": {
+   "type": "checkpointAnswered",
+   "lessonId": "nope",
+   "response": "r",
+   "outcome": "advance",
+   "to": "nope2"
+  },
+  "statements": [
+   {
+    "id": "",
+    "actor": {
+     "objectType": "Agent",
+     "account": {
+      "homePage": "https://learn-wp-reimagined.space.fast",
+      "name": "learner-1"
+     }
+    },
+    "verb": {
+     "id": "http://adlnet.gov/expapi/verbs/answered",
+     "display": {
+      "en-US": "answered"
+     }
+    },
+    "object": {
+     "objectType": "Activity",
+     "id": "https://learn-wp-reimagined.space.fast/activities/lessons/nope/checkpoint",
+     "definition": {
+      "name": {
+       "en-US": "nope: checkpoint"
+      }
+     }
+    },
+    "timestamp": "",
+    "result": {
+     "response": "r"
+    }
+   },
+   {
+    "id": "",
+    "actor": {
+     "objectType": "Agent",
+     "account": {
+      "homePage": "https://learn-wp-reimagined.space.fast",
+      "name": "learner-1"
+     }
+    },
+    "verb": {
+     "id": "http://adlnet.gov/expapi/verbs/passed",
+     "display": {
+      "en-US": "passed"
+     }
+    },
+    "object": {
+     "objectType": "Activity",
+     "id": "https://learn-wp-reimagined.space.fast/activities/lessons/nope/checkpoint",
+     "definition": {
+      "name": {
+       "en-US": "nope: checkpoint"
+      }
+     }
+    },
+    "timestamp": "",
+    "result": {
+     "success": true
+    }
+   },
+   {
+    "id": "",
+    "actor": {
+     "objectType": "Agent",
+     "account": {
+      "homePage": "https://learn-wp-reimagined.space.fast",
+      "name": "learner-1"
+     }
+    },
+    "verb": {
+     "id": "https://learn-wp-reimagined.space.fast/xapi/verbs/branched",
+     "display": {
+      "en-US": "branched"
+     }
+    },
+    "object": {
+     "objectType": "Activity",
+     "id": "https://learn-wp-reimagined.space.fast/activities/lessons/nope2",
+     "definition": {
+      "name": {
+       "en-US": "nope2"
+      }
+     }
+    },
+    "timestamp": "",
+    "result": {
+     "extensions": {
+      "https://learn-wp-reimagined.space.fast/xapi/extensions/outcome": "advance",
+      "https://learn-wp-reimagined.space.fast/xapi/extensions/from-lesson": "https://learn-wp-reimagined.space.fast/activities/lessons/nope"
+     }
+    }
+   }
+  ]
+ },
+ "codePass": {
+  "event": {
+   "type": "codeChecked",
+   "lessonId": "theme-json-basics",
+   "file": "style.css",
+   "passed": true
+  },
+  "statements": [
+   {
+    "id": "",
+    "actor": {
+     "objectType": "Agent",
+     "account": {
+      "homePage": "https://learn-wp-reimagined.space.fast",
+      "name": "learner-1"
+     }
+    },
+    "verb": {
+     "id": "http://adlnet.gov/expapi/verbs/passed",
+     "display": {
+      "en-US": "passed"
+     }
+    },
+    "object": {
+     "objectType": "Activity",
+     "id": "https://learn-wp-reimagined.space.fast/activities/lessons/theme-json-basics/files/style.css",
+     "definition": {
+      "name": {
+       "en-US": "theme.json basics: style.css"
+      }
+     }
+    },
+    "timestamp": "",
+    "result": {
+     "success": true
+    },
+    "context": {
+     "contextActivities": {
+      "parent": [
+       {
+        "objectType": "Activity",
+        "id": "https://learn-wp-reimagined.space.fast/activities/paths/block-theme"
+       }
+      ]
+     }
+    }
+   }
+  ]
+ },
+ "codeFail": {
+  "event": {
+   "type": "codeChecked",
+   "lessonId": "theme-json-basics",
+   "file": "style.css",
+   "passed": false
+  },
+  "statements": [
+   {
+    "id": "",
+    "actor": {
+     "objectType": "Agent",
+     "account": {
+      "homePage": "https://learn-wp-reimagined.space.fast",
+      "name": "learner-1"
+     }
+    },
+    "verb": {
+     "id": "http://adlnet.gov/expapi/verbs/failed",
+     "display": {
+      "en-US": "failed"
+     }
+    },
+    "object": {
+     "objectType": "Activity",
+     "id": "https://learn-wp-reimagined.space.fast/activities/lessons/theme-json-basics/files/style.css",
+     "definition": {
+      "name": {
+       "en-US": "theme.json basics: style.css"
+      }
+     }
+    },
+    "timestamp": "",
+    "result": {
+     "success": false
+    },
+    "context": {
+     "contextActivities": {
+      "parent": [
+       {
+        "objectType": "Activity",
+        "id": "https://learn-wp-reimagined.space.fast/activities/paths/block-theme"
+       }
+      ]
+     }
+    }
+   }
+  ]
+ },
+ "codeUnknown": {
+  "event": {
+   "type": "codeChecked",
+   "lessonId": "nope",
+   "file": "a b.css",
+   "passed": true
+  },
+  "statements": [
+   {
+    "id": "",
+    "actor": {
+     "objectType": "Agent",
+     "account": {
+      "homePage": "https://learn-wp-reimagined.space.fast",
+      "name": "learner-1"
+     }
+    },
+    "verb": {
+     "id": "http://adlnet.gov/expapi/verbs/passed",
+     "display": {
+      "en-US": "passed"
+     }
+    },
+    "object": {
+     "objectType": "Activity",
+     "id": "https://learn-wp-reimagined.space.fast/activities/lessons/nope/files/a%20b.css",
+     "definition": {
+      "name": {
+       "en-US": "nope: a b.css"
+      }
+     }
+    },
+    "timestamp": "",
+    "result": {
+     "success": true
+    }
+   }
+  ]
+ },
+ "done": {
+  "event": {
+   "type": "lessonCompleted",
+   "lessonId": "theme-json-basics"
+  },
+  "statements": [
+   {
+    "id": "",
+    "actor": {
+     "objectType": "Agent",
+     "account": {
+      "homePage": "https://learn-wp-reimagined.space.fast",
+      "name": "learner-1"
+     }
+    },
+    "verb": {
+     "id": "http://adlnet.gov/expapi/verbs/completed",
+     "display": {
+      "en-US": "completed"
+     }
+    },
+    "object": {
+     "objectType": "Activity",
+     "id": "https://learn-wp-reimagined.space.fast/activities/lessons/theme-json-basics",
+     "definition": {
+      "name": {
+       "en-US": "theme.json basics"
+      }
+     }
+    },
+    "timestamp": "",
+    "result": {
+     "completion": true
+    },
+    "context": {
+     "contextActivities": {
+      "parent": [
+       {
+        "objectType": "Activity",
+        "id": "https://learn-wp-reimagined.space.fast/activities/paths/block-theme"
+       }
+      ]
+     }
+    }
+   }
+  ]
+ },
+ "doneUnknown": {
+  "event": {
+   "type": "lessonCompleted",
+   "lessonId": "nope"
+  },
+  "statements": [
+   {
+    "id": "",
+    "actor": {
+     "objectType": "Agent",
+     "account": {
+      "homePage": "https://learn-wp-reimagined.space.fast",
+      "name": "learner-1"
+     }
+    },
+    "verb": {
+     "id": "http://adlnet.gov/expapi/verbs/completed",
+     "display": {
+      "en-US": "completed"
+     }
+    },
+    "object": {
+     "objectType": "Activity",
+     "id": "https://learn-wp-reimagined.space.fast/activities/lessons/nope",
+     "definition": {
+      "name": {
+       "en-US": "nope"
+      }
+     }
+    },
+    "timestamp": "",
+    "result": {
+     "completion": true
+    }
+   }
+  ]
+ }
+}

@@ -1,7 +1,8 @@
 import { describe, expect, it } from 'vitest';
+import { readFileSync } from 'node:fs';
 import { resolve } from 'node:path';
 import { buildContent } from '../../scripts/build-content';
-import { newRecord, applyEvent, type RecordEvent } from '../../src/shared/record';
+import type { RecordEvent } from '../../src/shared/record';
 import { statementsForEvent } from '../../src/shared/statements';
 import { EXT_CHOSEN_BY, EXT_FROM_LESSON, EXT_OUTCOME, XAPI_BASE, activityId, type XapiStatement } from '../../src/shared/xapi';
 
@@ -28,15 +29,21 @@ const events: RecordEvent[] = [
 ];
 
 describe('statementsForEvent', () => {
-  it.each(events.map((e) => [e.type + (e.type === 'checkpointAnswered' ? ':' + e.outcome : ''), e] as const))(
-    'matches what applyEvent records for %s',
-    (_n, e) => {
-      const r = { ...newRecord(), learnerId: L };
-      const viaApply = applyEvent(r, e, c).statements;
-      expect(statementsForEvent(L, e, c).map(strip)).toEqual(viaApply.map(strip));
-      expect(viaApply.length).toBeGreaterThan(0);
-    },
-  );
+  // Golden output captured from applyEvent as of f251cb6 (before the extraction), ids and timestamps stripped.
+  const golden = JSON.parse(readFileSync(resolve(__dirname, '../fixtures/statements-golden.json'), 'utf8')) as Record<
+    string,
+    { event: RecordEvent; statements: XapiStatement[] }
+  >;
+  it.each(Object.keys(golden))('matches the pre-extraction applyEvent output for %s', (k) => {
+    const { event, statements } = golden[k];
+    expect(statementsForEvent(L, event, c).map(strip)).toEqual(statements);
+  });
+  it('covers an unknown lesson (no parent, name is the id) and a missing beat', () => {
+    const unknown = golden.unknownBeat.statements[0];
+    expect(unknown.context).toBeUndefined();
+    expect(unknown.object.definition?.name['en-US']).toBe('nope');
+    expect(golden.missingBeat.statements[0].object.definition?.name['en-US']).toBe('theme.json basics');
+  });
   it('checkpointAnswered yields answered, passed|failed, branched in order', () => {
     const e = events.find((x) => x.type === 'checkpointAnswered' && x.outcome === 'review')!;
     expect(verbs(statementsForEvent(L, e, c))).toEqual(['answered', 'failed', 'branched']);
