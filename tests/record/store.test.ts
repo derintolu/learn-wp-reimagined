@@ -538,15 +538,23 @@ describe('server events', () => {
 
   it('the same answer applied twice is a no-op the second time', async () => {
     const answer = { eventId: 'e', ok: true as const, statements: [serverStmt('once')] };
-    const m = new RecordManager(memStore(), c, fakeClient({ send: vi.fn(async () => answer) }));
+    const gate = deferred<void>();
+    const store = memStore();
+    const m = new RecordManager(store, c, fakeClient({ send: vi.fn(async () => { await gate.promise; return answer; }) }));
     await m.dispatch({ type: 'lessonCompleted', lessonId });
-    await m.settled();
-    const after = m.record.statements;
-    expect(after.map((s) => s.id)).toEqual(['once']);
-    // Replaying the swap with the same statements finds nothing built locally to replace.
-    await (m as unknown as { sendAndSwap(e: unknown, l: unknown[]): Promise<void> }).sendAndSwap({ type: 'lessonCompleted', lessonId }, [after[0]]).catch(() => {});
+    const originals = [...m.record.statements]; // the locally built statements, before the answer lands
+    expect(originals[0].id).not.toBe('once');
+    gate.resolve();
     await m.settled();
     expect(m.record.statements.map((s) => s.id)).toEqual(['once']);
-    expect(m.record.statements).toHaveLength(1);
+    const after = m.record;
+    const emitted = vi.fn();
+    m.subscribe(emitted);
+    const save = vi.spyOn(store, 'save');
+    // Replay the same answer against the original local statements: they are gone, so nothing changes.
+    await (m as unknown as { sendAndSwap(e: unknown, l: unknown[]): Promise<void> }).sendAndSwap({ type: 'lessonCompleted', lessonId }, originals);
+    expect(m.record).toBe(after);
+    expect(emitted).not.toHaveBeenCalled();
+    expect(save).not.toHaveBeenCalled();
   });
 });
