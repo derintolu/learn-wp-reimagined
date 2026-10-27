@@ -133,7 +133,7 @@ export const placement = (messages: ChatMessage[], signal?: AbortSignal) =>
   call<{ reply: string; placement?: Placement }>('/api/placement', { messages }, signal);
 
 export const judge = (lessonId: string, answer: string, signal?: AbortSignal) =>
-  call<{ outcome: Outcome; to: string; message: string; feedback: string }>('/api/checkpoint', { lessonId, answer }, signal);
+  call<{ outcome: Outcome; to: string; message: string; feedback: string; decisionId?: string }>('/api/checkpoint', { lessonId, answer }, signal);
 
 export const codeFeedback = (
   req: { lessonId: string; file: string; code: string; passed: boolean; failedMessages: string[] },

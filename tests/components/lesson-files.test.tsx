@@ -90,7 +90,7 @@ describe('Lesson editors only load files saved in that lesson', () => {
     expect(await editorText(/theme\.json/)).toBe(bug.code);
     fireEvent.click(within(box).getByRole('button', { name: 'Check my fix' }));
     expect(await within(box).findByText('Not yet. The bug is still in there.')).toBeTruthy();
-    expect(dispatched()).toContainEqual({ type: 'codeChecked', lessonId: L1, file: 'theme.json', passed: false });
+    expect(dispatched()).toContainEqual(expect.objectContaining({ type: 'codeChecked', lessonId: L1, file: 'theme.json', passed: false }));
     expect(dispatched().some((e) => e.type === 'lessonCompleted')).toBe(false);
   });
 

@@ -436,3 +436,58 @@ describe('init retry', () => {
     expect(m.record.completedLessons).toEqual([lessonId]);
   });
 });
+
+describe('server events', () => {
+  const fakeClient = (over: Partial<Record<'send' | 'queueBeat' | 'flush', unknown>> = {}) =>
+    ({ send: vi.fn(async () => null), queueBeat: vi.fn(), flush: vi.fn(async () => {}), ...over }) as unknown as import('../../src/record/eventClient').EventClient;
+
+  it('dispatch appends server statements when the server answers', async () => {
+    const serverStatement = { ...applyEvent(newRecord(), { type: 'lessonCompleted', lessonId }, c).statements[0], id: 'from-the-server' };
+    const send = vi.fn(async (e: { type: string }) => ({ eventId: 'e1', ok: true as const, statements: [serverStatement] }));
+    const m = new RecordManager(memStore(), c, fakeClient({ send }));
+    await m.dispatch({ type: 'lessonCompleted', lessonId });
+    expect(send).toHaveBeenCalledWith({ type: 'lessonCompleted', lessonId });
+    expect(m.record.completedLessons).toEqual([lessonId]);
+    expect(m.record.statements.map((s) => s.id)).toEqual(['from-the-server']);
+  });
+
+  it('dispatch falls back to local statements when fetch rejects', async () => {
+    vi.stubGlobal('fetch', vi.fn(async () => { throw new Error('offline'); }));
+    const { EventClient } = await import('../../src/record/eventClient');
+    const m = new RecordManager(memStore(), c, new EventClient(() => m.record.learnerId));
+    await m.dispatch({ type: 'lessonCompleted', lessonId });
+    expect(m.record.statements).toHaveLength(1);
+    expect(m.record.statements[0].id).not.toBe('from-the-server');
+  });
+
+  it('falls back to local statements when the server says ok:false', async () => {
+    const send = vi.fn(async () => ({ eventId: 'e1', ok: false as const, error: 'not-allowed' as const }));
+    const m = new RecordManager(memStore(), c, fakeClient({ send }));
+    await m.dispatch({ type: 'lessonCompleted', lessonId });
+    expect(m.record.statements).toHaveLength(1);
+  });
+
+  it('beat advance never awaits the network', async () => {
+    let release!: () => void;
+    const gate = new Promise<void>((r) => { release = r; });
+    vi.stubGlobal('fetch', vi.fn(async () => { await gate; return { ok: true, json: async () => ({ results: [] }) }; }));
+    const { EventClient } = await import('../../src/record/eventClient');
+    const client = new EventClient(() => m.record.learnerId);
+    const m = new RecordManager(memStore(), c, client);
+    await m.dispatch({ type: 'beatViewed', lessonId, beatIndex: 1 });
+    expect(m.record.current?.beatIndex).toBe(1);
+    expect(m.record.statements).toHaveLength(1);
+    expect(fetch).not.toHaveBeenCalled();
+    release();
+    await client.flush();
+  });
+
+  it('maps codeChecked with files to codeSubmitted and keeps local statements without files', async () => {
+    const send = vi.fn(async () => null);
+    const m = new RecordManager(memStore(), c, fakeClient({ send }));
+    await m.dispatch({ type: 'codeChecked', lessonId, file: 'a.json', passed: true, files: { 'a.json': '{}' }, target: 'bug' });
+    expect(send).toHaveBeenCalledWith({ type: 'codeSubmitted', lessonId, target: 'bug', file: 'a.json', files: { 'a.json': '{}' } });
+    await m.dispatch({ type: 'codeChecked', lessonId, file: 'a.json', passed: true });
+    expect(send).toHaveBeenCalledTimes(1);
+  });
+});

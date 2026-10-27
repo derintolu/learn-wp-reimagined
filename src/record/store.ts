@@ -1,5 +1,8 @@
 import { applyEvent, newRecord, parseRecord, type LearningRecord, type RecordEvent } from '../shared/record';
 import type { ContentBundle } from '../shared/types';
+import { FEATURES } from '../config';
+import { bindLearnerId, getEventClient, type EventClient } from './eventClient';
+import type { EventResult, ServerEvent } from '../shared/events';
 import { createFolderStore, type FolderStore } from './folderStore';
 
 export interface RecordNotice {
@@ -34,7 +37,8 @@ export class RecordManager {
   /** Set during init() when a stored record was corrupt or too new. */
   notice: RecordNotice | null = null;
 
-  constructor(private primary: RecordStore, private content: ContentBundle) {
+  constructor(private primary: RecordStore, private content: ContentBundle, private client: EventClient = getEventClient()) {
+    bindLearnerId(() => this.current.learnerId);
     primary.onKindChange?.(() => this.emit());
   }
 
@@ -110,7 +114,32 @@ export class RecordManager {
 
   async dispatch(e: RecordEvent): Promise<void> {
     await this.init();
-    this.current = applyEvent(this.current, e, this.content);
+    const before = this.current;
+    this.current = applyEvent(before, e, this.content);
+    const local = this.current.statements.slice(before.statements.length);
+    this.emit();
+    await this.persist();
+    if (!FEATURES.serverEvents) return;
+    if (e.type === 'beatViewed') {
+      // Never waits for the network; the server hears about beats in a batch.
+      this.client.queueBeat(e.lessonId, e.beatIndex);
+      return;
+    }
+    const se = toServerEvent(e);
+    if (!se || local.length === 0) return;
+    let res: EventResult | null = null;
+    try {
+      res = await this.client.send(se);
+    } catch {
+      res = null;
+    }
+    if (!res || !res.ok) return; // keep the locally built statements
+    // The server's statements stand in for the ones built here.
+    const at = this.current.statements.indexOf(local[0]);
+    if (at < 0) return;
+    const statements = [...this.current.statements];
+    statements.splice(at, local.length, ...res.statements);
+    this.current = { ...this.current, statements };
     this.emit();
     await this.persist();
   }
@@ -157,5 +186,30 @@ export class RecordManager {
     });
     this.chain = p.catch(() => {});
     return p;
+  }
+}
+
+type NewServerEvent = ServerEvent extends infer E ? (E extends { eventId: string } ? Omit<E, 'eventId'> : never) : never;
+
+/** The local event as the course server knows it; null when the server has no such event. */
+function toServerEvent(e: RecordEvent): NewServerEvent | null {
+  switch (e.type) {
+    case 'placed':
+      return { type: 'placed', placement: e.placement };
+    case 'checkpointAnswered':
+      return {
+        type: 'checkpointAnswered',
+        lessonId: e.lessonId,
+        response: e.response,
+        outcome: e.outcome,
+        ...(e.decisionId ? { decisionId: e.decisionId } : {}),
+        ...(e.files ? { files: e.files } : {}),
+      };
+    case 'codeChecked':
+      return e.files ? { type: 'codeSubmitted', lessonId: e.lessonId, target: e.target ?? 'checkpoint', file: e.file, files: e.files } : null;
+    case 'lessonCompleted':
+      return { type: 'lessonCompleted', lessonId: e.lessonId };
+    default:
+      return null;
   }
 }

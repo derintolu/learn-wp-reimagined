@@ -121,7 +121,7 @@ export function BugCard({ lesson, ai, onSolved }: { lesson: Lesson; ai: AiState;
     setResults(run.results);
     const failedMessages = run.results.filter((r) => !r.passed).map((r) => r.check.message);
     getRecordManager()
-      .dispatch({ type: 'codeChecked', lessonId: lesson.id, file: bug.file, passed: run.passed })
+      .dispatch({ type: 'codeChecked', lessonId: lesson.id, file: bug.file, passed: run.passed, target: 'bug', files: { ...studio.files } })
       .catch(() => {});
     const mine = ++seq.current;
     setNote(null);

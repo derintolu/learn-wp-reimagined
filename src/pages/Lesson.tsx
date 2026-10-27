@@ -7,6 +7,7 @@ import { preloadCodeEditor } from '../components/LazyCodeEditor';
 import { CompletedSummary } from '../components/CompletedSummary';
 import { RESTORED_EVENT, SaveWarning } from '../components/RecordPanel';
 import { content } from '../content';
+import { getEventClient } from '../record/eventClient';
 import { useRecord } from '../record/useRecord';
 import { nextLessonId } from '../shared/engine';
 import type { Lesson as LessonT } from '../shared/types';
@@ -81,6 +82,9 @@ function LessonView({ lesson, onRestart }: { lesson: LessonT; onRestart: () => v
     };
   }, []);
 
+  // Leaving the lesson sends any beats still waiting.
+  useEffect(() => () => void getEventClient().flush(), []);
+
   // Keyboard and screen-reader users land on the cards after the last section (the feed handles sections).
   useEffect(() => {
     if (!focusNext.current || step === null) return;
@@ -113,7 +117,7 @@ function LessonView({ lesson, onRestart }: { lesson: LessonT; onRestart: () => v
 
   async function onResolved(r: Resolution) {
     try {
-      await manager.dispatch({ type: 'checkpointAnswered', lessonId: lesson.id, response: r.response, outcome: r.outcome, to: r.branch.to });
+      await manager.dispatch({ type: 'checkpointAnswered', lessonId: lesson.id, response: r.response, outcome: r.outcome, to: r.branch.to, decisionId: r.decisionId, files: r.files });
     } catch {
       // the moment still shows; saving problems surface in the record panel
     }

@@ -179,7 +179,7 @@ describe('Free-text checkpoint', () => {
     stream.mockImplementation(async (_r, onText) => onText('Beat text.'));
     judgeMock.mockResolvedValue({
       ok: true,
-      data: { outcome: 'advance', to: 'templates-and-parts', message: 'Nice. On to templates.', feedback: 'You named presets. Spot on.' },
+      data: { outcome: 'advance', to: 'templates-and-parts', message: 'Nice. On to templates.', feedback: 'You named presets. Spot on.', decisionId: 'dec-1' },
     });
     use(managerWith(recordAt('theme-json-basics', 2)));
     open('/learn/theme-json-basics');
@@ -200,6 +200,7 @@ describe('Free-text checkpoint', () => {
         response: 'It sets which controls and presets exist.',
         outcome: 'advance',
         to: 'templates-and-parts',
+        decisionId: 'dec-1',
       }),
     );
     await waitFor(() => expect(dispatched()).toContainEqual({ type: 'lessonCompleted', lessonId: 'theme-json-basics' }));
@@ -285,7 +286,7 @@ describe('Code checkpoint', () => {
     expect(await within(cp).findByText('Add a colour with a slug.')).toBeTruthy();
     expect(screen.queryByTestId('branch-moment')).toBeNull();
     await waitFor(() =>
-      expect(dispatched()).toContainEqual({ type: 'codeChecked', lessonId: 'templates-and-parts', file: 'theme.json', passed: false }),
+      expect(dispatched()).toContainEqual(expect.objectContaining({ type: 'codeChecked', lessonId: 'templates-and-parts', file: 'theme.json', passed: false })),
     );
     await waitFor(() =>
       expect(feedbackMock).toHaveBeenCalledWith(
@@ -304,15 +305,18 @@ describe('Code checkpoint', () => {
     expect(moment.getAttribute('data-outcome')).toBe('advance');
     expect(moment.textContent).toContain('Your theme.json looks right.');
     await waitFor(() =>
-      expect(dispatched()).toContainEqual({
-        type: 'checkpointAnswered',
-        lessonId: 'templates-and-parts',
-        response: 'code checks passed',
-        outcome: 'advance',
-        to: 'patterns',
-      }),
+      expect(dispatched()).toContainEqual(
+        expect.objectContaining({
+          type: 'checkpointAnswered',
+          lessonId: 'templates-and-parts',
+          response: 'code checks passed',
+          outcome: 'advance',
+          to: 'patterns',
+          files: expect.objectContaining({ 'theme.json': expect.any(String) }),
+        }),
+      ),
     );
-    expect(dispatched()).toContainEqual({ type: 'codeChecked', lessonId: 'templates-and-parts', file: 'theme.json', passed: true });
+    expect(dispatched()).toContainEqual(expect.objectContaining({ type: 'codeChecked', lessonId: 'templates-and-parts', file: 'theme.json', passed: true }));
   });
 
   it('after two failed checks offers only "Keep trying" and the review branch, never a pass (R21)', async () => {
@@ -360,7 +364,7 @@ describe('Catch the bug', () => {
 
     fireEvent.click(within(box).getByRole('button', { name: 'Check my fix' }));
     expect(await within(box).findByText('Not yet. The bug is still in there.')).toBeTruthy();
-    expect(dispatched()).toContainEqual({ type: 'codeChecked', lessonId: 'patterns', file: 'patterns/hero.php', passed: false });
+    expect(dispatched()).toContainEqual(expect.objectContaining({ type: 'codeChecked', lessonId: 'patterns', file: 'patterns/hero.php', passed: false }));
     expect(dispatched().some((e) => e.type === 'lessonCompleted')).toBe(false);
 
     await typeInto(/hero\.php/, '<?php\n/**\n * Title: Hero\n * Slug: mytheme/hero\n */\n?>\n');

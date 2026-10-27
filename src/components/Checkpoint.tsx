@@ -24,6 +24,10 @@ export interface Resolution {
   branch: Branch;
   /** What goes in the record as the learner's response. */
   response: string;
+  /** The server's id for the judge's decision, passed back so the course server can check it. */
+  decisionId?: string;
+  /** A code checkpoint's files, so the server can re-run the checks. */
+  files?: Record<string, string>;
 }
 
 function branchFor(lessonId: string, outcome: Outcome): Branch | null {
@@ -90,7 +94,7 @@ function FreeText({ lesson, ai, onResolve }: { lesson: Lesson; ai: AiState; onRe
       setFallback(true);
       return;
     }
-    onResolve({ outcome: res.data.outcome, branch, response: text }, typeof res.data.feedback === 'string' ? res.data.feedback : undefined);
+    onResolve({ outcome: res.data.outcome, branch, response: text, decisionId: res.data.decisionId }, typeof res.data.feedback === 'string' ? res.data.feedback : undefined);
   }
 
   if (ai === 'loading') {
@@ -201,7 +205,7 @@ function Code({
     const run = runChecks(cp.checks ?? [], studio.files);
     setResults(run.results);
     getRecordManager()
-      .dispatch({ type: 'codeChecked', lessonId: lesson.id, file, passed: run.passed })
+      .dispatch({ type: 'codeChecked', lessonId: lesson.id, file, passed: run.passed, files: { ...studio.files } })
       .catch(() => {});
     const failedMessages = run.results.filter((r) => !r.passed).map((r) => r.check.message);
     setNote(null);
@@ -222,7 +226,7 @@ function Code({
       void studio.apply([file]);
       // The checks decide; the AI only ever adds a note.
       const branch = branchFor(lesson.id, 'advance');
-      if (branch) onResolve({ outcome: 'advance', branch, response: CODE_PASS_RESPONSE });
+      if (branch) onResolve({ outcome: 'advance', branch, response: CODE_PASS_RESPONSE, files: { ...studio.files } });
       return;
     }
     setFails((n) => n + 1);

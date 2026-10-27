@@ -214,7 +214,7 @@ describe('BugCard', () => {
     fireEvent.click(within(box).getByRole('button', { name: 'Check my fix' }));
     expect(await within(box).findByText('Not yet. The bug is still in there.')).toBeTruthy();
     expect(within(box).getAllByRole('listitem')[0].className).toContain('is-fail');
-    expect(dispatched()).toContainEqual({ type: 'codeChecked', lessonId: 'patterns', file: BUG_FILE, passed: false });
+    expect(dispatched()).toContainEqual(expect.objectContaining({ type: 'codeChecked', lessonId: 'patterns', file: BUG_FILE, passed: false }));
     expect(writes).toHaveLength(1); // a miss applies nothing
 
     await typeInto(/hero\.php/, FIX);
@@ -228,7 +228,7 @@ describe('BugCard', () => {
     await waitFor(() => expect(writes.at(-1)).toEqual({ path: `${DIR}/${BUG_FILE}`, data: FIX }));
     expect(studio.dirty).toEqual([]);
     expect(onSolved).toHaveBeenCalledTimes(1);
-    expect(dispatched()).toContainEqual({ type: 'codeChecked', lessonId: 'patterns', file: BUG_FILE, passed: true });
+    expect(dispatched()).toContainEqual(expect.objectContaining({ type: 'codeChecked', lessonId: 'patterns', file: BUG_FILE, passed: true }));
     expect(dispatched()).toContainEqual({ type: 'fileEdited', file: BUG_FILE, content: FIX, lessonId: 'patterns' });
   });
 });

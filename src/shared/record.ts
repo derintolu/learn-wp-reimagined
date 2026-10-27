@@ -21,8 +21,8 @@ export interface LearningRecord {
 export type RecordEvent =
   | { type: 'placed'; placement: Placement }
   | { type: 'beatViewed'; lessonId: string; beatIndex: number }
-  | { type: 'checkpointAnswered'; lessonId: string; response: string; outcome: Outcome; to: string }
-  | { type: 'codeChecked'; lessonId: string; file: string; passed: boolean }
+  | { type: 'checkpointAnswered'; lessonId: string; response: string; outcome: Outcome; to: string; decisionId?: string; files?: Record<string, string> }
+  | { type: 'codeChecked'; lessonId: string; file: string; passed: boolean; files?: Record<string, string>; target?: 'checkpoint' | 'bug' }
   | { type: 'fileEdited'; file: string; content: string; lessonId?: string }
   | { type: 'lessonCompleted'; lessonId: string };
 
