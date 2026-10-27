@@ -523,6 +523,34 @@
 .record__msg-text { margin: 0.9rem 0 0; }
 .record__msg-text--ok { color: var(--outcome-skip); font-weight: 600; }
 .record__msg-text--error { color: var(--danger); font-weight: 600; }
+/* Confirm dialog for "Delete my data" */
+.record-confirm__scrim {
+  position: fixed;
+  inset: 0;
+  z-index: 80;
+  display: grid;
+  place-items: center;
+  padding: var(--gutter);
+  background: rgba(30, 30, 30, 0.6);
+}
+.record-confirm {
+  box-sizing: border-box;
+  width: 100%;
+  max-width: min(26rem, 100%);
+  padding: 1.5rem;
+  border-radius: 1rem;
+  background: var(--paper);
+  color: var(--ink);
+  box-shadow: var(--shadow-popover);
+  font-size: var(--step--1);
+  overflow-wrap: anywhere;
+  animation: card-in 240ms var(--ease-out) both;
+}
+.record-confirm :focus-visible { outline-color: var(--wp-blue); }
+.record-confirm__title { margin: 0 0 0.5rem; font: 600 var(--step-1) / 1.2 var(--font-display); }
+.record-confirm__body { margin: 0 0 1rem; color: var(--ink-muted); font-size: var(--step-0); }
+.record-confirm__msg:empty { display: none; }
+.record-confirm__msg .record__msg-text { margin: 0 0 1rem; }
 @media (max-width: 480px) {
   .record__button { padding-inline: 0.7rem; }
   /* Room for the wordmark and the record menu; the wordmark already leads home to the paths. */
@@ -531,7 +559,7 @@
 
 @media (prefers-reduced-motion: reduce) {
   /* Motion only: never hide content here. */
-  .checkpoint, .bug, .lesson-done, .moment, .bug__win, .record__panel {
+  .checkpoint, .bug, .lesson-done, .moment, .bug__win, .record__panel, .record-confirm {
     animation: none;
     transition: none;
   }

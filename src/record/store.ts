@@ -2,6 +2,7 @@ import { applyEvent, newRecord, parseRecord, type LearningRecord, type RecordEve
 import type { ContentBundle } from '../shared/types';
 import type { XapiStatement } from '../shared/xapi';
 import { FEATURES } from '../config';
+import { currentActor } from './session';
 import { bindLearnerId, getEventClient, type EventClient } from './eventClient';
 import type { EventResult, ServerEvent } from '../shared/events';
 import { createFolderStore, type FolderStore } from './folderStore';
@@ -140,11 +141,19 @@ export class RecordManager {
   }
 
   private async sendAndSwap(se: Parameters<EventClient['send']>[0], local: XapiStatement[]): Promise<void> {
+    const learnerAtSend = this.current.learnerId;
     let res: EventResult | null = null;
     try {
       res = await this.client.send(se);
     } catch {
       res = null;
+    }
+    // Once the learner has a session, the record is theirs under the session's name.
+    const actor = currentActor();
+    if (actor && this.current.learnerId === learnerAtSend && learnerAtSend !== actor.name) {
+      this.current = { ...this.current, learnerId: actor.name };
+      this.emit();
+      await this.persist().catch(() => {});
     }
     if (!res || !res.ok) return; // keep the locally built statements
     // The server's statements stand in for the ones built here, if they are still there as built.
@@ -162,6 +171,14 @@ export class RecordManager {
   async restore(r: LearningRecord): Promise<void> {
     await this.init();
     this.current = r;
+    this.emit();
+    await this.persist();
+  }
+
+  /** Clear the record (in the browser and in an attached folder) and start a new one. */
+  async reset(): Promise<void> {
+    await this.init();
+    this.current = newRecord();
     this.emit();
     await this.persist();
   }

@@ -4,6 +4,7 @@ import { FEATURES } from '../config';
 import { content } from '../content';
 import { downloadRecord, readRecordFile } from '../record/fileTransfer';
 import { supportsFolder } from '../record/folderStore';
+import { deleteMyData } from '../record/session';
 import type { AttachResult } from '../record/store';
 import { cancelPendingEdits, flushPendingEdits } from '../record/useFileEdits';
 import { useRecord } from '../record/useRecord';
@@ -22,6 +23,8 @@ const ATTACH_COPY: Record<AttachResult, string> = {
   'kept-current-with-backup': "Kept this browser's newer progress and saved a backup in the folder",
   'recovered-corrupt': 'The record in that folder was damaged, so we set it aside and saved your progress there',
 };
+
+export const DELETE_FAILED = "We couldn't delete your data. Nothing was changed. Try again later.";
 
 const titleOf = (id: string) => (Object.prototype.hasOwnProperty.call(content.lessons, id) ? content.lessons[id].title : id);
 
@@ -45,6 +48,68 @@ function lessonInPath(): string | null {
   }
 }
 
+/** Asks before deleting. Escape and "Keep it" close it; Tab stays inside while it is open. */
+function DeleteDialog({ onKeep, onDelete, busy, failed }: { onKeep: () => void; onDelete: () => void; busy: boolean; failed: boolean }) {
+  const ref = useRef<HTMLDivElement>(null);
+  const keepRef = useRef<HTMLButtonElement>(null);
+  useEffect(() => {
+    keepRef.current?.focus();
+  }, []);
+  function onKeyDown(e: KeyboardEvent) {
+    if (e.key === 'Escape') {
+      e.preventDefault();
+      e.stopPropagation();
+      if (!busy) onKeep();
+      return;
+    }
+    if (e.key !== 'Tab') return;
+    const items = Array.from(ref.current?.querySelectorAll<HTMLButtonElement>('button:not(:disabled)') ?? []);
+    if (!items.length) {
+      e.preventDefault();
+      return;
+    }
+    const first = items[0];
+    const last = items[items.length - 1];
+    const active = document.activeElement;
+    if (e.shiftKey && (active === first || !ref.current?.contains(active))) {
+      e.preventDefault();
+      last.focus();
+    } else if (!e.shiftKey && (active === last || !ref.current?.contains(active))) {
+      e.preventDefault();
+      first.focus();
+    }
+  }
+  return (
+    <div class="record-confirm__scrim">
+      <div
+        class="record-confirm"
+        role="alertdialog"
+        aria-modal="true"
+        aria-labelledby="record-delete-title"
+        aria-describedby="record-delete-body"
+        ref={ref}
+        onKeyDown={onKeyDown}
+      >
+        <h2 id="record-delete-title" class="record-confirm__title">Delete my data?</h2>
+        <p id="record-delete-body" class="record-confirm__body">
+          This deletes your progress on this site and in this browser. It can't be undone.
+        </p>
+        <div role="status" class="record-confirm__msg">
+          {failed && <p class="record__msg-text record__msg-text--error">{DELETE_FAILED}</p>}
+        </div>
+        <div class="record__actions">
+          <button type="button" class="button button--quiet" ref={keepRef} onClick={onKeep} disabled={busy}>
+            Keep it
+          </button>
+          <button type="button" class="button" onClick={onDelete} disabled={busy}>
+            Delete
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 /** The header menu for the learning record: where it's saved, and download, restore or save to a folder. */
 export function RecordPanel() {
   const { manager, record, persistent, notice } = useRecord();
@@ -52,6 +117,10 @@ export function RecordPanel() {
   const [pendingRestore, setPendingRestore] = useState<LearningRecord | null>(null);
   const [msg, setMsg] = useState<Msg | null>(null);
   const [busy, setBusy] = useState(false);
+  const [confirmDelete, setConfirmDelete] = useState(false);
+  const [deleteFailed, setDeleteFailed] = useState(false);
+  const confirmRef = useRef(false);
+  const deleteBtnRef = useRef<HTMLButtonElement>(null);
   const [view, setView] = useState<'main' | 'handoff' | 'import'>('main');
   const rootRef = useRef<HTMLDivElement>(null);
   const buttonRef = useRef<HTMLButtonElement>(null);
@@ -86,6 +155,7 @@ export function RecordPanel() {
     panelRef.current?.focus();
     const onKey = (e: KeyboardEvent) => {
       if (e.key === 'Escape') {
+        if (confirmRef.current) return; // the confirm dialog handles its own Escape
         setOpen(false);
         buttonRef.current?.focus();
       }
@@ -100,6 +170,36 @@ export function RecordPanel() {
       document.removeEventListener('pointerdown', onDown);
     };
   }, [open]);
+
+  function openDelete() {
+    setDeleteFailed(false);
+    confirmRef.current = true;
+    setConfirmDelete(true);
+  }
+
+  function closeDelete() {
+    confirmRef.current = false;
+    setConfirmDelete(false);
+    deleteBtnRef.current?.focus();
+  }
+
+  async function confirmDeleteNow() {
+    setBusy(true);
+    setDeleteFailed(false);
+    try {
+      // An edit still waiting on its debounce must not land on top of the empty record.
+      cancelPendingEdits();
+      const ok = await deleteMyData();
+      if (!ok) {
+        setDeleteFailed(true);
+        return;
+      }
+      setMsg({ tone: 'ok', text: 'Your data is deleted.' });
+      closeDelete();
+    } finally {
+      setBusy(false);
+    }
+  }
 
   async function saveToFolder() {
     setMsg(null);
@@ -258,6 +358,11 @@ export function RecordPanel() {
               <button type="button" class="button button--quiet" onClick={() => fileRef.current?.click()} disabled={busy}>
                 Restore record
               </button>
+              {FEATURES.sessions && (
+                <button type="button" class="button button--quiet" ref={deleteBtnRef} onClick={openDelete}>
+                  Delete my data
+                </button>
+              )}
               {FEATURES.agent && (
                 <div class="record__agent record__actions record__actions--stack">
                   <p class="record__agent-title">Your own AI agent</p>
@@ -299,6 +404,7 @@ export function RecordPanel() {
           </div>
         </div>
       )}
+      {confirmDelete && <DeleteDialog onKeep={closeDelete} onDelete={confirmDeleteNow} busy={busy} failed={deleteFailed} />}
     </div>
   );
 }

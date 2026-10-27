@@ -1,3 +1,5 @@
+import { FEATURES } from '../config';
+import { ensureSession, forgetSession } from './session';
 import { EVENTS_MAX, type EventResult, type ServerEvent } from '../shared/events';
 
 /** Beats are batched and sent this often; they never hold up the learner. */
@@ -42,6 +44,11 @@ export class EventClient {
     return results.get(event.eventId) ?? null;
   }
 
+  /** Drop everything still waiting to be sent (after the learner deletes their data). */
+  discard(): void {
+    this.drain();
+  }
+
   async flush(): Promise<void> {
     const beats = this.drain();
     if (beats.length) await this.post(beats);
@@ -78,13 +85,19 @@ export class EventClient {
     const ctl = new AbortController();
     const timer = setTimeout(() => ctl.abort(), SEND_TIMEOUT_MS);
     try {
+      // A session names the learner to the server; without one the studio still sends as before.
+      if (FEATURES.sessions) await ensureSession();
       const res = await fetch('/api/events', {
         method: 'POST',
         headers: { 'content-type': 'application/json' },
         body: JSON.stringify({ learnerId: this.learnerId(), events }),
         signal: ctl.signal,
       });
-      if (!res.ok) return null;
+      if (!res.ok) {
+        // The session is gone or unknown: keep the local statements and ask for one at the next action.
+        if (res.status === 401) forgetSession();
+        return null;
+      }
       const j = (await res.json()) as { results?: unknown };
       return Array.isArray(j.results) ? (j.results as EventResult[]) : null;
     } catch {
