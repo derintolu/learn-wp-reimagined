@@ -228,7 +228,7 @@ describe('BugCard', () => {
     await waitFor(() => expect(writes.at(-1)).toEqual({ path: `${DIR}/${BUG_FILE}`, data: FIX }));
     expect(studio.dirty).toEqual([]);
     expect(onSolved).toHaveBeenCalledTimes(1);
-    expect(dispatched()).toContainEqual(expect.objectContaining({ type: 'codeChecked', lessonId: 'patterns', file: BUG_FILE, passed: true }));
+    expect(dispatched()).toContainEqual(expect.objectContaining({ type: 'codeChecked', lessonId: 'patterns', file: BUG_FILE, passed: true, target: 'bug', files: expect.objectContaining({ [BUG_FILE]: FIX }) }));
     expect(dispatched()).toContainEqual({ type: 'fileEdited', file: BUG_FILE, content: FIX, lessonId: 'patterns' });
   });
 });

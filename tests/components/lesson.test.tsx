@@ -210,6 +210,28 @@ describe('Free-text checkpoint', () => {
     expect(await screen.findByRole('heading', { level: 1, name: 'Templates and template parts' })).toBeTruthy();
   });
 
+  it('records the answer and completes the lesson while the course server has not answered', async () => {
+    vi.stubGlobal('fetch', vi.fn(() => new Promise(() => {})));
+    try {
+      status.mockResolvedValue({ ai: 'on' });
+      stream.mockImplementation(async (_r, onText) => onText('Beat text.'));
+      judgeMock.mockResolvedValue({
+        ok: true,
+        data: { outcome: 'advance', to: 'templates-and-parts', message: 'Nice.', feedback: 'Good.', decisionId: 'dec-2' },
+      });
+      use(managerWith(recordAt('theme-json-basics', 2)));
+      open('/learn/theme-json-basics');
+      const cp = await toCheckpoint();
+      fireEvent.input(within(cp).getByLabelText('Your answer'), { target: { value: 'It sets which controls exist.' } });
+      fireEvent.click(within(cp).getByRole('button', { name: 'Check my answer' }));
+      await screen.findByTestId('branch-moment');
+      await waitFor(() => expect(dispatched()).toContainEqual({ type: 'lessonCompleted', lessonId: 'theme-json-basics' }));
+      expect(vi.mocked(fetch)).toHaveBeenCalled();
+    } finally {
+      vi.unstubAllGlobals();
+    }
+  });
+
   it('uses the authored branch, not whatever "to" or message the response carries', async () => {
     status.mockResolvedValue({ ai: 'on' });
     stream.mockImplementation(async (_r, onText) => onText('Beat text.'));

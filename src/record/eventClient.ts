@@ -25,6 +25,10 @@ export class EventClient {
 
   queueBeat(lessonId: string, beatIndex: number): void {
     this.beats.push({ eventId: newEventId(), type: 'beatViewed', lessonId, beatIndex });
+    this.arm();
+  }
+
+  private arm(): void {
     this.timer ??= setTimeout(() => {
       this.timer = undefined;
       void this.flush();
@@ -58,7 +62,11 @@ export class EventClient {
       const chunk = events.slice(i, i + EVENTS_MAX);
       const results = await this.postChunk(chunk);
       if (!results) {
-        for (const ev of chunk) if (ev.type === 'beatViewed') this.beats.push(ev);
+        const failed = chunk.filter((ev): ev is BeatEvent => ev.type === 'beatViewed');
+        if (failed.length) {
+          this.beats.push(...failed);
+          this.arm();
+        }
         continue;
       }
       for (const r of results) out.set(r.eventId, r);

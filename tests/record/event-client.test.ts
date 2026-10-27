@@ -52,7 +52,7 @@ describe('EventClient', () => {
     expect(fetchMock).not.toHaveBeenCalled();
   });
 
-  it('splits batches larger than 50 and reuses event ids on a resend of beats', async () => {
+  it('splits batches larger than 50 into several requests', async () => {
     const c = new EventClient(() => LEARNER);
     for (let i = 0; i < 120; i++) c.queueBeat('l1', i);
     await c.flush();
@@ -76,5 +76,29 @@ describe('EventClient', () => {
     const c = new EventClient(() => LEARNER);
     fetchMock.mockResolvedValueOnce({ ok: false, status: 500 } as Response);
     expect(await c.send({ type: 'lessonCompleted', lessonId: 'l1' })).toBeNull();
+  });
+
+  it('a failed beat flush followed by a pagehide beacon sends the same event ids', async () => {
+    const beacon = vi.fn(() => true);
+    vi.stubGlobal('navigator', { sendBeacon: beacon });
+    const c = new EventClient(() => LEARNER);
+    c.queueBeat('l1', 0);
+    c.queueBeat('l1', 1);
+    fetchMock.mockRejectedValueOnce(new Error('offline'));
+    await c.flush();
+    const failedIds = bodyOf(0).events.map((e: { eventId: string }) => e.eventId);
+    window.dispatchEvent(new Event('pagehide'));
+    const sent = JSON.parse(await ((beacon.mock.calls[0] as unknown[])[1] as Blob).text());
+    expect(sent.events.map((e: { eventId: string }) => e.eventId)).toEqual(failedIds);
+  });
+
+  it('re-arms the flush timer when a failed batch is queued again', async () => {
+    const c = new EventClient(() => LEARNER);
+    c.queueBeat('l1', 0);
+    fetchMock.mockRejectedValueOnce(new Error('offline'));
+    await c.flush();
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+    await vi.advanceTimersByTimeAsync(BEAT_FLUSH_MS);
+    expect(fetchMock).toHaveBeenCalledTimes(2);
   });
 });

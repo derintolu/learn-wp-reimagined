@@ -438,14 +438,16 @@ describe('init retry', () => {
 });
 
 describe('server events', () => {
+  afterEach(() => { vi.unstubAllGlobals(); });
   const fakeClient = (over: Partial<Record<'send' | 'queueBeat' | 'flush', unknown>> = {}) =>
     ({ send: vi.fn(async () => null), queueBeat: vi.fn(), flush: vi.fn(async () => {}), ...over }) as unknown as import('../../src/record/eventClient').EventClient;
 
-  it('dispatch appends server statements when the server answers', async () => {
+  it('dispatch swaps in the server statements when the server answers', async () => {
     const serverStatement = { ...applyEvent(newRecord(), { type: 'lessonCompleted', lessonId }, c).statements[0], id: 'from-the-server' };
     const send = vi.fn(async (e: { type: string }) => ({ eventId: 'e1', ok: true as const, statements: [serverStatement] }));
     const m = new RecordManager(memStore(), c, fakeClient({ send }));
     await m.dispatch({ type: 'lessonCompleted', lessonId });
+    await m.settled();
     expect(send).toHaveBeenCalledWith({ type: 'lessonCompleted', lessonId });
     expect(m.record.completedLessons).toEqual([lessonId]);
     expect(m.record.statements.map((s) => s.id)).toEqual(['from-the-server']);
@@ -456,6 +458,7 @@ describe('server events', () => {
     const { EventClient } = await import('../../src/record/eventClient');
     const m = new RecordManager(memStore(), c, new EventClient(() => m.record.learnerId));
     await m.dispatch({ type: 'lessonCompleted', lessonId });
+    await m.settled();
     expect(m.record.statements).toHaveLength(1);
     expect(m.record.statements[0].id).not.toBe('from-the-server');
   });
@@ -464,6 +467,7 @@ describe('server events', () => {
     const send = vi.fn(async () => ({ eventId: 'e1', ok: false as const, error: 'not-allowed' as const }));
     const m = new RecordManager(memStore(), c, fakeClient({ send }));
     await m.dispatch({ type: 'lessonCompleted', lessonId });
+    await m.settled();
     expect(m.record.statements).toHaveLength(1);
   });
 
@@ -489,5 +493,60 @@ describe('server events', () => {
     expect(send).toHaveBeenCalledWith({ type: 'codeSubmitted', lessonId, target: 'bug', file: 'a.json', files: { 'a.json': '{}' } });
     await m.dispatch({ type: 'codeChecked', lessonId, file: 'a.json', passed: true });
     expect(send).toHaveBeenCalledTimes(1);
+  });
+
+  const deferred = <T,>() => {
+    let resolve!: (v: T) => void;
+    const promise = new Promise<T>((r) => { resolve = r; });
+    return { promise, resolve };
+  };
+  const serverStmt = (id: string) => ({ ...applyEvent(newRecord(), { type: 'lessonCompleted', lessonId }, c).statements[0], id });
+  const lessons = c.paths['block-theme'].lessons;
+
+  it('dispatch resolves while the send is still pending', async () => {
+    const gate = deferred<never>();
+    const send = vi.fn(() => gate.promise);
+    const m = new RecordManager(memStore(), c, fakeClient({ send }));
+    await m.dispatch({ type: 'lessonCompleted', lessonId });
+    expect(send).toHaveBeenCalledTimes(1);
+    expect(m.record.completedLessons).toEqual([lessonId]);
+    expect(m.record.statements).toHaveLength(1);
+  });
+
+  it('a late answer after an interleaved second dispatch swaps the right statements', async () => {
+    const gate = deferred<{ eventId: string; ok: true; statements: ReturnType<typeof serverStmt>[] }>();
+    const send = vi.fn().mockReturnValueOnce(gate.promise).mockResolvedValue(null);
+    const m = new RecordManager(memStore(), c, fakeClient({ send }));
+    await m.dispatch({ type: 'lessonCompleted', lessonId });
+    await m.dispatch({ type: 'lessonCompleted', lessonId: lessons[1] });
+    const second = m.record.statements[1];
+    gate.resolve({ eventId: 'e', ok: true, statements: [serverStmt('first-from-server')] });
+    await m.settled();
+    expect(m.record.statements.map((s) => s.id)).toEqual(['first-from-server', second.id]);
+  });
+
+  it('a late answer after restore() swaps nothing', async () => {
+    const gate = deferred<{ eventId: string; ok: true; statements: ReturnType<typeof serverStmt>[] }>();
+    const m = new RecordManager(memStore(), c, fakeClient({ send: vi.fn(() => gate.promise) }));
+    await m.dispatch({ type: 'lessonCompleted', lessonId });
+    const other = newRecord();
+    await m.restore(other);
+    gate.resolve({ eventId: 'e', ok: true, statements: [serverStmt('stale')] });
+    await m.settled();
+    expect(m.record).toEqual(other);
+  });
+
+  it('the same answer applied twice is a no-op the second time', async () => {
+    const answer = { eventId: 'e', ok: true as const, statements: [serverStmt('once')] };
+    const m = new RecordManager(memStore(), c, fakeClient({ send: vi.fn(async () => answer) }));
+    await m.dispatch({ type: 'lessonCompleted', lessonId });
+    await m.settled();
+    const after = m.record.statements;
+    expect(after.map((s) => s.id)).toEqual(['once']);
+    // Replaying the swap with the same statements finds nothing built locally to replace.
+    await (m as unknown as { sendAndSwap(e: unknown, l: unknown[]): Promise<void> }).sendAndSwap({ type: 'lessonCompleted', lessonId }, [after[0]]).catch(() => {});
+    await m.settled();
+    expect(m.record.statements.map((s) => s.id)).toEqual(['once']);
+    expect(m.record.statements).toHaveLength(1);
   });
 });

@@ -1,5 +1,6 @@
 import { applyEvent, newRecord, parseRecord, type LearningRecord, type RecordEvent } from '../shared/record';
 import type { ContentBundle } from '../shared/types';
+import type { XapiStatement } from '../shared/xapi';
 import { FEATURES } from '../config';
 import { bindLearnerId, getEventClient, type EventClient } from './eventClient';
 import type { EventResult, ServerEvent } from '../shared/events';
@@ -32,6 +33,7 @@ export class RecordManager {
   private listeners = new Set<(r: LearningRecord) => void>();
   private initP: Promise<void> | null = null;
   private chain: Promise<unknown> = Promise.resolve();
+  private pending = new Set<Promise<void>>();
   /** Set when the last folder save failed; cleared on the next success. */
   folderError: Error | null = null;
   /** Set during init() when a stored record was corrupt or too new. */
@@ -127,6 +129,17 @@ export class RecordManager {
     }
     const se = toServerEvent(e);
     if (!se || local.length === 0) return;
+    // The send and the swap run in the background; the studio never waits on the network.
+    const p = this.sendAndSwap(se, local).finally(() => this.pending.delete(p));
+    this.pending.add(p);
+  }
+
+  /** Resolves when every background send started by dispatch has finished (for tests and shutdown). */
+  async settled(): Promise<void> {
+    while (this.pending.size) await Promise.all([...this.pending]);
+  }
+
+  private async sendAndSwap(se: Parameters<EventClient['send']>[0], local: XapiStatement[]): Promise<void> {
     let res: EventResult | null = null;
     try {
       res = await this.client.send(se);
@@ -134,14 +147,16 @@ export class RecordManager {
       res = null;
     }
     if (!res || !res.ok) return; // keep the locally built statements
-    // The server's statements stand in for the ones built here.
-    const at = this.current.statements.indexOf(local[0]);
-    if (at < 0) return;
-    const statements = [...this.current.statements];
+    // The server's statements stand in for the ones built here, if they are still there as built.
+    // After a restore, or when this answer was already applied, they are not, and nothing changes.
+    const cur = this.current.statements;
+    const at = cur.indexOf(local[0]);
+    if (at < 0 || !local.every((s, i) => cur[at + i] === s)) return;
+    const statements = [...cur];
     statements.splice(at, local.length, ...res.statements);
     this.current = { ...this.current, statements };
     this.emit();
-    await this.persist();
+    await this.persist().catch(() => {});
   }
 
   async restore(r: LearningRecord): Promise<void> {
