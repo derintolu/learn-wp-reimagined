@@ -1,0 +1,10 @@
+{
+  "baseUrl": "http://localhost:5176",
+  "lesson": "bt-what-is-a-block-theme",
+  "runs": 5,
+  "statistic": "median",
+  "measuredAt": "2026-10-27T19:20:07Z",
+  "checkpointPath": "fallback",
+  "1440x900": {"lessonOpenMs": 389, "beatAdvanceMs": 5, "checkpointResultMs": 8},
+  "390x844": {"lessonOpenMs": 378, "beatAdvanceMs": 2, "checkpointResultMs": 4}
+}
