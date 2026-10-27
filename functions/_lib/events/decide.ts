@@ -13,13 +13,21 @@ export const DECISION_TTL_MS = 30 * 60_000;
 
 type Ok = Extract<EventResult, { ok: true }>;
 
-/** Single use: one conditional UPDATE, so two concurrent answers cannot both win. */
-async function consumeDecision(env: Env, id: string, lessonId: string, outcome: string, now: number): Promise<boolean> {
+/**
+ * Single use: one conditional UPDATE, so two concurrent answers cannot both win. The consuming eventId is
+ * recorded, so a retry of the same event is a replay of the judged answer, not a second use.
+ */
+async function consumeDecision(env: Env, id: string, lessonId: string, outcome: string, eventId: string, now: number): Promise<boolean> {
   const r = await env.DB
-    .prepare('UPDATE decisions SET used = 1 WHERE id = ? AND lesson_id = ? AND outcome = ? AND used = 0 AND created >= ?')
-    .bind(id, lessonId, outcome, now - DECISION_TTL_MS)
+    .prepare('UPDATE decisions SET used = 1, used_by = ? WHERE id = ? AND lesson_id = ? AND outcome = ? AND used = 0 AND created >= ?')
+    .bind(eventId, id, lessonId, outcome, now - DECISION_TTL_MS)
     .run();
-  return r.meta.changes === 1;
+  if (r.meta.changes === 1) return true;
+  const row = await env.DB
+    .prepare('SELECT used_by FROM decisions WHERE id = ? AND lesson_id = ? AND outcome = ? AND used = 1')
+    .bind(id, lessonId, outcome)
+    .first<{ used_by: string | null }>();
+  return row?.used_by === eventId;
 }
 
 async function build(actor: string, e: ServerEvent, rec: RecordEvent, now: number, chosenBy?: 'judge' | 'learner'): Promise<XapiStatement[]> {
@@ -73,7 +81,8 @@ async function decideOne(env: Env, actor: string, e: ServerEvent, now: number): 
         } else if (e.outcome === 'skip' && !cp.fallback.some((f) => f.outcome === 'skip')) {
           return fail('not-allowed');
         }
-      } else if (e.decisionId && (await consumeDecision(env, e.decisionId, e.lessonId, e.outcome, now))) {
+        if (e.outcome !== 'advance') chosenBy = 'learner';
+      } else if (e.decisionId && (await consumeDecision(env, e.decisionId, e.lessonId, e.outcome, e.eventId, now))) {
         chosenBy = 'judge';
       } else if (cp.fallback.some((f) => f.outcome === e.outcome)) {
         chosenBy = 'learner';
@@ -92,11 +101,8 @@ async function decideOne(env: Env, actor: string, e: ServerEvent, now: number): 
 export async function decideEvents(env: Env, actorName: string, events: ServerEvent[], now: number): Promise<EventResult[]> {
   const out: EventResult[] = [];
   for (const e of events) {
-    try {
-      out.push(await decideOne(env, actorName, e, now));
-    } catch {
-      out.push({ eventId: e.eventId, ok: false, error: 'invalid' });
-    }
+    // Validation failures are returned as results above; infrastructure errors propagate so the client retries.
+    out.push(await decideOne(env, actorName, e, now));
   }
   return out;
 }

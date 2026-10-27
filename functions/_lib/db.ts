@@ -12,7 +12,7 @@ export async function ensureSchema(db: D1Like): Promise<void> {
     .run();
   await db
     .prepare(
-      'CREATE TABLE IF NOT EXISTS decisions (id VARCHAR(40) PRIMARY KEY, lesson_id VARCHAR(120), outcome VARCHAR(10), created BIGINT, used INT)',
+      'CREATE TABLE IF NOT EXISTS decisions (id VARCHAR(40) PRIMARY KEY, lesson_id VARCHAR(120), outcome VARCHAR(10), created BIGINT, used INT, used_by VARCHAR(64))',
     )
     .run();
 }

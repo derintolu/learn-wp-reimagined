@@ -1,4 +1,6 @@
 import { describe, it, expect, beforeEach } from 'vitest';
+import { SERVER_FLAGS } from '../../functions/_lib/config';
+import { getContent } from '../../functions/_lib/content';
 import { createSqliteD1 } from '../../dev/sqliteD1';
 import { buildContent } from '../../scripts/build-content';
 import { setContentForTests } from '../../functions/_lib/content';
@@ -150,9 +152,79 @@ describe('decideEvents', () => {
   });
 });
 
+describe('decideEvents, review fixes', () => {
+  it('replays a judged event with the same eventId as judge-chosen with identical ids', async () => {
+    const decisionId = await issue(FREE, 'skip');
+    const e = answer(FREE, 'skip', { decisionId });
+    const [a] = (await decide([e])) as any[];
+    const [b] = (await decide([e])) as any[];
+    expect(a.chosenBy).toBe('judge');
+    expect(b).toMatchObject({ ok: true, chosenBy: 'judge' });
+    expect(b.statements.map((x: any) => x.id)).toEqual(a.statements.map((x: any) => x.id));
+    expect(b.statements[2].result.extensions[EXT_CHOSEN_BY]).toBeUndefined();
+  });
+
+  it('rejects a decision issued for a different outcome than the one answered', async () => {
+    const decisionId = await issue(FREE, 'advance');
+    const [r] = (await decide([answer(FREE, 'skip', { decisionId })])) as any[];
+    expect(r).toMatchObject({ ok: false, error: 'not-allowed' });
+  });
+
+  it('code checkpoint: review and fallback skip are learner-chosen, advance is not', async () => {
+    const [rev, skip, adv] = (await decide([answer(CODE, 'review'), answer(CODE, 'skip'), answer(CODE, 'advance', { files: GOOD })])) as any[];
+    expect(rev.chosenBy).toBe('learner');
+    expect(skip).toMatchObject({ ok: true, chosenBy: 'learner' });
+    expect(extOf(skip)).toBe('learner');
+    expect(adv.chosenBy).toBeUndefined();
+  });
+
+  it('code checkpoint: skip not in the fallback is not-allowed', async () => {
+    const cp = getContent().lessons[CODE].checkpoint!;
+    const saved = cp.fallback;
+    cp.fallback = saved.filter((f) => f.outcome !== 'skip');
+    try {
+      const [r] = (await decide([answer(CODE, 'skip')])) as any[];
+      expect(r).toMatchObject({ ok: false, error: 'not-allowed' });
+    } finally {
+      cp.fallback = saved;
+    }
+  });
+
+  it('a database failure propagates instead of becoming a permanent invalid', async () => {
+    const decisionId = await issue(FREE, 'skip');
+    const broken: Env = { DB: { prepare: () => { throw new Error('db down'); } } as any };
+    const p = parseEvents({ learnerId: LEARNER, events: [answer(FREE, 'skip', { decisionId })] });
+    if (!p.ok) throw new Error(p.error);
+    await expect(decideEvents(broken, p.learnerId, p.events, NOW)).rejects.toThrow('db down');
+  });
+});
+
 describe('POST /api/events', () => {
   const post = (body: unknown, env2: Env = env) =>
     events(new Request('http://x/api/events', { method: 'POST', body: typeof body === 'string' ? body : JSON.stringify(body) }), { params: {}, env: env2 });
+
+  it('503 disabled when the flag is off', async () => {
+    SERVER_FLAGS.serverEvents = false;
+    try {
+      expect((await post({ learnerId: LEARNER, events: [] })).status).toBe(503);
+    } finally {
+      SERVER_FLAGS.serverEvents = true;
+    }
+  });
+
+  it('a database failure during decisions is a 5xx', async () => {
+    const decisionId = await issue(FREE, 'skip');
+    const flaky: Env = {
+      DB: {
+        prepare: (sql: string) => {
+          if (/UPDATE decisions/.test(sql)) throw new Error('db down');
+          return db.prepare(sql);
+        },
+      } as any,
+    };
+    const res = await post({ learnerId: LEARNER, events: [answer(FREE, 'skip', { decisionId })] }, flaky);
+    expect(res.status).toBe(500);
+  });
 
   it('returns results for a batch', async () => {
     const res = await post({ learnerId: LEARNER, events: [{ eventId: eid(), type: 'lessonCompleted', lessonId: FREE }] });

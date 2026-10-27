@@ -19,5 +19,10 @@ export const POST: Handler = (req, { env }) =>
     const body = await readJsonCapped<unknown>(req, EVENTS_MAX_BYTES);
     const parsed = parseEvents(body);
     if (!parsed.ok) return error(400, 'bad-request', parsed.error);
-    return json({ results: await decideEvents(env, parsed.learnerId, parsed.events, now) });
+    try {
+      return json({ results: await decideEvents(env, parsed.learnerId, parsed.events, now) });
+    } catch (e) {
+      console.error('events failed', (e as Error)?.message);
+      throw e;
+    }
   });
