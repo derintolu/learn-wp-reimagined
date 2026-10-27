@@ -14,5 +14,5 @@
     "resolveJsonModule": true,
     "allowImportingTsExtensions": true
   },
-  "include": ["src", "dev", "functions", "scripts", "tests", "*.ts"]
+  "include": ["src", "dev", "functions", "scripts", "tests", "spikes", "*.ts"]
 }
