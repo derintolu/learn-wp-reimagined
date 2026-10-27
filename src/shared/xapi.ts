@@ -23,6 +23,7 @@ export interface XapiResult {
 
 export const EXT_OUTCOME = `${XAPI_BASE}/xapi/extensions/outcome`;
 export const EXT_FROM_LESSON = `${XAPI_BASE}/xapi/extensions/from-lesson`;
+export const EXT_CHOSEN_BY = `${XAPI_BASE}/xapi/extensions/chosen-by`;
 
 interface XapiActivityRef { objectType: 'Activity'; id: string; definition?: { name: Record<string, string> } }
 
@@ -45,10 +46,12 @@ export function buildStatement(input: {
   name: string;
   result?: XapiResult;
   parent?: string[];
+  id?: string;
+  timestamp?: string;
 }): XapiStatement {
   const v = VERBS[input.verb];
   const s: XapiStatement = {
-    id: crypto.randomUUID(),
+    id: input.id ?? crypto.randomUUID(),
     actor: { objectType: 'Agent', account: { homePage: XAPI_BASE, name: input.learnerId } },
     verb: { id: v.id, display: { 'en-US': v.display } },
     object: {
@@ -56,7 +59,7 @@ export function buildStatement(input: {
       id: activityId(input.activityPath),
       definition: { name: { 'en-US': input.name } },
     },
-    timestamp: new Date().toISOString(),
+    timestamp: input.timestamp ?? new Date().toISOString(),
   };
   if (input.result) s.result = input.result;
   if (input.parent) {

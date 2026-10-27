@@ -1,6 +1,7 @@
 import type { Placement } from './engine';
 import type { ContentBundle, Outcome, PathId } from './types';
-import { EXT_FROM_LESSON, EXT_OUTCOME, VERBS, activityId, buildStatement, validateStatement, type VerbKey, type XapiResult, type XapiStatement } from './xapi';
+import { statementsForEvent } from './statements';
+import { EXT_FROM_LESSON, EXT_OUTCOME, VERBS, activityId, validateStatement, type XapiStatement } from './xapi';
 
 export interface LearningRecord {
   format: 'learn-wp-reimagined/record';
@@ -51,48 +52,23 @@ export function applyEvent(r: LearningRecord, e: RecordEvent, c: ContentBundle):
   };
   const lessonOf = (id: string) => (has(c.lessons, id) ? c.lessons[id] : undefined);
   const pathOf = (id: string): PathId => lessonOf(id)?.pathId ?? r.current?.pathId ?? r.placement?.pathId ?? 'block-theme';
-  const add = (
-    verb: VerbKey,
-    activityPath: string[],
-    name: string,
-    lessonId: string,
-    result?: XapiResult,
-  ) => {
-    next.statements.push(
-      buildStatement({
-        learnerId: r.learnerId,
-        verb,
-        activityPath,
-        name,
-        result,
-        parent: lessonOf(lessonId) ? ['paths', pathOf(lessonId)] : undefined,
-      }),
-    );
-  };
-  const title = (id: string) => lessonOf(id)?.title ?? id;
-
   switch (e.type) {
     case 'placed':
       next.placement = e.placement;
       next.current = { pathId: e.placement.pathId, lessonId: e.placement.startLessonId, beatIndex: 0 };
       break;
     case 'beatViewed': {
-      const beat = lessonOf(e.lessonId)?.beats[e.beatIndex];
-      add('experienced', ['lessons', e.lessonId, 'beats', String(e.beatIndex)], beat ? `${title(e.lessonId)}: ${beat.id}` : title(e.lessonId), e.lessonId);
+      next.statements.push(...statementsForEvent(r.learnerId, e, c));
       next.current = { pathId: pathOf(e.lessonId), lessonId: e.lessonId, beatIndex: e.beatIndex };
       break;
     }
     case 'checkpointAnswered': {
-      const cpPath = ['lessons', e.lessonId, 'checkpoint'];
-      const name = `${title(e.lessonId)}: checkpoint`;
-      add('answered', cpPath, name, e.lessonId, { response: e.response });
-      add(e.outcome === 'review' ? 'failed' : 'passed', cpPath, name, e.lessonId, { success: e.outcome !== 'review' });
-      add('branched', ['lessons', e.to], title(e.to), e.to, { extensions: { [EXT_OUTCOME]: e.outcome, [EXT_FROM_LESSON]: activityId(['lessons', e.lessonId]) } });
+      next.statements.push(...statementsForEvent(r.learnerId, e, c));
       next.current = { pathId: pathOf(e.to), lessonId: e.to, beatIndex: 0 };
       break;
     }
     case 'codeChecked':
-      add(e.passed ? 'passed' : 'failed', ['lessons', e.lessonId, 'files', e.file], `${title(e.lessonId)}: ${e.file}`, e.lessonId, { success: e.passed });
+      next.statements.push(...statementsForEvent(r.learnerId, e, c));
       break;
     case 'fileEdited': {
       next.files[e.file] = e.content;
@@ -106,7 +82,7 @@ export function applyEvent(r: LearningRecord, e: RecordEvent, c: ContentBundle):
     case 'lessonCompleted':
       if (!next.completedLessons.includes(e.lessonId)) {
         next.completedLessons.push(e.lessonId);
-        add('completed', ['lessons', e.lessonId], title(e.lessonId), e.lessonId, { completion: true });
+        next.statements.push(...statementsForEvent(r.learnerId, e, c));
       }
       break;
   }
