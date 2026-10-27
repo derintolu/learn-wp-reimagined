@@ -513,7 +513,8 @@
 .record__actions { display: flex; flex-wrap: wrap; gap: 0.5rem; }
 .record__actions--stack { display: grid; }
 .record__actions .button { justify-content: center; min-height: 2.5rem; padding: 0.55rem 1rem; font-size: var(--step--1); }
-.record__actions .button:disabled { opacity: 0.55; cursor: progress; }
+.record__actions .button:disabled,
+.record__actions .button[aria-disabled='true'] { opacity: 0.55; cursor: progress; }
 .record__confirm-q { font-weight: 600; margin-bottom: 0.5rem; }
 .record__compare { display: grid; gap: 0.3rem; margin: 0 0 0.9rem; }
 .record__compare div { display: grid; grid-template-columns: 3rem minmax(0, 1fr); gap: 0.5rem; }

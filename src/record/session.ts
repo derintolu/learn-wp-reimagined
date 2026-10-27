@@ -1,5 +1,6 @@
 import { FEATURES } from '../config';
 import { getEventClient } from './eventClient';
+import { cancelPendingEdits } from './useFileEdits';
 import { getRecordManager } from './useRecord';
 
 export interface SessionActor {
@@ -49,7 +50,9 @@ async function readActor(res: Response | null): Promise<SessionActor | null | un
 export function ensureSession(): Promise<SessionActor | null> {
   if (!FEATURES.sessions) return Promise.resolve(null);
   if (actor) return Promise.resolve(actor);
-  inflight ??= (async () => {
+  if (inflight) return inflight;
+  let p!: Promise<SessionActor | null>;
+  p = (async () => {
     const gen = generation;
     try {
       let found = await readActor(await call('GET'));
@@ -61,9 +64,11 @@ export function ensureSession(): Promise<SessionActor | null> {
       if (gen === generation) actor = found;
       return gen === generation ? found : null;
     } finally {
-      inflight = null;
+      // A request that was superseded must not clear the newer one.
+      if (inflight === p) inflight = null;
     }
   })();
+  inflight = p;
   return inflight;
 }
 
@@ -82,15 +87,28 @@ export function forgetSession(): void {
 /** For tests. */
 export const resetSession = forgetSession;
 
+export type DeleteResult = 'deleted' | 'failed' | 'browser-failed';
+
 /**
  * Delete the learner's data: the server first, and only when it confirms, the record in this
- * browser and any events still waiting to be sent. False means nothing was changed.
+ * browser and any events still waiting to be sent. 'failed' means nothing was changed;
+ * 'browser-failed' means the server delete stands but this browser's copy could not be cleared.
  */
-export async function deleteMyData(): Promise<boolean> {
+export async function deleteMyDataDetailed(): Promise<DeleteResult> {
   const res = await call('DELETE');
-  if (!res || !res.ok) return false;
+  if (!res || !res.ok) return 'failed';
   forgetSession();
   getEventClient().discard();
-  await getRecordManager().reset();
-  return true;
+  // Only now, so a failed delete leaves edits that were waiting to be saved alone.
+  cancelPendingEdits();
+  try {
+    await getRecordManager().reset();
+  } catch {
+    return 'browser-failed';
+  }
+  return 'deleted';
+}
+
+export async function deleteMyData(): Promise<boolean> {
+  return (await deleteMyDataDetailed()) === 'deleted';
 }

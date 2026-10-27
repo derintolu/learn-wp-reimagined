@@ -6,12 +6,15 @@ import { FEATURES } from '../../src/config';
 import { content } from '../../src/content';
 import { RecordPanel } from '../../src/components/RecordPanel';
 import { resetSession } from '../../src/record/session';
+import { useFileEdits } from '../../src/record/useFileEdits';
 import { getRecordManager, setRecordManager } from '../../src/record/useRecord';
 import { memoryManager } from './helpers';
 
 const flags = FEATURES as { sessions: boolean };
 const lessonId = Object.keys(content.lessons)[0];
 const FAILED = "We couldn't delete your data. Nothing was changed. Try again later.";
+
+const BROWSER_FAILED = "Your data was deleted on this site, but this browser's copy couldn't be cleared. Close this tab's site data to finish.";
 
 function stubDelete(status: number) {
   const f = vi.fn(async (url: string, init: RequestInit = {}) => {
@@ -112,6 +115,53 @@ describe('Delete my data', () => {
     expect(msg.closest('[role="status"]')).toBeTruthy();
     expect(screen.getByRole('alertdialog')).toBeTruthy();
     expect(getRecordManager().record.statements.length).toBeGreaterThan(0);
+  });
+
+  it('after a failed delete Tab stays inside and Escape closes as Keep it', async () => {
+    stubDelete(500);
+    const { panel } = await openPanel();
+    const trigger = within(panel).getByRole('button', { name: 'Delete my data' });
+    fireEvent.click(trigger);
+    const dlg = await screen.findByRole('alertdialog');
+    fireEvent.click(within(dlg).getByRole('button', { name: 'Delete' }));
+    await within(dlg).findByText(FAILED);
+    const keep = within(dlg).getByRole('button', { name: 'Keep it' });
+    const del = within(dlg).getByRole('button', { name: 'Delete' });
+    expect(dlg.contains(document.activeElement)).toBe(true);
+    del.focus();
+    fireEvent.keyDown(del, { key: 'Tab' });
+    expect(document.activeElement).toBe(keep);
+    fireEvent.keyDown(keep, { key: 'Escape' });
+    await waitFor(() => expect(screen.queryByRole('alertdialog')).toBeNull());
+    expect(document.activeElement).toBe(trigger);
+  });
+
+  it('a failed delete keeps edits that were waiting to be saved', async () => {
+    stubDelete(500);
+    function Editor() {
+      const { edit } = useFileEdits(lessonId);
+      return <button type="button" onClick={() => edit('a.css', 'pending')}>edit</button>;
+    }
+    render(<Editor />);
+    fireEvent.click(screen.getByRole('button', { name: 'edit' }));
+    const { panel } = await openPanel();
+    fireEvent.click(within(panel).getByRole('button', { name: 'Delete my data' }));
+    const dlg = await screen.findByRole('alertdialog');
+    fireEvent.click(within(dlg).getByRole('button', { name: 'Delete' }));
+    await within(dlg).findByText(FAILED);
+    cleanup(); // unmounting flushes the edit that was kept
+    await waitFor(() => expect(getRecordManager().record.files['a.css']).toBe('pending'));
+  });
+
+  it('says so when this browser could not be cleared after the server deleted', async () => {
+    stubDelete(200);
+    vi.spyOn(getRecordManager(), 'reset').mockRejectedValue(new Error('disk'));
+    const { panel } = await openPanel();
+    fireEvent.click(within(panel).getByRole('button', { name: 'Delete my data' }));
+    fireEvent.click(await screen.findByRole('button', { name: 'Delete' }));
+    const msg = await screen.findByText(BROWSER_FAILED);
+    expect(msg.closest('[role="status"]')).toBeTruthy();
+    expect(screen.queryByRole('alertdialog')).toBeNull();
   });
 
   it('the dialog styles fit a phone and respect reduced motion', async () => {

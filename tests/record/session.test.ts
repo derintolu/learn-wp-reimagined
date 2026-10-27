@@ -3,7 +3,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { FEATURES } from '../../src/config';
 import { content } from '../../src/content';
 import { EventClient } from '../../src/record/eventClient';
-import { deleteMyData, ensureSession, resetSession } from '../../src/record/session';
+import { deleteMyData, deleteMyDataDetailed, currentActor, ensureSession, forgetSession, resetSession } from '../../src/record/session';
 import { RecordManager, type RecordStore } from '../../src/record/store';
 import { setRecordManager } from '../../src/record/useRecord';
 import type { LearningRecord } from '../../src/shared/record';
@@ -90,6 +90,25 @@ describe('ensureSession', () => {
     expect(await ensureSession()).toBeNull();
     vi.stubGlobal('fetch', vi.fn(async () => { throw new Error('offline'); }));
     expect(await ensureSession()).toBeNull();
+  });
+
+  it('a stale request finishing does not clobber a newer one', async () => {
+    const gates: (() => void)[] = [];
+    stubFetch({
+      'GET /api/session': () => new Promise<Response>((r) => gates.push(() => r(json({ actor: ACTOR })))),
+    });
+    const first = ensureSession();
+    await Promise.resolve();
+    forgetSession();
+    const second = ensureSession();
+    await Promise.resolve();
+    expect(count('GET')).toBe(2);
+    gates[0]();
+    await first;
+    const third = ensureSession(); // must share the second request, not start a third
+    expect(count('GET')).toBe(2);
+    gates[1]();
+    expect(await Promise.all([second, third])).toEqual([ACTOR, ACTOR]);
   });
 
   it('makes no request when the sessions feature is off', async () => {
@@ -179,6 +198,19 @@ describe('deleteMyData', () => {
     vi.stubGlobal('fetch', vi.fn(async () => { throw new Error('offline'); }));
     expect(await deleteMyData()).toBe(false);
     expect(m.record).toBe(before);
+  });
+
+  it('reports a browser failure after the server delete succeeded', async () => {
+    const { m } = await recorded();
+    vi.spyOn(m, 'reset').mockRejectedValue(new Error('disk'));
+    stubFetch({
+      'GET /api/session': async () => json({ actor: ACTOR }),
+      'DELETE /api/session': async () => json({ deleted: true }),
+    });
+    await ensureSession();
+    expect(await deleteMyDataDetailed()).toBe('browser-failed');
+    expect(await deleteMyData()).toBe(false);
+    expect(currentActor()).toBeNull(); // the server delete stands
   });
 
   it('forgets the session so the next action starts a new one', async () => {

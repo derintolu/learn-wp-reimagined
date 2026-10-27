@@ -175,9 +175,14 @@ export class RecordManager {
     await this.persist();
   }
 
-  /** Clear the record (in the browser and in an attached folder) and start a new one. */
+  /**
+   * Clear the browser's record and start a new one. An attached folder is the learner's own file:
+   * it is detached and left as it is, and later saves no longer go there.
+   */
   async reset(): Promise<void> {
     await this.init();
+    this.folder = null;
+    this.folderError = null;
     this.current = newRecord();
     this.emit();
     await this.persist();

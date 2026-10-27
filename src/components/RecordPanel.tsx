@@ -4,7 +4,7 @@ import { FEATURES } from '../config';
 import { content } from '../content';
 import { downloadRecord, readRecordFile } from '../record/fileTransfer';
 import { supportsFolder } from '../record/folderStore';
-import { deleteMyData } from '../record/session';
+import { deleteMyDataDetailed } from '../record/session';
 import type { AttachResult } from '../record/store';
 import { cancelPendingEdits, flushPendingEdits } from '../record/useFileEdits';
 import { useRecord } from '../record/useRecord';
@@ -25,6 +25,9 @@ const ATTACH_COPY: Record<AttachResult, string> = {
 };
 
 export const DELETE_FAILED = "We couldn't delete your data. Nothing was changed. Try again later.";
+
+export const BROWSER_NOT_CLEARED =
+  "Your data was deleted on this site, but this browser's copy couldn't be cleared. Close this tab's site data to finish.";
 
 const titleOf = (id: string) => (Object.prototype.hasOwnProperty.call(content.lessons, id) ? content.lessons[id].title : id);
 
@@ -63,7 +66,7 @@ function DeleteDialog({ onKeep, onDelete, busy, failed }: { onKeep: () => void; 
       return;
     }
     if (e.key !== 'Tab') return;
-    const items = Array.from(ref.current?.querySelectorAll<HTMLButtonElement>('button:not(:disabled)') ?? []);
+    const items = Array.from(ref.current?.querySelectorAll<HTMLButtonElement>('button') ?? []);
     if (!items.length) {
       e.preventDefault();
       return;
@@ -98,10 +101,10 @@ function DeleteDialog({ onKeep, onDelete, busy, failed }: { onKeep: () => void; 
           {failed && <p class="record__msg-text record__msg-text--error">{DELETE_FAILED}</p>}
         </div>
         <div class="record__actions">
-          <button type="button" class="button button--quiet" ref={keepRef} onClick={onKeep} disabled={busy}>
+          <button type="button" class="button button--quiet" ref={keepRef} onClick={() => !busy && onKeep()} aria-disabled={busy || undefined}>
             Keep it
           </button>
-          <button type="button" class="button" onClick={onDelete} disabled={busy}>
+          <button type="button" class="button" onClick={() => !busy && onDelete()} aria-disabled={busy || undefined}>
             Delete
           </button>
         </div>
@@ -187,14 +190,12 @@ export function RecordPanel() {
     setBusy(true);
     setDeleteFailed(false);
     try {
-      // An edit still waiting on its debounce must not land on top of the empty record.
-      cancelPendingEdits();
-      const ok = await deleteMyData();
-      if (!ok) {
+      const result = await deleteMyDataDetailed();
+      if (result === 'failed') {
         setDeleteFailed(true);
         return;
       }
-      setMsg({ tone: 'ok', text: 'Your data is deleted.' });
+      setMsg(result === 'deleted' ? { tone: 'ok', text: 'Your data is deleted.' } : { tone: 'error', text: BROWSER_NOT_CLEARED });
       closeDelete();
     } finally {
       setBusy(false);

@@ -196,6 +196,23 @@ describe('RecordManager', () => {
     expect(m.folderError).toBeInstanceOf(Error);
   });
 
+  it('reset clears the browser record and never writes to an attached folder, which it detaches', async () => {
+    const primary = memStore();
+    const m = new RecordManager(primary, c);
+    const dir = new FakeDir();
+    await m.attachFolder(asHandle(dir));
+    await m.dispatch({ type: 'lessonCompleted', lessonId });
+    const inFolder = dir.files.get('learn-wp-record.json');
+    expect(inFolder).toBeTruthy();
+    await m.reset();
+    expect(m.savingToFolder).toBe(false);
+    expect(m.record.statements).toHaveLength(0);
+    expect((await primary.load())!.statements).toHaveLength(0);
+    expect(dir.files.get('learn-wp-record.json')).toBe(inFolder);
+    await m.dispatch({ type: 'fileEdited', file: 'a.css', content: 'x' });
+    expect(dir.files.get('learn-wp-record.json')).toBe(inFolder);
+  });
+
   it('reports savingToFolder once a folder is attached, and tells subscribers when a folder save fails or recovers', async () => {
     const m = new RecordManager(memStore(), c);
     expect(m.savingToFolder).toBe(false);
