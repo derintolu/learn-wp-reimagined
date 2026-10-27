@@ -1,8 +1,8 @@
 import type { ComponentChildren } from 'preact';
 import { Sticker } from '../components/Sticker';
 import { Swipe } from '../components/Swipe';
-import { REPO_URL } from '../config';
-import { COST_PER_1000_LEARNERS_USD } from '../shared/course-meta';
+import { FEATURES, REPO_URL } from '../config';
+import { BACKEND_VIEW_PATH, COST_PER_1000_LEARNERS_USD, SENSEI_VERSION } from '../shared/course-meta';
 import { usePageTitle } from '../usePageTitle';
 
 // These mirror server constants; tests/components/how-it-works.test.tsx checks each against its source file.
@@ -29,6 +29,14 @@ const SOURCES = [
   { id: 'src-store', file: 'functions/_lib/mcp/recordStore.ts', what: 'How long an agent record is kept.' },
   { id: 'src-record', file: 'docs/record-format.md', what: 'The learning record format and its xAPI statements.' },
 ] as const;
+
+/** With the Sensei content flag on, the lessons are read from the committed snapshot, not from YAML. */
+const sources = () =>
+  FEATURES.wordpressContent
+    ? SOURCES.map((s) =>
+        s.id === 'src-content' ? { ...s, file: 'content/snapshot/', what: 'The lessons as exported from Sensei, committed so changes can be reviewed.' } : s,
+      )
+    : SOURCES;
 
 const blob = (file: string) => `${REPO_URL}/${file.endsWith('/') ? 'tree' : 'blob'}/main/${file.replace(/\/$/, '')}`;
 
@@ -76,6 +84,15 @@ export function HowItWorks() {
 
       <Band id="real-title" title={<>What's <Swipe>real</Swipe></>}>
         <ul>
+          {FEATURES.wordpressContent && (
+            <li>
+              <strong>Real Sensei LMS.</strong> The lessons are stored in Sensei LMS {SENSEI_VERSION}, the same plugin Learn
+              runs on, on a WordPress install that belongs to this prototype. Authors edit them in the block editor, and the
+              studio shows the edit. You can read any lesson as Sensei shows it on{' '}
+              <a href={BACKEND_VIEW_PATH}>the backend view</a>. That view is Sensei's own page, with no AI and no branching,
+              and it is not the learner experience. Take the lesson in the studio.
+            </li>
+          )}
           <li>
             <strong>Live AI on open models.</strong> The placement chat, the checkpoint judge, the lesson tutor and the
             feedback on your code all call open models on Cloudflare Workers AI, live.
@@ -87,7 +104,7 @@ export function HowItWorks() {
           </li>
           <li>
             <strong>Real branching, written by hand.</strong> Paths, lessons, checkpoints and where each answer leads are
-            authored as plain files in the repo. The AI reads your answer and picks one of the authored outcomes (move on,
+            {FEATURES.wordpressContent ? ' authored in Sensei, with a reviewable copy committed to the repo' : ' authored as plain files in the repo'}. The AI reads your answer and picks one of the authored outcomes (move on,
             review, or skip ahead). The server rejects anything else.
           </li>
           <li>
@@ -132,8 +149,10 @@ export function HowItWorks() {
             the record yourself. Signing in with a WordPress.org account is a possible next step, and it isn't built.
           </li>
           <li>
-            <strong>It isn't connected to Learn.</strong> Nothing here talks to learn.wordpress.org or Sensei, and progress
-            here doesn't count there.
+            <strong>It isn't connected to Learn.</strong>{' '}
+            {FEATURES.wordpressContent
+              ? "This is not learn.wordpress.org. The Sensei here is the prototype's own install, with the prototype's own lessons, so nothing you do counts toward anything on Learn. Your progress does not appear in Sensei yet."
+              : "Nothing here talks to learn.wordpress.org or Sensei, and progress here doesn't count there."}
           </li>
           <li>
             <strong>It's small.</strong> Three short paths, not whole courses.
@@ -295,7 +314,7 @@ export function HowItWorks() {
       <Band id="sources-title" title={<>Sources</>}>
         <p>Every number and rule above comes from a file in the repo.</p>
         <ol class="prose__sources">
-          {SOURCES.map((s) => (
+          {sources().map((s) => (
             <li id={s.id} key={s.id} tabIndex={-1}>
               <a href={blob(s.file)}>
                 <code>{s.file}</code>

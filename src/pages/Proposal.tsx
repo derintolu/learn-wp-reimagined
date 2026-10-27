@@ -23,8 +23,8 @@
  */
 import type { ComponentChildren } from 'preact';
 import { Swipe } from '../components/Swipe';
-import { REPO_URL } from '../config';
-import { COST_PER_1000_LEARNERS_USD } from '../shared/course-meta';
+import { FEATURES, REPO_URL } from '../config';
+import { BACKEND_VIEW_PATH, COST_PER_1000_LEARNERS_USD } from '../shared/course-meta';
 import { usePageTitle } from '../usePageTitle';
 
 // These mirror server constants; tests/components/proposal.test.tsx checks each against its source file.
@@ -55,6 +55,16 @@ const SOURCES = [
   { id: 'src-accuracy', file: 'docs/content-accuracy.md', what: 'The accuracy check of the Block theme lessons (with -learner and -vibe-coder versions for the other paths).' },
   { id: 'src-vendor', file: 'vendor/learning-mcp/', what: 'The MCP course server (learning-mcp), vendored, with its licence notes.' },
 ] as const;
+
+/** With the Sensei content flag on, the lessons are read from the committed snapshot, not from YAML. */
+const sources = () =>
+  FEATURES.wordpressContent
+    ? SOURCES.map((s) => {
+        if (s.id === 'src-content') return { ...s, file: 'content/snapshot/', what: 'The lessons, checkpoints, branches and planted bugs, as exported from Sensei.' };
+        if (s.id === 'src-build') return { ...s, what: 'The build-time validator for the content snapshot.' };
+        return s;
+      })
+    : SOURCES;
 
 const blob = (file: string) => `${REPO_URL}/${file.endsWith('/') ? 'tree' : 'blob'}/main/${file.replace(/\/$/, '')}`;
 
@@ -169,11 +179,21 @@ export function Proposal() {
         <p>None of this needs Learn to be rebuilt. Each phase is useful by itself, and the next one can wait.</p>
         <h3>Phase 1: a tutor and placement beside Sensei</h3>
         <p>
-          Lessons stay in Sensei, written and reviewed as they are now. A tutor sits beside each lesson, grounded in that
+          {FEATURES.wordpressContent ? (
+            <>
+              Lessons live in Sensei, written and reviewed as they are now. In this concept they do: all 18 are stored in
+              Sensei, and you can read each one on <a href={BACKEND_VIEW_PATH}>the backend view</a>.
+            </>
+          ) : (
+            'Lessons stay in Sensei, written and reviewed as they are now.'
+          )}{' '}
+          A tutor sits beside each lesson, grounded in that
           lesson's own text, and links back to the lesson or the Developer Handbook when it isn't sure. A placement chat
           recommends a pathway course and a starting lesson. The only new content is a short note per course saying who it
           suits. Progress stays in the learner's browser, so no accounts are needed. If the AI is down, the lessons read
           exactly as they do today.
+          {FEATURES.wordpressContent &&
+            " The tutor and placement are running in this concept. What isn't shown is Sensei progress (phase 3 below) and the Training Team's review of these lessons."}
         </p>
         <h3>Phase 2: keep the record with a WordPress.org login</h3>
         <p>
@@ -261,8 +281,9 @@ export function Proposal() {
         <h3>Upkeep</h3>
         <ul>
           <li>
-            Lessons, checkpoints and planted bugs are plain YAML files, checked at build time, so a broken reference fails
-            the build rather than the learner.
+            {FEATURES.wordpressContent
+              ? 'Lessons, checkpoints and planted bugs are authored in Sensei and exported to a committed snapshot, which is checked at build time, so a broken reference fails the build rather than the learner. Because the content is edited in wp-admin, the accuracy notes have to be updated in the same snapshot commit as any edit.'
+              : 'Lessons, checkpoints and planted bugs are plain YAML files, checked at build time, so a broken reference fails the build rather than the learner.'}
           </li>
           <li>
             Code checks are deterministic: text that must or mustn't be there, patterns, and values in JSON (
@@ -337,7 +358,7 @@ export function Proposal() {
           Training Team and its contributors.
         </p>
         <ol class="prose__sources">
-          {SOURCES.map((s) => (
+          {sources().map((s) => (
             <li id={s.id} key={s.id} tabIndex={-1}>
               <a href={blob(s.file)}>
                 <code>{s.file}</code>

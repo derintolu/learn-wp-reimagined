@@ -3,8 +3,8 @@ import { afterEach, describe, expect, it } from 'vitest';
 import { readFileSync } from 'node:fs';
 import { cleanup, render, screen } from '@testing-library/preact';
 import { Proposal } from '../../src/pages/Proposal';
-import { REPO_URL } from '../../src/config';
-import { COST_PER_1000_LEARNERS_USD } from '../../src/shared/course-meta';
+import { FEATURES, REPO_URL } from '../../src/config';
+import { BACKEND_VIEW_PATH, COST_PER_1000_LEARNERS_USD, SENSEI_VERSION } from '../../src/shared/course-meta';
 import { REVIEW_DISCLAIMER } from '../../src/studio/Feed';
 import { DAY_CAP_MICROS, MONTH_CAP_MICROS } from '../../functions/_lib/budget';
 import { MCP_TTL_MS } from '../../functions/_lib/mcp/recordStore';
@@ -127,5 +127,49 @@ describe('/proposal', () => {
     const t = text();
     expect(t).not.toMatch(/\p{Extended_Pictographic}/u);
     expect(t).not.toMatch(/revolutionary|game.?chang|cutting.?edge|seamless|best-in-class|world-class|unlock|supercharge/i);
+  });
+});
+
+describe('/proposal with the Sensei content flag', () => {
+  const flags = FEATURES as { wordpressContent: boolean };
+  const view = () => render(<Proposal />);
+  const hrefs = (c: Element) => Array.from(c.querySelectorAll('a')).map((a) => a.getAttribute('href'));
+  afterEach(() => {
+    flags.wordpressContent = false;
+  });
+
+  it('ships off, with the pinned version and the block-theme backend view', () => {
+    expect(flags.wordpressContent).toBe(false);
+    expect(SENSEI_VERSION).toBe('4.26.4');
+    expect(BACKEND_VIEW_PATH).toBe('/course/block-theme/');
+  });
+
+  it('off: no Sensei backend copy and no backend-view link', () => {
+    const { container } = view();
+    expect(text()).not.toContain('backend view');
+    expect(text()).not.toContain(SENSEI_VERSION);
+    expect(hrefs(container)).not.toContain(BACKEND_VIEW_PATH);
+  });
+
+  it('on: links the backend view, and the new copy has no emoji', () => {
+    flags.wordpressContent = true;
+    const { container } = view();
+    expect(hrefs(container)).toContain(BACKEND_VIEW_PATH);
+    expect(screen.getAllByRole('link', { name: 'the backend view' }).length).toBeGreaterThan(0);
+    expect(text()).not.toMatch(/\p{Extended_Pictographic}/u);
+  });
+
+  it('on: phase 1 says lessons live in Sensei, upkeep and sources follow the snapshot', () => {
+    flags.wordpressContent = true;
+    view();
+    const t = text();
+    expect(t).toContain('Lessons live in Sensei, written and reviewed as they are now. In this concept they do: all 18 are stored in Sensei');
+    expect(t).not.toContain('Lessons stay in Sensei');
+    expect(t).toContain("The tutor and placement are running in this concept. What isn't shown is Sensei progress (phase 3 below) and the Training Team's review of these lessons.");
+    expect(t).toContain('authored in Sensei and exported to a committed snapshot');
+    expect(t).not.toContain('are plain YAML files');
+    expect(t).toContain('as exported from Sensei.');
+    expect(t).not.toContain('content/paths/');
+    expect(t).toContain('content/snapshot/');
   });
 });

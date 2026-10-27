@@ -25,3 +25,8 @@ export const agentPrompt = (handle: string): string =>
 
 /** Estimated AI cost per 1000 learners at the chosen model mix (docs/model-eval.md, October 2026). */
 export const COST_PER_1000_LEARNERS_USD = 4.97;
+
+/** The Sensei LMS version the prototype's WordPress runs. The pages that name Sensei read it from here. */
+export const SENSEI_VERSION = '4.26.4';
+/** Sensei's own lesson pages for the block-theme path (the course slug is the path id), shown as "the backend view". */
+export const BACKEND_VIEW_PATH = '/course/block-theme/';

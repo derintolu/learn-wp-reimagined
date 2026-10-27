@@ -3,8 +3,8 @@ import { afterEach, describe, expect, it } from 'vitest';
 import { readFileSync } from 'node:fs';
 import { cleanup, render, screen } from '@testing-library/preact';
 import { HowItWorks } from '../../src/pages/HowItWorks';
-import { REPO_URL } from '../../src/config';
-import { COST_PER_1000_LEARNERS_USD } from '../../src/shared/course-meta';
+import { FEATURES, REPO_URL } from '../../src/config';
+import { BACKEND_VIEW_PATH, COST_PER_1000_LEARNERS_USD, SENSEI_VERSION } from '../../src/shared/course-meta';
 import { REVIEW_DISCLAIMER } from '../../src/studio/Feed';
 import { ROUTES } from '../../functions/_lib/config';
 import { DAY_CAP_MICROS, MONTH_CAP_MICROS } from '../../functions/_lib/budget';
@@ -99,5 +99,48 @@ describe('COST_PER_1000_LEARNERS_USD', () => {
     const m = /Estimated cost of the chosen mix: about \$(\d+\.\d+) per 1000 learners/.exec(doc);
     expect(m).toBeTruthy();
     expect(COST_PER_1000_LEARNERS_USD).toBe(Number(m![1]));
+  });
+});
+
+describe('/how-it-works with the Sensei content flag', () => {
+  const flags = FEATURES as { wordpressContent: boolean };
+  const view = () => render(<HowItWorks />);
+  const hrefs = (c: Element) => Array.from(c.querySelectorAll('a')).map((a) => a.getAttribute('href'));
+  afterEach(() => {
+    flags.wordpressContent = false;
+  });
+
+  it('ships off, with the pinned version and the block-theme backend view', () => {
+    expect(flags.wordpressContent).toBe(false);
+    expect(SENSEI_VERSION).toBe('4.26.4');
+    expect(BACKEND_VIEW_PATH).toBe('/course/block-theme/');
+  });
+
+  it('off: no Sensei backend copy and no backend-view link', () => {
+    const { container } = view();
+    expect(text()).not.toContain('backend view');
+    expect(text()).not.toContain(SENSEI_VERSION);
+    expect(hrefs(container)).not.toContain(BACKEND_VIEW_PATH);
+  });
+
+  it('on: links the backend view, and the new copy has no emoji', () => {
+    flags.wordpressContent = true;
+    const { container } = view();
+    expect(hrefs(container)).toContain(BACKEND_VIEW_PATH);
+    expect(screen.getAllByRole('link', { name: 'the backend view' }).length).toBeGreaterThan(0);
+    expect(text()).not.toMatch(/\p{Extended_Pictographic}/u);
+  });
+
+  it('on: names Sensei with the pinned version, and updates the branching, concept and sources lines', () => {
+    flags.wordpressContent = true;
+    view();
+    const t = text();
+    expect(t).toContain(`Sensei LMS ${SENSEI_VERSION}`);
+    expect(t).toContain('authored in Sensei, with a reviewable copy committed to the repo');
+    expect(t).not.toContain('authored as plain files in the repo');
+    expect(t).toContain('Your progress does not appear in Sensei yet.');
+    expect(t).not.toContain('Nothing here talks to learn.wordpress.org or Sensei');
+    expect(t).toContain('content/snapshot/');
+    expect(t).not.toContain('content/paths/');
   });
 });
