@@ -39,5 +39,10 @@ export const POST: Handler = (req, { env }) =>
     if (typeof outcome !== 'string' || !cp.branches.some((b) => b.outcome === outcome)) return fallback('invalid-response');
     if (typeof parsed?.feedback !== 'string') return fallback('invalid-response');
     const branch = resolveBranch(getContent(), lesson.id, outcome as Outcome);
-    return json({ outcome: branch.outcome, to: branch.to, message: branch.message, feedback: parsed.feedback.slice(0, 600) });
+    const decisionId = crypto.randomUUID();
+    await pre.db
+      .prepare('INSERT INTO decisions (id, lesson_id, outcome, created, used) VALUES (?, ?, ?, ?, 0)')
+      .bind(decisionId, lesson.id, branch.outcome, Date.now())
+      .run();
+    return json({ outcome: branch.outcome, to: branch.to, message: branch.message, feedback: parsed.feedback.slice(0, 600), decisionId });
   });

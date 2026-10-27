@@ -39,3 +39,6 @@ export const PRICES: Record<string, { inPerM: number; outPerM: number }> = {
   'claude-haiku-5-5': { inPerM: 0.1, outPerM: 0.5 },
   'claude-sonnet-5-5': { inPerM: 2, outPerM: 10 },
 };
+
+/** Server-side behaviour switches. Rollback = set to false and republish. */
+export const SERVER_FLAGS = { serverEvents: true };

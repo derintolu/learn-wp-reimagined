@@ -127,8 +127,17 @@ describe('POST /api/checkpoint', () => {
       to: 'templates-and-parts',
       message: 'Nice. On to templates.',
       feedback: 'Good.',
+      decisionId: expect.any(String),
     });
     expect(await spend(month())).toBe(70);
+  });
+
+  it('checkpoint returns a decisionId stored in decisions', async () => {
+    chatReturns('{"outcome":"review","feedback":"Look again."}');
+    const res = await post(checkpoint, { lessonId: 'theme-json-basics', answer: 'hm' });
+    const { decisionId } = (await res.json()) as { decisionId: string };
+    const row = await db.prepare('SELECT lesson_id, outcome, used FROM decisions WHERE id = ?').bind(decisionId).first<{ lesson_id: string; outcome: string; used: number }>();
+    expect(row).toEqual({ lesson_id: 'theme-json-basics', outcome: 'review', used: 0 });
   });
 
   it('503 fallback on malformed output (and still settles)', async () => {
