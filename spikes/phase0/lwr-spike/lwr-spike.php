@@ -110,10 +110,10 @@ add_action(
 );
 
 /**
- * Creates a course with one lesson and a user, completes the lesson, then tries
- * to render that user's certificate PDF in this request (no login as the user).
- * The Certificates plugin's internals are not known up front, so on failure the
- * response lists certificate-related classes to guide the next attempt.
+ * Creates a course with a certificate template, one lesson and a user, marks the
+ * course complete so Certificates issues the certificate, then renders that
+ * user's PDF with WooThemes_Sensei_PDF_Certificate in this request (no login as
+ * the user). On failure the response lists certificate-related classes.
  */
 function lwr_spike_cert_test() {
 	if ( ! class_exists( 'Sensei_Utils' ) ) {
@@ -140,63 +140,77 @@ function lwr_spike_cert_test() {
 		return new WP_Error( 'lwr_spike_setup', 'Could not create course, lesson or user', array( 'status' => 500 ) );
 	}
 
+	// Certificates only issues for a course that has a certificate template, and
+	// only when the course status becomes "complete" (sensei_course_status_updated).
+	$template = lwr_spike_certificate_template();
+	if ( $template ) {
+		update_post_meta( $course, '_course_certificate_template', $template );
+	}
+
 	Sensei_Utils::sensei_start_lesson( $lesson, $user, true );
-	if ( function_exists( 'Sensei' ) && isset( Sensei()->course ) && method_exists( Sensei()->course, 'get_course_id' ) ) {
-		Sensei_Utils::user_start_course( $user, $course );
+	Sensei_Utils::user_start_course( $user, $course );
+	if ( method_exists( 'Sensei_Utils', 'update_course_status' ) ) {
+		Sensei_Utils::update_course_status( $user, $course, 'complete' );
 	}
 
-	$classes = array_values(
-		array_filter(
-			get_declared_classes(),
-			function ( $c ) {
-				return false !== stripos( $c, 'certif' );
+	$cert_id = lwr_spike_find_certificate( $user, $course );
+	$via     = $cert_id ? 'course_completed_hook' : null;
+	if ( ! $cert_id && isset( $GLOBALS['woothemes_sensei_certificates'] ) && method_exists( $GLOBALS['woothemes_sensei_certificates'], 'generate_certificate_number' ) ) {
+		$GLOBALS['woothemes_sensei_certificates']->generate_certificate_number( $user, $course );
+		$cert_id = lwr_spike_find_certificate( $user, $course );
+		$via     = $cert_id ? 'generate_certificate_number' : null;
+	}
+
+	$pdf   = null;
+	$error = null;
+	if ( $cert_id && isset( $GLOBALS['woothemes_sensei_certificates'] ) ) {
+		$file = trailingslashit( $GLOBALS['woothemes_sensei_certificates']->plugin_path ) . 'classes/class-woothemes-sensei-pdf-certificate.php';
+		if ( ! class_exists( 'WooThemes_Sensei_PDF_Certificate' ) && file_exists( $file ) ) {
+			require_once $file;
+		}
+		if ( class_exists( 'WooThemes_Sensei_PDF_Certificate' ) ) {
+			$hash = (string) get_post_meta( $cert_id, 'certificate_hash', true );
+			if ( '' === $hash ) {
+				$hash = (string) get_post_field( 'post_name', $cert_id );
 			}
-		)
-	);
-
-	$cert_id = null;
-	$posts   = get_posts(
-		array(
-			'post_type'      => 'certificate',
-			'post_status'    => 'any',
-			'author'         => $user,
-			'posts_per_page' => 1,
-			'fields'         => 'ids',
-		)
-	);
-	if ( $posts ) {
-		$cert_id = (int) $posts[0];
-	}
-
-	$pdf = null;
-	if ( $cert_id ) {
-		// Candidate renderers, tried in turn. Names are guesses; the diagnostics below show what exists.
-		foreach ( array( 'Sensei_Certificates_PDF', 'Sensei_Certificates\\Pdf', 'Sensei_Certificate_PDF' ) as $cls ) {
-			if ( class_exists( $cls ) ) {
-				foreach ( array( 'render', 'generate', 'output_string', 'get_pdf' ) as $m ) {
-					if ( method_exists( $cls, $m ) ) {
-						try {
-							$obj = is_callable( array( $cls, $m ) ) && ( new ReflectionMethod( $cls, $m ) )->isStatic() ? null : new $cls();
-							$out = call_user_func( array( $obj ? $obj : $cls, $m ), $cert_id );
-							if ( is_string( $out ) && '' !== $out ) {
-								$pdf = $out;
-								break 2;
-							}
-						} catch ( Throwable $e ) {
-							continue;
-						}
-					}
+			// generate_pdf() sends PDF headers and echoes the bytes; capture both and
+			// undo the headers so this REST response stays JSON.
+			ob_start();
+			try {
+				( new WooThemes_Sensei_PDF_Certificate( $hash, $cert_id ) )->generate_pdf();
+			} catch ( Throwable $e ) {
+				$error = get_class( $e ) . ': ' . $e->getMessage();
+			}
+			$out = (string) ob_get_clean();
+			if ( ! headers_sent() ) {
+				foreach ( array( 'Content-Type', 'Content-Disposition', 'Cache-Control', 'Pragma' ) as $h ) {
+					header_remove( $h );
 				}
 			}
+			if ( '' !== $out ) {
+				$pdf = $out;
+			}
+		} else {
+			$error = 'WooThemes_Sensei_PDF_Certificate not found';
 		}
 	}
 
 	if ( null === $pdf ) {
+		$classes = array_values(
+			array_filter(
+				get_declared_classes(),
+				function ( $c ) {
+					return false !== stripos( $c, 'certif' );
+				}
+			)
+		);
 		return new WP_REST_Response(
 			array(
 				'bytes'       => 0,
 				'contentType' => 'none',
+				'template'    => $template,
 				'certificate' => $cert_id,
+				'error'       => $error,
 				'classes'     => $classes,
 			),
 			200
@@ -206,5 +220,44 @@ function lwr_spike_cert_test() {
 	return array(
 		'bytes'       => strlen( $pdf ),
 		'contentType' => 0 === strpos( $pdf, '%PDF' ) ? 'application/pdf' : 'unknown',
+		'certificate' => $cert_id,
+		'via'         => $via,
+		'logged_in'   => is_user_logged_in(),
 	);
+}
+
+function lwr_spike_certificate_template() {
+	$find = function () {
+		$ids = get_posts(
+			array(
+				'post_type'      => 'certificate_template',
+				'post_status'    => 'any',
+				'posts_per_page' => 1,
+				'fields'         => 'ids',
+			)
+		);
+		return $ids ? (int) $ids[0] : 0;
+	};
+	$id = $find();
+	if ( ! $id && function_exists( 'sensei_create_master_certificate_template' ) ) {
+		sensei_create_master_certificate_template();
+		$id = $find();
+	}
+	return $id;
+}
+
+function lwr_spike_find_certificate( $user, $course ) {
+	$ids = get_posts(
+		array(
+			'post_type'      => 'certificate',
+			'post_status'    => 'any',
+			'posts_per_page' => 1,
+			'fields'         => 'ids',
+			'meta_query'     => array(
+				array( 'key' => 'learner_id', 'value' => (int) $user ),
+				array( 'key' => 'course_id', 'value' => (int) $course ),
+			),
+		)
+	);
+	return $ids ? (int) $ids[0] : 0;
 }
