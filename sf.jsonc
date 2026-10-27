@@ -3,6 +3,17 @@
   "space": "learn-wp-reimagined",
   "meta": { "title": "Learn WordPress, reimagined" },
   "index": "index.html",
-  "fallback": { "path": "index.html", "status": 200 },
+  // No "fallback": unmatched paths (/wp-json, /wp-admin, /courses/, ...) must reach WordPress.
+  // Keep in step with APP_ROUTES in src/pages/appRoutes.ts.
+  "rewrites": [
+    { "source": "/", "destination": "/index.html" },
+    { "source": "/path/*", "destination": "/index.html" },
+    { "source": "/learn/*", "destination": "/index.html" },
+    { "source": "/finale", "destination": "/index.html" },
+    { "source": "/finale/*", "destination": "/index.html" },
+    { "source": "/connect", "destination": "/index.html" },
+    { "source": "/how-it-works", "destination": "/index.html" },
+    { "source": "/proposal", "destination": "/index.html" }
+  ],
   "crons": [{ "path": "/api/mcp-sweep", "schedule": "daily" }]
 }

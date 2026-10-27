@@ -1,3 +1,4 @@
+import type { FunctionComponent } from 'preact';
 import { useEffect } from 'preact/hooks';
 import { LocationProvider, Route, Router, useLocation } from 'preact-iso';
 import { Header } from './components/Header';
@@ -11,6 +12,7 @@ import { Connect } from './pages/Connect';
 import { HowItWorks } from './pages/HowItWorks';
 import { Proposal } from './pages/Proposal';
 import { NotFound } from './pages/routes';
+import { APP_ROUTES } from './pages/appRoutes';
 import { content } from './content';
 
 /**
@@ -68,18 +70,24 @@ function isStudio(path: string): boolean {
   }
 }
 
+const PAGES: Record<string, FunctionComponent<any>> = {
+  '/': Home,
+  '/path/:pathId': PathOverview,
+  '/learn/:lessonId': Lesson,
+  '/finale': Finale,
+  '/finale/:pathId': Finale,
+  '/connect': Connect,
+  '/how-it-works': HowItWorks,
+  '/proposal': Proposal,
+};
+
 function Frame() {
   const { path } = useLocation();
   const routes = (
     <Router>
-      <Route path="/" component={Home} />
-      <Route path="/path/:pathId" component={PathOverview} />
-      <Route path="/learn/:lessonId" component={Lesson} />
-      <Route path="/finale" component={Finale} />
-      <Route path="/finale/:pathId" component={Finale} />
-      <Route path="/connect" component={Connect} />
-      <Route path="/how-it-works" component={HowItWorks} />
-      <Route path="/proposal" component={Proposal} />
+      {APP_ROUTES.map((r) => (
+        <Route key={r.rewrite} path={r.rewrite} component={PAGES[r.rewrite]} />
+      ))}
       <Route default component={NotFound} />
     </Router>
   );
