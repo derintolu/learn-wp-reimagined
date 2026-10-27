@@ -77,17 +77,20 @@ median() { sort -n | awk '{a[NR]=$1} END{print (NR%2)?a[(NR+1)/2]:int((a[NR/2]+a
 
 declare -a OUT
 PATHS=""
+FAILED=0
 for vp in 1440x900 390x844; do
   w=${vp%x*}; h=${vp#*x}
   o=(); a=(); c=()
   for i in $(seq 1 "$RUNS"); do
     read -r mo ma mc mp < <(run_once "$w" "$h" "speed-$vp-$i-$$")
     echo "run $vp #$i open=$mo advance=$ma checkpoint=$mc ($mp)" >&2
-    o+=("$mo"); a+=("$ma"); c+=("$mc"); PATHS="$PATHS $mp"
+    o+=("$mo"); a+=("$ma"); c+=("$mc")
+    if [ "$mo" -lt 0 ] || [ "$ma" -lt 0 ] || [ "$mc" -lt 0 ]; then FAILED=1; else PATHS="$PATHS $mp"; fi
   done
   OUT+=("\"$vp\": {\"lessonOpenMs\": $(printf '%s\n' "${o[@]}" | median), \"beatAdvanceMs\": $(printf '%s\n' "${a[@]}" | median), \"checkpointResultMs\": $(printf '%s\n' "${c[@]}" | median)}")
 done
 
+if [ "$FAILED" -ne 0 ]; then echo "measure.sh: at least one run failed (-1); no baseline written" >&2; exit 1; fi
 CPPATH=$(echo "$PATHS" | tr ' ' '\n' | grep -v '^$' | sort -u | tr '\n' ',' | sed 's/,$//')
-printf '{\n  "baseUrl": "%s",\n  "lesson": "%s",\n  "runs": %s,\n  "statistic": "median",\n  "measuredAt": "%s",\n  "checkpointPath": "%s",\n  %s,\n  %s\n}\n' \
-  "$BASE" "$LESSON" "$RUNS" "$(date -u +%Y-%m-%dT%H:%M:%SZ)" "$CPPATH" "${OUT[0]}" "${OUT[1]}"
+printf '{\n  "baseUrl": "%s",\n  "lesson": "%s",\n  "runs": %s,\n  "statistic": "median",\n  "measuredAt": "%s",\n  "provisional": %s,\n  "conditions": "%s",\n  "checkpointPath": "%s",\n  %s,\n  %s\n}\n' \
+  "$BASE" "$LESSON" "$RUNS" "$(date -u +%Y-%m-%dT%H:%M:%SZ)" "${PROVISIONAL:-false}" "${CONDITIONS:-}" "$CPPATH" "${OUT[0]}" "${OUT[1]}"

@@ -2,6 +2,8 @@
   "baseUrl": "http://localhost:5176",
   "lesson": "bt-what-is-a-block-theme",
   "runs": 5,
+  "provisional": true,
+  "conditions": "local vite preview of the production build, AI judge off; checkpointResultMs measured on the fallback path and not comparable to an ai-path run; re-baseline against the live site once it is shareable",
   "statistic": "median",
   "measuredAt": "2026-10-27T19:20:07Z",
   "checkpointPath": "fallback",
