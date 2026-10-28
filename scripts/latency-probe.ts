@@ -37,6 +37,8 @@ export interface WaitOptions extends Clock {
 export interface ProbeOptions extends WaitOptions {
   fetch?: typeof fetch;
   lessonId?: string;
+  /** Per-request timeout in ms (default 30 000). */
+  requestTimeoutMs?: number;
 }
 
 /** Polls `isComplete` every pollMs until it is true; returns the elapsed ms, or throws after timeoutMs. */
@@ -60,13 +62,19 @@ function showsComplete(body: unknown, lessonId: string): boolean {
   return b?.lessons?.[lessonId]?.complete === true;
 }
 
-async function once(base: string, opts: ProbeOptions): Promise<number> {
-  const f = opts.fetch ?? fetch;
+const REQUEST_TIMEOUT_MS = 30_000;
+
+async function once(base: string, opts: ProbeOptions, state: { leaked: number }): Promise<number> {
+  const raw = opts.fetch ?? fetch;
+  const f: typeof fetch = (url, init) => raw(url, { ...init, signal: AbortSignal.timeout(opts.requestTimeoutMs ?? REQUEST_TIMEOUT_MS) });
   const lessonId = opts.lessonId ?? LESSON_ID;
   const created = await f(`${base}/api/session`, { method: 'POST' });
   if (!created.ok) throw new Error(`session create failed: ${created.status}`);
   const sid = /lwr_sid=[^;,\s]+/.exec(created.headers.get('set-cookie') ?? '')?.[0];
-  if (!sid) throw new Error('no lwr_sid cookie in session response');
+  if (!sid) {
+    state.leaked++;
+    throw new Error('no lwr_sid cookie in session response (a learner may have been leaked)');
+  }
   const headers = { cookie: sid, 'content-type': 'application/json' };
   try {
     const sent = await f(`${base}/api/events`, {
@@ -84,14 +92,31 @@ async function once(base: string, opts: ProbeOptions): Promise<number> {
       opts,
     );
   } finally {
-    await f(`${base}/api/session`, { method: 'DELETE', headers }).catch(() => undefined);
+    const deleted = await f(`${base}/api/session`, { method: 'DELETE', headers }).catch(() => null);
+    if (!deleted?.ok) {
+      state.leaked++;
+      console.error(`learner delete failed (${deleted ? deleted.status : 'network error'})`);
+    }
   }
 }
 
-export async function probe(base: string, runs = 20, opts: ProbeOptions = {}): Promise<{ p50: number; p95: number; max: number }> {
+export async function probe(
+  base: string,
+  runs = 20,
+  opts: ProbeOptions = {},
+): Promise<{ p50: number; p95: number; max: number; leaked: number }> {
+  if (!Number.isInteger(runs) || runs <= 0) throw new Error(`runs must be a positive integer, got ${runs}`);
   const times: number[] = [];
-  for (let i = 0; i < runs; i++) times.push(await once(base.replace(/\/$/, ''), opts));
-  return { p50: median(times), p95: p95(times), max: Math.max(0, ...times) };
+  const state = { leaked: 0 };
+  for (let i = 0; i < runs; i++) {
+    try {
+      times.push(await once(base.replace(/\/$/, ''), opts, state));
+    } catch (e) {
+      const msg = e instanceof Error ? e.message : String(e);
+      throw new Error(state.leaked ? `${msg} (${state.leaked} learner(s) may have leaked)` : msg);
+    }
+  }
+  return { p50: median(times), p95: p95(times), max: Math.max(0, ...times), leaked: state.leaked };
 }
 
 if (process.argv[1] && resolve(process.argv[1]) === fileURLToPath(import.meta.url)) {
@@ -99,8 +124,10 @@ if (process.argv[1] && resolve(process.argv[1]) === fileURLToPath(import.meta.ur
   probe(base, Number(runs)).then(
     (r) => {
       console.log(JSON.stringify(r));
-      console.log(r.p95 <= PASS_MS ? 'PASS' : `FAIL: p95 ${r.p95} ms exceeds ${PASS_MS} ms`);
-      process.exitCode = r.p95 <= PASS_MS ? 0 : 1;
+      const ok = r.p95 <= PASS_MS && r.leaked === 0;
+      if (r.leaked) console.error(`FAIL: ${r.leaked} learner(s) may have leaked (delete failed)`);
+      console.log(r.p95 <= PASS_MS ? (ok ? 'PASS' : 'FAIL') : `FAIL: p95 ${r.p95} ms exceeds ${PASS_MS} ms`);
+      process.exitCode = ok ? 0 : 1;
     },
     (e) => {
       console.error(e instanceof Error ? e.message : e);

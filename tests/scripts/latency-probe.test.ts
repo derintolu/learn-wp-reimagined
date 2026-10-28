@@ -43,7 +43,7 @@ describe('waitForComplete', () => {
 });
 
 describe('probe', () => {
-  function fake(completeAfter: number, calls: string[]) {
+  function fake(completeAfter: number, calls: string[], deleteStatus = 200, eventsStatus = 200) {
     let polls = 0;
     const f = async (url: string | URL | Request, init?: RequestInit) => {
       const u = new URL(String(url));
@@ -52,9 +52,9 @@ describe('probe', () => {
       if (key === 'POST /api/session') polls = 0;
       if (key === 'POST /api/session') return json({ actor: {} }, { 'set-cookie': 'lwr_sid=abc; Path=/; HttpOnly' });
       expect((init?.headers as Record<string, string>).cookie).toContain('lwr_sid=abc');
-      if (key === 'POST /api/events') return json({ results: [{ ok: true }] });
+      if (key === 'POST /api/events') return eventsStatus === 200 ? json({ results: [{ ok: true }] }) : new Response('x', { status: eventsStatus });
       if (key === 'GET /api/sensei') return json({ completed: ++polls >= completeAfter ? ['intro'] : [] });
-      if (key === 'DELETE /api/session') return json({ ok: true });
+      if (key === 'DELETE /api/session') return deleteStatus === 200 ? json({ ok: true }) : new Response('x', { status: deleteStatus });
       return new Response('no', { status: 404 });
     };
     return f as typeof fetch;
@@ -67,7 +67,7 @@ describe('probe', () => {
   it('runs the flow per run and reports percentiles, deleting the learner each time', async () => {
     const calls: string[] = [];
     const r = await probe('https://example.test', 3, { fetch: fake(2, calls), lessonId: 'intro', ...clock() });
-    expect(r).toEqual({ p50: 2000, p95: 2000, max: 2000 });
+    expect(r).toEqual({ p50: 2000, p95: 2000, max: 2000, leaked: 0 });
     expect(calls.filter((c) => c === 'DELETE /api/session')).toHaveLength(3);
     expect(calls.filter((c) => c === 'POST /api/events')).toHaveLength(3);
     expect(PASS_MS).toBe(90_000);
@@ -79,5 +79,38 @@ describe('probe', () => {
       probe('https://example.test', 1, { fetch: fake(Infinity, calls), lessonId: 'intro', timeoutMs: 6000, ...clock() }),
     ).rejects.toThrow(/timed out/i);
     expect(calls.at(-1)).toBe('DELETE /api/session');
+  });
+
+  it('counts a failed DELETE as a leaked learner', async () => {
+    const calls: string[] = [];
+    const r = await probe('https://example.test', 2, { fetch: fake(1, calls, 500), lessonId: 'intro', ...clock() });
+    expect(r.leaked).toBe(2);
+  });
+
+  it('counts a DELETE network error as leaked and mentions it when the run fails', async () => {
+    const calls: string[] = [];
+    const inner = fake(Infinity, calls);
+    const f = (async (u: string | URL | Request, i?: RequestInit) =>
+      i?.method === 'DELETE' ? Promise.reject(new Error('net')) : inner(u, i)) as typeof fetch;
+    await expect(probe('https://example.test', 1, { fetch: f, lessonId: 'intro', timeoutMs: 4000, ...clock() })).rejects.toThrow(/leaked/);
+  });
+
+  it('still deletes when events fails', async () => {
+    const calls: string[] = [];
+    await expect(probe('https://example.test', 1, { fetch: fake(1, calls, 200, 500), ...clock() })).rejects.toThrow(/events failed/);
+    expect(calls.at(-1)).toBe('DELETE /api/session');
+  });
+
+  it('rejects runs that are not positive integers', async () => {
+    for (const n of [0, -1, NaN]) await expect(probe('https://example.test', n, { fetch: fake(1, []) })).rejects.toThrow(/runs/);
+  });
+
+  it('passes an abort signal on every request', async () => {
+    const signals: unknown[] = [];
+    const inner = fake(1, []);
+    const f = (async (u: string | URL | Request, i?: RequestInit) => (signals.push(i?.signal), inner(u, i))) as typeof fetch;
+    await probe('https://example.test', 1, { fetch: f, lessonId: 'intro', ...clock() });
+    expect(signals.length).toBeGreaterThan(0);
+    expect(signals.every((s) => s instanceof AbortSignal)).toBe(true);
   });
 });
