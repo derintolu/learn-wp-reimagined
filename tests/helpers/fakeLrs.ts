@@ -3,7 +3,9 @@ import { LRS_API, LRS_XAPI } from '../../functions/_lib/config';
 /**
  * An in-memory stand-in for Learning Ledger's LRS, installed as the global fetch. `down` answers every call 503;
  * `hang` never answers (the call ends only when the client's timeout aborts it); `rejectIds` answers 400 to a
- * POST holding one of those statement ids and to a PUT of one; `limited` answers every call 429 (rate limited). A statements GET returns the stored ones, by agent.
+ * POST holding one of those statement ids and to a PUT of one; `limited` answers every call 429 (rate limited).
+ * As Learning Ledger does, a statement whose id is already stored is skipped when identical and answered 409 when
+ * different (a POST then stores nothing). A statements GET returns the stored ones, by agent.
  */
 export function fakeLrs() {
   const lrs = {
@@ -44,11 +46,14 @@ export function fakeLrs() {
         lrs.versions.set(key, (lrs.versions.get(key) ?? 0) + 1);
         return new Response(null, { status: 204 });
       }
+      const stored = (s: any) => lrs.statements.find((x) => x.id === s.id);
+      const differs = (s: any) => stored(s) !== undefined && JSON.stringify(stored(s)) !== JSON.stringify(s);
       if (url === `${LRS_XAPI}/statements` && method === 'POST') {
         const batch = JSON.parse(String(init?.body)) as any[];
         lrs.posts.push(batch);
         if (batch.some((s) => lrs.rejectIds.has(s.id))) return new Response(null, { status: 400 });
-        lrs.statements.push(...batch);
+        if (batch.some(differs)) return new Response(null, { status: 409 });
+        lrs.statements.push(...batch.filter((s) => !stored(s)));
         return new Response(JSON.stringify(batch.map((s) => s.id)), { status: 200 });
       }
       if (url.startsWith(`${LRS_XAPI}/statements?`) && method === 'GET') {
@@ -59,7 +64,8 @@ export function fakeLrs() {
       if (url.startsWith(`${LRS_XAPI}/statements?statementId=`) && method === 'PUT') {
         const s = JSON.parse(String(init?.body));
         if (lrs.rejectIds.has(s.id)) return new Response(null, { status: 400 });
-        lrs.statements.push(s);
+        if (differs(s)) return new Response(null, { status: 409 });
+        if (!stored(s)) lrs.statements.push(s);
         return new Response(null, { status: 204 });
       }
       if (url === `${LRS_API}/courses` && method === 'PUT') {

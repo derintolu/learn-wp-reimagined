@@ -136,6 +136,18 @@ describe('outbox', () => {
     expect(await drain(env, t, 800)).toEqual({ sent: 2, left: 0 });
   });
 
+  it('a retried id drained after the first copy was stored is removed, not dead-lettered (first wins)', async () => {
+    const log = vi.spyOn(console, 'error').mockImplementation(() => {});
+    await enqueue(env, [stmt(1, { timestamp: 'first' })], NOW);
+    expect(await drain(env, NOW, 800)).toEqual({ sent: 1, left: 0 });
+    // The retry re-enqueues the same ids with a new timestamp; the LRS answers 409 for the id.
+    await enqueue(env, [stmt(1, { timestamp: 'second' }), stmt(2)], NOW + MIN);
+    expect(await drain(env, NOW + MIN, 800)).toEqual({ sent: 2, left: 0 });
+    expect(await rows()).toEqual([]);
+    expect(log).not.toHaveBeenCalled();
+    expect(lrs.statements.map((s) => [s.id, s.timestamp])).toEqual([[stmt(1).id, 'first'], [stmt(2).id, undefined]]);
+  });
+
   it('a rejected statement does not hold back the rest of its batch', async () => {
     await enqueue(env, [stmt(1), stmt(2), stmt(3)], NOW);
     lrs.rejectIds.add(stmt(2).id);
@@ -220,6 +232,27 @@ describe('POST /api/events with the LRS in shadow', () => {
     expect(Date.now() - t0).toBeLessThan(INLINE_DRAIN_BUDGET_MS + 400);
     expect(res.status).toBe(200);
     expect((await rows()).map((x) => JSON.parse(x.body).verb.id)).toEqual([ADL_VERBS.launched, ADL_VERBS.initialized, ADL_VERBS.completed]);
+  });
+
+  it('the same event retried after its statements were drained leaves no dead letters', async () => {
+    SERVER_FLAGS.lrsShadow = true;
+    const log = vi.spyOn(console, 'error').mockImplementation(() => {});
+    const cookie = await returningLearner();
+    expect((await post(completed, cookie)).status).toBe(200);
+    expect(await rows()).toEqual([]);
+    const first = lrs.statements.map((s) => JSON.stringify(s));
+    vi.useFakeTimers({ now: Date.now() + 5000, toFake: ['Date'] });
+    try {
+      expect((await post(completed, cookie)).status).toBe(200);
+    } finally {
+      vi.useRealTimers();
+    }
+    expect(await rows()).toEqual([]);
+    expect(log).not.toHaveBeenCalled();
+    expect(lrs.statements.map((s) => JSON.stringify(s))).toEqual(first);
+    // Run the hourly cron long after: nothing is left behind, dead or alive.
+    expect(await drain(env, Date.now() + 365 * 24 * 60 * MIN, 800)).toEqual({ sent: 0, left: 0 });
+    expect((await db.prepare('SELECT COUNT(*) AS n FROM lrs_outbox').first<{ n: number }>())!.n).toBe(0);
   });
 
   it('LRS up: the statements are posted after deciding and leave the outbox', async () => {

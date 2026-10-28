@@ -76,7 +76,8 @@ async function backOff(env: Env, rows: Row[], now: number): Promise<void> {
 /**
  * Sends due rows, oldest first, in batches of DRAIN_BATCH, starting no new batch once `budgetMs` has passed.
  * A batch the LRS refuses (4xx) is retried one statement at a time, so one bad statement holds back only itself;
- * a statement refused DEAD_LETTER_AFTER times is dead-lettered (kept, never sent again).
+ * a statement refused DEAD_LETTER_AFTER times is dead-lettered (kept, never sent again). A 409 on that PUT means
+ * the id is already stored (first wins), so the row is done.
  * When the LRS is unavailable the batch backs off and the drain stops. Other errors propagate.
  */
 export async function drain(env: Env, now: number, budgetMs: number): Promise<{ sent: number; left: number }> {
@@ -114,6 +115,13 @@ export async function drain(env: Env, now: number, budgetMs: number): Promise<{ 
           return { sent, left: await count(env) };
         }
         if (!(e instanceof LrsError)) throw e;
+        if (e.status === 409) {
+          // The id is already stored with other content: an earlier copy of this statement (a retried event
+          // re-enqueued after its first copy was drained). Ids are deterministic and the first wins (R7).
+          await remove(env, [r]);
+          sent++;
+          continue;
+        }
         await refused(env, r, e, now);
       }
     }
