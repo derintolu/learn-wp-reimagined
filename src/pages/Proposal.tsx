@@ -190,8 +190,9 @@ export function Proposal() {
           A tutor sits beside each lesson, grounded in that
           lesson's own text, and links back to the lesson or the Developer Handbook when it isn't sure. A placement chat
           recommends a pathway course and a starting lesson. The only new content is a short note per course saying who it
-          suits. Progress stays in the learner's browser, so no accounts are needed. If the AI is down, the lessons read
-          exactly as they do today.
+          suits.
+          {!FEATURES.senseiLearners && " Progress stays in the learner's browser, so no accounts are needed."} If the AI is down,
+          the lessons read exactly as they do today.
           {FEATURES.wordpressContent &&
             " The tutor and placement are running in this concept. What isn't shown is Sensei progress (phase 3 below) and the Training Team's review of these lessons."}
         </p>
@@ -334,12 +335,12 @@ export function Proposal() {
               progress" by email link is a possible next step, and isn't built.
             </li>
           ) : (
-          <li>
-            <strong>A record the learner keeps, instead of accounts.</strong> No sign-up, and no personal data held.{' '}
-            <em>The cost:</em> progress doesn't follow a learner between devices unless they move the file. Clearing browser
-            data loses it unless they saved it to a folder or downloaded it. Saving to a folder only works in Chromium
-            browsers.
-          </li>
+            <li>
+              <strong>A record the learner keeps, instead of accounts.</strong> No sign-up, and no personal data held.{' '}
+              <em>The cost:</em> progress doesn't follow a learner between devices unless they move the file. Clearing browser
+              data loses it unless they saved it to a folder or downloaded it. Saving to a folder only works in Chromium
+              browsers.
+            </li>
           )}
           <li>
             <strong>Planted bugs are written ahead of time, not generated live.</strong> The snippet is AI-written, and a

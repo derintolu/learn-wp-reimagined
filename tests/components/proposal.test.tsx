@@ -196,6 +196,7 @@ describe('/proposal with the anonymous-accounts flag', () => {
     expect(t).toContain('Phase 2: keep the record with a WordPress.org login');
     expect(t).not.toContain('An anonymous account, not a sign-up.');
     expect(t).not.toContain('anonymous Sensei user');
+    expect(t).toContain("Progress stays in the learner's browser, so no accounts are needed. If the AI is down, the lessons read exactly as they do today.");
   });
 
   it('on: the anonymous-user decision, privacy line and phase 2 copy, verbatim', () => {
@@ -206,6 +207,8 @@ describe('/proposal with the anonymous-accounts flag', () => {
       "An anonymous account, not a sign-up. Learners start with no form. The first recorded step creates a Sensei user with a random ID and no email, and the learner can delete it. The cost: the site now holds a server-side user for every learner who starts, which needs rate limits and a clean-up rule, and progress still doesn't follow a learner between devices unless they move the file. An optional \"keep my progress\" by email link is a possible next step, and isn't built.",
     );
     expect(t).not.toContain('instead of accounts');
+    expect(t).not.toContain('no accounts are needed');
+    expect(t).toContain('If the AI is down, the lessons read exactly as they do today.');
     expect(t).toContain('The server keeps a random session and an anonymous Sensei user with no name or email, and the learner can delete both from the record menu.');
     expect(t).toContain('Phase 2: keep the record, with or without a login');
     expect(t).not.toContain('Phase 2: keep the record with a WordPress.org login');

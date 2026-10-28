@@ -535,11 +535,11 @@ export function HowItWorks() {
               your devices unless you move the record yourself. Signing in with a WordPress.org account is not built.
             </li>
           ) : (
-          <li>
-            <strong>There are no accounts yet.</strong> Nobody signs in today. In the browser, your progress is one JSON
-            file of xAPI statements under an anonymous ID (<Cite to="src-record">the record format</Cite>), and it stays on
-            your device.
-          </li>
+            <li>
+              <strong>There are no accounts yet.</strong> Nobody signs in today. In the browser, your progress is one JSON
+              file of xAPI statements under an anonymous ID (<Cite to="src-record">the record format</Cite>), and it stays on
+              your device.
+            </li>
           )}
           <li>
             <strong>It isn't connected to Learn.</strong>{' '}
