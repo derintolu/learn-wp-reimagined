@@ -14,15 +14,15 @@ import { newState } from '../../../vendor/course-xapi-mcp/core/session/index.ts'
 import type { LearnerState } from '../../../vendor/course-xapi-mcp/core/state.ts';
 import type { XapiAgent, XapiStatement } from '../../../vendor/course-xapi-mcp/core/xapi/types.ts';
 import type { Env } from '../env';
-import { isDuplicateKey } from '../db';
+import { getContent } from '../content';
 import { decideEvents } from '../events/decide';
 import { LrsClient, type StateKey } from '../lrs/client';
 import { getRegistration } from '../record/registration';
 import { OFFICIAL_COURSE_ID, officialActor } from '../record/official';
 import type { Session } from '../session/session';
-import { checkpointAnswers, eventsFor } from './agentEvents';
+import { checkpointAnswers, eventsFor, refusedBranch } from './agentEvents';
 
-/** Kept beside the engine's state in its State document: the checkpoint answers a later choose_branch is judged on. */
+/** Kept beside the engine's state in its State document: the checkpoint answers a later choose_branch records. */
 const HOST_KEY = 'lwrAgent';
 const NO_VERSION = "the record holder did not return a version for the learner's state";
 const SIGNED_OUT = 'this sign-in no longer has a learner on this course; sign in again from the course site';
@@ -128,6 +128,9 @@ export function agentCustody(env: Env, o: AgentCustodyOptions): Custody & { acto
 
     async save(_l, state, etag) {
       const s = need();
+      // Refused before anything is kept, so the step is undone and the learner is still at the branch.
+      const refused = refusedBranch(course, getContent(), state.outbox);
+      if (refused) throw new StoreError(refused);
       seen(state);
       answers = { ...answers, ...checkpointAnswers(course, state.outbox) };
       const tag = decode(etag);
@@ -154,20 +157,7 @@ export function agentCustody(env: Env, o: AgentCustodyOptions): Custody & { acto
       const s = need();
       const events = eventsFor(course, statements, { files, answers: { ...answers, ...checkpointAnswers(course, statements) } });
       if (events.length === 0) return;
-      // The agent judged the branch against the rubric, and the engine took only an allowed one: that is the judge's
-      // decision, recorded as the judge route records its own, so decideEvents accepts it once.
-      for (const e of events) {
-        if (e.type !== 'checkpointAnswered' || course.lessons[e.lessonId]?.checkpoint?.kind === 'code') continue;
-        e.decisionId = `agent:${e.eventId}`.slice(0, 40);
-        try {
-          await env.DB
-            .prepare('INSERT INTO decisions (id, lesson_id, outcome, created, used) VALUES (?, ?, ?, ?, 0)')
-            .bind(e.decisionId, e.lessonId, e.outcome, now())
-            .run();
-        } catch (err) {
-          if (!isDuplicateKey(err)) throw err;
-        }
-      }
+      // A branch is the learner's choice (R34): no decision id, so decideEvents takes its fallback path (chosenBy learner).
       const results = await decideEvents(env, s.actorName, events, now(), { wpUserId: s.wpUserId, session: s, handlerCtx: o.handlerCtx });
       for (const r of results) if (!r.ok) console.warn('agent event refused', events.find((e) => e.eventId === r.eventId)?.type, r.error);
     },

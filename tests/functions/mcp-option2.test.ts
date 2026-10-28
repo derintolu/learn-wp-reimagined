@@ -9,11 +9,11 @@ import { ensureOAuthSchema } from '../../functions/_lib/db';
 import * as decide from '../../functions/_lib/events/decide';
 import { deriveStatementId } from '../../functions/_lib/events/ids';
 import { gateMcp, MCP_LIMITS } from '../../functions/_lib/mcp/gate';
-import { CLAIM_PAGE_URL } from '../../functions/_lib/mcp/agentCourse';
+import { EXT_CHOSEN_BY } from '../../src/shared/xapi';
 import { issueTokens, sha256Hex } from '../../functions/_lib/oauth/store';
 import { OFFICIAL_COURSE_ID, OFFICIAL_ID_OFFSET, auIdOf, officialActor } from '../../functions/_lib/record/official';
 import { createSession, type Session } from '../../functions/_lib/session/session';
-import { ADL_VERBS, CXM_VERBS, EXTENSION_ID, STATE_IDS, TOOL_NAMES, activityIds } from '../../vendor/course-xapi-mcp/core/constants.ts';
+import { ADL_VERBS, CXM_EXT, CXM_VERBS, EXTENSION_ID, STATE_IDS, TOOL_NAMES, activityIds } from '../../vendor/course-xapi-mcp/core/constants.ts';
 import { connectMcp, routeFetch, type Era } from '../helpers/mcpClient';
 import { fakeLrs } from '../helpers/fakeLrs';
 import type { D1Like, Env } from '../../functions/_lib/env';
@@ -55,6 +55,8 @@ afterEach(async () => {
   open = [];
   Object.assign(SERVER_FLAGS, flags);
   vi.unstubAllGlobals();
+  // A spy left by a failed test must not carry its calls into the next one.
+  if (vi.isMockFunction(decide.decideEvents)) vi.mocked(decide.decideEvents).mockRestore();
 });
 
 /** A studio session and an access token for it, as the consent page and token endpoint would issue them. */
@@ -79,6 +81,13 @@ async function playBeats(call: Call) {
     r = await call('next_beat', r.data.beat.question ? { learner_reply: 'I think it shows up in the Site Editor.' } : {});
   }
   return r;
+}
+
+async function toCheckpoint(call: Call) {
+  await toBug(call);
+  await call('check_code', { file: 'theme.json', content: fixedThemeJson() });
+  expect((await call('next_beat')).data.step).toBe('checkpoint');
+  return call('submit_checkpoint', { response: 'style.css and templates/index.html.' });
 }
 
 async function toBug(call: Call) {
@@ -163,22 +172,24 @@ describe.each(['legacy', 'modern'] as const)('/api/mcp option 2 (%s era)', (era)
     spy.mockRestore();
   });
 
-  it('checkpoint and branch calls are decided too, and the next connection resumes from the LRS', async () => {
+  it('an agent branch is recorded learner-chosen, and the next connection resumes from the LRS', async () => {
     const { session, token } = await signIn();
     const { call } = await agent(era, token);
-    await toBug(call);
-    await call('check_code', { file: 'theme.json', content: fixedThemeJson() });
-    expect((await call('next_beat')).data.step).toBe('checkpoint');
-    await call('submit_checkpoint', { response: 'style.css and templates/index.html.' });
+    await toCheckpoint(call);
     const spy = vi.spyOn(decide, 'decideEvents');
     spy.mockClear();
     const br = await call('choose_branch', { branch: 'advance', rationale: 'Names both files.' });
     expect(br.data).toMatchObject({ success: true, next_lesson: { key: NEXT } });
     const answered = spy.mock.calls.flatMap((c) => c[2]).filter((e) => e.type === 'checkpointAnswered');
-    expect(answered).toMatchObject([{ lessonId: LESSON, outcome: 'advance', response: 'style.css and templates/index.html.' }]);
-    const results = await spy.mock.results[0]!.value;
-    expect(results.find((r: { eventId: string }) => r.eventId === answered[0]!.eventId)).toMatchObject({ ok: true, chosenBy: 'judge' });
-    expect((await recorded()).some((s) => s.verb.id === CXM_VERBS.branched && s.actor.account.name === session.actorName)).toBe(true);
+    expect(answered).toEqual([{ eventId: expect.any(String), type: 'checkpointAnswered', lessonId: LESSON, response: 'style.css and templates/index.html.', outcome: 'advance' }]);
+    const results = (await Promise.all(spy.mock.results.map((r) => r.value))).flat();
+    expect(results.find((r: { eventId: string }) => r.eventId === answered[0]!.eventId)).toMatchObject({ ok: true, chosenBy: 'learner' });
+    // Our server runs no judge on this path: no judge decision is minted, and the record says the learner chose.
+    expect((await db.prepare('SELECT COUNT(*) AS n FROM decisions').first<{ n: number }>())!.n).toBe(0);
+    const branched = (await recorded()).filter((s) => s.verb.id === CXM_VERBS.branched && s.actor.account.name === session.actorName);
+    expect(branched).toHaveLength(1);
+    expect(branched[0].result.extensions[EXT_CHOSEN_BY]).toBe('learner');
+    expect(branched[0].result.extensions[CXM_EXT.rationale]).toBe('The learner chose this option.');
     spy.mockRestore();
 
     // The working state is an LRS State document under the registration; a new connection continues there.
@@ -187,6 +198,50 @@ describe.each(['legacy', 'modern'] as const)('/api/mcp option 2 (%s era)', (era)
     expect((lrs.state.get(key) as any)?.cursor).toMatchObject({ lessonKey: NEXT, phase: 'beats' });
     const again = await agent(era, token);
     expect((await again.call('next_beat')).data).toMatchObject({ step: 'beat', lesson: { key: NEXT } });
+  });
+
+  it('a branch outside the checkpoint\'s authored fallback options is refused, naming the allowed ones', async () => {
+    const { token } = await signIn();
+    const { call } = await agent(era, token);
+    const sub = await toCheckpoint(call);
+    // The engine would allow skip (the rubric's branch), but no fallback option lists it.
+    expect(sub.data.allowed_branches.map((b: { key: string }) => b.key)).toContain('skip');
+    const spy = vi.spyOn(decide, 'decideEvents');
+    spy.mockClear();
+    const refused = await call('choose_branch', { branch: 'skip', rationale: 'Knows themes.' });
+    expect(refused.isError).toBe(true);
+    expect(refused.data.error).toMatch(/skip/);
+    expect(refused.data.error).toMatch(/advance, review/);
+    expect(spy).not.toHaveBeenCalled();
+    spy.mockRestore();
+    expect((await recorded()).filter((s) => s.verb.id === CXM_VERBS.branched)).toEqual([]);
+    // Nothing changed: the learner is still at the branch, and an authored option goes through.
+    expect((await call('choose_branch', { branch: 'review', rationale: 'Unsure of the files.' })).data).toMatchObject({ success: false });
+  });
+
+  it('the same branch event delivered twice is recorded once', async () => {
+    const { session, token } = await signIn();
+    const { call } = await agent(era, token);
+    await toCheckpoint(call);
+    // Recorded, then the answer is lost: the engine keeps the step as pending and sends it again on the next call.
+    const real = decide.decideEvents;
+    const spy = vi.spyOn(decide, 'decideEvents');
+    spy.mockClear();
+    spy.mockImplementationOnce(async (...a) => {
+      await real(...a);
+      throw new Error('lost');
+    });
+    expect((await call('choose_branch', { branch: 'advance', rationale: 'Names both files.' })).data).toMatchObject({ delivery: 'pending' });
+    await call('next_beat');
+    const sent = spy.mock.calls.map((c) => c[2].filter((e) => e.type === 'checkpointAnswered').map((e) => e.eventId)).filter((ids) => ids.length > 0);
+    expect(sent).toHaveLength(2);
+    expect(sent[1]).toEqual(sent[0]);
+    expect(sent[0]).toHaveLength(1);
+    spy.mockRestore();
+    const branched = (await recorded()).filter((s) => s.verb.id === CXM_VERBS.branched && s.actor.account.name === session.actorName);
+    expect(new Set(branched.map((s) => s.id)).size).toBe(1);
+    const outcomes = await db.prepare('SELECT verb FROM official_outcomes WHERE actor_name = ?').bind(session.actorName).all<{ verb: string }>();
+    expect(outcomes.results.filter((r) => r.verb === 'passed')).toHaveLength(1);
   });
 
   it('get_record reads the LRS, and restart_course moves the registration the studio records under', async () => {
@@ -239,8 +294,7 @@ describe.each(['legacy', 'modern'] as const)('/api/mcp option 2 (%s era)', (era)
     const { call } = await agent(era, token);
     const r = await call('get_badges');
     expect(r.isError).toBe(false);
-    expect(CLAIM_PAGE_URL).toBe(`${CANONICAL}/badges/claim`);
-    expect(r.data.claimPage).toBe(CLAIM_PAGE_URL);
+    expect(r.data.claimPage).toBe(`${CANONICAL}/badges/claim`);
     expect(JSON.stringify(r.raw)).not.toMatch(/claim-links|lrs\.sqwrlz\.com/);
     expect(lrs.calls.filter((c) => c.url.includes('claim-links'))).toEqual([]);
   });

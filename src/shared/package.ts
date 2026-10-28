@@ -16,7 +16,8 @@ const blockIri = (pathId: string) => activityId(['paths', pathId]);
 const auIri = (lessonId: string) => activityId(['lessons', lessonId]);
 /** Where the cmi5 AU urls point. Nothing launches them; they name the studio. */
 const LAUNCH_BASE = `${XAPI_BASE}/learn`;
-const CLAIM_PAGE = `${XAPI_BASE}/claim`;
+/** The studio's claim page (Task 49): it mints a claim link for the signed-in learner, so the package names no claim link. */
+const CLAIM_PAGE = `${XAPI_BASE}/badges/claim`;
 /** The bug's hint opens after this many attempts; the studio has no setting for it. */
 const REVEAL_AFTER = 3;
 

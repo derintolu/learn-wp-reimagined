@@ -10,7 +10,7 @@ import { ADL_VERBS, CMI5, CXM_ACTIVITY_TYPES, CXM_EXT, CXM_VERBS, activityIds } 
 import type { CourseModel, LessonModel } from '../../../vendor/course-xapi-mcp/core/model.ts';
 import type { XapiStatement } from '../../../vendor/course-xapi-mcp/core/xapi/types.ts';
 import type { ServerEvent } from '../../../src/shared/events';
-import type { Outcome, PathId } from '../../../src/shared/types';
+import type { ContentBundle, Outcome, PathId } from '../../../src/shared/types';
 
 const isDefined = (s: XapiStatement) => (s.context?.contextActivities?.category ?? []).some((c) => c.id === CMI5.categoryCmi5);
 const typeOf = (s: XapiStatement) => (s.object as { definition?: { type?: string } }).definition?.type;
@@ -21,7 +21,7 @@ function lessonOf(course: CourseModel, id: string): LessonModel | undefined {
 }
 const keyOfAu = (course: CourseModel, auId: unknown) => Object.values(course.lessons).find((l) => l.auId === auId)?.key;
 
-/** The learner's checkpoint answers in these statements, by lesson key: the response the branch is judged on. */
+/** The learner's checkpoint answers in these statements, by lesson key: the response recorded with the branch. */
 export function checkpointAnswers(course: CourseModel, statements: XapiStatement[]): Record<string, string> {
   const out: Record<string, string> = {};
   for (const s of statements) {
@@ -88,4 +88,29 @@ export function eventsFor(course: CourseModel, statements: XapiStatement[], ctx:
     }
   }
   return out;
+}
+
+/**
+ * Why a branch in these statements cannot be recorded, or undefined. Our server runs no judge on the agent path,
+ * and the agent acts for the learner, so an agent's branch is the learner's own choice (ruling R34): as on the
+ * studio's fallback path (decideEvents), it must be one of the checkpoint's authored fallback options. A code
+ * checkpoint keeps the studio's rule: advance on passing checks, review, and skip only when a fallback lists it.
+ */
+export function refusedBranch(course: CourseModel, bundle: ContentBundle, statements: XapiStatement[]): string | undefined {
+  for (const s of statements) {
+    if (s.verb.id !== CXM_VERBS.branched) continue;
+    const l = lessonOf(course, s.object.id);
+    const cp = l && Object.hasOwn(bundle.lessons, l.key) ? bundle.lessons[l.key]!.checkpoint : undefined;
+    const outcome = s.result?.extensions?.[CXM_EXT.branch];
+    if (!cp || typeof outcome !== 'string') continue;
+    const fallback = [...new Set(cp.fallback.map((f) => f.outcome))];
+    const allowed: string[] = cp.kind === 'code' ? ['advance', 'review', ...(fallback.includes('skip') ? ['skip'] : [])] : fallback;
+    if (allowed.includes(outcome)) continue;
+    return (
+      `"${outcome.slice(0, 64)}" is not one of the learner's options at this checkpoint: ${allowed.join(', ')}. ` +
+      'This course server runs no judge for agents, so a branch counts only as the learner\'s own choice. ' +
+      'Ask the learner which fits, then call choose_branch with one of those.'
+    );
+  }
+  return undefined;
 }

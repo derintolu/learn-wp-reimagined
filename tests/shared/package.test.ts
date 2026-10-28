@@ -127,4 +127,9 @@ describe('package adapter', () => {
     }
     expect(course.badges).toHaveLength(live.length);
   });
+
+  it("names the studio's claim page (Task 49) as the badge issuer's claim page", () => {
+    const course = JSON.parse(bundleToPackage(bundle())['cxm/course.json']!);
+    expect(course.badgeIssuer).toEqual({ signer: 'course-server', claimPage: 'https://learnwp.sqwrlz.com/badges/claim' });
+  });
 });
