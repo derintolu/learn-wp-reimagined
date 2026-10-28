@@ -17,6 +17,9 @@ const SESSION_TIMEOUT_MS = 8000;
 
 let actor: SessionActor | null = null;
 let inflight: Promise<SessionActor | null> | null = null;
+let looking: Promise<SessionActor | null> | null = null;
+/** A GET found no session (and none has been made since), so a look-only caller needn't ask again. */
+let absent = false;
 /** Bumped when the session is forgotten, so an answer that was already on its way can't bring it back. */
 let generation = 0;
 
@@ -51,11 +54,14 @@ async function readActor(res: Response | null): Promise<SessionActor | null | un
  * (GET) for the session it may already have and only makes a new one (POST) when there is none.
  * Concurrent callers share one request. Null when sessions are off, rate-limited, unavailable or
  * unreachable; nothing is remembered about a failure, so the next recorded action tries again.
+ * With `create: false` it only looks (GET) and never makes a session: for reads and for writes the
+ * learner did not just cause, so a page load never creates a session (or, with senseiLearners, a user).
  */
-export function ensureSession(): Promise<SessionActor | null> {
+export function ensureSession(opts: { create?: boolean } = {}): Promise<SessionActor | null> {
   if (!FEATURES.sessions) return Promise.resolve(null);
   if (actor) return Promise.resolve(actor);
   if (inflight) return inflight;
+  if (opts.create === false) return lookUp();
   let p!: Promise<SessionActor | null>;
   p = (async () => {
     const gen = generation;
@@ -66,6 +72,7 @@ export function ensureSession(): Promise<SessionActor | null> {
         found = await readActor(await call('POST'));
         if (!found) return null;
       }
+      if (gen === generation) absent = false;
       if (gen === generation) actor = found;
       return gen === generation ? found : null;
     } finally {
@@ -77,6 +84,29 @@ export function ensureSession(): Promise<SessionActor | null> {
   return inflight;
 }
 
+/** GET only, shared by concurrent callers; remembers "none" until a session is made or forgotten. */
+function lookUp(): Promise<SessionActor | null> {
+  if (absent) return Promise.resolve(null);
+  if (looking) return looking;
+  let p!: Promise<SessionActor | null>;
+  p = (async () => {
+    const gen = generation;
+    try {
+      const found = await readActor(await call('GET'));
+      if (gen !== generation || !found) {
+        if (gen === generation && found === null) absent = true;
+        return null;
+      }
+      actor = found;
+      return found;
+    } finally {
+      if (looking === p) looking = null;
+    }
+  })();
+  looking = p;
+  return p;
+}
+
 /** The session the studio has, without asking the server. */
 export function currentActor(): SessionActor | null {
   return actor;
@@ -86,6 +116,8 @@ export function currentActor(): SessionActor | null {
 export function forgetSession(): void {
   actor = null;
   inflight = null;
+  looking = null;
+  absent = false;
   generation++;
 }
 
