@@ -538,3 +538,31 @@ describe('/how-it-works final rewrite (phase 8)', () => {
     expect(base).not.toContain(REVOKED);
   });
 });
+
+describe('/how-it-works LRS and Ledger parts per flag state', () => {
+  const flags = FEATURES as { officialRecord: boolean; senseiLearners: boolean; wordpressContent: boolean; badges: boolean; agentOnStandard: boolean };
+  afterEach(() => {
+    Object.assign(flags, { officialRecord: false, senseiLearners: false, wordpressContent: false, badges: false, agentOnStandard: false });
+  });
+  const part = (c: HTMLElement, name: string) => Array.from(c.querySelectorAll('.how-parts__list li')).find((x) => x.querySelector('strong')!.textContent!.startsWith(name))!.textContent!;
+  const on = (o: Partial<typeof flags>) => Object.assign(flags, { officialRecord: true, senseiLearners: true, wordpressContent: true }, o);
+
+  it('officialRecord only: no badge signing claim, agents keep practice records', () => {
+    on({});
+    const { container } = render(<HowItWorks />);
+    expect(part(container, 'Learning Ledger')).not.toContain('badge signing');
+    expect(part(container, 'The LRS at')).toContain('Agents keep practice records elsewhere until they sign in.');
+    expect(part(container, 'The LRS at')).not.toContain('nothing else does');
+  });
+  it('badges on: badge signing is named', () => {
+    on({ badges: true });
+    const { container } = render(<HowItWorks />);
+    expect(part(container, 'Learning Ledger')).toContain('and so is badge signing');
+  });
+  it('agentOnStandard on: the unconditional sentence', () => {
+    on({ agentOnStandard: true });
+    const { container } = render(<HowItWorks />);
+    expect(part(container, 'The LRS at')).toContain('writes every learning record here, and nothing else does.');
+    expect(part(container, 'The LRS at')).not.toContain('practice records');
+  });
+});

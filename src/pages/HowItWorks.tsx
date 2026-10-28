@@ -151,7 +151,7 @@ export function HowItWorks() {
       status: official ? 'live' : 'progress',
       body: official ? (
         <>
-          The LRS, the Sensei connector and badge signing are installed and running here, on two installs, and the public
+          The LRS and the Sensei connector are installed and running here, on two installs{final ? ', and so is badge signing' : ''}. The public
           repo is where work continues.
         </>
       ) : (
@@ -165,7 +165,11 @@ export function HowItWorks() {
       name: <>The LRS at {LRS_HOST}</>,
       status: official ? 'live' : 'idle',
       body: official ? (
-        <>The course server writes every learning record here, and nothing else does.</>
+        FEATURES.agentOnStandard ? (
+          <>The course server writes every learning record here, and nothing else does.</>
+        ) : (
+          <>The course server writes the studio's record here. Agents keep practice records elsewhere until they sign in.</>
+        )
       ) : (
         <>
           A WordPress install on its own space, and it answers, but Learning Ledger isn't installed there yet, so it holds
