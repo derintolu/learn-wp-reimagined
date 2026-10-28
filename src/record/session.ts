@@ -1,7 +1,9 @@
 import { clientId } from '../clientId';
 import { clearOfficial } from './official';
 import { FEATURES } from '../config';
+import { dataDeleted } from './deleted';
 import { getEventClient } from './eventClient';
+import { resetStateSync } from './stateSync';
 import { cancelPendingEdits } from './useFileEdits';
 import { getRecordManager } from './useRecord';
 
@@ -100,11 +102,14 @@ export type DeleteResult = 'deleted' | 'failed' | 'browser-failed';
 export async function deleteMyDataDetailed(): Promise<DeleteResult> {
   const res = await call('DELETE');
   if (!res || !res.ok) return 'failed';
+  // Before the session is forgotten and the record reset, so nothing queued for the old learner mints a new session.
+  resetStateSync();
   forgetSession();
   clearOfficial();
   getEventClient().discard();
   // Only now, so a failed delete leaves edits that were waiting to be saved alone.
   cancelPendingEdits();
+  dataDeleted();
   try {
     await getRecordManager().reset();
   } catch {

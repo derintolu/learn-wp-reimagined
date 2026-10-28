@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'preact/hooks';
 import { phaseOn } from '../config';
+import { onDataDeleted } from '../record/deleted';
 import type { PathId } from '../shared/types';
 
 export interface BadgeSummary {
@@ -62,5 +63,7 @@ export function useBadges(active = true): BadgeSummary[] | null {
       live = false;
     };
   }, [active]);
+  // Badges and claim links belong to the deleted learner.
+  useEffect(() => onDataDeleted(() => setBadges(null)), []);
   return badges;
 }

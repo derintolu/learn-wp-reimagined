@@ -80,6 +80,8 @@ class StateSync {
   private synced = new Map<string, string>();
   private etag: Record<StateKind, string | null> = { files: null, resume: null };
   private lesson: string | undefined;
+  /** Bumped by reset, so a write already queued for the old learner does nothing. */
+  private epoch = 0;
   private off: () => void;
 
   constructor(private manager: RecordManager) {
@@ -108,6 +110,19 @@ class StateSync {
     clearTimeout(this.timer);
   }
 
+  /** The learner's data was deleted: forget everything about the old documents, and write nothing for them. */
+  reset() {
+    clearTimeout(this.timer);
+    this.epoch++;
+    this.dirty = false;
+    this.rev++;
+    this.primed = false;
+    this.synced = new Map();
+    this.etag = { files: null, resume: null };
+    // manager.reset() then emits a record with no lesson, which must not count as leaving one.
+    this.lesson = undefined;
+  }
+
   /** A file was just written to the local record. */
   edited(_file: string) {
     this.primed = true;
@@ -124,8 +139,10 @@ class StateSync {
   }
 
   private run(kinds: StateKind[]) {
+    const epoch = this.epoch;
     this.chain = this.chain.then(async () => {
       for (const kind of kinds) {
+        if (epoch !== this.epoch) return;
         try {
           if (kind === 'files') await this.syncFiles();
           else await this.syncResume();
@@ -215,6 +232,12 @@ export function startStateSync(manager: RecordManager): () => void {
     if (active === s) active = null;
     setTooBig(false);
   };
+}
+
+/** After "Delete my data": drop pending writes, ETags and the too-big notice, before the local record is reset. */
+export function resetStateSync(): void {
+  active?.reset();
+  setTooBig(false);
 }
 
 /** useFileEdits calls this after a file has been written to the local record. */
