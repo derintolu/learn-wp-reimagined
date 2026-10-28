@@ -1,4 +1,5 @@
 import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
+import { XAPI_BASE } from '../../src/shared/xapi';
 import { SERVER_FLAGS } from '../../functions/_lib/config';
 import { createSqliteD1 } from '../../dev/sqliteD1';
 import { ensureSchema } from '../../functions/_lib/db';
@@ -15,7 +16,7 @@ let env: Env;
 let urls: string[];
 
 const learner = () =>
-  new Response(JSON.stringify({ user_id: 77, actor: { objectType: 'Agent', account: { homePage: 'https://ledger.example', name: 'a1' } } }), { status: 201 });
+  new Response(JSON.stringify({ user_id: 77, actor: { objectType: 'Agent', account: { homePage: XAPI_BASE, name: 'a1' } } }), { status: 201 });
 const progress = () =>
   new Response(
     JSON.stringify({ courses: [{ course: 13, completed: [101, 102, 999], tested_out: [103], course_completed: false, certificate: null }] }),

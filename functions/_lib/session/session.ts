@@ -1,7 +1,8 @@
 import type { Env } from '../env';
 import { ensureSchema } from '../db';
 import { SERVER_FLAGS } from '../config';
-import { ConnectorClient } from '../ledger/connector';
+import { ConnectorClient, ConnectorUnavailable } from '../ledger/connector';
+import { XAPI_BASE } from '../../../src/shared/xapi';
 
 export const SESSION_COOKIE = 'lwr_sid';
 export const SESSION_IDLE_MS = 180 * 24 * 60 * 60 * 1000;
@@ -91,6 +92,14 @@ export async function createSession(
   // With senseiLearners on, nothing is recorded until a WordPress learner exists: ConnectorUnavailable
   // propagates before any row is written.
   const learner = SERVER_FLAGS.senseiLearners ? await connector.createLearner() : null;
+  // Learning Ledger names the actor by WordPress home_url() and maps an actor back to its user only on that
+  // homePage; every official statement and GET /api/session name XAPI_BASE. A WordPress whose `home` option is
+  // another host would make two identities, so the learner is refused (and removed) until `home` is fixed.
+  if (learner && learner.actor.homePage !== XAPI_BASE) {
+    console.error('sensei learner refused: the ledger actor homePage is not XAPI_BASE; set the WordPress home option');
+    await connector.deleteLearner(learner.userId).catch(() => {});
+    throw new ConnectorUnavailable('ledger actor homePage is not the site');
+  }
   const session: Session = {
     sidHash,
     actorName: learner ? learner.actor.name : (actorName ?? crypto.randomUUID()),

@@ -5,7 +5,7 @@ import { chmodSync } from 'node:fs';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import { createHash } from 'node:crypto';
 import { generateKeys, generateLrsKey, readConnectorEnv } from '../../scripts/keys';
-import { LRS_STATUS_URL, lrsStatus, provisionSpaceA, provisionSpaceB } from '../../scripts/provision';
+import { HOME_CHECK, LRS_STATUS_URL, lrsStatus, provisionSpaceA, provisionSpaceB } from '../../scripts/provision';
 import { httpSpacefastApi, type SpacefastApi } from '../../scripts/lib/spacefast';
 import { ConnectorError, ConnectorUnavailable, type LedgerStatus } from '../../functions/_lib/ledger/connector';
 
@@ -48,6 +48,7 @@ describe('provisionSpaceA', () => {
       ['learning-ledger', 'role', 'enable', 'connector'],
       ['learning-ledger', 'connector', 'trust-key', '--id=course-server', '--public-key=' + PUB],
       ['learning-ledger', 'program', 'update', '7', '--course-server-url=https://learnwp.sqwrlz.com/api'],
+      ['eval', HOME_CHECK],
     ]);
     expect(report.every((s) => s.state === 'done')).toBe(true);
     expect(reads).toBeGreaterThanOrEqual(report.length);
@@ -60,10 +61,21 @@ describe('provisionSpaceA', () => {
     expect(f.installs()).toEqual([
       ['rewrite', 'structure', '/%postname%/'],
       ['learning-ledger', 'program', 'update', '7', '--course-server-url=https://learnwp.sqwrlz.com/api'],
+      ['eval', HOME_CHECK],
     ]);
     expect(report.filter((s) => s.state === 'skipped').map((s) => s.name)).toEqual([
       'sensei', 'certificates', 'certificates-installer', 'ledger', 'backend-view', 'role', 'trust-key',
     ]);
+  });
+
+  it('checks, never sets, that WordPress home is the site, and fails the run when it is not', async () => {
+    // Learning Ledger names learner actors by untrailingslashit(home_url()); official statements name XAPI_BASE.
+    expect(HOME_CHECK).toContain("untrailingslashit( home_url() ) !== 'https://learnwp.sqwrlz.com'");
+    expect(HOME_CHECK).toContain('WP_CLI::error');
+    expect(HOME_CHECK).not.toMatch(/update_option|option update/);
+    const f = fake({ failOn: `eval ${HOME_CHECK}` });
+    const report = await provisionSpaceA(f.api, async () => EMPTY, cfg);
+    expect(report.at(-1)).toMatchObject({ name: 'home', state: 'failed' });
   });
 
   it('stops and reports on the first failed step', async () => {
@@ -99,7 +111,7 @@ describe('provisionSpaceA', () => {
   it('skips the program step when no program id is given', async () => {
     const f = fake();
     const report = await provisionSpaceA(f.api, async () => EMPTY, { ...cfg, programId: undefined });
-    expect(report.at(-1)).toMatchObject({ name: 'content-ping', state: 'skipped' });
+    expect(report.find((s) => s.name === 'content-ping')).toMatchObject({ state: 'skipped' });
   });
 
   it('no argument contains a value from .env.server other than the public key', async () => {

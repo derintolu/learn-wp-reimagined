@@ -150,8 +150,8 @@ describe('sessions', () => {
 describe('sessions bound to Sensei learners', () => {
   const SEED_HEX = '9d61b19deffd5a60ba844af492ec2cc44449c5697b326919703bac031cae7f60';
   const SIGNING = Buffer.from('302e020100300506032b657004220420' + SEED_HEX, 'hex').toString('base64');
-  const learner = (name = 'ledger-actor-1', id = 77) =>
-    new Response(JSON.stringify({ user_id: id, actor: { objectType: 'Agent', account: { homePage: 'https://ledger.example', name } } }), { status: 201 });
+  const learner = (name = 'ledger-actor-1', id = 77, homePage = XAPI_BASE) =>
+    new Response(JSON.stringify({ user_id: id, actor: { objectType: 'Agent', account: { homePage, name } } }), { status: 201 });
   let calls: Array<{ method: string; url: string }>;
   const stub = (handler: (method: string, url: string) => Response) => {
     calls = [];
@@ -174,11 +174,34 @@ describe('sessions bound to Sensei learners', () => {
     stub(() => learner());
     const res = await post();
     expect(res.status).toBe(200);
-    expect(((await res.json()) as any).actor).toEqual({ homePage: 'https://ledger.example', name: 'ledger-actor-1' });
+    expect(((await res.json()) as any).actor).toEqual({ homePage: XAPI_BASE, name: 'ledger-actor-1' });
     const row = await db.prepare('SELECT actor_name, wp_user_id FROM sessions').first<any>();
     expect(row.actor_name).toBe('ledger-actor-1');
     expect(Number(row.wp_user_id)).toBe(77);
     expect(calls).toHaveLength(1);
+  });
+
+  it('refuses a learner whose actor homePage is not the site (503, learner deleted, no session row)', async () => {
+    // Learning Ledger names the actor by WordPress home_url(); every official statement names XAPI_BASE.
+    stub((m) => (m === 'POST' ? learner('ledger-actor-1', 77, 'https://other-host.example') : new Response('{}', { status: 200 })));
+    const log = vi.spyOn(console, 'error').mockImplementation(() => {});
+    const res = await post();
+    expect(res.status).toBe(503);
+    expect(((await res.json()) as any).error.code).toBe('connector-unavailable');
+    expect(res.headers.get('set-cookie')).toBeNull();
+    expect(await count()).toBe(0);
+    expect(calls.map((c) => c.method)).toEqual(['POST', 'DELETE']);
+    expect(calls[1].url).toMatch(/learners\/77$/);
+    expect(log).toHaveBeenCalled();
+    log.mockRestore();
+  });
+
+  it('GET answers the same actor POST did', async () => {
+    stub(() => learner());
+    const created = await post();
+    const posted = ((await created.json()) as any).actor;
+    const got = await read(withCookie(cookieOf(created)), ctx());
+    expect(((await got.json()) as any).actor).toEqual(posted);
   });
 
   it('connector down gives 503 and no session row', async () => {

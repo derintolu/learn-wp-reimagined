@@ -6,6 +6,7 @@
 import { ConnectorError, type LedgerStatus } from '../functions/_lib/ledger/connector';
 import type { Env } from '../functions/_lib/env';
 import { httpSpacefastApi, type SpacefastApi } from './lib/spacefast';
+import { XAPI_BASE } from '../src/shared/xapi';
 
 export interface StepReport {
   name: string;
@@ -27,6 +28,13 @@ export interface ProvisionConfig {
 }
 
 export const KEY_ID = 'course-server';
+/**
+ * Fails (WP_CLI::error, exit 1) unless WordPress `home` is the site. Learning Ledger names learner actors by
+ * untrailingslashit(home_url()) and maps an actor back to its user only on that homePage, while every official
+ * statement names XAPI_BASE; the course server refuses learners whose homePage differs. A check only: changing
+ * `home` is the owner's call.
+ */
+export const HOME_CHECK = `if ( untrailingslashit( home_url() ) !== '${XAPI_BASE}' ) { WP_CLI::error( 'WordPress home is ' . home_url() . ', not ${XAPI_BASE}.' ); }`;
 export const PING_BASE = 'https://learnwp.sqwrlz.com/api';
 
 const EMPTY: LedgerStatus = { versions: {}, roles: [], sensei: null, certificates: null, sodium: null, trustedKeys: [] };
@@ -99,6 +107,7 @@ export async function provisionSpaceA(
     cfg.programId === undefined
       ? { name: 'content-ping', skip: () => true, unavailable: true }
       : { name: 'content-ping', args: ['learning-ledger', 'program', 'update', String(cfg.programId), `--course-server-url=${cfg.pingBase ?? PING_BASE}`], skip: () => false },
+    { name: 'home', args: ['eval', HOME_CHECK], skip: () => false },
   ];
 
   return runSteps(steps, read, run);
