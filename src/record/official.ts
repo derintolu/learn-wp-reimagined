@@ -3,10 +3,14 @@ import { phaseOn } from '../config';
 import { LRS_ORIGIN } from '../badges/badges';
 import type { OfficialRecord } from '../shared/official';
 
-/** The learner's official record from the course server, or null while it cannot be read. */
-export async function fetchOfficial(): Promise<OfficialRecord | null> {
+/** 'none': the learner has no session yet (or just deleted it), so nothing is recorded. */
+export type OfficialRead = OfficialRecord | 'none' | null;
+
+/** The learner's official record from the course server; 'none' with no session; null while it cannot be read. */
+export async function fetchOfficial(): Promise<OfficialRead> {
   try {
     const res = await fetch('/api/record', { credentials: 'same-origin' });
+    if (res.status === 401) return 'none';
     if (!res.ok) return null;
     const j = (await res.json()) as Partial<OfficialRecord> | null;
     if (!j || !Array.isArray(j.completed) || !Array.isArray(j.testedOut)) return null;
@@ -30,10 +34,30 @@ export async function mintViewUrl(): Promise<string | null> {
   }
 }
 
-let shared: { official: OfficialRecord | null; version: number } = { official: null, version: 0 };
+/** Save the learner's record export, checking the answer first so an error is never saved as the record. */
+export async function downloadOfficial(): Promise<boolean> {
+  try {
+    const res = await fetch('/api/record/export', { credentials: 'same-origin' });
+    if (!res.ok) return false;
+    const name = /filename="([^"]+)"/.exec(res.headers.get('content-disposition') ?? '')?.[1] ?? 'learn-wp-reimagined-record.json';
+    const url = URL.createObjectURL(await res.blob());
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = name;
+    document.body.appendChild(a);
+    a.click();
+    a.remove();
+    setTimeout(() => URL.revokeObjectURL(url), 10_000);
+    return true;
+  } catch {
+    return false;
+  }
+}
+
+let shared: { official: OfficialRecord | null; none: boolean; version: number } = { official: null, none: false, version: 0 };
 const listeners = new Set<() => void>();
-function publish(official: OfficialRecord | null) {
-  shared = { official, version: shared.version + 1 };
+function publish(read: OfficialRead) {
+  shared = { official: read === 'none' ? null : read, none: read === 'none', version: shared.version + 1 };
   listeners.forEach((fn) => fn());
 }
 /** Forget the official record held here, e.g. after the learner's data is deleted. */
@@ -42,14 +66,15 @@ let inflight = 0;
 const notify = () => listeners.forEach((fn) => fn());
 export const clearOfficial = (): void => {
   seq++;
-  publish(null);
+  // Only called once the server has deleted the session, so there is nothing recorded now.
+  publish('none');
 };
 
 /**
  * The official record, re-read when the window regains focus. A read that fails clears what was held,
  * so an old record is never shown as current. Does nothing with the phase off.
  */
-export function useOfficialRecord(active = true): { official: OfficialRecord | null; version: number; loading: boolean; refresh: () => void } {
+export function useOfficialRecord(active = true): { official: OfficialRecord | null; none: boolean; version: number; loading: boolean; refresh: () => void } {
   const [, force] = useState(0);
   const [tick, setTick] = useState(0);
   const refresh = useCallback(() => setTick((t) => t + 1), []);
@@ -76,5 +101,5 @@ export function useOfficialRecord(active = true): { official: OfficialRecord | n
     window.addEventListener('focus', refresh);
     return () => window.removeEventListener('focus', refresh);
   }, [on, refresh]);
-  return { official: on ? shared.official : null, version: shared.version, loading: on && inflight > 0, refresh };
+  return { official: on ? shared.official : null, none: on && shared.none, version: shared.version, loading: on && inflight > 0, refresh };
 }

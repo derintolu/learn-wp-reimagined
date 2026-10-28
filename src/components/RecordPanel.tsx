@@ -10,7 +10,7 @@ import { deleteMyDataDetailed } from '../record/session';
 import { stateSyncMessage, subscribeStateSync } from '../record/stateSync';
 import type { AttachResult } from '../record/store';
 import { cancelPendingEdits, flushPendingEdits } from '../record/useFileEdits';
-import { mintViewUrl, useOfficialRecord } from '../record/official';
+import { downloadOfficial, mintViewUrl, useOfficialRecord } from '../record/official';
 import { useRecord } from '../record/useRecord';
 import type { LearningRecord } from '../shared/record';
 import { revokeAllAgents } from '../agent/client';
@@ -39,6 +39,8 @@ export const BROWSER_NOT_CLEARED =
   "Your data was deleted on this site, but this browser's copy couldn't be cleared. Close this tab's site data to finish.";
 
 export const LRS_FAILED = "We couldn't open the LRS right now. Try again later.";
+
+export const DOWNLOAD_FAILED = "We couldn't download your record right now. Try again later.";
 
 /** Where the record and the learner's words go, for each flag state. Every sentence here must stay true with the flags as they are. */
 export const SHADOW_PANEL_COPY = 'While we test a separate record store, a copy of your steps, including the answers you type to checkpoints, is kept on a second server. "Delete my data" removes it.';
@@ -173,7 +175,7 @@ export function RecordPanel() {
   const fileRef = useRef<HTMLInputElement>(null);
   const badges = useBadges(open);
   const officialOn = phaseOn('officialRecord');
-  const { official, version: officialVersion, loading: officialLoading, refresh: refreshOfficial } = useOfficialRecord(open);
+  const { official, none: nothingRecorded, version: officialVersion, loading: officialLoading, refresh: refreshOfficial } = useOfficialRecord(open);
   const folderOk = supportsFolder();
   const loc = useLocation() as ReturnType<typeof useLocation> | undefined;
 
@@ -236,6 +238,15 @@ export function RecordPanel() {
     try {
       const r = await revokeAllAgents();
       setMsg(r.ok ? { tone: 'ok', text: AGENTS_DISCONNECTED } : { tone: 'error', text: DISCONNECT_FAILED });
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  async function downloadMine() {
+    setBusy(true);
+    try {
+      if (!(await downloadOfficial())) setMsg({ tone: 'error', text: DOWNLOAD_FAILED });
     } finally {
       setBusy(false);
     }
@@ -369,16 +380,25 @@ export function RecordPanel() {
                 </p>
               ) : (
                 <p class="record__summary" role="status">
-                  {officialLoading ? 'Reading your official record...' : "We couldn't read your official record right now."}
+                  {officialLoading
+                    ? 'Reading your official record...'
+                    : nothingRecorded
+                      ? 'Nothing recorded yet.'
+                      : "We couldn't read your official record right now."}
                 </p>
               )}
               <div class="record__actions record__actions--stack">
-                <a class="button button--quiet" href="/api/record/export" download>
-                  Download my record
-                </a>
-                <button type="button" class="button button--quiet" onClick={viewInLrs} disabled={busy}>
-                  View in the LRS
-                </button>
+                {/* With no session there is nothing to download or view, and Sensei has no learner. */}
+                {!nothingRecorded && (
+                  <>
+                    <button type="button" class="button button--quiet" onClick={() => !busy && downloadMine()} aria-disabled={busy || undefined}>
+                      Download my record
+                    </button>
+                    <button type="button" class="button button--quiet" onClick={() => !busy && viewInLrs()} aria-disabled={busy || undefined}>
+                      View in the LRS
+                    </button>
+                  </>
+                )}
                 <button
                   type="button"
                   class="button button--quiet"

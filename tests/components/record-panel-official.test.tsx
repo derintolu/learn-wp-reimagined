@@ -15,10 +15,14 @@ const official = { completed: [ids[0], ids[1]], testedOut: [ids[2]], carriedOver
 
 let recordCalls = 0;
 let gone = false;
+let failing = false;
+let exportStatus = 200;
 let viewUrl = 'https://lrs.sqwrlz.com/view/abc';
 function stub() {
   recordCalls = 0;
   gone = false;
+  failing = false;
+  exportStatus = 200;
   vi.stubGlobal(
     'fetch',
     vi.fn(async (url: string, init: RequestInit = {}) => {
@@ -27,6 +31,8 @@ function stub() {
         return new Response(JSON.stringify({ deleted: true }), { status: 200 });
       }
       if (url === '/api/record' && gone) return new Response('{}', { status: 401 });
+      if (url === '/api/record' && failing) return new Response('{}', { status: 503 });
+      if (url === '/api/record/export') return new Response(exportStatus === 200 ? '{"statements":[]}' : '{"error":{}}', { status: exportStatus });
       if (url === '/api/record') {
         recordCalls++;
         return new Response(JSON.stringify(official), { status: 200 });
@@ -64,7 +70,7 @@ describe('the official record in the record panel', () => {
   it('panel shows completed and tested-out counts from the server', async () => {
     const panel = await openPanel();
     expect(await screen.findByText('2 lessons completed, 1 lesson tested out.')).toBeTruthy();
-    expect(panel.querySelector('a[href="/api/record/export"]')?.textContent).toBe('Download my record');
+    expect(within(panel).getByRole('button', { name: 'Download my record' })).toBeTruthy();
     expect(await screen.findByRole('heading', { name: 'What Sensei sees' })).toBeTruthy();
   });
 
@@ -110,7 +116,8 @@ describe('the official record in the record panel', () => {
       await waitFor(() => expect(screen.queryByText('2 lessons completed, 1 lesson tested out.')).toBeNull());
       expect(screen.queryByRole('heading', { name: 'What Sensei sees' })).toBeNull();
       fireEvent(window, new Event('focus'));
-      await screen.findByText(/couldn't read your official record/);
+      await screen.findByText('Nothing recorded yet.');
+      expect(screen.queryByText(/couldn't read your official record/)).toBeNull();
       expect(screen.queryByText('2 lessons completed, 1 lesson tested out.')).toBeNull();
     } finally {
       (FEATURES as { sessions: boolean }).sessions = false;
@@ -120,7 +127,7 @@ describe('the official record in the record panel', () => {
   it('a failed refresh does not keep the old record as current', async () => {
     await openPanel();
     await screen.findByText('2 lessons completed, 1 lesson tested out.');
-    gone = true;
+    failing = true;
     fireEvent(window, new Event('focus'));
     await screen.findByText(/couldn't read your official record/);
     expect(screen.queryByText('2 lessons completed, 1 lesson tested out.')).toBeNull();
@@ -136,6 +143,34 @@ describe('the official record in the record panel', () => {
     await screen.findByText('3 lessons completed, 1 lesson tested out.');
     await waitFor(() => expect(screen.getByRole('button', { name: 'Refresh' }).getAttribute('aria-disabled')).toBeNull());
     official.completed = [ids[0], ids[1]];
+  });
+
+  it('a learner with no session sees "Nothing recorded yet." and no Download, LRS or Sensei', async () => {
+    gone = true;
+    const panel = await openPanel();
+    await screen.findByText('Nothing recorded yet.');
+    expect(screen.queryByText(/couldn't read your official record/)).toBeNull();
+    expect(within(panel).queryByRole('button', { name: 'Download my record' })).toBeNull();
+    expect(within(panel).queryByRole('button', { name: 'View in the LRS' })).toBeNull();
+    expect(screen.queryByRole('heading', { name: 'What Sensei sees' })).toBeNull();
+    expect(within(panel).getByRole('button', { name: 'Refresh' })).toBeTruthy();
+  });
+
+  it('Download my record saves the export only when the server answers OK', async () => {
+    const saved: string[] = [];
+    const click = vi.spyOn(HTMLAnchorElement.prototype, 'click').mockImplementation(function (this: HTMLAnchorElement) {
+      saved.push(this.download);
+    });
+    vi.stubGlobal('URL', Object.assign(URL, { createObjectURL: () => 'blob:x', revokeObjectURL: () => {} }));
+    const panel = await openPanel();
+    await screen.findByText('2 lessons completed, 1 lesson tested out.');
+    fireEvent.click(within(panel).getByRole('button', { name: 'Download my record' }));
+    await waitFor(() => expect(saved).toEqual(['learn-wp-reimagined-record.json']));
+    exportStatus = 503;
+    fireEvent.click(within(panel).getByRole('button', { name: 'Download my record' }));
+    await screen.findByText("We couldn't download your record right now. Try again later.");
+    expect(saved).toHaveLength(1);
+    click.mockRestore();
   });
 
   it('is unchanged with the phase off', async () => {
