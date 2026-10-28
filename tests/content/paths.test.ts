@@ -4,6 +4,7 @@ import { runChecks } from '../../src/shared/checks';
 import { newRecord } from '../../src/shared/record';
 import { workspaceFiles } from '../../src/studio/workspace';
 import { SOLUTIONS } from './solutions';
+import { hasNestedQuantifier } from '../../vendor/course-xapi-mcp/core/checks.ts';
 
 /** The same checks for every live path in the real bundle. Paths join automatically when they go live. */
 const c = buildContent('content');
@@ -14,6 +15,18 @@ describe('there is at least one live path', () => {
   it('has live paths, block theme among them', () => {
     expect(live.length).toBeGreaterThan(0);
     expect(live.map((p) => p.id)).toContain('block-theme');
+  });
+});
+
+describe('regex checks the course-xapi-mcp server runs', () => {
+  it('no regex check has the nested-quantifier shape the standard refuses to run (it would always fail there)', () => {
+    const refused: string[] = [];
+    for (const l of Object.values(c.lessons)) {
+      for (const k of [...(l.bug?.fixChecks ?? []), ...(l.checkpoint?.checks ?? [])]) {
+        if (k.type === 'regex' && hasNestedQuantifier(k.pattern)) refused.push(`${l.id}: ${k.pattern}`);
+      }
+    }
+    expect(refused).toEqual([]);
   });
 });
 

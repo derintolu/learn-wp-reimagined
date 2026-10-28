@@ -96,11 +96,11 @@ bug:
   fixChecks:
     - type: regex
       file: pages/about.html
-      pattern: '^(?![\s\S]*<!--\s*wp:paragraph(?:\s+\{[^}]*\})?\s*-->(?:(?!<!--\s*/?wp:)[\s\S])*(?:<!--\s*wp:|$))'
+      pattern: '^(?![\s\S]*<!--\s*wp:paragraph(?:\s+\{[^}]*\})?\s*-->(?:(?!<!--\s{0,100}/?wp:)[\s\S])*(?:<!--\s*wp:|$))'
       message: Every paragraph's opening wp:paragraph comment needs a closing /wp:paragraph comment before the next block starts. Count the opening and closing comments.
     - type: regex
       file: pages/about.html
-      pattern: '^(?![\s\S]*<!--\s*/wp:paragraph\s*-->(?:(?!<!--\s*wp:paragraph\b)[\s\S])*<!--\s*/wp:paragraph\s*-->)'
+      pattern: '^(?![\s\S]*<!--\s*/wp:paragraph\s*-->(?:(?!<!--\s{0,100}wp:paragraph\b)[\s\S])*<!--\s*/wp:paragraph\s*-->)'
       message: There should be exactly one closing comment for each paragraph. Look for an extra one.
     - type: regex
       file: pages/about.html
@@ -133,15 +133,15 @@ checkpoint:
       message: Close your heading block with a /wp:heading comment, straight after the heading's HTML.
     - type: regex
       file: pages/about.html
-      pattern: '(?:<!--\s*wp:heading(?:\s+\{(?![^}]*"level")[^}]*\})?\s*-->\s*<h2\b[^>]*>(?:\s|<(?!/h[1-6]>)[^>]*>)*[^\s<](?:(?!</h[1-6]>)[\s\S])*</h2>|<!--\s*wp:heading\s+\{[^}]*"level"\s*:\s*([2-6])\b[^}]*\}\s*-->\s*<h\1\b[^>]*>(?:\s|<(?!/h[1-6]>)[^>]*>)*[^\s<](?:(?!</h[1-6]>)[\s\S])*</h\1>)\s*<!--\s*/wp:heading\s*-->'
+      pattern: '(?:<!--\s*wp:heading(?:\s+\{(?![^}]*"level")[^}]*\})?\s*-->\s*<h2\b[^>]*>(?:\s|<(?!/h[1-6]>)[^>]{0,10000}>)*[^\s<](?:(?!</h[1-6]>)[\s\S])*</h2>|<!--\s*wp:heading\s+\{[^}]*"level"\s*:\s*([2-6])\b[^}]*\}\s*-->\s*<h\1\b[^>]*>(?:\s|<(?!/h[1-6]>)[^>]{0,10000}>)*[^\s<](?:(?!</h[1-6]>)[\s\S])*</h\1>)\s*<!--\s*/wp:heading\s*-->'
       message: Between the heading's two comments, put a heading element with some text. A plain wp:heading comment means an h2. For h3 to h6, the opening comment needs the matching level setting, like {"level":3}.
     - type: regex
       file: pages/about.html
-      pattern: '<!--\s*/wp:heading\s*-->\s*<!--\s*wp:paragraph\s*-->\s*<p>(?:\s|<(?!/p>)[^>]*>)*[^\s<](?:(?!</p>)[\s\S])*</p>\s*<!--\s*/wp:paragraph\s*-->'
+      pattern: '<!--\s*/wp:heading\s*-->\s*<!--\s*wp:paragraph\s*-->\s*<p>(?:\s|<(?!/p>)[^>]{0,10000}>)*[^\s<](?:(?!</p>)[\s\S])*</p>\s*<!--\s*/wp:paragraph\s*-->'
       message: Straight after the heading, add a paragraph block with some text, with its opening and closing comments.
     - type: regex
       file: pages/about.html
-      pattern: '^(?![\s\S]*<!--\s*wp:paragraph(?:\s+\{[^}]*\})?\s*-->(?:(?!<!--\s*/?wp:)[\s\S])*(?:<!--\s*wp:|$))'
+      pattern: '^(?![\s\S]*<!--\s*wp:paragraph(?:\s+\{[^}]*\})?\s*-->(?:(?!<!--\s{0,100}/?wp:)[\s\S])*(?:<!--\s*wp:|$))'
       message: Every paragraph needs its closing comment before the next block starts.
     - type: regex
       file: pages/about.html
