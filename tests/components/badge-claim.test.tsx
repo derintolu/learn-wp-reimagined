@@ -1,6 +1,6 @@
 // @vitest-environment happy-dom
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import { cleanup, fireEvent, render, screen, waitFor, within } from '@testing-library/preact';
+import { act, cleanup, fireEvent, render, screen, waitFor, within } from '@testing-library/preact';
 import { LocationProvider } from 'preact-iso';
 import { FEATURES } from '../../src/config';
 import { content } from '../../src/content';
@@ -71,6 +71,18 @@ describe('badge claim page', () => {
     fireEvent.click(await screen.findByRole('button', { name: 'Claim on the LRS' }));
     await screen.findByRole('alert');
     expect(assign).not.toHaveBeenCalled();
+  });
+
+  it('coming Back from the LRS (bfcache pageshow) leaves Claim usable', async () => {
+    render(<BadgeClaim />);
+    const btn = await screen.findByRole('button', { name: 'Claim on the LRS' });
+    fireEvent.click(btn);
+    await waitFor(() => expect(assign).toHaveBeenCalled());
+    expect((btn as HTMLButtonElement).disabled).toBe(true);
+    act(() => {
+      window.dispatchEvent(Object.assign(new Event('pageshow'), { persisted: true }));
+    });
+    expect((screen.getByRole('button', { name: 'Claim on the LRS' }) as HTMLButtonElement).disabled).toBe(false);
   });
 
   it('says so when no link could be made', async () => {

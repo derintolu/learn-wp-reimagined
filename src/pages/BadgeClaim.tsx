@@ -41,6 +41,13 @@ function Claim() {
     if (view.state !== 'loading') heading.current?.focus();
   }, [view.state]);
 
+  // Back from the LRS can restore this page from the back-forward cache with Claim still busy.
+  useEffect(() => {
+    const onShow = (e: PageTransitionEvent) => e.persisted && setBusy(false);
+    window.addEventListener('pageshow', onShow);
+    return () => window.removeEventListener('pageshow', onShow);
+  }, []);
+
   async function claim(badge: BadgeSummary) {
     setBusy(true);
     setProblem(null);
