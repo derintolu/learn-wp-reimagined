@@ -38,6 +38,24 @@ describe('/how-it-works', () => {
     expect(screen.getByRole('link', { name: 'GPL-2.0-or-later' }).getAttribute('href')).toBe('https://www.gnu.org/licenses/old-licenses/gpl-2.0.html');
   });
 
+  it('says the connector runs the course-xapi-mcp reference server, with no stale learning-mcp 0.1', () => {
+    render(<HowItWorks />);
+    const t = text();
+    expect(t).toContain('It runs the course-xapi-mcp reference server');
+    expect(t).toContain('Your record there is a practice record. Badges are off.');
+    expect(t).toContain('on the course-xapi-mcp reference server');
+    expect(t).not.toContain('learning-mcp 0.1');
+    expect(t).not.toContain('moves onto the reference server next');
+  });
+
+  it('links the 0.2 spec draft and cites a source file that exists', () => {
+    const { container } = render(<HowItWorks />);
+    const hrefs = Array.from(container.querySelectorAll('a')).map((a) => a.getAttribute('href'));
+    expect(hrefs).toContain('https://course-xapi-mcp.sqwrlz.com/spec/0.2/');
+    expect(readFileSync('functions/_lib/mcp/practiceStore.ts', 'utf8')).toContain('MCP_TTL_MS');
+    expect(text()).toContain('functions/_lib/mcp/practiceStore.ts');
+  });
+
   it('labels the planted bug as the lessons do, and says who planted it', () => {
     render(<HowItWorks />);
     expect(text()).toContain('AI-written code. We planted one bug. Find it.');
@@ -174,7 +192,7 @@ describe('/how-it-works', () => {
       'The studio': STATUS.live,
       'The MCP connector': STATUS.live,
       'Record handles': STATUS.live,
-      'The course-xapi-mcp reference server': STATUS.public,
+      'The course-xapi-mcp reference server': STATUS.live,
       'Learning Ledger': STATUS.progress,
       'The LRS at lrs.sqwrlz.com': STATUS.idle,
       'Sensei as the course back end': STATUS.next,

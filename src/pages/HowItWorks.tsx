@@ -46,7 +46,7 @@ const SOURCES = [
   { id: 'src-prompts', file: 'functions/_lib/prompts.ts', what: 'What the AI is told it may and may not do.' },
   { id: 'src-budget', file: 'functions/_lib/budget.ts', what: 'The monthly cap and the daily sub-cap.' },
   { id: 'src-gate', file: 'functions/_lib/mcp/gate.ts', what: 'The limits in front of the MCP server.' },
-  { id: 'src-store', file: 'functions/_lib/mcp/recordStore.ts', what: 'How long an agent record is kept.' },
+  { id: 'src-store', file: 'functions/_lib/mcp/practiceStore.ts', what: 'How long an agent record is kept.' },
   { id: 'src-record', file: 'docs/record-format.md', what: 'The learning record format and its xAPI statements.' },
 ] as const;
 
@@ -112,8 +112,9 @@ export function HowItWorks() {
       status: 'live',
       body: (
         <>
-          <code>{MCP_URL}</code>. It runs learning-mcp 0.1, the earlier draft that course-xapi-mcp grew out of, with the
-          same tools for beats, code checks, checkpoints and branches. <a href="/connect">Connect your AI</a>.
+          <code>{MCP_URL}</code>. It runs the course-xapi-mcp reference server, with the same tools for beats,
+          code checks, checkpoints and branches. Your record there is a practice record. Badges are off.{' '}
+          <a href="/connect">Connect your AI</a>.
         </>
       ),
     },
@@ -130,11 +131,11 @@ export function HowItWorks() {
     },
     {
       name: 'The course-xapi-mcp reference server',
-      status: 'public',
+      status: 'live',
       body: (
         <>
-          Built, tested and on GitHub. The course server here still runs learning-mcp 0.1, and moves onto the reference
-          server next.
+          Built, tested and on GitHub. It now runs the connector here. Read the{' '}
+          <a href="https://course-xapi-mcp.sqwrlz.com/spec/0.2/">spec draft 0.2</a>.
         </>
       ),
     },
@@ -484,7 +485,7 @@ export function HowItWorks() {
       >
         <p>
           The path one lesson takes in your AI once the backend is wired up. Steps 2 to 4 run on this site today, on
-          the learning-mcp server.
+          the course-xapi-mcp reference server.
         </p>
       </Band>
 
