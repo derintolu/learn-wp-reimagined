@@ -7,9 +7,9 @@ import { preloadCodeEditor } from '../components/LazyCodeEditor';
 import { CompletedSummary } from '../components/CompletedSummary';
 import { RESTORED_EVENT, SaveWarning } from '../components/RecordPanel';
 import { FEATURES } from '../config';
-import { content } from '../content';
+import { adoptPending, content, prefetchLatest } from '../content';
 import { getEventClient } from '../record/eventClient';
-import { useRecord } from '../record/useRecord';
+import { peekRecordManager, useRecord } from '../record/useRecord';
 import { nextLessonId } from '../shared/engine';
 import type { Lesson as LessonT } from '../shared/types';
 import { BugCard } from '../studio/BugCard';
@@ -33,6 +33,16 @@ export function Lesson() {
     window.addEventListener(RESTORED_EVENT, bump);
     return () => window.removeEventListener(RESTORED_EVENT, bump);
   }, []);
+  // A newer course bundle is adopted when a lesson opens (a new id), never on a restart or restore of the open one.
+  const openedId = useRef<string | null>(null);
+  if (FEATURES.wordpressContent && openedId.current !== params.lessonId) {
+    openedId.current = params.lessonId;
+    if (adoptPending()) peekRecordManager()?.setContent(content);
+  }
+  // Check for the next update in the background; it is adopted at the next lesson open.
+  useEffect(() => {
+    if (FEATURES.wordpressContent) void prefetchLatest();
+  }, [params.lessonId]);
   if (!has(content.lessons, params.lessonId)) return <NotFound />;
   const lesson = content.lessons[params.lessonId];
   return <LessonView key={`${lesson.id}:${round}`} lesson={lesson} onRestart={() => setRound((r) => r + 1)} />;

@@ -4,6 +4,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { act, cleanup, fireEvent, render, screen, waitFor, within } from '@testing-library/preact';
 import { EditorView } from '@codemirror/view';
 
+const wp = vi.hoisted(() => ({ pending: null as unknown, current: null as unknown }));
 vi.mock('../../src/content', async () => {
   const { buildContent } = await import('../../scripts/build-content');
   const c = buildContent('tests/fixtures/content');
@@ -13,7 +14,19 @@ vi.mock('../../src/content', async () => {
     goal: 'Set a content width.',
     content: 'Layout widths live under `settings.layout`.',
   });
-  return { content: c };
+  return {
+    get content() {
+      return wp.current ?? c;
+    },
+    // The same shape as the real module: swap what is ready, never wait.
+    adoptPending: vi.fn(() => {
+      if (!wp.pending) return false;
+      wp.current = wp.pending;
+      wp.pending = null;
+      return true;
+    }),
+    prefetchLatest: vi.fn(() => Promise.resolve()),
+  };
 });
 vi.mock('../../src/ai/client', () => ({
   getStatus: vi.fn(),
@@ -25,11 +38,13 @@ vi.mock('../../src/ai/client', () => ({
 
 import { App } from '../../src/app';
 import { getStatus, judge, codeFeedback, tutorStream } from '../../src/ai/client';
-import { content } from '../../src/content';
+import { content, adoptPending, prefetchLatest } from '../../src/content';
+import { FEATURES } from '../../src/config';
+import type { ContentBundle } from '../../src/shared/types';
 import { setRecordManager } from '../../src/record/useRecord';
 import { setPlaygroundImporter } from '../../src/studio/previewClient';
 import { resetSession } from '../../src/record/session';
-import { resetSaveWarning } from '../../src/components/RecordPanel';
+import { resetSaveWarning, RESTORED_EVENT } from '../../src/components/RecordPanel';
 import { RecordManager, type RecordStore } from '../../src/record/store';
 import { applyEvent, newRecord, type LearningRecord } from '../../src/shared/record';
 import { memoryManager } from './helpers';
@@ -771,5 +786,73 @@ describe('Fix round 1', () => {
     await waitFor(() => expect(seen).toBeInstanceOf(AbortSignal));
     unmount();
     await waitFor(() => expect(seen!.aborted).toBe(true));
+  });
+});
+
+describe('Course updates from WordPress', () => {
+  const flags = FEATURES as { wordpressContent: boolean };
+  /** The current bundle with one lesson retitled, as if WordPress had a newer version. */
+  const retitled = (id: string, title: string): ContentBundle => {
+    const c = content as ContentBundle;
+    return { ...c, lessons: { ...c.lessons, [id]: { ...c.lessons[id], title } } };
+  };
+  const go = (url: string) => {
+    act(() => {
+      history.pushState(null, '', url);
+      window.dispatchEvent(new PopStateEvent('popstate'));
+    });
+  };
+  beforeEach(() => {
+    flags.wordpressContent = true;
+    wp.pending = null;
+    wp.current = null;
+  });
+  afterEach(() => {
+    flags.wordpressContent = false;
+    wp.pending = null;
+    wp.current = null;
+  });
+
+  it('a newer bundle never replaces content mid-lesson', async () => {
+    use(managerWith(null));
+    open('/learn/theme-json-basics');
+    await screen.findByRole('heading', { level: 1, name: 'theme.json basics' });
+    wp.pending = retitled('theme-json-basics', 'Changed upstream');
+    // A restart remounts the lesson on the same id: still the same lesson open.
+    act(() => {
+      window.dispatchEvent(new Event(RESTORED_EVENT));
+    });
+    await screen.findByRole('heading', { level: 1, name: 'theme.json basics' });
+    expect(screen.queryByText('Changed upstream')).toBeNull();
+  });
+
+  it('it is adopted at the next lesson open', async () => {
+    use(managerWith(null));
+    const setContent = vi.spyOn(manager, 'setContent');
+    open('/learn/theme-json-basics');
+    await screen.findByRole('heading', { level: 1, name: 'theme.json basics' });
+    wp.pending = retitled('templates-and-parts', 'Templates, updated');
+    go('/learn/templates-and-parts');
+    expect((await screen.findByRole('heading', { level: 1 })).textContent).toBe('Templates, updated');
+    // The manager that records progress now knows the adopted bundle.
+    expect(setContent).toHaveBeenCalledWith(wp.current);
+  });
+
+  it('lesson open does not await the network when nothing is pending', async () => {
+    use(managerWith(null));
+    // The background check never answers; opening must not wait for it.
+    vi.mocked(prefetchLatest).mockReturnValue(new Promise(() => {}));
+    open('/learn/theme-json-basics');
+    expect((await screen.findByRole('heading', { level: 1 })).textContent).toBe('theme.json basics');
+    expect(vi.mocked(prefetchLatest)).toHaveBeenCalled();
+  });
+
+  it('does nothing when the flag is off', async () => {
+    flags.wordpressContent = false;
+    use(managerWith(null));
+    open('/learn/theme-json-basics');
+    await screen.findByRole('heading', { level: 1 });
+    expect(vi.mocked(adoptPending)).not.toHaveBeenCalled();
+    expect(vi.mocked(prefetchLatest)).not.toHaveBeenCalled();
   });
 });

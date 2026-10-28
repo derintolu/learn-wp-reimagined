@@ -45,6 +45,11 @@ export class RecordManager {
     primary.onKindChange?.(() => this.emit());
   }
 
+  /** Use a newer course bundle for events from now on (adopted at lesson open). */
+  setContent(content: ContentBundle): void {
+    this.content = content;
+  }
+
   get record(): LearningRecord {
     return this.current;
   }
