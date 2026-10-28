@@ -183,6 +183,31 @@ describe('/proposal with the Sensei content flag', () => {
   });
 });
 
+const PRIVACY_SESSION = 'The server keeps only a random session, with no name or email, and the learner can delete it from the record menu.';
+
+describe('/proposal with sessions (phase 2)', () => {
+  it('on: the approved Privacy sentence between the record and the relay lines', () => {
+    render(<Proposal />);
+    expect(text()).toContain(
+      `The record lives in the learner's browser, or in a folder they pick, and they can download or restore it at any time. ${PRIVACY_SESSION} The record isn't kept on a server unless they opt in to the relay below.`,
+    );
+  });
+
+  it('off: the sentence is absent', () => {
+    setFlags({ sessions: false });
+    render(<Proposal />);
+    expect(text()).not.toContain(PRIVACY_SESSION);
+    expect(text()).toContain("at any time. The record isn't kept on a server unless they opt in to the relay below.");
+  });
+
+  it('senseiLearners replaces it with the session-and-Sensei-user sentence', () => {
+    setFlags({ senseiLearners: true });
+    render(<Proposal />);
+    expect(text()).not.toContain(PRIVACY_SESSION);
+    expect(text()).toContain('The server keeps a random session and an anonymous Sensei user with no name or email');
+  });
+});
+
 describe('/proposal with the anonymous-accounts flag', () => {
   const flags = FEATURES as { senseiLearners: boolean };
   afterEach(() => {

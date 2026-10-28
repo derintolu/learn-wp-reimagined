@@ -324,6 +324,40 @@ describe('/how-it-works with the Sensei content flag', () => {
   });
 });
 
+const SESSION_BULLET =
+  'There are no accounts. Nobody signs in. At your first recorded step the site gives your browser a random session so the server can tell your steps apart. It holds no name or email, and "Delete my data" in the record menu removes it.';
+const SESSION_TAIL =
+  "Nothing syncs between your devices unless you move the record yourself. Signing in with a WordPress.org account is a possible next step, and it isn't built.";
+
+describe('/how-it-works with sessions (phase 2)', () => {
+  it('ships on', () => {
+    expect(FEATURES.sessions).toBe(true);
+  });
+
+  it('on: the approved phase 2 accounts bullet, and nothing that says there is no server state', () => {
+    render(<HowItWorks />);
+    const t = text();
+    expect(t).toContain(SESSION_BULLET);
+    expect(t).toContain(SESSION_TAIL);
+    expect(t).not.toContain('There are no accounts yet');
+    expect(t).not.toContain('Nobody signs in today');
+  });
+
+  it('off: no session sentence', () => {
+    setFlags({ sessions: false });
+    render(<HowItWorks />);
+    expect(text()).not.toContain('random session');
+    expect(text()).toContain('There are no accounts yet. Nobody signs in today.');
+  });
+
+  it('the anonymous account replaces the session bullet', () => {
+    setFlags({ senseiLearners: true });
+    render(<HowItWorks />);
+    expect(text()).not.toContain(SESSION_BULLET);
+    expect(text()).toContain('You get an anonymous account.');
+  });
+});
+
 describe('/how-it-works with the anonymous-accounts flag', () => {
   const flags = FEATURES as { senseiLearners: boolean; wordpressContent: boolean };
   const view = () => render(<HowItWorks />);
@@ -336,7 +370,8 @@ describe('/how-it-works with the anonymous-accounts flag', () => {
     expect(flags.senseiLearners).toBe(false);
   });
 
-  it('off: today\'s accounts bullet, unchanged', () => {
+  it('off, sessions off: the pre-session accounts bullet', () => {
+    setFlags({ sessions: false });
     view();
     expect(text()).toContain(
       "There are no accounts yet. Nobody signs in today. In the browser, your progress is one JSON file of xAPI statements under an anonymous ID (the record format), and it stays on your device.",

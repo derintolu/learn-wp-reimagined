@@ -613,6 +613,15 @@ export function HowItWorks() {
               your devices unless you move the record yourself. Signing in with a WordPress.org account is not built.
               {official && ' Records from before this change can be brought over once; those lessons show as complete but never count toward a badge.'}
             </li>
+          ) : FEATURES.sessions ? (
+            <li>
+              <strong>There are no accounts.</strong> Nobody signs in. At your first recorded step the site gives your
+              browser a random session so the server can tell your steps apart. It holds no name or email, and "Delete my
+              data" in the record menu removes it. In the browser, your progress is one JSON file of xAPI statements under an
+              anonymous ID (<Cite to="src-record">the record format</Cite>), and it stays on your device. Nothing syncs
+              between your devices unless you move the record yourself. Signing in with a WordPress.org account is a possible
+              next step, and it isn't built.
+            </li>
           ) : (
             <li>
               <strong>There are no accounts yet.</strong> Nobody signs in today. In the browser, your progress is one JSON

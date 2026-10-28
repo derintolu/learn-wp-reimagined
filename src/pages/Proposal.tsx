@@ -353,7 +353,10 @@ export function Proposal() {
           ) : (
             <li>
               The record lives in the learner's browser, or in a folder they pick, and they can download or restore it at any
-              time. The record isn't kept on a server unless they opt in to the relay below.
+              time.
+              {FEATURES.sessions && !FEATURES.senseiLearners &&
+                ' The server keeps only a random session, with no name or email, and the learner can delete it from the record menu.'}{' '}
+              The record isn't kept on a server unless they opt in to the relay below.
             </li>
           )}
           {!FEATURES.agentOnStandard && (
