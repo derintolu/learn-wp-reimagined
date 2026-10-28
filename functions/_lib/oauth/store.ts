@@ -10,6 +10,7 @@ import { HttpError, clientKey, readTextCapped } from '../guards';
 import { LEGACY_XAPI_BASES, XAPI_BASE } from '../../../src/shared/xapi';
 import { b64url, safeEqual } from './pkce';
 import { TOUCH_EVERY_MS } from '../session/session';
+import { SERVER_FLAGS } from '../config';
 
 export const SCOPE = 'course';
 export const ACCESS_TTL_S = 3600;
@@ -38,7 +39,9 @@ export const AUTHORIZE_LIMIT = { perClient: 30, global: 600, windowMs: 600_000 }
 
 /**
  * clientKey without its client-supplied id: a rotating x-client-id must not buy a fresh registration
- * bucket. Without a visitor address (Spacefast passes none), every agent shares 'anon'.
+ * bucket. Without a visitor address (Spacefast passes none), every agent shares 'anon'; with
+ * SERVER_FLAGS.agentOnStandard on, registration then applies only the global ceiling (register.ts), so one
+ * script cannot use up a 20-per-10-minutes bucket that every new agent shares.
  */
 export function addressKey(req: Request, env: Pick<Env, 'TRUSTED_IP_HEADER'>): string {
   const k = clientKey(req, env);
@@ -148,6 +151,16 @@ const MAX_REDIRECT_URIS = 10;
 const MAX_URI_LENGTH = 2000;
 const MAX_NAME_LENGTH = 200;
 const LOOPBACK = new Set(['127.0.0.1', 'localhost']);
+/** With agentOnStandard: IPv6 loopback too (RFC 8252 7.3). */
+const LOOPBACK_ON = new Set([...LOOPBACK, '[::1]']);
+/**
+ * Private-use schemes (RFC 8252 7.1) of agents listed on /connect that do not use the reverse-domain form.
+ * Cursor's MCP sign-in returns to a cursor:// URI.
+ */
+const APP_SCHEMES = new Set(['cursor']);
+/** Never a redirect target, whatever their shape. */
+const NEVER_SCHEMES = new Set(['javascript', 'data', 'file', 'vbscript', 'blob', 'about', 'filesystem', 'ws', 'wss', 'ftp', 'mailto', 'tel', 'sms']);
+const SCHEME = /^[a-z][a-z0-9+.-]*$/;
 const CLIENT_ID = /^[A-Za-z0-9_-]{32}$/;
 
 export interface Client {
@@ -157,7 +170,12 @@ export interface Client {
   createdAt: number;
 }
 
-/** https anywhere, http only on loopback (127.0.0.1 or localhost); no fragment, no user info. */
+/**
+ * https anywhere, http only on loopback (127.0.0.1 or localhost); no fragment, no user info. With
+ * SERVER_FLAGS.agentOnStandard also http on [::1] and a native app's private-use scheme (RFC 8252 7.1): a
+ * reverse-domain scheme (it contains a dot) or one in APP_SCHEMES, never one in NEVER_SCHEMES. PKCE (S256,
+ * required) is what keeps a code sent to a claimed scheme from being usable by another app.
+ */
 export function isAllowedRedirectUri(uri: unknown): uri is string {
   if (typeof uri !== 'string' || uri.length > MAX_URI_LENGTH || uri.includes('#')) return false;
   let u: URL;
@@ -168,7 +186,17 @@ export function isAllowedRedirectUri(uri: unknown): uri is string {
   }
   if (u.username || u.password) return false;
   if (u.protocol === 'https:') return true;
-  return u.protocol === 'http:' && LOOPBACK.has(u.hostname);
+  if (!SERVER_FLAGS.agentOnStandard) return u.protocol === 'http:' && LOOPBACK.has(u.hostname);
+  if (u.protocol === 'http:') return LOOPBACK_ON.has(u.hostname);
+  const scheme = u.protocol.slice(0, -1);
+  if (!SCHEME.test(scheme) || NEVER_SCHEMES.has(scheme)) return false;
+  return scheme.includes('.') || APP_SCHEMES.has(scheme);
+}
+
+/** What the consent page names as the code's destination: the host, or a native app's scheme when it has none. */
+export function redirectTarget(uri: string): string {
+  const u = new URL(uri);
+  return u.host || u.protocol.slice(0, -1);
 }
 
 export async function registerClient(env: Env, meta: unknown, now: number): Promise<Client & { grantTypes: string[] }> {
@@ -196,7 +224,9 @@ export async function registerClient(env: Env, meta: unknown, now: number): Prom
   if (!Array.isArray(uris) || uris.length === 0 || uris.length > MAX_REDIRECT_URIS || !uris.every(isAllowedRedirectUri)) {
     throw new OAuthError(
       'invalid_redirect_uri',
-      'redirect_uris must list 1 to 10 URIs, each https or http on 127.0.0.1 or localhost, without a fragment.',
+      SERVER_FLAGS.agentOnStandard
+        ? 'redirect_uris must list 1 to 10 URIs, each https, http on a loopback address, or an app scheme such as com.example.app:/callback, without a fragment.'
+        : 'redirect_uris must list 1 to 10 URIs, each https or http on 127.0.0.1 or localhost, without a fragment.',
     );
   }
   const client: Client = {

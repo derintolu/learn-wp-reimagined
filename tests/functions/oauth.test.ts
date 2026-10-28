@@ -5,6 +5,7 @@ import { ensureSchema } from '../../functions/_lib/db';
 import type { Env } from '../../functions/_lib/env';
 import { SESSION_COOKIE } from '../../functions/_lib/session/session';
 import { XAPI_BASE } from '../../src/shared/xapi';
+import { SERVER_FLAGS } from '../../functions/_lib/config';
 import {
   ACCESS_TTL_S,
   CODE_TTL_MS,
@@ -451,5 +452,58 @@ describe('MCP authorization server', () => {
     expect(await pending()).toBe(1);
     await hitsAtLimit('oauth:az:g', AUTHORIZE_LIMIT.global);
     expect((await authorize(new Request(authorizeUrl(other)), ctx())).status).toBe(429);
+  });
+});
+
+describe('agent sign-in with agentOnStandard on (native apps, no visitor address)', () => {
+  afterEach(() => {
+    SERVER_FLAGS.agentOnStandard = false;
+  });
+
+  it('accepts private-use schemes of native apps and [::1] loopback; still refuses unsafe ones', async () => {
+    SERVER_FLAGS.agentOnStandard = true;
+    for (const good of ['com.example.app:/oauth2redirect', 'cursor://anysphere.cursor-retrieval/oauth/callback', 'http://[::1]:8080/cb', 'https://example.com/cb']) {
+      expect((await newClient([good])).status, good).toBe(201);
+    }
+    for (const bad of ['javascript:alert(1)', 'data:text/html,x', 'file:///etc/passwd', 'vbscript:x', 'blob:https://example.com/x', 'myapp://cb', 'http://example.com/cb', 'com.example.app:/cb#frag', 'ws://127.0.0.1/cb']) {
+      const res = await newClient([bad]);
+      expect(res.status, bad).toBe(400);
+      expect(((await res.json()) as any).error).toBe('invalid_redirect_uri');
+    }
+  });
+
+  it('a private-use redirect gets the code, state and iss; the consent page names the scheme when there is no host', async () => {
+    SERVER_FLAGS.agentOnStandard = true;
+    const APP = 'com.example.app:/oauth2redirect';
+    const res = await newClient([APP]);
+    const id = ((await res.json()) as { client_id: string }).client_id;
+    const start = await authorize(new Request(authorizeUrl(id, { redirect_uri: APP })), ctx());
+    expect(start.status).toBe(302);
+    const request = new URL(start.headers.get('location')!, BASE).searchParams.get('request')!;
+    const browser = cookiePair(start, 'lwr_oauth_req')!;
+    const info = await consentInfo(new Request(`${BASE}/api/consent?request=${request}`, { headers: { cookie: browser } }), ctx());
+    expect(((await info.json()) as any).redirectHost).toBe('com.example.app');
+    const done = await consent(consentReq({ request, decision: 'allow' }, [browser]), ctx());
+    const redirect = new URL(((await done.json()) as { redirect: string }).redirect);
+    expect(redirect.protocol).toBe('com.example.app:');
+    expect(redirect.searchParams.get('code')).toBeTruthy();
+    expect(redirect.searchParams.get('state')).toBe('st-1');
+    expect(redirect.searchParams.get('iss')).toBe(BASE);
+  });
+
+  it('without a visitor address, registration is held only by the global ceiling', async () => {
+    SERVER_FLAGS.agentOnStandard = true;
+    for (let i = 0; i < REGISTER_LIMIT.perKey + 5; i++) expect((await newClient()).status).toBe(201);
+    await db.prepare('UPDATE hits SET n = ? WHERE k = ?').bind(REGISTER_LIMIT.global, 'oauth:reg:g').run();
+    expect((await newClient()).status).toBe(429);
+  });
+
+  it('with the flag off, registration rules and buckets are as before', async () => {
+    for (const bad of ['com.example.app:/oauth2redirect', 'cursor://anysphere.cursor-retrieval/oauth/callback', 'http://[::1]:8080/cb']) {
+      expect((await newClient([bad])).status, bad).toBe(400);
+    }
+    // The three refused registrations above count against the one shared bucket.
+    for (let i = 3; i < REGISTER_LIMIT.perKey; i++) expect((await newClient()).status).toBe(201);
+    expect((await newClient()).status).toBe(429);
   });
 });

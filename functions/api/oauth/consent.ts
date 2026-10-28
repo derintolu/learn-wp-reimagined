@@ -15,6 +15,7 @@ import {
   peekRequest,
   putCode,
   ready,
+  redirectTarget,
   takeRequest,
   type AuthRequest,
 } from '../../_lib/oauth/store';
@@ -45,7 +46,7 @@ export const GET: Handler = (req, { env }) =>
     const client = await getClient(env, r.clientId);
     const session = env.SESSION_KEY ? await readSession(req, env, now) : null;
     // The client names itself; the host its codes go to is what the page can vouch for.
-    return reply({ clientName: client?.clientName ?? null, redirectHost: new URL(r.redirectUri).host, hasSession: session !== null });
+    return reply({ clientName: client?.clientName ?? null, redirectHost: redirectTarget(r.redirectUri), hasSession: session !== null });
   });
 
 export const POST: Handler = (req, { env }) =>
