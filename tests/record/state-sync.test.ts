@@ -153,6 +153,46 @@ describe('startStateSync', () => {
     expect((server.docs.files as FilesDoc).files['a.css']).toBe('mine again');
   });
 
+  it('a reload before the sync does not let an older remote copy beat the local edit', async () => {
+    server.docs.files = { files: { 'a.css': 'old remote' }, times: { 'a.css': '2026-10-28T09:00:00.000Z' } };
+    server.version.files = 1;
+    await edit('a.css', 'unsynced local');
+    await settle(500);
+    stop(); // the page goes away before the 2 s timer fires
+    expect(filesPuts()).toHaveLength(0);
+    vi.setSystemTime(new Date('2026-10-28T10:05:00.000Z'));
+    stop = startStateSync(m); // the reloaded page: same stored record
+    await settle(STATE_DEBOUNCE_MS);
+    expect((server.docs.files as FilesDoc).files['a.css']).toBe('unsynced local');
+  });
+
+  it('a local file with no recorded time that differs from the last-synced copy counts as a local edit', async () => {
+    server.docs.files = { files: { 'a.css': 'remote' }, times: { 'a.css': '2026-10-28T09:00:00.000Z' } };
+    server.version.files = 1;
+    stop();
+    await m.restore({ ...m.record, files: { 'a.css': 'legacy local' }, fileTimes: undefined, updatedAt: '2026-10-28T09:30:00.000Z' });
+    stop = startStateSync(m);
+    await settle(STATE_DEBOUNCE_MS);
+    expect((server.docs.files as FilesDoc).files['a.css']).toBe('legacy local');
+  });
+
+  it('an edit made while a write is in flight stays unsynced until its own write', async () => {
+    await edit('a.css', '1');
+    let release!: () => void;
+    const gate = new Promise<void>((r) => (release = r));
+    const real = server.fetch.getMockImplementation()!;
+    server.fetch.mockImplementation(async (url: string, init: RequestInit = {}) => {
+      if (init.method === 'PUT' && url.endsWith('/files') && !server.puts.length) await gate;
+      return real(url, init);
+    });
+    await settle(STATE_DEBOUNCE_MS); // first write starts and waits on the gate
+    await edit('b.css', '2'); // typed while it is in flight
+    await m.dispatch({ type: 'beatViewed', lessonId: lessons[1], beatIndex: 0 }); // a lesson change cancels the timer
+    release();
+    await settle(STATE_DEBOUNCE_MS * 2);
+    expect((server.docs.files as FilesDoc).files).toEqual({ 'a.css': '1', 'b.css': '2' });
+  });
+
   it('retries a conflict once, then waits for the next edit', async () => {
     await edit('a.css', '1');
     await settle(STATE_DEBOUNCE_MS);

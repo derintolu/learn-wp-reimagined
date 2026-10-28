@@ -71,7 +71,10 @@ class StateSync {
   private chain: Promise<unknown> = Promise.resolve();
   private timer: ReturnType<typeof setTimeout> | undefined;
   private dirty = false;
-  private times = new Map<string, string>();
+  /** Bumped by every local edit, so a write that finishes can tell whether more edits came in meanwhile. */
+  private rev = 0;
+  /** File contents as last written to (or read from) the State document. */
+  private synced = new Map<string, string>();
   private etag: Record<StateKind, string | null> = { files: null, resume: null };
   private lesson: string | undefined;
   private off: () => void;
@@ -79,6 +82,22 @@ class StateSync {
   constructor(private manager: RecordManager) {
     this.lesson = manager.record.current?.lessonId;
     this.off = manager.subscribe((r) => this.onRecord(r));
+    this.prime(manager.record);
+  }
+
+  /** Files already stored from before this page loaded may never have been synced: write them after the usual wait. */
+  private primed = false;
+  private prime(r: LearningRecord) {
+    if (this.primed || Object.keys(r.files).length === 0) return;
+    this.primed = true;
+    this.markDirty();
+  }
+
+  private markDirty() {
+    this.dirty = true;
+    this.rev++;
+    clearTimeout(this.timer);
+    this.timer = setTimeout(() => this.run(['files']), STATE_DEBOUNCE_MS);
   }
 
   stop() {
@@ -87,14 +106,13 @@ class StateSync {
   }
 
   /** A file was just written to the local record. */
-  edited(file: string) {
-    this.times.set(file, new Date().toISOString());
-    this.dirty = true;
-    clearTimeout(this.timer);
-    this.timer = setTimeout(() => this.run(['files']), STATE_DEBOUNCE_MS);
+  edited(_file: string) {
+    this.primed = true;
+    this.markDirty();
   }
 
   private onRecord(r: LearningRecord) {
+    this.prime(r);
     const lesson = r.current?.lessonId;
     if (lesson === this.lesson) return;
     this.lesson = lesson;
@@ -119,9 +137,11 @@ class StateSync {
     const r = this.manager.record;
     const doc: FilesDoc = { files: r.files };
     if (r.fileLessons) doc.fileLessons = r.fileLessons;
+    // Edit times live in the record, so they survive a reload. A file with none (a record from before they
+    // existed) that differs from what was last synced is a local edit, as new as the record.
     const times: Record<string, string> = {};
     for (const f of Object.keys(r.files)) {
-      const t = this.times.get(f);
+      const t = r.fileTimes?.[f] ?? (this.synced.get(f) === r.files[f] ? undefined : r.updatedAt);
       if (t) times[f] = t;
     }
     if (Object.keys(times).length) doc.times = times;
@@ -145,24 +165,29 @@ class StateSync {
   }
 
   /** Write `local`; on a conflict refetch, merge and write once more. */
-  private async write<T>(kind: StateKind, local: T, parse: (v: unknown) => T | null, merge: (mine: T, theirs: T) => T): Promise<Outcome> {
+  private async write<T>(kind: StateKind, local: T, parse: (v: unknown) => T | null, merge: (mine: T, theirs: T) => T): Promise<{ out: Outcome; doc: T }> {
     let out = await this.put(kind, local, this.etag[kind]);
-    if (out !== 'conflict') return out;
+    if (out !== 'conflict') return { out, doc: local };
     const remote = await read(kind, parse);
-    if (!remote) return 'failed';
+    if (!remote) return { out: 'failed', doc: local };
     this.etag[kind] = remote.etag;
-    out = await this.put(kind, remote.doc ? merge(local, remote.doc) : local, remote.etag);
-    return out;
+    const doc = remote.doc ? merge(local, remote.doc) : local;
+    out = await this.put(kind, doc, remote.etag);
+    return { out, doc };
   }
 
   private async syncFiles() {
     const local = this.localFiles();
     if (new TextEncoder().encode(JSON.stringify(local)).length > STATE_MAX_BYTES) return setTooBig(true);
-    const out = await this.write('files', local, parseFilesDoc, mergeFilesDocs);
+    const rev = this.rev;
+    const { out, doc } = await this.write('files', local, parseFilesDoc, mergeFilesDocs);
     if (out === 'too-big') setTooBig(true);
     else if (out === 'ok') {
       setTooBig(false);
-      this.dirty = false;
+      this.synced = new Map(Object.entries(doc.files));
+      // An edit that came in while this write was on its way is still unsynced.
+      if (this.rev === rev) this.dirty = false;
+      else this.markDirty();
     }
   }
 

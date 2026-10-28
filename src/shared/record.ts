@@ -15,6 +15,8 @@ export interface LearningRecord {
   files: Record<string, string>;
   /** The lesson each file in `files` was last edited in. Missing for edits made before this existed. */
   fileLessons?: Record<string, string>;
+  /** When each file in `files` was last edited here (ISO). Lets the State document keep the newest copy of a file. */
+  fileTimes?: Record<string, string>;
   statements: XapiStatement[];
 }
 
@@ -72,6 +74,7 @@ export function applyEvent(r: LearningRecord, e: RecordEvent, c: ContentBundle):
       break;
     case 'fileEdited': {
       next.files[e.file] = e.content;
+      next.fileTimes = { ...r.fileTimes, [e.file]: next.updatedAt };
       const fl = { ...r.fileLessons };
       if (e.lessonId) fl[e.file] = e.lessonId;
       else delete fl[e.file];
@@ -158,6 +161,10 @@ export function parseRecord(raw: unknown): { ok: true; record: LearningRecord } 
   const fl = r.fileLessons;
   if (fl !== undefined && (fl === null || typeof fl !== 'object' || Array.isArray(fl) || !Object.values(fl).every((v) => typeof v === 'string'))) {
     return fail('fileLessons must map names to lesson ids');
+  }
+  const ft = r.fileTimes;
+  if (ft !== undefined && (ft === null || typeof ft !== 'object' || Array.isArray(ft) || !Object.values(ft).every((v) => typeof v === 'string'))) {
+    return fail('fileTimes must map names to times');
   }
   if (!Array.isArray(r.statements)) return fail('statements must be an array');
   for (let i = 0; i < r.statements.length; i++) {
