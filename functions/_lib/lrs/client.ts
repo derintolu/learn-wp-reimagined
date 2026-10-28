@@ -51,7 +51,7 @@ export class LrsClient {
     private readonly fetchFn: typeof fetch = fetch,
   ) {}
 
-  private async send(url: string, init: { method: string; headers?: Record<string, string>; body?: BodyInit }): Promise<Response> {
+  private async send(url: string, init: { method: string; headers?: Record<string, string>; body?: BodyInit | Uint8Array }): Promise<Response> {
     const { LRS_KEY, LRS_SECRET } = this.env;
     if (!LRS_KEY || !LRS_SECRET) throw new LrsUnavailable('the LRS credentials are not configured');
     let res: Response;
@@ -63,7 +63,7 @@ export class LrsClient {
           'X-Experience-API-Version': XAPI_VERSION,
           ...init.headers,
         },
-        body: init.body,
+        body: init.body as BodyInit | undefined,
         redirect: 'error',
         signal: AbortSignal.timeout(TIMEOUT_MS),
       });
