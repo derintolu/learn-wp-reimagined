@@ -4,6 +4,7 @@ import { COURSE_IRI, STUDIO_EXT, bundleToPackage, compareBundles, packageToBundl
 import { XAPI_BASE } from '../../src/shared/xapi';
 import { loadPackage } from '../../vendor/course-xapi-mcp/core/package/index.ts';
 import { behaviourIssues } from '../../vendor/course-xapi-mcp/validator/behaviour.ts';
+import { secretPointers } from '../../vendor/course-xapi-mcp/validator/behaviour.ts';
 import { lintIssues } from '../../vendor/course-xapi-mcp/validator/lint.ts';
 import type { ContentBundle } from '../../src/shared/types';
 
@@ -95,12 +96,46 @@ describe('package adapter', () => {
     const studio = course.extensions[STUDIO_EXT];
     expect(studio.paths['block-theme'].preview).toEqual(b.paths['block-theme'].preview);
     expect(studio.paths['block-theme'].previewFiles).toEqual(b.paths['block-theme'].previewFiles);
-    expect(studio.paths['block-theme'].finalFiles).toEqual(b.paths['block-theme'].finalFiles);
+    expect(studio.paths['block-theme'].finalFiles).toBeUndefined();
     const landing = Object.values(b.lessons).find((l) => l.landing)!;
     expect(studio.lessons[landing.id].landing).toBe(landing.landing);
     const outside = JSON.stringify({ ...course, extensions: undefined }) + Object.entries(f).filter(([k]) => k.startsWith('cxm/lessons/')).map(([, v]) => v).join('');
-    for (const word of ['previewFiles', 'finalFiles', '"landing"', '"preview"']) expect(outside).not.toContain(word);
+    for (const word of ['previewFiles', '"landing"', '"preview"']) expect(outside).not.toContain(word);
     for (const p of Object.values(course.paths) as object[]) expect(Object.keys(p)).not.toContain('extensions');
+  });
+
+  it('a distribution package keeps no solution file, bug explanation or fix check', () => {
+    const b = bundle();
+    const files = bundleToPackage(b);
+    // The vendored build also needs XSD-valid input, so strip the same fields its distributionFiles() strips.
+    const dist: Record<string, string> = {};
+    for (const [name, text] of Object.entries(files)) {
+      if (!name.endsWith('.json')) { dist[name] = text; continue; }
+      const doc = JSON.parse(text);
+      delete doc.referenceSolution;
+      if (doc.bug) { delete doc.bug.explanation; delete doc.bug.fixChecks; }
+      if (name === 'cxm/course.json') doc.flavour = 'distribution';
+      dist[name] = JSON.stringify(doc, null, 2);
+    }
+    for (const [name, text] of Object.entries(dist)) if (name.endsWith('.json')) expect(secretPointers(JSON.parse(text))).toEqual([]);
+    const all = Object.values(dist).join('\n');
+    const secrets: string[] = [];
+    for (const p of Object.values(b.paths)) {
+      const pub = new Set([...Object.values(p.previewFiles ?? {}), ...p.lessons.flatMap((id) => Object.values(b.lessons[id]!.starterFiles ?? {}))]);
+      secrets.push(...Object.values(p.finalFiles ?? {}).filter((t) => !pub.has(t)));
+    }
+    for (const l of Object.values(b.lessons)) {
+      if (l.bug) secrets.push(JSON.stringify(l.bug.explanation).slice(1, -1), ...l.bug.fixChecks.map((c) => JSON.stringify(c.message).slice(1, -1)));
+    }
+    expect(secrets.length).toBeGreaterThan(10);
+    for (const t of secrets) expect(all).not.toContain(JSON.stringify(t).slice(1, -1));
+  });
+
+  it('finalFiles round-trip through the secret slot only', () => {
+    const b = bundle();
+    const back = packageToBundle(bundleToPackage(b));
+    for (const p of Object.values(b.paths)) expect(back.paths[p.id].finalFiles).toEqual(p.finalFiles);
+    expect(Object.values(b.paths).filter((p) => p.finalFiles).length).toBeGreaterThan(0);
   });
 
   it('one badge declaration per live path with countWaived true', () => {

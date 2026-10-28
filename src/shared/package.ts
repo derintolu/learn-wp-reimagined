@@ -1,6 +1,7 @@
 // The studio's ContentBundle as a course-xapi-mcp package (cmi5.xml + cxm/course.json + cxm/lessons/<key>.json),
 // and back. Everything the standard has a slot for goes in its slot; the studio-only fields (preview, landing,
-// previewFiles, finalFiles, and the two the standard cannot hold) live under one namespaced extension in course.json.
+// previewFiles, checkpoint fallback, coming-soon hints) live under one namespaced extension in course.json.
+// The path's finalFiles are a reference solution: they live only in the secret referenceSolution slot (R27).
 import { CMI5_XML_NS, CXM_XML_NS, SPEC_VERSION } from '../../vendor/course-xapi-mcp/core/constants.ts';
 import { loadPackage } from '../../vendor/course-xapi-mcp/core/package/index.ts';
 import { BRANCH_SUCCESS, BRANCH_WHEN, COURSE_VERSION, MCP_URL } from './course-meta';
@@ -41,13 +42,16 @@ function courseDescription(liveTitles: string[]): string {
   return `An unofficial concept course adapted from Learn WordPress. Build something real, one hand edit at a time. Paths: ${list}.`;
 }
 
-interface StudioPath { placementHints?: string; preview?: Preview; previewFiles?: Record<string, string>; finalFiles?: Record<string, string> }
+interface StudioPath { placementHints?: string; preview?: Preview; previewFiles?: Record<string, string> }
 interface StudioLesson { landing?: string; fallback?: { label: string; outcome: Outcome }[] }
 interface StudioExt { paths: Record<string, StudioPath>; lessons: Record<string, StudioLesson> }
 
 /** The path's reference files this lesson's checks and bug run on: the authoring package's secret reference solution. */
-function referenceSolution(l: Lesson, final: Record<string, string> | undefined): Record<string, unknown> | undefined {
-  if (!final || !(l.bug || l.checkpoint?.kind === 'code')) return undefined;
+function referenceSolution(l: Lesson, final: Record<string, string> | undefined, first: boolean): Record<string, unknown> | undefined {
+  if (!final) return undefined;
+  // The path's first lesson carries every final file, so the whole set survives in the secret slot (and only there).
+  if (first) return { files: final, ...(l.bug && Object.hasOwn(final, l.bug.file) ? { bugFix: final[l.bug.file] } : {}) };
+  if (!(l.bug || l.checkpoint?.kind === 'code')) return undefined;
   const used = new Set((l.checkpoint?.checks ?? []).map((c) => c.file));
   if (l.checkpoint?.file) used.add(l.checkpoint.file);
   const files = Object.fromEntries([...used].filter((f) => Object.hasOwn(final, f)).map((f) => [f, final[f]!]));
@@ -55,7 +59,7 @@ function referenceSolution(l: Lesson, final: Record<string, string> | undefined)
   return { files, ...(bugFix !== undefined ? { bugFix } : {}) };
 }
 
-function lessonJson(l: Lesson, final: Record<string, string> | undefined): Record<string, unknown> {
+function lessonJson(l: Lesson, final: Record<string, string> | undefined, first: boolean): Record<string, unknown> {
   const out: Record<string, unknown> = {
     minutes: l.minutes,
     sources: l.sources,
@@ -78,7 +82,7 @@ function lessonJson(l: Lesson, final: Record<string, string> | undefined): Recor
       branches: branches.map((b) => ({ key: b.outcome, when: BRANCH_WHEN[b.outcome], success: BRANCH_SUCCESS[b.outcome], to: b.to, message: b.message })),
     };
   }
-  const solution = referenceSolution(l, final);
+  const solution = referenceSolution(l, final, first);
   if (solution) out.referenceSolution = solution;
   return out;
 }
@@ -108,7 +112,6 @@ export function bundleToPackage(b: ContentBundle): PackageFiles {
       courseJsonPaths[p.id] = { tagline: p.tagline, placementHints: p.placementHints };
       if (p.preview) sp.preview = p.preview;
       if (p.previewFiles) sp.previewFiles = p.previewFiles;
-      if (p.finalFiles) sp.finalFiles = p.finalFiles;
       lines.push(`  <block id="${esc(blockIri(p.id))}" cxm:key="${esc(p.id)}">`, lang('title', p.title, '    '), lang('description', p.tagline, '    '));
       for (const lk of p.lessons) {
         const l = b.lessons[lk]!;
@@ -120,7 +123,7 @@ export function bundleToPackage(b: ContentBundle): PackageFiles {
           `      <cxm:lesson src="cxm/lessons/${esc(lk)}.json"/>`,
           '    </au>',
         );
-        files[`cxm/lessons/${lk}.json`] = json(lessonJson(l, p.finalFiles));
+        files[`cxm/lessons/${lk}.json`] = json(lessonJson(l, p.finalFiles, lk === p.lessons[0]));
         const sl: StudioLesson = {};
         if (l.landing) sl.landing = l.landing;
         if (l.checkpoint) sl.fallback = l.checkpoint.fallback;
@@ -178,6 +181,9 @@ export function packageToBundle(files: PackageFiles): ContentBundle {
   const paths = {} as Record<PathId, Path>;
   for (const pm of Object.values(c.paths)) {
     const sp = studio.paths[pm.key] ?? {};
+    // finalFiles are the reference solution: they live only in the lessons' secret referenceSolution.files.
+    const finalFiles: Record<string, string> = {};
+    for (const lk of pm.lessons) Object.assign(finalFiles, c.lessons[lk]?.referenceSolution?.files);
     const path: Path = {
       id: pm.key as PathId,
       title: pm.title,
@@ -185,7 +191,7 @@ export function packageToBundle(files: PackageFiles): ContentBundle {
       status: pm.status,
       lessons: [...pm.lessons],
       placementHints: pm.placementHints ?? sp.placementHints ?? '',
-      ...(sp.finalFiles ? { finalFiles: sp.finalFiles } : {}),
+      ...(Object.keys(finalFiles).length ? { finalFiles } : {}),
       ...(sp.previewFiles ? { previewFiles: sp.previewFiles } : {}),
       ...(sp.preview ? { preview: sp.preview } : {}),
     };
