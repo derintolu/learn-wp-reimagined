@@ -161,7 +161,7 @@ bug:
     - type: regex
       file: my-first-plugin/my-first-plugin.php
       pattern: '^(?=[\s\S]*\breturn\b)[\s\S]*?class="my-first-plugin-note"'
-      message: Keep the note itself, with its my-first-plugin-note class, in what the callback gives back. The next lesson styles it.
+      message: Keep the note itself, with its my-first-plugin-note class, and fix the callback itself. The next lesson styles it.
 checkpoint:
   id: cp-filter-returns
   question: >-

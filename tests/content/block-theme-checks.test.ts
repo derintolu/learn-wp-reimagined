@@ -87,7 +87,7 @@ describe('block theme path content', () => {
       const res = runChecks(k, { 'theme.json': withStyles(l1.starterFiles!['theme.json']) });
       expect(res.passed).toBe(false);
       expect(res.results.filter((r) => !r.passed).map((r) => r.check.message)).toEqual([
-        'Your palette needs an accent entry (name, slug accent and a hex color), and your links need to use it.',
+        'Your palette needs an accent entry (name, slug accent and a hex color), and your links need to use it. Keep version 3 in theme.json.',
       ]);
     });
   });

@@ -124,8 +124,8 @@ checkpoint:
       message: theme.json must be valid JSON once your styles are in. styles goes next to settings, separated by a comma.
     - type: regex
       file: theme.json
-      pattern: '^(?=[\s\S]*"var:preset\|color\|accent")[\s\S]*?\{(?=[^{}]*"slug"\s*:\s*"accent")(?=[^{}]*"name"\s*:\s*"[^"]+")(?=[^{}]*"color"\s*:\s*"#[0-9a-fA-F]{3,8}")[^{}]*\}'
-      message: Your palette needs an accent entry (name, slug accent and a hex color), and your links need to use it.
+      pattern: '^(?=[\s\S]*"version"\s*:\s*3\b)(?=[\s\S]*"var:preset\|color\|accent")[\s\S]*?\{(?=[^{}]*"slug"\s*:\s*"accent")(?=[^{}]*"name"\s*:\s*"[^"]+")(?=[^{}]*"color"\s*:\s*"#[0-9a-fA-F]{3,8}")[^{}]*\}'
+      message: Your palette needs an accent entry (name, slug accent and a hex color), and your links need to use it. Keep version 3 in theme.json.
     - type: json
       file: theme.json
       pointer: /styles/color/background

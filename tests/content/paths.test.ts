@@ -35,8 +35,12 @@ describe('regex checks the course-xapi-mcp server runs', () => {
  * answer, and still fails when the answer breaks the thing it guards.
  */
 const lastOf = (s: string, find: string) => { const i = s.lastIndexOf(find); return s.slice(0, i) + s.slice(i + find.length); };
+const version2 = (s: string) => s.replace('"version": 3', '"version": 2');
 const GUARDS: [lesson: string, where: 'checkpoint' | 'bug', index: number, breakIt: (s: string) => string][] = [
-  ['bt-what-is-a-block-theme', 'bug', 2, (s) => s.replace('"#ffffff" },', '"#ffffff" }')],
+  ['bt-what-is-a-block-theme', 'bug', 2, (s) => s.replace('"slug": "contrast", "color"', '"slug": "contrast" "color"')],
+  ['bt-what-is-a-block-theme', 'bug', 2, version2],
+  ['bt-style-css-and-theme-json', 'checkpoint', 1, version2],
+  ['bt-global-styles', 'checkpoint', 1, version2],
   ['bt-style-css-and-theme-json', 'checkpoint', 0, (s) => s.replace('"#f0f0f0" },', '"#f0f0f0" }')],
   ['bt-templates-and-parts', 'checkpoint', 2, (s) => s.replace('<!-- wp:query {', '<!-- wp:group {')],
   ['bt-global-styles', 'checkpoint', 0, (s) => s.replace(/\},(\s*"styles")/, '}$1')],
