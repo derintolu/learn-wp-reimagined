@@ -47,7 +47,7 @@ const SOURCES = [
   { id: 'src-store-if', file: 'src/record/store.ts', what: 'The record store interface that a WordPress.org adapter would implement.' },
   { id: 'src-lrs', file: 'functions/_lib/lrs/', what: 'The client for the record store.' },
   { id: 'src-ledger', file: 'https://github.com/derintolu/learning-ledger', what: 'The plugin that is the record store and the Sensei connector.' },
-  { id: 'src-relay', file: 'functions/_lib/mcp/recordStore.ts', what: 'The agent relay, and how long it keeps a record.' },
+  { id: 'src-relay', file: 'functions/_lib/mcp/practiceStore.ts', what: 'The agent relay, and how long it keeps a record.' },
   { id: 'src-content', file: 'content/paths/', what: 'The lessons, checkpoints, branches and planted bugs, as YAML.' },
   { id: 'src-schema', file: 'src/shared/schema.ts', what: 'The content schema: every checkpoint needs advance, review and skip branches and a fallback.' },
   { id: 'src-build', file: 'scripts/build-content.ts', what: 'The build-time validator for the content.' },
@@ -55,7 +55,7 @@ const SOURCES = [
   { id: 'src-content-tests', file: 'tests/content/', what: 'Tests that run each code check against the planted bug, the fix and the starter file.' },
   { id: 'src-motion', file: 'tests/styles/reduced-motion.test.ts', what: 'The guard that every animation has a reduced-motion override.' },
   { id: 'src-accuracy', file: 'docs/content-accuracy.md', what: 'The accuracy check of the Block theme lessons (with -learner and -vibe-coder versions for the other paths).' },
-  { id: 'src-vendor', file: 'vendor/learning-mcp/', what: 'The MCP course server (learning-mcp), vendored, with its licence notes.' },
+  { id: 'src-vendor', file: 'vendor/course-xapi-mcp/', what: "The MCP course server: the standard's reference server, vendored, with its licence notes." },
 ] as const;
 
 /** With the Sensei content flag on, the lessons are read from the committed snapshot, not from YAML. */
@@ -67,7 +67,9 @@ const sources = () =>
         return s;
       })
     : [...SOURCES]
-  ).filter((s) => phaseOn('officialRecord') || (s.id !== 'src-lrs' && s.id !== 'src-ledger'));
+  )
+    .filter((s) => phaseOn('officialRecord') || (s.id !== 'src-lrs' && s.id !== 'src-ledger'))
+    .filter((s) => !FEATURES.agentOnStandard || s.id !== 'src-relay');
 
 const blob = (file: string) => file.startsWith('https://') ? file : `${REPO_URL}/${file.endsWith('/') ? 'tree' : 'blob'}/main/${file.replace(/\/$/, '')}`;
 
@@ -97,6 +99,7 @@ function Band({ id, title, dark, children }: { id: string; title: ComponentChild
 export function Proposal() {
   usePageTitle('The proposal');
   const official = phaseOn('officialRecord');
+  const final = phaseOn('badges');
   return (
     <div class="proposal-page">
       <section class="band band--light" aria-labelledby="proposal-page-title">
@@ -180,7 +183,10 @@ export function Proposal() {
       </Band>
 
       <Band id="phases-title" title="A phased path onto Learn">
-        <p>None of this needs Learn to be rebuilt. Each phase is useful by itself, and the next one can wait.</p>
+        <p>
+          None of this needs Learn to be rebuilt. Each phase is useful by itself, and the next one can wait.
+          {final && ' Phases 1 to 3 below are no longer only proposed: each is running in this concept, with a link to where you can see it.'}
+        </p>
         <h3>Phase 1: a tutor and placement beside Sensei</h3>
         <p>
           {FEATURES.wordpressContent ? (
@@ -203,6 +209,12 @@ export function Proposal() {
           {FEATURES.wordpressContent &&
             " The tutor and placement are running in this concept. What isn't shown is Sensei progress (phase 3 below) and the Training Team's review of these lessons."}
         </p>
+        {final && (
+          <p>
+            See it: start the placement chat, then read the same lesson on <a href={BACKEND_VIEW_PATH}>the backend view</a> to
+            see what Learn shows today.
+          </p>
+        )}
         {official ? (
           <>
             <h3>Phase 2: the record in a store, not in the browser</h3>
@@ -214,6 +226,7 @@ export function Proposal() {
               under an anonymous ID can't be rewritten, so linking it to a profile needs an agreed approach, such as a signed
               "linked" statement.
             </p>
+            {final && <p>See it: open the record menu, then the record on the record store's own page.</p>}
             <h3>Phase 3: Sensei progress</h3>
             <p>
               In this concept, finishing a lesson in the studio, or in an agent, marks it complete for that learner in
@@ -222,6 +235,7 @@ export function Proposal() {
               the Sensei maintainers' view on that, on lesson progress having only "in progress" and "complete", and on
               whether "tested out" belongs in Sensei itself.
             </p>
+            {final && <p>See it: finish a lesson, then open 'What Sensei sees'.</p>}
           </>
         ) : (
           <>
@@ -244,6 +258,33 @@ export function Proposal() {
           </>
         )}
       </Band>
+
+      {final && (
+        <Band id="stack-title" title="The standard, the plugin and the record store" dark>
+          <p>
+            <strong>A standard, so the course isn't tied to this site.</strong> The course is described in{' '}
+            <a href="https://course-xapi-mcp.sqwrlz.com/">course-xapi-mcp</a>, an open specification built on cmi5 for
+            courses a learner takes in their own agent. A course server written to it can serve any course package, and any
+            compliant agent can take any such course. We believe this is the right layer for Learn to adopt rather than a
+            site-specific API. The standard is by the same author as this concept and has not been reviewed outside it. This
+            site's course server is its <Cite to="src-vendor">reference server</Cite>.
+          </p>
+          <p>
+            <strong>A plugin, so Sensei doesn't change.</strong> <a href="https://github.com/derintolu/learning-ledger">Learning Ledger</a>{' '}
+            is a WordPress plugin with two roles that can run on the same or different installs: a record store (an xAPI
+            endpoint with badge issuing), and a connector that applies the store's records to an LMS. It has a built-in
+            Sensei integration, and puts the checkpoints and planted bugs in lessons as blocks. In this concept it runs in
+            both roles, on two installs. Other LMS integrations are on its roadmap and aren't built. Nothing in Sensei is
+            patched.
+          </p>
+          <p>
+            <strong>Why the record store is separate.</strong> A record store takes many small writes. The recommended
+            setup is to run it apart from the site learners read, so a busy store can't slow lessons. The concept runs it
+            that way, on its own address, and the same address is the identity that signs the badges, so that address has
+            to stay registered.
+          </p>
+        </Band>
+      )}
 
       <Band id="workflow-title" title="How authored branching fits the content workflow" dark>
         <p>
@@ -287,6 +328,7 @@ export function Proposal() {
           <Cite to="src-budget">the budget code</Cite>). At the cap, the AI features switch to their no-AI versions until the
           next day or month (UTC). Learners who bring their own AI aren't affected: their AI does the thinking on their
           own subscription, and no model runs on this site's account.
+          {final && ' The record store, Sensei and the sign-in add no model cost; they are plain hosting.'}
         </p>
         <h3>Privacy</h3>
         <ul>
@@ -314,11 +356,19 @@ export function Proposal() {
               time. The record isn't kept on a server unless they opt in to the relay below.
             </li>
           )}
+          {!FEATURES.agentOnStandard && (
           <li>
             For AI apps on the web, which can't read local files, the learner can opt in to a relay. It keeps a copy under a random
             handle, stores no personal data, expires after {RELAY_DAYS} days without use, and can be deleted at any time (
             <Cite to="src-relay">the relay</Cite>).
           </li>
+          )}
+          {final && (
+            <li>
+              Deleting your data revokes any badges you claimed, and a revoked badge stops verifying. We don't revoke badges
+              when a learner just goes idle.
+            </li>
+          )}
           {FEATURES.senseiLearners && (
             <li>
               The server keeps a random session and an anonymous Sensei user with no name or email, and the learner can
@@ -418,11 +468,20 @@ export function Proposal() {
               difference.
             </li>
           )}
+          {FEATURES.agentOnStandard ? (
+            <li>
+              <strong>Agents sign in, instead of holding a handle.</strong> An agent connects with MCP authorization, the
+              same standard sign-in other MCP servers use, and the learner approves it on a page that already knows who
+              they are. <em>The cost:</em> an authorization server to run, and not every MCP client supports the flow; the
+              Connect page says which ones passed. We don't fall back to a secret handle.
+            </li>
+          ) : (
           <li>
             <strong>The record handle is the only key to an agent record.</strong> There are no logins for the relay, so
             there's nothing personal to leak. <em>The cost:</em> anyone who has a learner's handle can read that record. The
             relay is rate-limited, but the handle has to be kept private, like a password.
           </li>
+          )}
         </ul>
       </Band>
 

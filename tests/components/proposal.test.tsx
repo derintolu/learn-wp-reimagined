@@ -1,6 +1,6 @@
 // @vitest-environment happy-dom
 import { afterEach, describe, expect, it } from 'vitest';
-import { readFileSync } from 'node:fs';
+import { existsSync, readFileSync } from 'node:fs';
 import { cleanup, render, screen } from '@testing-library/preact';
 import { Proposal } from '../../src/pages/Proposal';
 import { FEATURES, REPO_URL } from '../../src/config';
@@ -82,7 +82,7 @@ describe('/proposal', () => {
     expect(hrefs).toContain(REPO_URL);
     expect(hrefs).toContain('/how-it-works');
     expect(hrefs).toContain('/connect');
-    for (const f of ['docs/model-eval.md', 'functions/_lib/budget.ts', 'docs/record-format.md', 'functions/_lib/mcp/recordStore.ts', 'scripts/build-content.ts']) {
+    for (const f of ['docs/model-eval.md', 'functions/_lib/budget.ts', 'docs/record-format.md', 'functions/_lib/mcp/practiceStore.ts', 'scripts/build-content.ts']) {
       expect(t).toContain(f);
     }
   });
@@ -304,5 +304,93 @@ describe('/proposal with the official-record flag', () => {
     render(<Proposal />);
     expect(text()).toBe(base);
     expect(text()).not.toContain(LRS_HOST);
+  });
+});
+
+describe('/proposal final rewrite (phase 8)', () => {
+  const flags = FEATURES as { officialRecord: boolean; senseiLearners: boolean; wordpressContent: boolean; badges: boolean; agentOnStandard: boolean };
+  const allOn = () => {
+    flags.officialRecord = true;
+    flags.senseiLearners = true;
+    flags.wordpressContent = true;
+    flags.badges = true;
+  };
+  afterEach(() => {
+    flags.officialRecord = false;
+    flags.senseiLearners = false;
+    flags.wordpressContent = false;
+    flags.badges = false;
+    flags.agentOnStandard = false;
+  });
+
+  const REVOKED = 'Deleting your data revokes any badges you claimed, and a revoked badge stops verifying.';
+
+  it.each([
+    ['today', () => {}],
+    ['every flag on', () => { allOn(); flags.agentOnStandard = true; }],
+  ])('%s: every source listed is a file or folder that exists, and every Cite resolves to one', (_n, set) => {
+    set();
+    const { container } = render(<Proposal />);
+    const items = Array.from(container.querySelectorAll('.prose__sources li'));
+    expect(items.length).toBeGreaterThan(5);
+    for (const li of items) {
+      const file = li.querySelector('code')!.textContent!;
+      if (!file.startsWith('https://')) expect(existsSync(file), file).toBe(true);
+    }
+    const ids = new Set(items.map((li) => li.id));
+    for (const a of Array.from(container.querySelectorAll('a.prose__cite'))) expect(ids.has(a.getAttribute('href')!.slice(1)), a.textContent ?? '').toBe(true);
+    expect(text()).not.toContain('vendor/learning-mcp');
+    expect(text()).not.toContain('functions/_lib/mcp/recordStore.ts');
+  });
+
+  it('off: none of the phase 8 copy renders', () => {
+    flags.officialRecord = true;
+    render(<Proposal />);
+    const t = text();
+    for (const s of ['no longer only proposed', 'A standard, so the course', 'A plugin, so Sensei', 'Why the record store is separate', 'revokes any badges', 'plain hosting']) expect(t).not.toContain(s);
+  });
+
+  it('on: phases 1 to 3 shown as running, the three new sections, and the revoked-badge sentence', () => {
+    allOn();
+    const { container } = render(<Proposal />);
+    const t = text();
+    expect(t).toContain('Phases 1 to 3 below are no longer only proposed: each is running in this concept, with a link to where you can see it.');
+    expect(t).toContain('See it: start the placement chat, then read the same lesson on the backend view to see what Learn shows today.');
+    expect(t).toContain('See it: open the record menu, then the record on the record store\'s own page.');
+    expect(t).toContain("See it: finish a lesson, then open 'What Sensei sees'.");
+    expect(t).toContain('A standard, so the course isn\'t tied to this site.');
+    expect(t).toContain('The standard is by the same author as this concept and has not been reviewed outside it.');
+    expect(t).toContain('A plugin, so Sensei doesn\'t change.');
+    expect(t).toContain('Other LMS integrations are on its roadmap and aren\'t built. Nothing in Sensei is patched.');
+    expect(t).toContain('Why the record store is separate.');
+    expect(t).toContain('so that address has to stay registered.');
+    expect(t).toContain('The record store, Sensei and the sign-in add no model cost; they are plain hosting.');
+    expect(t).toContain(REVOKED);
+    expect(t).toContain('not reviewed by the Training Team');
+    const hrefs = Array.from(container.querySelectorAll('a')).map((a) => a.getAttribute('href'));
+    expect(hrefs).toContain('https://course-xapi-mcp.sqwrlz.com/');
+    expect(hrefs).toContain(BACKEND_VIEW_PATH);
+    expect(Array.from(container.querySelectorAll('.prose__sources code')).map((c) => c.textContent)).toContain('vendor/course-xapi-mcp/');
+    expect(t).not.toMatch(/\p{Extended_Pictographic}/u);
+  });
+
+  it('on with an earlier phase off: no phase 8 copy', () => {
+    allOn();
+    flags.officialRecord = false;
+    render(<Proposal />);
+    expect(text()).not.toContain('no longer only proposed');
+    expect(text()).not.toContain(REVOKED);
+  });
+
+  it('agentOnStandard replaces the handle decision; off keeps it', () => {
+    render(<Proposal />);
+    expect(text()).toContain('The record handle is the only key to an agent record.');
+    cleanup();
+    flags.agentOnStandard = true;
+    render(<Proposal />);
+    const t = text();
+    expect(t).not.toContain('The record handle is the only key to an agent record.');
+    expect(t).toContain('Agents sign in, instead of holding a handle.');
+    expect(t).toContain('We don\'t fall back to a secret handle.');
   });
 });

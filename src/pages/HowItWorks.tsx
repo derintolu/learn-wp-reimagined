@@ -51,11 +51,12 @@ const SOURCES = [
 
 /** With the Sensei content flag on, the lessons are read from the committed snapshot, not from YAML. */
 const sources = () =>
-  FEATURES.wordpressContent
+  (FEATURES.wordpressContent
     ? SOURCES.map((s) =>
         s.id === 'src-content' ? { ...s, file: 'content/snapshot/', what: 'The lessons as exported from Sensei, committed so changes can be reviewed.' } : s,
       )
-    : SOURCES;
+    : [...SOURCES]
+  ).filter((s) => !FEATURES.agentOnStandard || s.id !== 'src-store');
 
 const blob = (file: string) => `${REPO_URL}/${file.endsWith('/') ? 'tree' : 'blob'}/main/${file.replace(/\/$/, '')}`;
 
@@ -94,6 +95,7 @@ export function HowItWorks() {
   const sensei = FEATURES.wordpressContent;
   const anon = FEATURES.senseiLearners;
   const official = phaseOn('officialRecord');
+  const final = phaseOn('badges');
 
   const parts: { name: ComponentChildren; status: StatusKind; body: ComponentChildren }[] = [
     {
@@ -119,9 +121,14 @@ export function HowItWorks() {
       ),
     },
     {
-      name: 'Record handles',
+      name: FEATURES.agentOnStandard ? 'Agent sign-in' : 'Record handles',
       status: 'live',
-      body: (
+      body: FEATURES.agentOnStandard ? (
+        <>
+          Your AI signs in as you through MCP authorization, on a page that reads your studio session. What it does goes
+          into the same record as the studio, and "Disconnect agents" in the record menu cuts it off.
+        </>
+      ) : (
         <>
           In your AI, your progress is kept under a random handle that only you hold. It stores no personal data and is
           deleted after {MCP.relayDays} days without use (<Cite to="src-store">the record store</Cite>), or when you ask. In
@@ -141,8 +148,13 @@ export function HowItWorks() {
     },
     {
       name: 'Learning Ledger',
-      status: 'progress',
-      body: (
+      status: official ? 'live' : 'progress',
+      body: official ? (
+        <>
+          The LRS, the Sensei connector and badge signing are installed and running here, on two installs, and the public
+          repo is where work continues.
+        </>
+      ) : (
         <>
           The LRS, the Sensei connector, the cmi5 player and badge signing are in the public repo, and work continues. It
           isn't installed on either space yet.
@@ -151,8 +163,10 @@ export function HowItWorks() {
     },
     {
       name: <>The LRS at {LRS_HOST}</>,
-      status: 'idle',
-      body: (
+      status: official ? 'live' : 'idle',
+      body: official ? (
+        <>The course server writes every learning record here, and nothing else does.</>
+      ) : (
         <>
           A WordPress install on its own space, and it answers, but Learning Ledger isn't installed there yet, so it holds
           no records.
@@ -180,7 +194,7 @@ export function HowItWorks() {
     },
     {
       name: 'Badges',
-      status: 'next',
+      status: final ? 'live' : 'next',
       body: (
         <>
           Open Badges 3.0, signed by the LRS as <code>did:web:{LRS_HOST}</code> and claimed from the studio.
@@ -510,9 +524,19 @@ export function HowItWorks() {
         </p>
         <p>
           In your own AI, the model runs on your subscription, so it costs this site nothing. The MCP server takes requests
-          of up to {MCP.bodyMb} MB, and allows {MCP.global} requests every {MCP.windowMin} minutes across everyone,{' '}
-          {MCP.perHandle} tool calls every {MCP.windowMin} minutes for each record handle, and {MCP.create} new records
-          every {MCP.windowMin} minutes (<Cite to="src-gate">the MCP gate</Cite>).
+          of up to {MCP.bodyMb} MB, and allows {MCP.global} requests every {MCP.windowMin} minutes across everyone
+          {FEATURES.agentOnStandard ? (
+            <>
+              {' '}and {MCP.perHandle} tool calls every {MCP.windowMin} minutes for each signed-in agent
+            </>
+          ) : (
+            <>
+              ,{' '}
+              {MCP.perHandle} tool calls every {MCP.windowMin} minutes for each record handle, and {MCP.create} new records
+              every {MCP.windowMin} minutes
+            </>
+          )}{' '}
+          (<Cite to="src-gate">the MCP gate</Cite>).
         </p>
       </Band>
 
@@ -541,7 +565,24 @@ export function HowItWorks() {
             is deleted, and "Delete my data" in the record menu deletes it at once: your steps and files in the record
             store, your Sensei user and its progress, and any connected agents. "Download my record" gives you a copy first.
             There is no third-party analytics.
+            {final && " Deleting your data revokes any badges you claimed, and a revoked badge stops verifying. We don't revoke badges when a learner just goes idle."}
           </p>
+          {final && (
+            <>
+              <p>
+                <strong>Badges you can verify.</strong> Finishing a path earns a badge, issued as an{' '}
+                <a href="https://www.imsglobal.org/spec/ob/v3p0/">Open Badges 3.0</a> credential and signed by the record
+                store as "Learn WordPress, reimagined". You claim it from the studio, add an email or a wallet on the store's
+                claim page, and download or share it. Lessons you tested out count toward the badge, and the badge says how
+                many. Lessons carried over from an older local record never count. The badge does not carry your random ID.
+              </p>
+              <p>
+                <strong>A Sensei certificate.</strong> When a path's course is complete, Sensei LMS Certificates issues its
+                usual PDF, and the studio offers it as a download from the "What Sensei sees" panel. The certificate is a
+                document. The badge is a credential anyone can verify.
+              </p>
+            </>
+          )}
         </Band>
       )}
 
@@ -578,9 +619,16 @@ export function HowItWorks() {
           <li>
             <strong>It isn't connected to Learn.</strong>{' '}
             {sensei
-              ? `This is not learn.wordpress.org. The Sensei here is the prototype's own install, with the prototype's own lessons, so nothing you do counts toward anything on Learn. ${official ? "This Sensei is the prototype's own, so your progress here doesn't count on Learn." : 'Your progress does not appear in Sensei yet.'}`
+              ? `This is not learn.wordpress.org. The Sensei here is the prototype's own install, with the prototype's own lessons, so nothing you do counts toward anything on Learn. ${official ? "This Sensei is the prototype's own, so your progress here doesn't count on Learn." : 'Your progress does not appear in Sensei yet.'}${final ? " Sensei's own pages are the backend view, not the learner experience." : ''}`
               : "Nothing here talks to learn.wordpress.org or Sensei, and progress here doesn't count there."}
           </li>
+          {final && (
+            <li>
+              <strong>The badges are unofficial too.</strong> The badges are issued by this prototype, not by WordPress.org,
+              and are not an official WordPress credential. They show up as signed by "Learn WordPress, reimagined" and
+              nothing else.
+            </li>
+          )}
           <li>
             <strong>It's small.</strong> Three short paths, from <Cite to="src-content">the lesson files</Cite>, not whole
             courses.
@@ -602,7 +650,10 @@ export function HowItWorks() {
           WordPress.
         </p>
         <p>
-          Concept and build by Derin Tolu. It runs on Cloudflare Workers AI, Spacefast and WordPress Playground. The{' '}
+          Concept and build by Derin Tolu. {final
+            ? 'It runs on Cloudflare Workers AI, Spacefast, WordPress Playground, Sensei LMS and the open Learning Ledger plugin and course-xapi-mcp standard.'
+            : 'It runs on Cloudflare Workers AI, Spacefast and WordPress Playground.'}{' '}
+          The{' '}
           <a href={REPO_URL}>source is on GitHub</a>.
         </p>
       </Band>

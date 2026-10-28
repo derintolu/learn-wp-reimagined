@@ -1,6 +1,6 @@
 // @vitest-environment happy-dom
 import { afterEach, describe, expect, it } from 'vitest';
-import { readFileSync } from 'node:fs';
+import { existsSync, readFileSync } from 'node:fs';
 import { cleanup, render, screen } from '@testing-library/preact';
 import { HowItWorks, LEDGER_REPO_URL, SPEC, SPEC_REPO_URL, STATUS } from '../../src/pages/HowItWorks';
 import { DIAGRAM_LABEL } from '../../src/pages/HowItWorksDiagram';
@@ -462,5 +462,79 @@ describe('/how-it-works with the official-record flag', () => {
     Object.assign(flags, { ...set, officialRecord: true });
     view();
     expect(text()).toBe(base);
+  });
+});
+
+describe('/how-it-works final rewrite (phase 8)', () => {
+  const flags = FEATURES as { officialRecord: boolean; senseiLearners: boolean; wordpressContent: boolean; badges: boolean };
+  const allOn = () => {
+    flags.officialRecord = true;
+    flags.senseiLearners = true;
+    flags.wordpressContent = true;
+    flags.badges = true;
+  };
+  afterEach(() => {
+    flags.officialRecord = false;
+    flags.senseiLearners = false;
+    flags.wordpressContent = false;
+    flags.badges = false;
+  });
+  const REVOKED = 'Deleting your data revokes any badges you claimed, and a revoked badge stops verifying.';
+
+  it.each([['today', () => {}], ['every flag on', allOn]])('%s: every source listed exists, and every Cite resolves', (_n, set) => {
+    set();
+    const { container } = render(<HowItWorks />);
+    const items = Array.from(container.querySelectorAll('.prose__sources li'));
+    for (const li of items) expect(existsSync(li.querySelector('code')!.textContent!), li.textContent ?? '').toBe(true);
+    const ids = new Set(items.map((li) => li.id));
+    for (const a of Array.from(container.querySelectorAll('a.prose__cite'))) expect(ids.has(a.getAttribute('href')!.slice(1)), a.textContent ?? '').toBe(true);
+  });
+
+  it('off: no badge, certificate or revocation copy', () => {
+    flags.officialRecord = true;
+    render(<HowItWorks />);
+    const t = text();
+    for (const s of ['Badges you can verify', 'A Sensei certificate', 'revokes any badges', 'not an official WordPress credential', 'Sensei LMS and the open Learning Ledger plugin']) expect(t).not.toContain(s);
+  });
+
+  it('on: badges, certificate, revocation, the unofficial lines and the credit', () => {
+    allOn();
+    render(<HowItWorks />);
+    const t = text();
+    expect(t).toContain('Badges you can verify. Finishing a path earns a badge, issued as an Open Badges 3.0 credential and signed by the record store as "Learn WordPress, reimagined".');
+    expect(t).toContain('The badge does not carry your random ID.');
+    expect(t).toContain('A Sensei certificate. When a path\'s course is complete, Sensei LMS Certificates issues its usual PDF, and the studio offers it as a download from the "What Sensei sees" panel.');
+    expect(t).toContain('The certificate is a document. The badge is a credential anyone can verify.');
+    expect(t).toContain(REVOKED);
+    expect(t).toContain("We don't revoke badges when a learner just goes idle.");
+    expect(t).toContain('The badges are issued by this prototype, not by WordPress.org, and are not an official WordPress credential.');
+    expect(t).toContain("Sensei's own pages are the backend view, not the learner experience.");
+    expect(t).toContain('not reviewed by the Training Team');
+    expect(t).toContain('not affiliated with WordPress.org or the WordPress Foundation');
+    expect(t).toContain('It runs on Cloudflare Workers AI, Spacefast, WordPress Playground, Sensei LMS and the open Learning Ledger plugin and course-xapi-mcp standard.');
+    expect(t).not.toMatch(/\p{Extended_Pictographic}/u);
+  });
+
+  it('on: the Badges part is live and the LRS holds records', () => {
+    allOn();
+    const { container } = render(<HowItWorks />);
+    const li = (name: string) => Array.from(container.querySelectorAll('.how-parts__list li')).find((x) => x.querySelector('strong')!.textContent!.startsWith(name))!;
+    expect(li('Badges').querySelector('.status')!.textContent).toBe(STATUS.live);
+    expect(li('The LRS at').textContent).not.toContain('holds no records');
+    expect(li('Learning Ledger').textContent).not.toContain("isn't installed");
+  });
+
+  it('on with an earlier phase off: renders as with the flag off', () => {
+    flags.wordpressContent = true;
+    flags.senseiLearners = true;
+    flags.officialRecord = true;
+    const r = render(<HowItWorks />);
+    const base = text();
+    r.unmount();
+    flags.badges = true;
+    flags.senseiLearners = false;
+    render(<HowItWorks />);
+    expect(text()).not.toContain(REVOKED);
+    expect(base).not.toContain(REVOKED);
   });
 });
