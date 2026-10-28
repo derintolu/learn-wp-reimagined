@@ -20,7 +20,7 @@ const matches = (source: string, path: string) =>
 describe('sf.jsonc routes', () => {
   it('lists exactly the app routes', () => {
     expect(APP_ROUTES.map((r) => r.pattern)).toEqual([
-      '/', '/path/*', '/learn/*', '/finale', '/finale/*', '/connect', '/how-it-works', '/proposal', '/blog', '/blog/*', '/backend/*', '/backend/*',
+      '/', '/path/*', '/learn/*', '/finale', '/finale/*', '/connect', '/how-it-works', '/proposal', '/blog', '/blog/*', '/backend/*',
     ]);
   });
   it('every app route has an sf.jsonc rewrite to index.html', () => {

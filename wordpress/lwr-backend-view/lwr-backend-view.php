@@ -1,8 +1,8 @@
 <?php
 /**
  * Plugin Name: LWR Backend View
- * Description: Banner on Sensei course and lesson screens in wp-admin that links back to the studio. Part of an unofficial concept.
- * Version: 0.1.0
+ * Description: Banner on Sensei course and lesson screens in wp-admin that links back to the studio, and a read-only public route the studio's backend view reads. Part of an unofficial concept.
+ * Version: 0.2.0
  * Requires at least: 6.4
  * Requires PHP: 8.0
  * Author: Learn WP Reimagined
@@ -16,7 +16,7 @@
 defined( 'ABSPATH' ) || exit;
 
 const LWR_BACKEND_VIEW_STUDIO  = 'https://learnwp.sqwrlz.com';
-const LWR_BACKEND_VIEW_VERSION = '0.1.0';
+const LWR_BACKEND_VIEW_VERSION = '0.2.0';
 
 /**
  * The post type of the current admin screen when it is a Sensei course or lesson screen, else ''.
@@ -95,3 +95,127 @@ function lwr_backend_view_enqueue(): void {
 	);
 }
 add_action( 'admin_enqueue_scripts', 'lwr_backend_view_enqueue' );
+
+/**
+ * The published course or lesson with this key, or null. The key is Learning Ledger's stable key, else the slug.
+ * Spacefast's runtime empties anonymous post queries (wp/v2 answers spacefast_content_not_found, see the lwr-blog
+ * route), so the IDs come straight from the posts table. Published, unprotected posts only: never drafts or private.
+ */
+function lwr_backend_view_find( string $type, string $key ): ?WP_Post {
+	global $wpdb;
+	$base = "SELECT p.ID FROM {$wpdb->posts} p";
+	$where = " p.post_type = %s AND p.post_status = 'publish' AND p.post_password = ''";
+	// phpcs:disable WordPress.DB.PreparedSQL.NotPrepared,WordPress.DB.DirectDatabaseQuery -- fixed SQL, values prepared.
+	$id = $wpdb->get_var(
+		$wpdb->prepare( "$base INNER JOIN {$wpdb->postmeta} m ON m.post_id = p.ID AND m.meta_key = '_lledger_stable_key' AND m.meta_value = %s WHERE $where ORDER BY p.ID LIMIT 1", $key, $type )
+	);
+	if ( ! $id ) {
+		$id = $wpdb->get_var( $wpdb->prepare( "$base WHERE $where AND p.post_name = %s ORDER BY p.ID LIMIT 1", $type, $key ) );
+	}
+	// phpcs:enable
+	$post = $id ? get_post( (int) $id ) : null;
+	return ( $post instanceof WP_Post && 'publish' === $post->post_status ) ? $post : null;
+}
+
+/**
+ * Published lessons of a course in Sensei's order (its per-course order meta, then menu order, then ID).
+ *
+ * @return array<int, array{key: string, title: string}>
+ */
+function lwr_backend_view_course_lessons( int $course_id ): array {
+	global $wpdb;
+	// phpcs:disable WordPress.DB.PreparedSQL.NotPrepared,WordPress.DB.DirectDatabaseQuery -- values prepared.
+	$ids = $wpdb->get_col(
+		$wpdb->prepare(
+			"SELECT p.ID FROM {$wpdb->posts} p
+			INNER JOIN {$wpdb->postmeta} c ON c.post_id = p.ID AND c.meta_key = '_lesson_course' AND c.meta_value = %d
+			LEFT JOIN {$wpdb->postmeta} o ON o.post_id = p.ID AND o.meta_key = %s
+			WHERE p.post_type = 'lesson' AND p.post_status = 'publish' AND p.post_password = ''
+			ORDER BY CAST(COALESCE(o.meta_value, '999999') AS UNSIGNED), p.menu_order, p.ID LIMIT 200",
+			$course_id,
+			'_order_' . $course_id
+		)
+	);
+	// phpcs:enable
+	$lessons = array();
+	foreach ( $ids as $id ) {
+		$lessons[] = array(
+			'key'   => lwr_backend_view_key( (int) $id ),
+			'title' => get_the_title( (int) $id ),
+		);
+	}
+	return $lessons;
+}
+
+/**
+ * A read-only public response with a short cache.
+ *
+ * @param array<string, mixed>|null $data The body, or null for a 404.
+ */
+function lwr_backend_view_respond( ?array $data ): WP_REST_Response {
+	$response = new WP_REST_Response( $data ?? array( 'code' => 'lwr_not_found' ), $data ? 200 : 404 );
+	$response->header( 'Cache-Control', 'public, max-age=60' );
+	$response->header( 'Vary', 'Accept-Encoding' );
+	return $response;
+}
+
+/**
+ * GET /wp-json/lwr-backend-view/v1/course/<key>.
+ */
+function lwr_backend_view_rest_course( WP_REST_Request $request ): WP_REST_Response {
+	$post = lwr_backend_view_find( 'course', (string) $request->get_param( 'key' ) );
+	if ( ! $post ) {
+		return lwr_backend_view_respond( null );
+	}
+	return lwr_backend_view_respond(
+		array(
+			'key'     => lwr_backend_view_key( $post->ID ),
+			'title'   => get_the_title( $post ),
+			'content' => apply_filters( 'the_content', $post->post_content ), // phpcs:ignore WordPress.NamingConventions.PrefixAllGlobals -- core filter.
+			'lessons' => lwr_backend_view_course_lessons( $post->ID ),
+		)
+	);
+}
+
+/**
+ * GET /wp-json/lwr-backend-view/v1/lesson/<key>.
+ */
+function lwr_backend_view_rest_lesson( WP_REST_Request $request ): WP_REST_Response {
+	$post = lwr_backend_view_find( 'lesson', (string) $request->get_param( 'key' ) );
+	if ( ! $post ) {
+		return lwr_backend_view_respond( null );
+	}
+	$course_id = (int) get_post_meta( $post->ID, '_lesson_course', true );
+	$course    = $course_id ? get_post( $course_id ) : null;
+	return lwr_backend_view_respond(
+		array(
+			'key'     => lwr_backend_view_key( $post->ID ),
+			'title'   => get_the_title( $post ),
+			'content' => apply_filters( 'the_content', $post->post_content ), // phpcs:ignore WordPress.NamingConventions.PrefixAllGlobals -- core filter.
+			'course'  => ( $course instanceof WP_Post && 'publish' === $course->post_status ) ? lwr_backend_view_key( $course->ID ) : null,
+		)
+	);
+}
+
+add_action(
+	'rest_api_init',
+	static function () {
+		foreach ( array( 'course', 'lesson' ) as $type ) {
+			register_rest_route(
+				'lwr-backend-view/v1',
+				'/' . $type . '/(?P<key>[A-Za-z0-9_.-]+)',
+				array(
+					'methods'             => WP_REST_Server::READABLE,
+					'callback'            => 'lwr_backend_view_rest_' . $type,
+					'permission_callback' => '__return_true',
+					'args'                => array(
+						'key' => array(
+							'type'              => 'string',
+							'sanitize_callback' => 'sanitize_text_field',
+						),
+					),
+				)
+			);
+		}
+	}
+);

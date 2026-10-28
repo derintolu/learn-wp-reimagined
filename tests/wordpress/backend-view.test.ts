@@ -69,6 +69,38 @@ describe('lwr-backend-view plugin', () => {
   });
 });
 
+describe('lwr-backend-view public REST route', () => {
+  it('registers read-only course and lesson routes under lwr-backend-view/v1', () => {
+    expect(php).toContain("'lwr-backend-view/v1'");
+    expect(php).toContain("'/' . $type . '/(?P<key>");
+    expect(php).toMatch(/array\(\s*'course',\s*'lesson'\s*\)/);
+    expect(php).toContain('WP_REST_Server::READABLE');
+    expect(php).not.toMatch(/CREATABLE|EDITABLE|DELETABLE/);
+  });
+  it('is public: __return_true, Cache-Control public, 404 when absent', () => {
+    expect(php).toContain("'permission_callback' => '__return_true'");
+    expect(php).toContain("'Cache-Control', 'public, max-age=60'");
+    expect(php).toContain('? 200 : 404');
+  });
+  it('queries published, unprotected posts only, by stable key then slug, with prepared values', () => {
+    expect(php).toContain("p.post_status = 'publish'");
+    expect(php).toContain("p.post_password = ''");
+    expect(php).toContain("m.meta_key = '_lledger_stable_key'");
+    expect(php).toContain('p.post_name = %s');
+    expect(php).toContain('$wpdb->prepare(');
+    expect(php).not.toMatch(/post_status = '(draft|private|any)'/);
+    expect(php).toContain("'sanitize_callback' => 'sanitize_text_field'");
+  });
+  it("orders lessons by Sensei's course order meta and renders through the_content", () => {
+    expect(php).toContain('_lesson_course');
+    expect(php).toContain("'_order_' . $course_id");
+    expect(php).toContain("apply_filters( 'the_content'");
+  });
+  it('bumps the version past 0.1.0', () => {
+    expect(/^\s*\* Version:\s*(\S+)/m.exec(php)![1]).not.toBe('0.1.0');
+  });
+});
+
 describe('zipWpPlugin', () => {
   it('names the zip from the Version header and nests files under the slug', () => {
     const out = mkdtempSync(join(tmpdir(), 'wpzip-'));

@@ -1,41 +1,53 @@
 /**
- * Sensei's public REST, read anonymously from the same origin (ruling R13). Sensei registers `course` and `lesson`
- * with show_in_rest, so core's wp/v2 routes serve published ones to anyone. Lessons are looked up by slug (the studio's
- * lesson id); the stable-key meta Learning Ledger keeps (`_lledger_stable_key`) is not exposed over REST.
+ * Sensei's course and lesson content, read anonymously from the same origin through the read-only public route our
+ * lwr-backend-view plugin serves (ruling R17): Spacefast empties anonymous wp/v2 post reads, and Sensei's own public
+ * pages are unreachable (R13). The route finds posts by Learning Ledger's stable key (else slug) and returns the
+ * course's lessons in Sensei's order.
  */
-export interface SenseiPost { id: number; slug: string; title: string; html: string }
+export interface SenseiLessonRef { key: string; title: string }
+export interface SenseiCourse { key: string; title: string; html: string; lessons: SenseiLessonRef[] }
+export interface SenseiLesson { key: string; title: string; html: string; course: string | null }
 
 const TIMEOUT_MS = 3000;
-const FIELDS = '_fields=id,slug,title,content';
+const BASE = '/wp-json/lwr-backend-view/v1';
 
-interface Raw { id: number; slug: string; title?: { rendered?: string }; content?: { rendered?: string } }
-
-async function getJson(path: string): Promise<Raw[]> {
+/** The parsed body, or null on 404 (WordPress answers, Sensei has no such published post). Any other failure throws. */
+async function getJson(path: string): Promise<Record<string, unknown> | null> {
   const ctl = new AbortController();
   const timer = setTimeout(() => ctl.abort(), TIMEOUT_MS);
   try {
-    const res = await fetch(`/wp-json/wp/v2/${path}`, { credentials: 'omit', signal: ctl.signal, headers: { Accept: 'application/json' } });
+    const res = await fetch(`${BASE}/${path}`, { credentials: 'omit', signal: ctl.signal, headers: { Accept: 'application/json' } });
+    if (res.status === 404) {
+      const body = await res.json().catch(() => null);
+      // Only the plugin's own 404 means "absent"; a 404 from elsewhere means the plugin is not answering.
+      if (body && (body as { code?: string }).code === 'lwr_not_found') return null;
+      throw new Error('route not found');
+    }
     if (!res.ok) throw new Error(`Sensei answered ${res.status}`);
     const body = await res.json();
-    if (!Array.isArray(body)) throw new Error('Sensei did not answer with a list');
-    return body as Raw[];
+    if (!body || typeof body !== 'object' || Array.isArray(body)) throw new Error('unexpected answer');
+    return body as Record<string, unknown>;
   } finally {
     clearTimeout(timer);
   }
 }
 
-const shape = (r: Raw): SenseiPost => ({ id: r.id, slug: r.slug, title: r.title?.rendered ?? '', html: r.content?.rendered ?? '' });
+const str = (v: unknown): string => (typeof v === 'string' ? v : '');
 
-/** The course whose slug is the path id, or null when Sensei has none. */
-export async function fetchCourse(pathId: string): Promise<SenseiPost | null> {
-  const rows = await getJson(`course?slug=${encodeURIComponent(pathId)}&${FIELDS}`);
-  return rows[0] ? shape(rows[0]) : null;
+export async function fetchCourse(key: string): Promise<SenseiCourse | null> {
+  const r = await getJson(`course/${encodeURIComponent(key)}`);
+  if (!r) return null;
+  const lessons = Array.isArray(r.lessons) ? (r.lessons as Record<string, unknown>[]) : [];
+  return {
+    key: str(r.key),
+    title: str(r.title),
+    html: str(r.content),
+    lessons: lessons.map((l) => ({ key: str(l.key), title: str(l.title) })).filter((l) => l.key),
+  };
 }
 
-/** The lessons with these slugs, returned in the order asked for; slugs Sensei lacks are left out. */
-export async function fetchLessons(slugs: string[]): Promise<SenseiPost[]> {
-  if (slugs.length === 0) return [];
-  const q = slugs.map((s) => `slug[]=${encodeURIComponent(s)}`).join('&');
-  const rows = (await getJson(`lesson?${q}&per_page=100&${FIELDS}`)).map(shape);
-  return slugs.map((s) => rows.find((r) => r.slug === s)).filter((r): r is SenseiPost => !!r);
+export async function fetchLesson(key: string): Promise<SenseiLesson | null> {
+  const r = await getJson(`lesson/${encodeURIComponent(key)}`);
+  if (!r) return null;
+  return { key: str(r.key), title: str(r.title), html: str(r.content), course: typeof r.course === 'string' ? r.course : null };
 }

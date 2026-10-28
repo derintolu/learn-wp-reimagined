@@ -83,8 +83,7 @@ const PAGES: Record<string, FunctionComponent<any>> = {
   '/proposal': Proposal,
   '/blog': BlogIndex,
   '/blog/:slug': BlogPostPage,
-  '/backend/:pathId': BackendView,
-  '/backend/:pathId/:lessonId': BackendView,
+  '/backend/:pathId/:lessonId?': BackendView,
 };
 
 function Frame() {

@@ -26,12 +26,17 @@ import { BACKEND_VIEW_PATH } from '../../src/shared/course-meta';
 const flags = FEATURES as { wordpressContent: boolean };
 let calls: { url: string; init?: RequestInit }[] = [];
 
-const COURSE = [{ id: 7, slug: 'block-theme', title: { rendered: 'Build a block theme' }, content: { rendered: '<p>Course intro.</p>' } }];
-const LESSONS = [
-  { id: 13, slug: 'three', title: { rendered: 'Lesson three' }, content: { rendered: '<p>c</p>' } },
-  { id: 11, slug: 'one', title: { rendered: 'Lesson one &amp; first' }, content: { rendered: '<p>a</p>' } },
-  { id: 12, slug: 'two', title: { rendered: 'Lesson two' }, content: { rendered: '<p>b</p>' } },
-];
+const COURSE = {
+  key: 'block-theme',
+  title: 'Build a block theme',
+  content: '<p>Course intro.</p>',
+  lessons: [
+    { key: 'one', title: 'Lesson one &amp; first' },
+    { key: 'two', title: 'Lesson two' },
+    { key: 'three', title: 'Lesson three' },
+  ],
+};
+const LESSON = { key: 'one', title: 'Lesson one', content: '<p>a</p>', course: 'block-theme' };
 
 function fakeFetch(handler: (url: string) => unknown) {
   globalThis.fetch = vi.fn(async (input: any, init?: RequestInit) => {
@@ -39,6 +44,7 @@ function fakeFetch(handler: (url: string) => unknown) {
     calls.push({ url, init });
     const body = handler(url);
     if (body instanceof Error) throw body;
+    if (body === null) return new Response(JSON.stringify({ code: 'lwr_not_found' }), { status: 404 });
     return new Response(JSON.stringify(body), { status: 200, headers: { 'content-type': 'application/json' } });
   }) as any;
 }
@@ -50,8 +56,8 @@ function at(url: string) {
   return render(
     <LocationProvider>
       <Router>
-        <Route path="/backend/:pathId" component={BackendView} />
-        <Route path="/backend/:pathId/:lessonId" component={BackendView} />
+        <Route path="/backend/:pathId/:lessonId?" component={BackendView} />
+        <Route default component={() => null} />
       </Router>
     </LocationProvider>,
   );
@@ -74,7 +80,7 @@ describe('BACKEND_VIEW_PATH', () => {
 });
 
 describe('backend view: course', () => {
-  const route = (url: string) => (url.includes('/course?') ? COURSE : LESSONS);
+  const route = () => COURSE;
 
   it('renders the course title and its lessons in path order, with the banner', async () => {
     fakeFetch(route);
@@ -96,7 +102,7 @@ describe('backend view: course', () => {
     await screen.findByRole('heading', { level: 1 });
     expect(calls.length).toBeGreaterThan(0);
     for (const c of calls) {
-      expect(c.url.startsWith('/wp-json/wp/v2/')).toBe(true);
+      expect(c.url.startsWith('/wp-json/lwr-backend-view/v1/')).toBe(true);
       expect(c.init?.credentials).toBe('omit');
       expect(c.init?.signal).toBeTruthy();
       expect(JSON.stringify(c.init?.headers ?? {})).not.toMatch(/nonce/i);
@@ -110,10 +116,33 @@ describe('backend view: course', () => {
     expect(screen.getByRole('link', { name: 'Take the course in the studio' }).getAttribute('href')).toBe('/path/block-theme');
   });
 
-  it('treats a non-200 (Sensei not installed) as not answering', async () => {
+  it('treats a 404 that is not the plugin\'s own (plugin or Sensei missing) as not answering', async () => {
     globalThis.fetch = vi.fn(async () => new Response('{}', { status: 404 })) as any;
     at('/backend/block-theme');
     await screen.findByText("Sensei isn't answering right now.");
+  });
+
+  it('shows the same message when Sensei has no such course', async () => {
+    fakeFetch(() => null);
+    at('/backend/block-theme');
+    await screen.findByText("Sensei isn't answering right now.");
+  });
+
+  it('says so when the course has no lessons', async () => {
+    fakeFetch(() => ({ ...COURSE, lessons: [] }));
+    at('/backend/block-theme');
+    await screen.findByText('Sensei has no lessons for this course yet.');
+    expect(document.querySelector('.backend-lessons')).toBeNull();
+  });
+
+  it('keeps an h1 while loading and in the down state, and focuses it once loaded', async () => {
+    let release!: () => void;
+    globalThis.fetch = vi.fn(() => new Promise((res) => (release = () => res(new Response(JSON.stringify(COURSE)))))) as any;
+    at('/backend/block-theme');
+    expect(screen.getByRole('heading', { level: 1 }).textContent).toBe('Backend view');
+    release();
+    const h1 = await screen.findByRole('heading', { level: 1, name: 'Build a block theme' });
+    await waitFor(() => expect(document.activeElement).toBe(h1));
   });
 
   it('gives up after 3 seconds', async () => {
@@ -137,14 +166,10 @@ describe('backend view: course', () => {
 
 describe('backend view: lesson', () => {
   it('renders sanitised content, strips scripts, and shows the lesson banner', async () => {
-    fakeFetch(() => [
-      {
-        id: 11,
-        slug: 'one',
-        title: { rendered: 'Lesson one' },
-        content: { rendered: '<p>Hello <strong>there</strong></p><script>window.x=1</script><img src=x onerror="window.x=2"><a href="javascript:alert(1)">bad</a>' },
-      },
-    ]);
+    fakeFetch(() => ({
+      ...LESSON,
+      content: '<p>Hello <strong>there</strong></p><script>window.x=1</script><img src=x onerror="window.x=2"><a href="javascript:alert(1)">bad</a>',
+    }));
     at('/backend/block-theme/one');
     await screen.findByRole('heading', { level: 1, name: 'Lesson one' });
     expect(screen.getByText("This is the backend view: Sensei's own record of this lesson.")).toBeTruthy();
@@ -154,8 +179,7 @@ describe('backend view: lesson', () => {
     expect(body.querySelector('script')).toBeNull();
     expect(body.innerHTML).not.toMatch(/onerror|javascript:/i);
     expect((window as any).x).toBeUndefined();
-    expect(calls[0].url).toContain('/wp-json/wp/v2/lesson?');
-    expect(calls[0].url).toContain('slug[]=one');
+    expect(calls[0].url).toBe('/wp-json/lwr-backend-view/v1/lesson/one');
   });
 
   it('shows the down message when Sensei fails', async () => {
@@ -166,7 +190,7 @@ describe('backend view: lesson', () => {
   });
 
   it('is NotFound for a lesson outside the path', async () => {
-    fakeFetch(() => []);
+    fakeFetch(() => LESSON);
     at('/backend/block-theme/solo');
     await screen.findByText('Nothing');
   });
@@ -182,10 +206,29 @@ describe('backend view: flag', () => {
   });
 });
 
+describe('sanitizeHtml hardening', () => {
+  it.each([
+    ['style attribute', '<p style="background:url(x)">t</p>', /style/],
+    ['data: url', '<a href="data:text/html,x">t</a>', /data:/],
+    ['tab inside the scheme', '<a href="java\tscript:alert(1)">t</a>', /script:/],
+    ['entity-encoded scheme', '<a href="&#106;avascript:alert(1)">t</a>', /javascript/i],
+    ['svg', '<svg><script>x</script><circle/></svg>', /svg|circle|script/],
+    ['math', '<math><mi>x</mi></math>', /math/],
+    ['noscript', '<noscript><p title="</noscript><img src=x onerror=1>"></p></noscript>', /onerror/],
+    ['template', '<template><img src=x onerror=1></template>', /template|onerror/],
+    ['body breakout', '</body><img src=x onerror=1>', /onerror/],
+  ])('removes %s', (_n, html, bad) => {
+    expect(sanitizeHtml(html)).not.toMatch(bad);
+  });
+  it('turns h1 into h2 and keeps dl and mark', () => {
+    expect(sanitizeHtml('<h1>A</h1><dl><dt>x</dt><dd>y</dd></dl><mark>m</mark>')).toBe('<h2>A</h2><dl><dt>x</dt><dd>y</dd></dl><mark>m</mark>');
+  });
+});
+
 describe('sanitizeHtml', () => {
   it('keeps prose markup, drops active content and unknown wrappers', () => {
     const out = sanitizeHtml(
-      '<h2>T</h2><ul><li>a</li></ul><pre><code>x &lt; y</code></pre><iframe></iframe><style>p{}</style><custom-x>kept text</custom-x><a href="https://e.com/x" onclick="1">l</a><svg onload="1"></svg>',
+      '<h2>T</h2><ul><li>a</li></ul><pre><code>x &lt; y</code></pre><style>p{}</style><custom-x>kept text</custom-x><a href="https://e.com/x" onclick="1">l</a><svg onload="1"></svg>',
     );
     expect(out).toContain('<h2>T</h2>');
     expect(out).toContain('<ul><li>a</li></ul>');

@@ -6,6 +6,7 @@
 const KEEP = new Set([
   'p', 'h2', 'h3', 'h4', 'h5', 'h6', 'ul', 'ol', 'li', 'a', 'strong', 'b', 'em', 'i', 'code', 'pre', 'blockquote', 'br',
   'hr', 'figure', 'figcaption', 'img', 'table', 'thead', 'tbody', 'tr', 'th', 'td', 'span', 'div', 'kbd', 'sub', 'sup',
+  'u', 's', 'mark', 'abbr', 'cite', 'q', 'dl', 'dt', 'dd',
 ]);
 const DROP = new Set(['script', 'style', 'iframe', 'object', 'embed', 'svg', 'math', 'form', 'input', 'button', 'textarea', 'select', 'link', 'meta', 'template', 'noscript', 'base']);
 const ATTRS: Record<string, string[]> = { a: ['href', 'title'], img: ['src', 'alt', 'width', 'height'], th: ['colspan', 'rowspan'], td: ['colspan', 'rowspan'] };
@@ -30,6 +31,13 @@ function clean(node: Node, doc: Document): void {
       continue;
     }
     clean(el, doc);
+    if (tag === 'h1') {
+      // A page has one h1 already; Sensei's become h2.
+      const h2 = doc.createElement('h2');
+      while (el.firstChild) h2.appendChild(el.firstChild);
+      node.replaceChild(h2, el);
+      continue;
+    }
     if (!KEEP.has(tag)) {
       while (el.firstChild) node.insertBefore(el.firstChild, el);
       node.removeChild(el);
