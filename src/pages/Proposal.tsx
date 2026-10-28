@@ -191,7 +191,10 @@ export function Proposal() {
           lesson's own text, and links back to the lesson or the Developer Handbook when it isn't sure. A placement chat
           recommends a pathway course and a starting lesson. The only new content is a short note per course saying who it
           suits.
-          {!FEATURES.senseiLearners && " Progress stays in the learner's browser, so no accounts are needed."} If the AI is down,
+          {FEATURES.senseiLearners
+            ? " Progress is kept on the course server under an anonymous account: a random id, no email and no password."
+            : " Progress stays in the learner's browser, so no accounts are needed."}{' '}
+          If the AI is down,
           the lessons read exactly as they do today.
           {FEATURES.wordpressContent &&
             " The tutor and placement are running in this concept. What isn't shown is Sensei progress (phase 3 below) and the Training Team's review of these lessons."}
