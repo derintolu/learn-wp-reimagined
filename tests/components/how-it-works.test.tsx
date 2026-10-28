@@ -301,3 +301,50 @@ describe('/how-it-works with the Sensei content flag', () => {
     expect(sensei.querySelector('.status')!.textContent).toBe(STATUS.live);
   });
 });
+
+describe('/how-it-works with the anonymous-accounts flag', () => {
+  const flags = FEATURES as { senseiLearners: boolean; wordpressContent: boolean };
+  const view = () => render(<HowItWorks />);
+  afterEach(() => {
+    flags.senseiLearners = false;
+    flags.wordpressContent = false;
+  });
+
+  it('ships off', () => {
+    expect(flags.senseiLearners).toBe(false);
+  });
+
+  it('off: today\'s accounts bullet, unchanged', () => {
+    view();
+    expect(text()).toContain(
+      "There are no accounts yet. Nobody signs in today. In the browser, your progress is one JSON file of xAPI statements under an anonymous ID (the record format), and it stays on your device.",
+    );
+    expect(text()).not.toContain('You get an anonymous account.');
+  });
+
+  it('on: the anonymous-account bullet replaces the no-accounts bullet, verbatim', () => {
+    flags.senseiLearners = true;
+    view();
+    const t = text();
+    expect(t).toContain(
+      'You get an anonymous account. At your first recorded step the site creates a WordPress user for you in this prototype\'s Sensei, so Sensei can enrol you. It has a random ID, no name, no email and no password, and you never sign in to it. "Delete my data" in the record menu deletes it. Nothing syncs between your devices unless you move the record yourself. Signing in with a WordPress.org account is not built.',
+    );
+    expect(t).not.toContain('There are no accounts');
+    expect(t).not.toMatch(/\p{Extended_Pictographic}/u);
+  });
+
+  it('on with Sensei content: adds the enrolment sentence to the Sensei part, and only then', () => {
+    const enrol = "Sensei enrols you in a path when you start it. Sensei's own pages are the same for everyone and don't show your progress.";
+    flags.senseiLearners = true;
+    view();
+    expect(text()).not.toContain(enrol);
+    cleanup();
+    flags.wordpressContent = true;
+    view();
+    expect(text()).toContain(enrol);
+    cleanup();
+    flags.senseiLearners = false;
+    view();
+    expect(text()).not.toContain(enrol);
+  });
+});

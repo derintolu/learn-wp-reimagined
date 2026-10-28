@@ -178,3 +178,38 @@ describe('/proposal with the Sensei content flag', () => {
     expect(t).toContain('content/snapshot/');
   });
 });
+
+describe('/proposal with the anonymous-accounts flag', () => {
+  const flags = FEATURES as { senseiLearners: boolean };
+  afterEach(() => {
+    flags.senseiLearners = false;
+  });
+
+  it('ships off', () => {
+    expect(flags.senseiLearners).toBe(false);
+  });
+
+  it('off: today\'s decision, privacy line and phase 2 heading, unchanged', () => {
+    render(<Proposal />);
+    const t = text();
+    expect(t).toContain('A record the learner keeps, instead of accounts. No sign-up, and no personal data held.');
+    expect(t).toContain('Phase 2: keep the record with a WordPress.org login');
+    expect(t).not.toContain('An anonymous account, not a sign-up.');
+    expect(t).not.toContain('anonymous Sensei user');
+  });
+
+  it('on: the anonymous-user decision, privacy line and phase 2 copy, verbatim', () => {
+    flags.senseiLearners = true;
+    render(<Proposal />);
+    const t = text();
+    expect(t).toContain(
+      "An anonymous account, not a sign-up. Learners start with no form. The first recorded step creates a Sensei user with a random ID and no email, and the learner can delete it. The cost: the site now holds a server-side user for every learner who starts, which needs rate limits and a clean-up rule, and progress still doesn't follow a learner between devices unless they move the file. An optional \"keep my progress\" by email link is a possible next step, and isn't built.",
+    );
+    expect(t).not.toContain('instead of accounts');
+    expect(t).toContain('The server keeps a random session and an anonymous Sensei user with no name or email, and the learner can delete both from the record menu.');
+    expect(t).toContain('Phase 2: keep the record, with or without a login');
+    expect(t).not.toContain('Phase 2: keep the record with a WordPress.org login');
+    expect(t).toContain("In this concept the learner already has an anonymous account that Sensei tracks. What's still open is only the harder step, linking it to a WordPress.org login.");
+    expect(t).not.toMatch(/\p{Extended_Pictographic}/u);
+  });
+});

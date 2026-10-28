@@ -195,7 +195,7 @@ export function Proposal() {
           {FEATURES.wordpressContent &&
             " The tutor and placement are running in this concept. What isn't shown is Sensei progress (phase 3 below) and the Training Team's review of these lessons."}
         </p>
-        <h3>Phase 2: keep the record with a WordPress.org login</h3>
+        <h3>{FEATURES.senseiLearners ? 'Phase 2: keep the record, with or without a login' : 'Phase 2: keep the record with a WordPress.org login'}</h3>
         <p>
           The learning record goes through a small <Cite to="src-store-if">record store interface</Cite>. Today it has a
           browser store, a local folder and the agent relay. A WordPress.org account adapter, signing in with WordPress.org,
@@ -203,6 +203,8 @@ export function Proposal() {
           <Cite to="src-spec">spec, section 3a</Cite>). It isn't built. One open question: the record's xAPI statements use
           an anonymous actor and can't be rewritten, so linking them to an account needs an agreed approach, such as a
           signed "linked" statement.
+          {FEATURES.senseiLearners &&
+            " In this concept the learner already has an anonymous account that Sensei tracks. What's still open is only the harder step, linking it to a WordPress.org login."}
         </p>
         <h3>Phase 3: Sensei progress</h3>
         <p>
@@ -269,6 +271,12 @@ export function Proposal() {
             handle, stores no personal data, expires after {RELAY_DAYS} days without use, and can be deleted at any time (
             <Cite to="src-relay">the relay</Cite>).
           </li>
+          {FEATURES.senseiLearners && (
+            <li>
+              The server keeps a random session and an anonymous Sensei user with no name or email, and the learner can
+              delete both from the record menu.
+            </li>
+          )}
           <li>What a learner types to the AI is sent to the model provider to get a reply.</li>
         </ul>
         <h3>Accessibility</h3>
@@ -317,12 +325,22 @@ export function Proposal() {
             resets, and open models need more care. In testing, the model best at judging gave away a solution when asked,
             so the tutor runs on a different model (<Cite to="src-eval">the evaluation</Cite>).
           </li>
+          {FEATURES.senseiLearners ? (
+            <li>
+              <strong>An anonymous account, not a sign-up.</strong> Learners start with no form. The first recorded step
+              creates a Sensei user with a random ID and no email, and the learner can delete it. <em>The cost:</em> the
+              site now holds a server-side user for every learner who starts, which needs rate limits and a clean-up rule,
+              and progress still doesn't follow a learner between devices unless they move the file. An optional "keep my
+              progress" by email link is a possible next step, and isn't built.
+            </li>
+          ) : (
           <li>
             <strong>A record the learner keeps, instead of accounts.</strong> No sign-up, and no personal data held.{' '}
             <em>The cost:</em> progress doesn't follow a learner between devices unless they move the file. Clearing browser
             data loses it unless they saved it to a folder or downloaded it. Saving to a folder only works in Chromium
             browsers.
           </li>
+          )}
           <li>
             <strong>Planted bugs are written ahead of time, not generated live.</strong> The snippet is AI-written, and a
             course author plants one bug, so every learner gets the same reliable mistake and the checks for the fix can be

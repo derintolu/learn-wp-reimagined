@@ -93,6 +93,7 @@ function Band({ id, title, dark, children, below }: { id: string; title: Compone
 export function HowItWorks() {
   usePageTitle('How this works');
   const sensei = FEATURES.wordpressContent;
+  const anon = FEATURES.senseiLearners;
 
   const parts: { name: ComponentChildren; status: StatusKind; body: ComponentChildren }[] = [
     {
@@ -166,6 +167,7 @@ export function HowItWorks() {
           that belongs to this prototype. You can read any lesson as Sensei shows it on{' '}
           <a href={BACKEND_VIEW_PATH}>the backend view</a>
           . That view is Sensei's own page, with no AI and no branching. Take the lesson in the studio.
+          {anon && " Sensei enrols you in a path when you start it. Sensei's own pages are the same for everyone and don't show your progress."}
         </>
       ) : (
         <>
@@ -525,11 +527,20 @@ export function HowItWorks() {
             <Cite to="src-accuracy-learner">Learner</Cite>, <Cite to="src-accuracy-vibe">Vibe coder</Cite>), but nobody from
             the team has signed them off.
           </li>
+          {anon ? (
+            <li>
+              <strong>You get an anonymous account.</strong> At your first recorded step the site creates a WordPress user
+              for you in this prototype's Sensei, so Sensei can enrol you. It has a random ID, no name, no email and no
+              password, and you never sign in to it. "Delete my data" in the record menu deletes it. Nothing syncs between
+              your devices unless you move the record yourself. Signing in with a WordPress.org account is not built.
+            </li>
+          ) : (
           <li>
             <strong>There are no accounts yet.</strong> Nobody signs in today. In the browser, your progress is one JSON
             file of xAPI statements under an anonymous ID (<Cite to="src-record">the record format</Cite>), and it stays on
             your device.
           </li>
+          )}
           <li>
             <strong>It isn't connected to Learn.</strong>{' '}
             {sensei
