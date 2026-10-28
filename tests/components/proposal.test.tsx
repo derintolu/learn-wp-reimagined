@@ -388,7 +388,8 @@ describe('/proposal final rewrite (phase 8)', () => {
     const { container } = render(<Proposal />);
     const t = text();
     expect(t).toContain('Phases 1 to 3 below are no longer only proposed: each is running in this concept, with a link to where you can see it.');
-    expect(t).toContain('See it: start the placement chat, then read the same lesson on the backend view to see what Learn shows today.');
+    expect(t).toContain('See it: start the placement chat, then read the same lesson on the backend view, read from Sensei, with no AI and no branching.');
+    expect(t).not.toContain('what Learn shows today');
     expect(t).toContain('See it: open the record menu, then the record on the record store\'s own page.');
     expect(t).toContain("See it: finish a lesson, then open 'What Sensei sees'.");
     expect(t).toContain('A standard, so the course isn\'t tied to this site.');
@@ -452,5 +453,19 @@ describe('/proposal with the LRS shadow (phase 5)', () => {
     render(<Proposal />);
     expect(text()).not.toContain(SHADOW_COPY);
     expect(text()).toContain('The official record is stored on our servers under a random ID');
+  });
+});
+
+describe('/proposal Sensei progress line and agents (I10)', () => {
+  it('officialRecord on, agentOnStandard off: finishing in the studio only', () => {
+    phasesUpTo('officialRecord');
+    render(<Proposal />);
+    expect(text()).toContain('In this concept, finishing a lesson in the studio marks it complete for that learner in Sensei');
+    expect(text()).not.toContain('or in an agent');
+  });
+  it('agentOnStandard on: the approved "or in an agent" line', () => {
+    phasesUpTo('agentOnStandard');
+    render(<Proposal />);
+    expect(text()).toContain('In this concept, finishing a lesson in the studio, or in an agent, marks it complete for that learner in Sensei');
   });
 });

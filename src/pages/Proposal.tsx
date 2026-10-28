@@ -213,8 +213,8 @@ export function Proposal() {
         </p>
         {final && (
           <p>
-            See it: start the placement chat, then read the same lesson on <a href={BACKEND_VIEW_PATH}>the backend view</a> to
-            see what Learn shows today.
+            See it: start the placement chat, then read the same lesson on <a href={BACKEND_VIEW_PATH}>the backend view</a>,
+            read from Sensei, with no AI and no branching.
           </p>
         )}
         {official ? (
@@ -231,7 +231,7 @@ export function Proposal() {
             {final && <p>See it: open the record menu, then the record on the record store's own page.</p>}
             <h3>Phase 3: Sensei progress</h3>
             <p>
-              In this concept, finishing a lesson in the studio, or in an agent, marks it complete for that learner in
+              In this concept, finishing a lesson in the studio{FEATURES.agentOnStandard ? ', or in an agent,' : ''} marks it complete for that learner in
               Sensei, through the record store, with skipped lessons marked complete and recorded as "tested out". Sensei has
               no REST route for this, so the plugin calls Sensei's PHP from inside WordPress. A real Learn adoption would need
               the Sensei maintainers' view on that, on lesson progress having only "in progress" and "complete", and on

@@ -546,12 +546,14 @@ describe('/how-it-works final rewrite (phase 8)', () => {
     const t = text();
     expect(t).toContain('Badges you can verify. Finishing a path earns a badge, issued as an Open Badges 3.0 credential and signed by the record store as "Learn WordPress, reimagined".');
     expect(t).toContain('The badge does not carry your random ID.');
-    expect(t).toContain('A Sensei certificate. When a path\'s course is complete, Sensei LMS Certificates issues its usual PDF, and the studio offers it as a download from the "What Sensei sees" panel.');
-    expect(t).toContain('The certificate is a document. The badge is a credential anyone can verify.');
+    // SERVER_FLAGS.senseiCertificates is off (no rendered certificate yet), so the page uses the approved fallback.
+    expect(t).toContain("A Sensei certificate. Sensei issues its certificate when a path is complete. The studio shows that it exists, but can't yet download it.");
+    expect(t).not.toContain('offers it as a download');
     expect(t).toContain(REVOKED);
     expect(t).toContain("We don't revoke badges when a learner just goes idle.");
     expect(t).toContain('The badges are issued by this prototype, not by WordPress.org, and are not an official WordPress credential.');
-    expect(t).toContain("Sensei's own pages are the backend view, not the learner experience.");
+    expect(t).toContain('The backend view, read from Sensei, is not the learner experience.');
+    expect(t).not.toContain("Sensei's own pages are the backend view");
     expect(t).toContain('not reviewed by the Training Team');
     expect(t).toContain('not affiliated with WordPress.org or the WordPress Foundation');
     expect(t).toContain('It runs on Cloudflare Workers AI, Spacefast, WordPress Playground, Sensei LMS and the open Learning Ledger plugin and course-xapi-mcp standard.');
@@ -636,5 +638,46 @@ describe('/how-it-works with the LRS shadow (phase 5)', () => {
     render(<HowItWorks />);
     expect(text()).not.toContain('Your local record is still the one the site uses.');
     expect(text()).toContain('Where your record lives.');
+  });
+});
+
+describe('/how-it-works backend view wording (R13)', () => {
+  it('with Sensei content: the backend view is read from Sensei, not Sensei\'s own page', () => {
+    setFlags({ wordpressContent: true });
+    render(<HowItWorks />);
+    const t = text();
+    expect(t).toContain('You can read any lesson on the backend view, read from Sensei, with no AI and no branching. Take the lesson in the studio.');
+    expect(t).not.toContain("Sensei's own page,");
+    expect(t).not.toContain('as Sensei shows it');
+  });
+});
+
+describe('/how-it-works certificate sentence follows FEATURES.senseiCertificates', () => {
+  it('on: the download sentence', () => {
+    phasesUpTo('officialRecord');
+    setFlags({ badges: true, senseiCertificates: true });
+    render(<HowItWorks />);
+    expect(text()).toContain('the studio offers it as a download from the "What Sensei sees" panel.');
+  });
+});
+
+describe('/how-it-works agent copy across officialRecord and agentOnStandard (I10)', () => {
+  const card = (c: HTMLElement, id: string) => Array.from(c.querySelectorAll('.custody__card')).find((x) => x.textContent!.includes(id))!.textContent!;
+  it('officialRecord on, agents still practice: connector says practice record, custody still "moving"', () => {
+    phasesUpTo('officialRecord');
+    const { container } = render(<HowItWorks />);
+    expect(text()).toContain('Your record there is a practice record. Badges are off.');
+    expect(card(container, 'author-lrs')).toContain('This site is moving to this option');
+    expect(card(container, 'practice')).toContain('The agent path live here today works much like this.');
+  });
+  it('agentOnStandard on: same record as the studio, custody on author-lrs, no practice line', () => {
+    phasesUpTo('agentOnStandard');
+    const { container } = render(<HowItWorks />);
+    const t = text();
+    expect(t).toContain('What your agent does lands in the same record as the studio.');
+    expect(t).not.toContain('Your record there is a practice record.');
+    expect(card(container, 'author-lrs')).toContain('The agent path here uses this option');
+    expect(card(container, 'author-lrs')).not.toContain('moving to this option');
+    expect(card(container, 'practice')).not.toContain('works much like this');
   });
 });

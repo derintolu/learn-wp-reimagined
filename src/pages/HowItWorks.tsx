@@ -117,7 +117,10 @@ export function HowItWorks() {
       body: (
         <>
           <code>{MCP_URL}</code>. It runs the course-xapi-mcp reference server, with the same tools for beats,
-          code checks, checkpoints and branches. Your record there is a practice record. Badges are off.{' '}
+          code checks, checkpoints and branches.{' '}
+          {FEATURES.agentOnStandard
+            ? 'What your agent does lands in the same record as the studio.'
+            : 'Your record there is a practice record. Badges are off.'}{' '}
           <a href="/connect">Connect your AI</a>.
         </>
       ),
@@ -185,9 +188,8 @@ export function HowItWorks() {
       body: sensei ? (
         <>
           The lessons are stored in Sensei LMS {SENSEI_VERSION}, the same plugin Learn runs on, on a WordPress install
-          that belongs to this prototype. You can read any lesson as Sensei shows it on{' '}
-          <a href={BACKEND_VIEW_PATH}>the backend view</a>
-          . That view is Sensei's own page, with no AI and no branching. Take the lesson in the studio.
+          that belongs to this prototype. You can read any lesson on <a href={BACKEND_VIEW_PATH}>the backend view</a>, read
+          from Sensei, with no AI and no branching. Take the lesson in the studio.
           {anon && " Sensei enrols you in a path when you start it. Sensei's own pages are the same for everyone and don't show your progress."}
           {anon && official && ' Your progress in Sensei is shown in the "What Sensei sees" panel in the studio.'}
         </>
@@ -221,7 +223,11 @@ export function HowItWorks() {
       who: "The author's LRS",
       body: 'The course author names an LRS. The course server signs you in and writes every statement there in real time, including your free-text answers.',
       badges: 'Yes',
-      here: <>This site is moving to this option, with Learning Ledger at {LRS_HOST}.</>,
+      here: FEATURES.agentOnStandard ? (
+        <>The agent path here uses this option, with Learning Ledger at {LRS_HOST}.</>
+      ) : (
+        <>This site is moving to this option, with Learning Ledger at {LRS_HOST}.</>
+      ),
     },
     {
       id: 'server-kept',
@@ -234,7 +240,7 @@ export function HowItWorks() {
       who: 'Nobody',
       body: `No official record. Every result is labelled unofficial, the server hands the statements back to you, and it may relay them under a private handle for up to ${MCP.relayDays} days.`,
       badges: 'No',
-      here: 'The agent path live here today works much like this.',
+      here: FEATURES.agentOnStandard ? undefined : 'The agent path live here today works much like this.',
     },
   ];
 
@@ -583,9 +589,18 @@ export function HowItWorks() {
                 many. Lessons carried over from an older local record never count. The badge does not carry your random ID.
               </p>
               <p>
-                <strong>A Sensei certificate.</strong> When a path's course is complete, Sensei LMS Certificates issues its
-                usual PDF, and the studio offers it as a download from the "What Sensei sees" panel. The certificate is a
-                document. The badge is a credential anyone can verify.
+                {FEATURES.senseiCertificates ? (
+                  <>
+                    <strong>A Sensei certificate.</strong> When a path's course is complete, Sensei LMS Certificates issues
+                    its usual PDF, and the studio offers it as a download from the "What Sensei sees" panel. The certificate
+                    is a document. The badge is a credential anyone can verify.
+                  </>
+                ) : (
+                  <>
+                    <strong>A Sensei certificate.</strong> Sensei issues its certificate when a path is complete. The studio
+                    shows that it exists, but can't yet download it.
+                  </>
+                )}
               </p>
             </>
           )}
@@ -635,7 +650,7 @@ export function HowItWorks() {
           <li>
             <strong>It isn't connected to Learn.</strong>{' '}
             {sensei
-              ? `This is not learn.wordpress.org. The Sensei here is the prototype's own install, with the prototype's own lessons, so nothing you do counts toward anything on Learn. ${official ? "This Sensei is the prototype's own, so your progress here doesn't count on Learn." : 'Your progress does not appear in Sensei yet.'}${final ? " Sensei's own pages are the backend view, not the learner experience." : ''}`
+              ? `This is not learn.wordpress.org. The Sensei here is the prototype's own install, with the prototype's own lessons, so nothing you do counts toward anything on Learn. ${official ? "This Sensei is the prototype's own, so your progress here doesn't count on Learn." : 'Your progress does not appear in Sensei yet.'}${final ? ' The backend view, read from Sensei, is not the learner experience.' : ''}`
               : "Nothing here talks to learn.wordpress.org or Sensei, and progress here doesn't count there."}
           </li>
           {final && (

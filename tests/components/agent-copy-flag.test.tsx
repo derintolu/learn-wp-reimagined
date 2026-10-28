@@ -29,6 +29,14 @@ describe('Home', () => {
     expect(body(container)).not.toMatch(/paste your record|random record handle|with no sign.?in/i);
     expect(container.querySelector('a[href="/connect#import"]')).toBeNull();
   });
+  it('promises the files in the AI only on the handle path, which carries them', () => {
+    expect(body(render(<Home />).container)).toContain('Your AI picks up at that lesson, with your files.');
+    cleanup();
+    flags.agentOnStandard = true;
+    const t = body(render(<Home />).container);
+    expect(t).toContain('Your AI picks up at that lesson.');
+    expect(t).not.toContain('with your files');
+  });
 });
 
 describe('How it works', () => {

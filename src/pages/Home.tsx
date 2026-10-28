@@ -92,7 +92,7 @@ export function Home() {
             </ul>
             <p class="home-note">
               Already started here? On any lesson, open <b>Your record</b> and choose <b>Continue in your AI</b>. Your AI
-              picks up at that lesson, with your files.
+              picks up at that lesson{FEATURES.agentOnStandard ? '' : ', with your files'}.
             </p>
             {FEATURES.agentOnStandard ? (
               <p class="home-note">
