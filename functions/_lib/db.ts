@@ -55,6 +55,44 @@ export async function ensureEnrolmentSchema(db: D1Like): Promise<void> {
     .run();
 }
 
+const recordReady = new WeakSet<D1Like>();
+
+/**
+ * The official-record tables (Task 30), kept out of ensureSchema so routes pay for them only with
+ * SERVER_FLAGS.lrsShadow on. lrs_outbox is a queue of statements for the LRS (rows are deleted once stored);
+ * au_sessions holds each learner's open cmi5 AU session; shadow_facts the learning facts decided per day;
+ * official_outcomes the defined completed, passed and waived already sent (at most once per registration);
+ * lrs_imports the course package ETags already imported. Also adds sessions.registration.
+ */
+export async function ensureRecordSchema(db: D1Like): Promise<void> {
+  if (recordReady.has(db)) return;
+  await db
+    .prepare('CREATE TABLE IF NOT EXISTS lrs_outbox (statement_id VARCHAR(36) PRIMARY KEY, body TEXT, created BIGINT, attempts INT, next_at BIGINT)')
+    .run();
+  await db
+    .prepare(
+      'CREATE TABLE IF NOT EXISTS au_sessions (actor_name VARCHAR(64), au_key VARCHAR(120), session_id VARCHAR(36), started BIGINT, last BIGINT, PRIMARY KEY (actor_name, au_key))',
+    )
+    .run();
+  await db
+    .prepare('CREATE TABLE IF NOT EXISTS shadow_facts (day VARCHAR(10), actor_name VARCHAR(64), lesson_id VARCHAR(120), kind VARCHAR(12))')
+    .run();
+  await db
+    .prepare(
+      'CREATE TABLE IF NOT EXISTS official_outcomes (actor_name VARCHAR(64), activity_id VARCHAR(200), verb VARCHAR(12), event_id VARCHAR(64), PRIMARY KEY (actor_name, activity_id, verb))',
+    )
+    .run();
+  await db.prepare('CREATE TABLE IF NOT EXISTS lrs_imports (etag VARCHAR(200) PRIMARY KEY, imported BIGINT)').run();
+  await ensureSchema(db);
+  try {
+    await db.prepare('ALTER TABLE sessions ADD COLUMN registration VARCHAR(36) NULL').run();
+  } catch (e) {
+    // Already added (SQLite "duplicate column name", MySQL 1060 "Duplicate column name").
+    if (!/duplicate column/i.test(String((e as { message?: unknown })?.message ?? e))) throw e;
+  }
+  recordReady.add(db);
+}
+
 /** True only for duplicate-key errors (SQLite UNIQUE constraint, MySQL 1062 / ER_DUP_ENTRY). */
 export function isDuplicateKey(e: unknown): boolean {
   const err = e as { message?: unknown; code?: unknown; errno?: unknown } | null;

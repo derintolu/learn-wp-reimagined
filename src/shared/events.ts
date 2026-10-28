@@ -7,7 +7,10 @@ export type ServerEvent =
   | { eventId: string; type: 'beatViewed'; lessonId: string; beatIndex: number }
   | { eventId: string; type: 'checkpointAnswered'; lessonId: string; response: string; outcome: Outcome; decisionId?: string; files?: Record<string, string> }
   | { eventId: string; type: 'codeSubmitted'; lessonId: string; target: 'checkpoint' | 'bug'; file: string; files: Record<string, string> }
-  | { eventId: string; type: 'lessonCompleted'; lessonId: string };
+  | { eventId: string; type: 'lessonCompleted'; lessonId: string }
+  /** Opening and leaving a lesson start and end its cmi5 AU session; they have no phase 1 statements. */
+  | { eventId: string; type: 'lessonOpened'; lessonId: string }
+  | { eventId: string; type: 'lessonLeft'; lessonId: string };
 
 export type EventResult =
   | { eventId: string; ok: true; statements: XapiStatement[]; passed?: boolean; outcome?: Outcome; to?: string; chosenBy?: 'judge' | 'learner' }
@@ -68,7 +71,9 @@ function parseEvent(raw: unknown): ServerEvent | null {
       return files ? { eventId, type: 'codeSubmitted', lessonId: raw.lessonId, target: raw.target, file: raw.file, files } : null;
     }
     case 'lessonCompleted':
-      return isStr(raw.lessonId) ? { eventId, type: 'lessonCompleted', lessonId: raw.lessonId } : null;
+    case 'lessonOpened':
+    case 'lessonLeft':
+      return isStr(raw.lessonId) ? { eventId, type: raw.type, lessonId: raw.lessonId } : null;
     default:
       return null;
   }

@@ -7,7 +7,8 @@ export type Actor = XapiStatement['actor'];
 export interface StateKey {
   activityId: string;
   agent: Actor;
-  registration: string;
+  /** Absent for a learner-wide document, such as the standard's current-registration pointer. */
+  registration?: string;
   stateId: string;
 }
 
@@ -129,12 +130,9 @@ export class LrsClient {
   }
 
   private stateUrl(k: StateKey): string {
-    const p = new URLSearchParams({
-      activityId: k.activityId,
-      agent: JSON.stringify(k.agent),
-      registration: k.registration,
-      stateId: k.stateId,
-    });
+    const p = new URLSearchParams({ activityId: k.activityId, agent: JSON.stringify(k.agent) });
+    if (k.registration !== undefined) p.set('registration', k.registration);
+    p.set('stateId', k.stateId);
     return `${LRS_XAPI}/activities/state?${p}`;
   }
 

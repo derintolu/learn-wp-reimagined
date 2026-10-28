@@ -1,5 +1,7 @@
 import type { Env } from '../env';
 import { getContent } from '../content';
+import { recordOfficial } from '../record/shadow';
+import type { Session } from '../session/session';
 import { deriveStatementId } from './ids';
 import { runChecks } from '../../../src/shared/checks';
 import { resolveBranch, validatePlacement } from '../../../src/shared/engine';
@@ -59,6 +61,10 @@ async function decideOne(env: Env, actor: string, e: ServerEvent, now: number): 
     case 'lessonCompleted':
       return ok({ statements: await build(actor, e, { type: 'lessonCompleted', lessonId: e.lessonId }, now) });
 
+    case 'lessonOpened':
+    case 'lessonLeft':
+      return ok({ statements: [] });
+
     case 'codeSubmitted': {
       const spec = e.target === 'checkpoint'
         ? lesson.checkpoint?.kind === 'code' && lesson.checkpoint.file && lesson.checkpoint.checks
@@ -107,22 +113,29 @@ function pathOf(e: ServerEvent): PathId | null {
   return Object.prototype.hasOwnProperty.call(c.lessons, e.lessonId) ? c.lessons[e.lessonId].pathId : null;
 }
 
-export interface SenseiLearner {
-  wpUserId: number | null;
+export interface DecideOptions {
+  /** The session's headless Sensei learner (Task 25), enrolled in each path an event touches. */
+  wpUserId?: number | null;
   connector?: Pick<ConnectorClient, 'enrol'>;
+  /** The session, which names the official actor (Task 30). */
+  session?: Session | null;
 }
 
-/** Decides every event independently; one bad event never sinks the batch. */
-export async function decideEvents(env: Env, actorName: string, events: ServerEvent[], now: number, learner?: SenseiLearner): Promise<EventResult[]> {
+/**
+ * Decides every event independently; one bad event never sinks the batch. With a session and
+ * SERVER_FLAGS.lrsShadow on, the official statements are then built and queued for the LRS (never failing the batch).
+ */
+export async function decideEvents(env: Env, actorName: string, events: ServerEvent[], now: number, opts: DecideOptions = {}): Promise<EventResult[]> {
   const out: EventResult[] = [];
   for (const e of events) {
     // Validation failures are returned as results above; infrastructure errors propagate so the client retries.
     const r = await decideOne(env, actorName, e, now);
     out.push(r);
-    if (r.ok && SERVER_FLAGS.senseiLearners && learner?.wpUserId != null) {
+    if (r.ok && SERVER_FLAGS.senseiLearners && opts.wpUserId != null) {
       const path = pathOf(e);
-      if (path) await ensureEnrolled(env, learner.wpUserId, path, learner.connector, now);
+      if (path) await ensureEnrolled(env, opts.wpUserId, path, opts.connector, now);
     }
   }
+  if (SERVER_FLAGS.lrsShadow && opts.session) await recordOfficial(env, opts.session, events, out, now);
   return out;
 }

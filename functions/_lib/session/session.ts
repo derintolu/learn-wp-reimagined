@@ -119,3 +119,16 @@ export async function deleteSession(env: Env, s: Session): Promise<void> {
 export function clearCookie(): string {
   return `${SESSION_COOKIE}=; HttpOnly; Secure; SameSite=Lax; Path=/; Max-Age=0`;
 }
+
+/**
+ * The cmi5 registration cached on this session (the `registration` column, added by ensureRecordSchema).
+ * The LRS State document is authoritative; this only saves the round trip.
+ */
+export async function cachedRegistration(env: Env, s: Session): Promise<string | null> {
+  const row = await env.DB.prepare('SELECT registration FROM sessions WHERE sid_hash = ?').bind(s.sidHash).first<{ registration: string | null }>();
+  return row?.registration ?? null;
+}
+
+export async function cacheRegistration(env: Env, s: Session, registration: string): Promise<void> {
+  await env.DB.prepare('UPDATE sessions SET registration = ? WHERE sid_hash = ?').bind(registration, s.sidHash).run();
+}

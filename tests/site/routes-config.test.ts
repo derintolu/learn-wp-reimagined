@@ -30,9 +30,12 @@ describe('sf.jsonc routes', () => {
     for (const p of ['/.well-known/oauth-protected-resource', '/.well-known/oauth-authorization-server'])
       expect(rewrites).toContainEqual({ source: p, destination: '/api/oauth/metadata' });
   });
-  it('keeps the crons entry and has no catch-all fallback', () => {
+  it('keeps the crons entries and has no catch-all fallback', () => {
     expect(sf.fallback).toBeUndefined();
-    expect(sf.crons).toEqual([{ path: '/api/mcp-sweep', schedule: 'daily' }]);
+    expect(sf.crons).toEqual([
+      { path: '/api/mcp-sweep', schedule: 'daily' },
+      { path: '/api/lrs-drain', schedule: '*/5 * * * *' },
+    ]);
   });
   it.each(['/wp-json/*', '/wp-admin/*', '/wp-login.php', '/course/*', '/lesson/*', '/xapi/*', '/courses/', '/api/events', '/theme/lwr-blog-0.1.0.zip', '/plugin/lwr-blog-cli-0.2.1.zip', '/blogroll'])(
     'leaves %s to WordPress or Functions',

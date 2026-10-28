@@ -7,10 +7,12 @@ import { rateLimit } from '../_lib/ratelimit';
 import { SERVER_FLAGS } from '../_lib/config';
 import { readSession } from '../_lib/session/session';
 import { decideEvents } from '../_lib/events/decide';
+import { drainAfterDecide } from '../_lib/lrs/outbox';
 import { EVENTS_MAX_BYTES, parseEvents } from '../../src/shared/events';
 
-export const POST: Handler = (req, { env }) =>
+export const POST: Handler = (req, ctx) =>
   guarded(async () => {
+    const { env } = ctx;
     if (!SERVER_FLAGS.serverEvents) return error(503, 'disabled', 'Server events are switched off.');
     await ensureSchema(env.DB);
     const now = Date.now();
@@ -29,7 +31,9 @@ export const POST: Handler = (req, { env }) =>
     if (!parsed.ok) return error(400, 'bad-request', parsed.error);
     const actor = session ? session.actorName : parsed.learnerId;
     try {
-      return json({ results: await decideEvents(env, actor, parsed.events, now, { wpUserId: session?.wpUserId ?? null }) });
+      const results = await decideEvents(env, actor, parsed.events, now, { wpUserId: session?.wpUserId ?? null, session });
+      if (SERVER_FLAGS.lrsShadow && session) await drainAfterDecide(ctx, env, now);
+      return json({ results });
     } catch (e) {
       console.error('events failed', (e as Error)?.message);
       throw e;
