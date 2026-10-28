@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { inline, originalLine, parsePost, toBlocks } from '../../scripts/blog/markdown';
 import { draftArgs } from '../../scripts/blog/draft-learnwp';
-import { crossPostBody, readCredentials, seoPlugins } from '../../scripts/blog/cross-post';
+import { DERINTOLU_SITE_ID, WPCOM_API, crossPostBody, readToken, seoPlugins } from '../../scripts/blog/cross-post';
 
 const POST = `---
 title: "A post: with a colon"
@@ -84,9 +84,12 @@ describe('cross-post', () => {
     expect(body.content.startsWith(originalLine('a-post'))).toBe(true);
     expect(body.content).toContain('Originally published on <a href="https://learnwp.sqwrlz.com/blog/a-post/">Learn WordPress, reimagined</a>');
   });
-  it('reads credentials without echoing them', () => {
-    expect(readCredentials('user=derin\npassword=abcd efgh\n')).toEqual({ user: 'derin', password: 'abcd efgh' });
-    expect(() => readCredentials('user=derin\n')).toThrow(/password=/);
+  it('reads a WordPress.com token from its file', () => {
+    expect(readToken('token=abc123\n')).toBe('abc123');
+    expect(() => readToken('user=derin\n')).toThrow(/token=/);
+  });
+  it('targets derintolu.com through the WordPress.com REST API', () => {
+    expect(`${WPCOM_API}${DERINTOLU_SITE_ID}`).toBe('https://public-api.wordpress.com/wp/v2/sites/165681337');
   });
   it('names a supported SEO plugin from REST namespaces', () => {
     expect(seoPlugins(['wp/v2', 'yoast/v1'])).toEqual(['Yoast SEO']);
