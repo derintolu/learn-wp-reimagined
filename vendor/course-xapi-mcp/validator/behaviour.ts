@@ -1,0 +1,78 @@
+// Vendored from github.com/derintolu/learning-mcp @ f545f5cd68a2c64dc96ac0b138fea6d4332de637, reference/packages/validator/src/behaviour.ts. Do not edit here; change learning-mcp and re-vendor.
+// SPDX-License-Identifier: Apache-2.0
+// Behavioural checks against the starter files, the planted bug and the reference solution (design §12),
+// and the secret-field rules of the two package flavours: CXM-PKG-014, 022-025, 027.
+import { hasNestedQuantifier, makeIssue, runChecks } from '../core/index.ts';
+import type { Check, IssueCode, ValidationIssue } from '../core/index.ts';
+import type { LessonDoc } from './validate.ts';
+
+/**
+ * True when the check is safe to run. A regex that does not compile is CXM-PKG-021, and one with nested
+ * quantifiers is CXM-PKG-202: running it on author files could backtrack for minutes, so it is skipped.
+ */
+function runnable(c: Check): boolean {
+  if (c.type !== 'regex') return true;
+  if (hasNestedQuantifier(c.pattern)) return false;
+  try {
+    new RegExp(c.pattern, c.flags);
+    return true;
+  } catch {
+    return false;
+  }
+}
+
+/** Runs one check alone on a set of files. */
+const passes = (c: Check, files: Record<string, string>) => runChecks([c] as Parameters<typeof runChecks>[0], files).passed;
+
+const escapePointer = (k: string) => k.replace(/~/g, '~0').replace(/\//g, '~1');
+
+/**
+ * JSON Pointers of every secret field anywhere in a JSON document: any `referenceSolution` or `fixChecks` key,
+ * and `explanation` inside a `bug` object. A distribution package may hold none of them, in any file.
+ */
+export function secretPointers(doc: unknown, at = '', parentKey?: string): string[] {
+  if (doc === null || typeof doc !== 'object') return [];
+  const out: string[] = [];
+  for (const [k, v] of Array.isArray(doc) ? doc.map((v, i) => [String(i), v] as const) : Object.entries(doc)) {
+    const here = `${at}/${escapePointer(k)}`;
+    if (!Array.isArray(doc) && (k === 'referenceSolution' || k === 'fixChecks' || (k === 'explanation' && parentKey === 'bug'))) out.push(here);
+    else out.push(...secretPointers(v, here, Array.isArray(doc) ? undefined : k));
+  }
+  return out;
+}
+
+export function behaviourIssues(lessons: LessonDoc[], flavour: 'authoring' | 'distribution'): ValidationIssue[] {
+  const issues: ValidationIssue[] = [];
+  for (const { key, file, base, lesson } of lessons) {
+    const add = (code: IssueCode, pointer: string, message: string) => issues.push(makeIssue(code, { file, pointer: base + pointer || '/' }, message));
+    const checks = (lesson.checkpoint?.checks ?? []) as Check[];
+    const bug = lesson.bug;
+    const solution = lesson.referenceSolution;
+
+    checks.forEach((c, i) => {
+      if (!runnable(c)) return;
+      if (passes(c, lesson.starterFiles ?? {})) add('CXM-PKG-022', `/checkpoint/checks/${i}`, `Check ${i} of lesson "${key}" already passes on the starter files.`);
+      if (solution && !passes(c, solution.files)) add('CXM-PKG-023', `/checkpoint/checks/${i}`, `Check ${i} of lesson "${key}" fails on referenceSolution.files.`);
+    });
+    if (bug?.fixChecks) {
+      (bug.fixChecks as Check[]).forEach((c, i) => {
+        if (!runnable(c)) return;
+        if (passes(c, { [bug.file]: bug.code })) add('CXM-PKG-024', `/bug/fixChecks/${i}`, `Fix check ${i} of lesson "${key}" already passes on the planted bug code.`);
+        if (solution?.bugFix !== undefined && !passes(c, { [bug.file]: solution.bugFix })) {
+          add('CXM-PKG-025', `/bug/fixChecks/${i}`, `Fix check ${i} of lesson "${key}" fails on referenceSolution.bugFix.`);
+        }
+      });
+    }
+
+    if (flavour === 'distribution') {
+      if (bug?.explanation !== undefined) add('CXM-PKG-014', '/bug/explanation', `The distribution package keeps the secret bug explanation of lesson "${key}".`);
+      if (bug?.fixChecks !== undefined) add('CXM-PKG-014', '/bug/fixChecks', `The distribution package keeps the secret fix checks of lesson "${key}".`);
+      if (solution !== undefined) add('CXM-PKG-014', '/referenceSolution', `The distribution package keeps the secret reference solution of lesson "${key}".`);
+    } else {
+      const code = lesson.checkpoint?.kind === 'code';
+      if ((code || bug) && !solution) add('CXM-PKG-027', '', `Lesson "${key}" has ${code ? 'a code checkpoint' : 'a planted bug'} but no referenceSolution.`);
+      else if (bug && solution && solution.bugFix === undefined) add('CXM-PKG-027', '/referenceSolution', `Lesson "${key}" has a planted bug but referenceSolution has no bugFix.`);
+    }
+  }
+  return issues;
+}
