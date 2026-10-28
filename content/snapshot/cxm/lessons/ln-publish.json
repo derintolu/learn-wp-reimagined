@@ -1,0 +1,55 @@
+{
+  "beats": [
+    {
+      "content": "Every new post or page starts as a draft. In the editor's top bar:\n\n- **Save draft** keeps your work without publishing it.\n- **View** shows how it'll look on your site, before anyone else can see it.\n- **Publish** opens a short check first: *Are you ready to publish?* It shows the page's **Visibility** (Public, unless you change it) and when it will **Publish** (Immediately, unless you pick a date). Press **Publish** again to confirm.\n\nThen WordPress tells you the page *is now live* and gives you its address to copy or view. From then on, the button says **Save**, and each change goes live when you save it. So read before you save, the same way you'd read before you publish.\n",
+      "goal": "Know what happens when you press Publish.",
+      "key": "pressing-publish",
+      "question": "What would you look at in the preview before pressing Publish?"
+    },
+    {
+      "content": "In the settings sidebar, **Status** decides who sees a post or page:\n\n- **Draft**: not ready yet.\n- **Pending**: waiting for someone to review it.\n- **Private**: only site admins and editors can see it.\n- **Scheduled**: it publishes itself on a date you choose.\n- **Published**: everyone can see it.\n- **Password protected**: only people who know the password.\n\nBefore a site goes public, two settings are worth a look. Under **Settings > General**, give it a title and a **tagline**, a short line about what the site is for. Search engines read the tagline even if your theme doesn't show it. And under **Settings > Reading**, **Discourage search engines from indexing this site** asks them to stay away while you're still building. It's a request, not a lock: it's up to each search engine to honour it, and visitors can still get in.\n",
+      "goal": "Choose who sees a page, and when.",
+      "key": "status-and-visibility",
+      "question": "When might a Scheduled post be handy for the bakery?"
+    },
+    {
+      "content": "Your practice site lives in your browser. To put a site on the internet, you need two things:\n\n- A **domain**: the address people type to find you, like `example.com`.\n- **Hosting**: a service that stores your site's files and serves them to visitors. If the domain is your site's address, the host is the land it sits on.\n\nWhen you choose a host, look for reliability and good support, room to grow, security features such as SSL certificates and regular backups, and a price that suits you. Some hosts will register a domain and install WordPress for you in one go. You can also switch hosts later and keep your domain.\n\nOn the next screen you can open the site you built in Playground, a full WordPress site in your browser. When you have a real site, create each page on it and paste in that page's markup through the Code editor, the same view you used in lesson 3.\n",
+      "goal": "Know what it takes to put a site online.",
+      "key": "a-real-home",
+      "question": "What would you want from a host, if you were choosing one today?"
+    },
+    {
+      "content": "Look at what you can do now:\n\n- find your way around the dashboard\n- choose between a post and a page\n- build with blocks, and read the markup behind them\n- catch a bug an AI assistant left in that markup\n- change the header and menu in the Site Editor\n- check what AI writes before it goes live\n\nThere's plenty more to explore: the Media Library, block patterns, keeping your site secure and backed up, and headings for accessibility and SEO. The *Beginner WordPress User* course on Learn WordPress covers all of these.\n\nWhen you get stuck, search the WordPress support forums or post a question in one, read the WordPress documentation, or find a course on Learn WordPress. For a theme or plugin, its own support forum is the place to ask.\n",
+      "goal": "Look back, and pick what's next.",
+      "key": "what-next",
+      "question": "What's the first thing you'll add to your site?"
+    }
+  ],
+  "minutes": 6,
+  "sources": [
+    {
+      "title": "WordPress essentials, Domains and hosting (Learn WordPress lesson)",
+      "url": "https://learn.wordpress.org/lesson/wordpress-essentials-domains-and-hosting/"
+    },
+    {
+      "title": "Basic WordPress settings (Learn WordPress lesson)",
+      "url": "https://learn.wordpress.org/lesson/basic-wordpress-settings/"
+    },
+    {
+      "title": "How to find help with WordPress (Learn WordPress lesson)",
+      "url": "https://learn.wordpress.org/lesson/how-to-find-help-with-wordpress-2/"
+    },
+    {
+      "title": "WordPress Block Editor (WordPress documentation)",
+      "url": "https://wordpress.org/documentation/article/wordpress-block-editor/"
+    },
+    {
+      "title": "Page/Post Settings sidebar (WordPress documentation)",
+      "url": "https://wordpress.org/documentation/article/page-post-settings-sidebar/"
+    },
+    {
+      "title": "Settings Reading screen (WordPress documentation)",
+      "url": "https://wordpress.org/documentation/article/settings-reading-screen/"
+    }
+  ]
+}

@@ -1,0 +1,157 @@
+{
+  "beats": [
+    {
+      "content": "The first rule of WordPress security, straight from the handbook: **never trust user input**. Anything a visitor can type or change is input: form fields, cookies, and the part of a link after the `?`, called the **query string**.\n\nIn PHP, the query string arrives in `$_GET`. For a link ending in `?reader=Sam`, `$_GET['reader']` is `Sam`. (Your plugin uses `reader` rather than `name`: WordPress already reads `?name=` itself, to find a post by its slug.) But anyone can make a link that says anything, and send it to your visitors.\n\nTwo habits keep that safe:\n\n- **Sanitize** input as early as you can: clean it up when it comes in.\n- **Escape** output as late as you can: make it safe at the moment you put it on the page.\n",
+      "goal": "See why input from a visitor can't be trusted.",
+      "key": "never-trust-input",
+      "question": "What could someone put in a link's query string that you wouldn't want on your page?"
+    },
+    {
+      "content": "Escaping turns characters that mean something in HTML into harmless text. For text inside an HTML element, use `esc_html()`:\n\n```php\necho '<p>Hello, ' . esc_html( $reader ) . '</p>';\n```\n\nIf `$reader` is `<mark>Sam</mark>`, the visitor sees the tags as plain text, `<mark>Sam</mark>`, instead of the browser obeying them.\n\nThere's an escaping function for each place data can go: `esc_attr()` inside an HTML attribute, `esc_url()` for links, `esc_textarea()` in a text area, and more.\n\nEscape **late**, right where the value is output, not earlier when you first get it. Then you can see at a glance that every output is safe, and nothing that changes the value later can undo it.\n",
+      "goal": "Escape data at the moment it goes on the page.",
+      "key": "escape-late",
+      "question": "Why is escaping at the output easier to check than escaping when the value first arrives?"
+    },
+    {
+      "content": "Sanitizing cleans input up as soon as it arrives. For a plain line of text, like a name, use `sanitize_text_field()`. It checks for invalid UTF-8, strips all HTML tags, removes line breaks, tabs and extra whitespace, and strips percent-encoded characters.\n\n```php\n$reader = sanitize_text_field( wp_unslash( $_GET['reader'] ) );\n```\n\nWhy `wp_unslash()`? WordPress adds backslashes before quotes in `$_GET`, `$_POST` and `$_COOKIE`, so `O'Brien` arrives as `O\\'Brien`. `wp_unslash()` takes them back out before you use the value.\n\nSanitizing and escaping aren't either/or. Sanitize what comes in, escape what goes out, every time. Each catches what the other might miss.\n",
+      "goal": "Clean input as soon as it arrives.",
+      "key": "sanitize-early",
+      "question": "If sanitize_text_field() already strips tags, why escape the name again on output?"
+    },
+    {
+      "content": "An AI assistant has added a feature to your note: if the link has `?reader=` on the end, the note thanks the visitor by name. Your preview opens on a link that ends `?reader=<mark>Sam</mark>` (written in the address with `%3C` for `<` and so on).\n\nRead the code first, then look at the preview. If \"Sam\" comes out highlighted, the browser ran HTML that came from the link. A highlight is harmless, but a link with a `<script>` in it would run that too, on your site, for anyone who clicked it.\n",
+      "goal": "Read the AI's code like an attacker would.",
+      "key": "the-greeting",
+      "question": "In the AI's code, which line puts the visitor's input on the page?"
+    }
+  ],
+  "bug": {
+    "code": "<?php\n/**\n * Plugin Name: My First Plugin\n * Description: My first WordPress plugin, built with Learn WordPress, reimagined.\n * Version: 1.0.0\n * Requires at least: 6.6\n * Requires PHP: 7.4\n * Author: You\n * License: GPL v2 or later\n * License URI: https://www.gnu.org/licenses/gpl-2.0.html\n * Text Domain: my-first-plugin\n */\n\nif ( ! defined( 'ABSPATH' ) ) {\n\texit; // Stop if this file is opened directly, outside WordPress.\n}\n\n/**\n * Add a short thank-you note to the end of every post.\n */\nfunction my_first_plugin_add_note( $content ) {\n\t$note = '<p class=\"my-first-plugin-note\">Thanks for reading! This note was added by my first plugin.</p>';\n\n\t// Greet the visitor by name when the link ends in ?reader=Something.\n\tif ( isset( $_GET['reader'] ) ) {\n\t\t$reader = $_GET['reader'];\n\t\t$note = '<p class=\"my-first-plugin-note\">Thanks for reading, ' . $reader . '! This note was added by my first plugin.</p>';\n\t}\n\n\treturn $content . $note;\n}\nadd_filter( 'the_content', 'my_first_plugin_add_note' );\n\n/**\n * Load the plugin's stylesheet on the front of the site.\n */\nfunction my_first_plugin_enqueue_styles() {\n\twp_enqueue_style( 'my-first-plugin', plugins_url( 'style.css', __FILE__ ), array(), '1.0.0' );\n}\nadd_action( 'wp_enqueue_scripts', 'my_first_plugin_enqueue_styles' );\n",
+    "explanation": "The note put $reader straight into the page with no escaping, so whatever was in the link's ?reader= went into your HTML as code. That's how \"Sam\" came out highlighted, and how a script could get in too. Wrapping it in esc_html() at the point of output turns the tags into plain text, so the preview now shows them as characters instead of obeying them. AI assistants often skip escaping when they build HTML from variables, so look for it whenever input ends up on the page. Your fixed file is now your plugin.",
+    "file": "my-first-plugin/my-first-plugin.php",
+    "fixChecks": [
+      {
+        "file": "my-first-plugin/my-first-plugin.php",
+        "message": "Escape the name where it's put into the note's HTML. Text inside an HTML element needs esc_html().",
+        "pattern": "\\besc_html\\(\\s*\\$reader\\s*\\)",
+        "type": "regex"
+      },
+      {
+        "file": "my-first-plugin/my-first-plugin.php",
+        "message": "Every place $reader is used, other than setting it, should be wrapped in esc_html(). Look for a spot where it goes into the HTML as it is.",
+        "pattern": "^(?![\\s\\S]*(?<!esc_html\\(\\s*)\\$reader\\b(?!\\s*=(?!=)))",
+        "type": "regex"
+      },
+      {
+        "file": "my-first-plugin/my-first-plugin.php",
+        "message": "Keep the greeting. Fix how the name is output rather than removing the feature.",
+        "pattern": "^(?=[\\s\\S]*\\besc_html\\()[\\s\\S]*?\\$_GET\\[\\s*['\"]reader['\"]\\s*\\]",
+        "type": "regex"
+      },
+      {
+        "file": "my-first-plugin/my-first-plugin.php",
+        "message": "Keep returning the post's content with the note added, as you fixed it in lesson 1, while you fix how the name is output.",
+        "pattern": "^(?=[\\s\\S]*\\besc_html\\()[\\s\\S]*?(?:\\breturn\\s*\\(?\\s*(?:\\$content\\s*\\.\\s*\\$note|\\$note\\s*\\.\\s*\\$content)\\s*\\)?\\s*;|\\$content\\s*\\.=\\s*\\$note\\s*;[\\s\\S]*?\\breturn\\s*\\(?\\s*\\$content\\s*\\)?\\s*;)",
+        "type": "regex"
+      }
+    ],
+    "key": "bug-unescaped-name",
+    "revealAfter": 3
+  },
+  "checkpoint": {
+    "branches": [
+      {
+        "key": "advance",
+        "message": "Sanitized on the way in, escaped on the way out. That's the habit that keeps a plugin safe. Next, how the theme picks a template for each page.",
+        "success": true,
+        "to": "vc-template-hierarchy",
+        "when": "The answer meets the rubric."
+      },
+      {
+        "key": "review",
+        "message": "Let's go back over sanitizing and escaping, then have another go.",
+        "success": false,
+        "to": "vc-escaping-and-sanitizing",
+        "when": "The learner should revisit the material."
+      },
+      {
+        "key": "skip",
+        "message": "You've got the security basics. On to the template hierarchy.",
+        "success": true,
+        "to": "vc-template-hierarchy",
+        "when": "The answer clearly shows mastery beyond the lesson."
+      }
+    ],
+    "checks": [
+      {
+        "file": "my-first-plugin/my-first-plugin.php",
+        "message": "Set $reader from sanitize_text_field(), with $_GET['reader'] inside it (unslashed with wp_unslash() first).",
+        "pattern": "\\$reader\\s*=\\s*(?:isset\\(\\s*\\$_GET\\[\\s*['\"]reader['\"]\\s*\\]\\s*\\)\\s*\\?\\s*)?sanitize_text_field\\(\\s*(?:wp_unslash\\(\\s*\\$_GET\\[\\s*['\"]reader['\"]\\s*\\]\\s*\\)|\\$_GET\\[\\s*['\"]reader['\"]\\s*\\])\\s*\\)",
+        "type": "regex"
+      },
+      {
+        "file": "my-first-plugin/my-first-plugin.php",
+        "message": "Keep esc_html() around $reader in the note. Sanitizing the input doesn't replace escaping the output.",
+        "pattern": "\\besc_html\\(\\s*\\$reader\\s*\\)",
+        "type": "regex"
+      },
+      {
+        "file": "my-first-plugin/my-first-plugin.php",
+        "message": "Keep the greeting, with every place $reader is used, other than setting it, still wrapped in esc_html().",
+        "pattern": "^(?=[\\s\\S]*\\$reader\\b)(?![\\s\\S]*(?<!esc_html\\(\\s*)\\$reader\\b(?!\\s*=(?!=)))",
+        "type": "regex"
+      },
+      {
+        "file": "my-first-plugin/my-first-plugin.php",
+        "message": "Keep the isset() check, so the code only reads the name when the link has one.",
+        "pattern": "\\bisset\\(\\s*\\$_GET\\[\\s*['\"]reader['\"]\\s*\\]\\s*\\)",
+        "type": "regex"
+      }
+    ],
+    "file": "my-first-plugin/my-first-plugin.php",
+    "key": "cp-sanitize-name-code",
+    "kind": "code",
+    "question": "Your output is escaped. Now sanitize the input too: in my-first-plugin.php, set $reader with sanitize_text_field(), unslashing $_GET['reader'] with wp_unslash() first, and keep esc_html() on the output.",
+    "rubric": "my-first-plugin.php still checks isset( $_GET['reader'] ), assigns $reader from sanitize_text_field() of $_GET['reader'] (wrapping it in wp_unslash() is recommended but not required), and still outputs it with esc_html( $reader ), with no unescaped use of $reader in the HTML."
+  },
+  "minutes": 8,
+  "referenceSolution": {
+    "bugFix": "<?php\n/**\n * Plugin Name: My First Plugin\n * Description: My first WordPress plugin, built with Learn WordPress, reimagined.\n * Version: 1.0.0\n * Requires at least: 6.6\n * Requires PHP: 7.4\n * Author: You\n * License: GPL v2 or later\n * License URI: https://www.gnu.org/licenses/gpl-2.0.html\n * Text Domain: my-first-plugin\n */\n\nif ( ! defined( 'ABSPATH' ) ) {\n\texit; // Stop if this file is opened directly, outside WordPress.\n}\n\n/**\n * Add a short thank-you note to the end of every post.\n */\nfunction my_first_plugin_add_note( $content ) {\n\t$note = '<p class=\"my-first-plugin-note\">Thanks for reading! This note was added by my first plugin.</p>';\n\n\t// Greet the visitor by name when the link ends in ?reader=Something.\n\tif ( isset( $_GET['reader'] ) ) {\n\t\t$reader = sanitize_text_field( wp_unslash( $_GET['reader'] ) );\n\t\t$note = '<p class=\"my-first-plugin-note\">Thanks for reading, ' . esc_html( $reader ) . '! This note was added by my first plugin.</p>';\n\t}\n\n\treturn $content . $note;\n}\nadd_filter( 'the_content', 'my_first_plugin_add_note' );\n\n/**\n * Load the plugin's stylesheet on the front of the site.\n */\nfunction my_first_plugin_enqueue_styles() {\n\twp_enqueue_style( 'my-first-plugin', plugins_url( 'style.css', __FILE__ ), array(), '1.0.0' );\n}\nadd_action( 'wp_enqueue_scripts', 'my_first_plugin_enqueue_styles' );\n\n/**\n * Give the theme's headings the purple from its own palette.\n */\nfunction my_first_plugin_theme_json( $theme_json ) {\n\t$new_data = array(\n\t\t'version' => 3,\n\t\t'styles'  => array(\n\t\t\t'elements' => array(\n\t\t\t\t'heading' => array(\n\t\t\t\t\t'color' => array(\n\t\t\t\t\t\t'text' => 'var:preset|color|accent-3',\n\t\t\t\t\t),\n\t\t\t\t),\n\t\t\t),\n\t\t),\n\t);\n\n\treturn $theme_json->update_with( $new_data );\n}\nadd_filter( 'wp_theme_json_data_theme', 'my_first_plugin_theme_json' );\n",
+    "files": {
+      "my-first-plugin/my-first-plugin.php": "<?php\n/**\n * Plugin Name: My First Plugin\n * Description: My first WordPress plugin, built with Learn WordPress, reimagined.\n * Version: 1.0.0\n * Requires at least: 6.6\n * Requires PHP: 7.4\n * Author: You\n * License: GPL v2 or later\n * License URI: https://www.gnu.org/licenses/gpl-2.0.html\n * Text Domain: my-first-plugin\n */\n\nif ( ! defined( 'ABSPATH' ) ) {\n\texit; // Stop if this file is opened directly, outside WordPress.\n}\n\n/**\n * Add a short thank-you note to the end of every post.\n */\nfunction my_first_plugin_add_note( $content ) {\n\t$note = '<p class=\"my-first-plugin-note\">Thanks for reading! This note was added by my first plugin.</p>';\n\n\t// Greet the visitor by name when the link ends in ?reader=Something.\n\tif ( isset( $_GET['reader'] ) ) {\n\t\t$reader = sanitize_text_field( wp_unslash( $_GET['reader'] ) );\n\t\t$note = '<p class=\"my-first-plugin-note\">Thanks for reading, ' . esc_html( $reader ) . '! This note was added by my first plugin.</p>';\n\t}\n\n\treturn $content . $note;\n}\nadd_filter( 'the_content', 'my_first_plugin_add_note' );\n\n/**\n * Load the plugin's stylesheet on the front of the site.\n */\nfunction my_first_plugin_enqueue_styles() {\n\twp_enqueue_style( 'my-first-plugin', plugins_url( 'style.css', __FILE__ ), array(), '1.0.0' );\n}\nadd_action( 'wp_enqueue_scripts', 'my_first_plugin_enqueue_styles' );\n\n/**\n * Give the theme's headings the purple from its own palette.\n */\nfunction my_first_plugin_theme_json( $theme_json ) {\n\t$new_data = array(\n\t\t'version' => 3,\n\t\t'styles'  => array(\n\t\t\t'elements' => array(\n\t\t\t\t'heading' => array(\n\t\t\t\t\t'color' => array(\n\t\t\t\t\t\t'text' => 'var:preset|color|accent-3',\n\t\t\t\t\t),\n\t\t\t\t),\n\t\t\t),\n\t\t),\n\t);\n\n\treturn $theme_json->update_with( $new_data );\n}\nadd_filter( 'wp_theme_json_data_theme', 'my_first_plugin_theme_json' );\n"
+    }
+  },
+  "sources": [
+    {
+      "title": "Securely developing plugins and themes (Learn WordPress lesson)",
+      "url": "https://learn.wordpress.org/lesson/securely-developing-plugins-and-themes/"
+    },
+    {
+      "title": "Security (Common APIs Handbook)",
+      "url": "https://developer.wordpress.org/apis/security/"
+    },
+    {
+      "title": "Escaping data (Common APIs Handbook)",
+      "url": "https://developer.wordpress.org/apis/security/escaping/"
+    },
+    {
+      "title": "Sanitizing data (Common APIs Handbook)",
+      "url": "https://developer.wordpress.org/apis/security/sanitizing/"
+    },
+    {
+      "title": "esc_html() (Code Reference)",
+      "url": "https://developer.wordpress.org/reference/functions/esc_html/"
+    },
+    {
+      "title": "sanitize_text_field() (Code Reference)",
+      "url": "https://developer.wordpress.org/reference/functions/sanitize_text_field/"
+    },
+    {
+      "title": "wp_unslash() (Code Reference)",
+      "url": "https://developer.wordpress.org/reference/functions/wp_unslash/"
+    }
+  ],
+  "starterFiles": {
+    "my-first-plugin/my-first-plugin.php": "<?php\n/**\n * Plugin Name: My First Plugin\n * Description: My first WordPress plugin, built with Learn WordPress, reimagined.\n * Version: 1.0.0\n * Requires at least: 6.6\n * Requires PHP: 7.4\n * Author: You\n * License: GPL v2 or later\n * License URI: https://www.gnu.org/licenses/gpl-2.0.html\n * Text Domain: my-first-plugin\n */\n\nif ( ! defined( 'ABSPATH' ) ) {\n\texit; // Stop if this file is opened directly, outside WordPress.\n}\n\n/**\n * Add a short thank-you note to the end of every post.\n */\nfunction my_first_plugin_add_note( $content ) {\n\t$note = '<p class=\"my-first-plugin-note\">Thanks for reading! This note was added by my first plugin.</p>';\n\n\treturn $content . $note;\n}\nadd_filter( 'the_content', 'my_first_plugin_add_note' );\n\n/**\n * Load the plugin's stylesheet on the front of the site.\n */\nfunction my_first_plugin_enqueue_styles() {\n\twp_enqueue_style( 'my-first-plugin', plugins_url( 'style.css', __FILE__ ), array(), '1.0.0' );\n}\nadd_action( 'wp_enqueue_scripts', 'my_first_plugin_enqueue_styles' );\n"
+  }
+}

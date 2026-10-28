@@ -1,0 +1,113 @@
+{
+  "beats": [
+    {
+      "content": "In a block theme, every part of the site is built from blocks: the header, the list of posts, the footer, all of it.\n\nIts templates are plain `.html` files full of **block markup**, which WordPress reads and turns into the page. For example, this one line outputs the site's title on any WordPress site:\n\n```html\n<!-- wp:site-title /-->\n```\n\nBecause everything is blocks, people using your theme can change any of it visually in the Site Editor (**Appearance > Editor**). WordPress also writes the `<html>`, `<head>` and `<body>` tags for you, so your templates only describe what goes inside the page.\n",
+      "goal": "See what makes a block theme different.",
+      "key": "blocks-all-the-way",
+      "question": "Which part of a site would you most like to be able to change with blocks?"
+    },
+    {
+      "content": "WordPress needs just two files to recognise a block theme:\n\n- `style.css` in the theme's root folder. Its header comment holds the theme's details, such as its name and description.\n- `templates/index.html`. This is the default, fallback template. Having it is what makes WordPress treat the theme as a block theme.\n\nEverything else is optional, though most themes use more of it:\n\n```text\nmy-block-theme/\n  parts/        reusable sections, like header.html\n  patterns/     block patterns, registered automatically\n  styles/       style variations (extra JSON files)\n  templates/\n    index.html  (required)\n  style.css     (required)\n  theme.json    settings and styles\n```\n\nSome older tutorials say a block theme also needs `index.php`. Current WordPress doesn't: `style.css` plus `templates/index.html` is enough.\n",
+      "goal": "Know the two files every block theme needs.",
+      "key": "two-required-files",
+      "question": "If you deleted templates/index.html, what do you think WordPress would make of the theme?"
+    },
+    {
+      "content": "`theme.json` is optional, but almost every block theme has one. It has two main sections:\n\n- `settings` decides which controls and presets (such as a colour palette) the editor offers.\n- `styles` applies the theme's design, using those presets.\n\nHere is a small but complete `theme.json` with a three-colour palette:\n\n```json\n{\n  \"$schema\": \"https://schemas.wp.org/trunk/theme.json\",\n  \"version\": 3,\n  \"settings\": {\n    \"color\": {\n      \"palette\": [\n        { \"name\": \"Base\", \"slug\": \"base\", \"color\": \"#ffffff\" },\n        { \"name\": \"Contrast\", \"slug\": \"contrast\", \"color\": \"#1e1e1e\" },\n        { \"name\": \"Subtle\", \"slug\": \"subtle\", \"color\": \"#f0f0f0\" }\n      ]\n    }\n  }\n}\n```\n\n- `version` is the schema version. **3** is current: it arrived in WordPress 6.6 and is still current in WordPress 7.1. (Some handbook pages still show `2`, an older version WordPress still accepts.)\n- `$schema` is optional. It lets your code editor check the file and suggest keys as you type.\n- Each palette entry takes exactly three keys: `name` (the label people see), `slug` (its ID) and `color` (the value). WordPress turns each entry into a CSS custom property, such as `--wp--preset--color--contrast`.\n\nOne catch: WordPress doesn't warn you about a mistyped key. An entry without a `color` key is quietly skipped, with no error at all.\n",
+      "goal": "Meet theme.json, the theme's control centre.",
+      "key": "meet-theme-json",
+      "question": "Why might a typo in theme.json be harder to notice than a typo in CSS?"
+    }
+  ],
+  "bug": {
+    "code": "{\n  \"$schema\": \"https://schemas.wp.org/trunk/theme.json\",\n  \"version\": 3,\n  \"settings\": {\n    \"color\": {\n      \"palette\": [\n        { \"name\": \"Base\", \"slug\": \"base\", \"color\": \"#ffffff\" },\n        { \"name\": \"Contrast\", \"slug\": \"contrast\", \"value\": \"#1e1e1e\" },\n        { \"name\": \"Subtle\", \"slug\": \"subtle\", \"color\": \"#f0f0f0\" }\n      ]\n    }\n  }\n}\n",
+    "explanation": "The Contrast entry used \"value\" where theme.json expects \"color\". Palette entries take exactly \"name\", \"slug\" and \"color\", and WordPress reads each colour from \"color\". Without it, WordPress skips the entry, so no \"--wp--preset--color--contrast\" property is created, and nothing warns you. AI assistants make this kind of slip often, which is why it's worth checking their theme.json against the schema. Your fixed file is now your theme's theme.json.",
+    "file": "theme.json",
+    "fixChecks": [
+      {
+        "file": "theme.json",
+        "message": "Every palette entry should use the same three keys. Look for the entry that doesn't match the others.",
+        "type": "notContains",
+        "value": "\"value\""
+      },
+      {
+        "equals": "#1e1e1e",
+        "file": "theme.json",
+        "message": "Keep the Contrast colour's hex code exactly as it was. Only the key around it is wrong.",
+        "pointer": "/settings/color/palette/1/color",
+        "type": "json"
+      },
+      {
+        "file": "theme.json",
+        "message": "The file must keep version 3, and the Contrast entry must end up with the same keys as the others. Check for a missing comma or quote.",
+        "pattern": "^(?=[\\s\\S]*\"version\"\\s*:\\s*3\\b)[\\s\\S]*?\"slug\"\\s*:\\s*\"contrast\"\\s*,\\s*\"color\"\\s*:",
+        "type": "regex"
+      }
+    ],
+    "key": "bug-palette-value-key",
+    "revealAfter": 3
+  },
+  "checkpoint": {
+    "branches": [
+      {
+        "key": "advance",
+        "message": "That's it. Next, you'll fill in style.css and give theme.json some real settings.",
+        "success": true,
+        "to": "bt-style-css-and-theme-json",
+        "when": "The answer meets the rubric."
+      },
+      {
+        "key": "review",
+        "message": "Let's go through the theme's anatomy once more. It's short, and everything else builds on it.",
+        "success": false,
+        "to": "bt-what-is-a-block-theme",
+        "when": "The learner should revisit the material."
+      },
+      {
+        "key": "skip",
+        "message": "You clearly know your way around a theme already, so we'll skip ahead to templates and parts.",
+        "success": true,
+        "to": "bt-templates-and-parts",
+        "when": "The answer clearly shows mastery beyond the lesson."
+      }
+    ],
+    "key": "cp-two-files",
+    "kind": "free-text",
+    "question": "In a sentence or two, which two files does every block theme need, and what does each one do?",
+    "rubric": "Advance if the answer names both style.css (it holds the theme's details, such as its name, in a header comment) and templates/index.html (the default or fallback template, which makes WordPress treat the theme as a block theme). The roles can be described loosely. Review if it names only one of the two, names theme.json, functions.php or index.php as required, or is unsure. Skip only if the answer gets both right and also correctly explains extra detail, such as theme.json settings versus styles, or that theme.json is optional."
+  },
+  "minutes": 4,
+  "referenceSolution": {
+    "bugFix": "{\n  \"$schema\": \"https://schemas.wp.org/trunk/theme.json\",\n  \"version\": 3,\n  \"settings\": {\n    \"useRootPaddingAwareAlignments\": true,\n    \"color\": {\n      \"palette\": [\n        { \"name\": \"Base\", \"slug\": \"base\", \"color\": \"#ffffff\" },\n        { \"name\": \"Contrast\", \"slug\": \"contrast\", \"color\": \"#1e1e1e\" },\n        { \"name\": \"Subtle\", \"slug\": \"subtle\", \"color\": \"#f0f0f0\" },\n        { \"name\": \"Accent\", \"slug\": \"accent\", \"color\": \"#3858e9\" }\n      ]\n    },\n    \"layout\": {\n      \"contentSize\": \"40rem\",\n      \"wideSize\": \"64rem\"\n    },\n    \"typography\": {\n      \"fontFamilies\": [\n        {\n          \"name\": \"System Sans\",\n          \"slug\": \"system-sans\",\n          \"fontFamily\": \"system-ui, -apple-system, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif\"\n        }\n      ]\n    }\n  },\n  \"styles\": {\n    \"color\": {\n      \"background\": \"var:preset|color|base\",\n      \"text\": \"var:preset|color|contrast\"\n    },\n    \"spacing\": {\n      \"padding\": {\n        \"top\": \"0\",\n        \"right\": \"1.5rem\",\n        \"bottom\": \"0\",\n        \"left\": \"1.5rem\"\n      }\n    },\n    \"typography\": {\n      \"fontFamily\": \"var:preset|font-family|system-sans\",\n      \"lineHeight\": \"1.6\"\n    },\n    \"elements\": {\n      \"link\": {\n        \"color\": { \"text\": \"var:preset|color|accent\" }\n      },\n      \"heading\": {\n        \"typography\": { \"fontWeight\": \"700\", \"lineHeight\": \"1.2\" }\n      }\n    }\n  },\n  \"templateParts\": [\n    { \"name\": \"header\", \"title\": \"Header\", \"area\": \"header\" },\n    { \"name\": \"footer\", \"title\": \"Footer\", \"area\": \"footer\" }\n  ]\n}\n",
+    "files": {
+      "parts/footer.html": "<!-- wp:group {\"align\":\"full\",\"style\":{\"spacing\":{\"padding\":{\"top\":\"2rem\",\"bottom\":\"2rem\"}}},\"layout\":{\"type\":\"constrained\"}} -->\n<div class=\"wp-block-group alignfull\" style=\"padding-top:2rem;padding-bottom:2rem\">\n\t<!-- wp:paragraph {\"align\":\"center\"} -->\n\t<p class=\"has-text-align-center\">Built with my own block theme.</p>\n\t<!-- /wp:paragraph -->\n</div>\n<!-- /wp:group -->\n",
+      "parts/header.html": "<!-- wp:group {\"align\":\"full\",\"style\":{\"spacing\":{\"padding\":{\"top\":\"1.25rem\",\"bottom\":\"1.25rem\"}}},\"layout\":{\"type\":\"constrained\"}} -->\n<div class=\"wp-block-group alignfull\" style=\"padding-top:1.25rem;padding-bottom:1.25rem\">\n\t<!-- wp:group {\"align\":\"wide\",\"layout\":{\"type\":\"flex\",\"justifyContent\":\"space-between\"}} -->\n\t<div class=\"wp-block-group alignwide\">\n\t\t<!-- wp:site-title /-->\n\t\t<!-- wp:navigation /-->\n\t</div>\n\t<!-- /wp:group -->\n</div>\n<!-- /wp:group -->\n",
+      "patterns/hero.php": "<?php\n/**\n * Title: Hero\n * Slug: my-block-theme/hero\n * Categories: featured\n */\n?>\n<!-- wp:group {\"tagName\":\"section\",\"align\":\"full\",\"backgroundColor\":\"subtle\",\"style\":{\"spacing\":{\"padding\":{\"top\":\"3rem\",\"bottom\":\"3rem\"}}},\"layout\":{\"type\":\"constrained\"}} -->\n<section class=\"wp-block-group alignfull has-subtle-background-color has-background\" style=\"padding-top:3rem;padding-bottom:3rem\">\n\t<!-- wp:heading {\"level\":1} -->\n\t<h1 class=\"wp-block-heading\">Hello from my block theme</h1>\n\t<!-- /wp:heading -->\n\n\t<!-- wp:paragraph -->\n\t<p>This section is a pattern. Insert it from the Patterns tab and make it your own.</p>\n\t<!-- /wp:paragraph -->\n</section>\n<!-- /wp:group -->\n",
+      "style.css": "/*\nTheme Name: My Block Theme\nAuthor: You\nDescription: My first block theme, built with Learn WordPress, reimagined.\nVersion: 1.0.0\nRequires at least: 6.6\nTested up to: 7.1\nRequires PHP: 7.4\nLicense: GNU General Public License v2 or later\nLicense URI: https://www.gnu.org/licenses/gpl-2.0.html\nText Domain: my-block-theme\n*/\n",
+      "templates/index.html": "<!-- wp:template-part {\"slug\":\"header\",\"tagName\":\"header\"} /-->\n\n<!-- wp:group {\"tagName\":\"main\",\"layout\":{\"type\":\"constrained\"}} -->\n<main class=\"wp-block-group\">\n\t<!-- wp:pattern {\"slug\":\"my-block-theme/hero\"} /-->\n\n\t<!-- wp:query {\"query\":{\"perPage\":10,\"pages\":0,\"offset\":0,\"postType\":\"post\",\"order\":\"desc\",\"orderBy\":\"date\",\"author\":\"\",\"search\":\"\",\"exclude\":[],\"sticky\":\"\",\"inherit\":true}} -->\n\t<div class=\"wp-block-query\">\n\t\t<!-- wp:post-template -->\n\t\t\t<!-- wp:post-title {\"isLink\":true} /-->\n\t\t\t<!-- wp:post-excerpt /-->\n\t\t<!-- /wp:post-template -->\n\n\t\t<!-- wp:query-pagination -->\n\t\t\t<!-- wp:query-pagination-previous /-->\n\t\t\t<!-- wp:query-pagination-next /-->\n\t\t<!-- /wp:query-pagination -->\n\n\t\t<!-- wp:query-no-results -->\n\t\t\t<!-- wp:paragraph -->\n\t\t\t<p>Nothing to show yet.</p>\n\t\t\t<!-- /wp:paragraph -->\n\t\t<!-- /wp:query-no-results -->\n\t</div>\n\t<!-- /wp:query -->\n</main>\n<!-- /wp:group -->\n\n<!-- wp:template-part {\"slug\":\"footer\",\"tagName\":\"footer\"} /-->\n",
+      "theme.json": "{\n  \"$schema\": \"https://schemas.wp.org/trunk/theme.json\",\n  \"version\": 3,\n  \"settings\": {\n    \"useRootPaddingAwareAlignments\": true,\n    \"color\": {\n      \"palette\": [\n        { \"name\": \"Base\", \"slug\": \"base\", \"color\": \"#ffffff\" },\n        { \"name\": \"Contrast\", \"slug\": \"contrast\", \"color\": \"#1e1e1e\" },\n        { \"name\": \"Subtle\", \"slug\": \"subtle\", \"color\": \"#f0f0f0\" },\n        { \"name\": \"Accent\", \"slug\": \"accent\", \"color\": \"#3858e9\" }\n      ]\n    },\n    \"layout\": {\n      \"contentSize\": \"40rem\",\n      \"wideSize\": \"64rem\"\n    },\n    \"typography\": {\n      \"fontFamilies\": [\n        {\n          \"name\": \"System Sans\",\n          \"slug\": \"system-sans\",\n          \"fontFamily\": \"system-ui, -apple-system, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif\"\n        }\n      ]\n    }\n  },\n  \"styles\": {\n    \"color\": {\n      \"background\": \"var:preset|color|base\",\n      \"text\": \"var:preset|color|contrast\"\n    },\n    \"spacing\": {\n      \"padding\": {\n        \"top\": \"0\",\n        \"right\": \"1.5rem\",\n        \"bottom\": \"0\",\n        \"left\": \"1.5rem\"\n      }\n    },\n    \"typography\": {\n      \"fontFamily\": \"var:preset|font-family|system-sans\",\n      \"lineHeight\": \"1.6\"\n    },\n    \"elements\": {\n      \"link\": {\n        \"color\": { \"text\": \"var:preset|color|accent\" }\n      },\n      \"heading\": {\n        \"typography\": { \"fontWeight\": \"700\", \"lineHeight\": \"1.2\" }\n      }\n    }\n  },\n  \"templateParts\": [\n    { \"name\": \"header\", \"title\": \"Header\", \"area\": \"header\" },\n    { \"name\": \"footer\", \"title\": \"Footer\", \"area\": \"footer\" }\n  ]\n}\n"
+    }
+  },
+  "sources": [
+    {
+      "title": "Theme Structure (Theme Handbook)",
+      "url": "https://developer.wordpress.org/themes/core-concepts/theme-structure/"
+    },
+    {
+      "title": "Theme structure (Learn WordPress lesson)",
+      "url": "https://learn.wordpress.org/lesson/theme-structure/"
+    },
+    {
+      "title": "Introduction to theme.json (Theme Handbook)",
+      "url": "https://developer.wordpress.org/themes/global-settings-and-styles/introduction-to-theme-json/"
+    },
+    {
+      "title": "theme.json reference, version 3 (Block Editor Handbook)",
+      "url": "https://developer.wordpress.org/block-editor/reference-guides/theme-json-reference/theme-json-living/"
+    }
+  ],
+  "starterFiles": {
+    "style.css": "/*\nTheme Name: My Block Theme\nAuthor: You\nDescription: My first block theme, built with Learn WordPress, reimagined.\nVersion: 1.0.0\nRequires at least: 6.6\nTested up to: 7.1\nRequires PHP: 7.4\nLicense: GNU General Public License v2 or later\nLicense URI: https://www.gnu.org/licenses/gpl-2.0.html\nText Domain: my-block-theme\n*/\n",
+    "theme.json": "{\n  \"$schema\": \"https://schemas.wp.org/trunk/theme.json\",\n  \"version\": 3,\n  \"settings\": {\n    \"color\": {\n      \"palette\": [\n        { \"name\": \"Base\", \"slug\": \"base\", \"color\": \"#ffffff\" },\n        { \"name\": \"Contrast\", \"slug\": \"contrast\", \"color\": \"#1e1e1e\" },\n        { \"name\": \"Subtle\", \"slug\": \"subtle\", \"color\": \"#f0f0f0\" }\n      ]\n    }\n  }\n}\n"
+  }
+}

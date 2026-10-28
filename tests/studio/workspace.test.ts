@@ -87,7 +87,7 @@ describe('workspaceFiles', () => {
 
 describe('workspaceFiles follows the lesson path', () => {
   it('workspace never mixes paths', () => {
-    const c = structuredClone(buildContent('content'));
+    const c = structuredClone(buildContent());
     const MAIN = 'hello-learn/hello-learn.php';
     c.paths['vibe-coder'] = {
       ...c.paths['vibe-coder'],

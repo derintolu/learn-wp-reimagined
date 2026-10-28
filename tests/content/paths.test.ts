@@ -7,7 +7,7 @@ import { SOLUTIONS } from './solutions';
 import { hasNestedQuantifier } from '../../vendor/course-xapi-mcp/core/checks.ts';
 
 /** The same checks for every live path in the real bundle. Paths join automatically when they go live. */
-const c = buildContent('content');
+const c = buildContent();
 const live = Object.values(c.paths).filter((p) => p.status === 'live');
 const has = (o: object, k: string) => Object.prototype.hasOwnProperty.call(o, k);
 

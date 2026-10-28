@@ -76,7 +76,7 @@ describe('POST /api/agent/handoff on the standard', () => {
   });
 
   it("every live path's first and last lessons seed and continue", async () => {
-    const bundle = buildContent('content');
+    const bundle = buildContent();
     const live = Object.values(bundle.paths).filter((p) => p.status === 'live');
     const { call } = await agent('modern');
     for (const p of live) {

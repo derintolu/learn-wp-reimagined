@@ -1,0 +1,131 @@
+{
+  "beats": [
+    {
+      "content": "You don't change WordPress itself to make it do something new. You **hook** into it. Hooks are named spots, all through WordPress, where it stops and lets other code join in. Plugins and themes are built on them, and WordPress uses them a lot itself.\n\nYour plugin is one PHP file, `my-first-plugin/my-first-plugin.php`. The comment at the top is its header. `Plugin Name` is the only line WordPress requires, and it's what you see on the Plugins screen. The plugin is already active in your preview.\n\n```php\n<?php\n/**\n * Plugin Name: My First Plugin\n */\n```\n\nWordPress loads every active plugin early, on every request. So code you put in the file runs straight away, long before the page exists. That's why plugins don't do much directly: they hand WordPress a function to call later, at the right hook.\n\nThere are two kinds of hooks: **actions** and **filters**.\n",
+      "goal": "Know what a hook is, and where your plugin's code runs.",
+      "key": "what-hooks-are",
+      "question": "If an AI assistant pasted a block of code straight into this file, when would you expect it to run?"
+    },
+    {
+      "content": "An **action** is a moment: \"WordPress has just done this, do you want to do something now?\" You attach a function, called a **callback**, with `add_action()`:\n\n```php\nfunction my_first_plugin_setup() {\n\t// Do something useful here.\n}\nadd_action( 'init', 'my_first_plugin_setup' );\n```\n\n- The first argument is the hook's name. `init` fires once WordPress has loaded, on every request.\n- The second is the callback. Here it's the name of the function, as a string.\n- You can also pass a priority (lower runs earlier, and the default is 10) and how many arguments your callback accepts.\n\nAn action's callback does its job and **returns nothing**. WordPress doesn't use anything it gives back.\n\nYour function names start with `my_first_plugin_` for a reason: every plugin shares the same PHP world, so a unique prefix stops your function clashing with someone else's.\n",
+      "goal": "See what an action is.",
+      "key": "actions-do-something",
+      "question": "Why might two plugins that both define a function called setup() break a site?"
+    },
+    {
+      "content": "A **filter** is different. WordPress hands your callback a value, and your callback hands back a value, usually the same one changed a little. Here's the line in WordPress that shows a post's content:\n\n```php\n$content = apply_filters( 'the_content', $content );\n```\n\nWordPress passes the post's content to every callback on `the_content`, and keeps **whatever comes back** as the new content. So a filter callback looks like this:\n\n```php\nfunction my_first_plugin_shout( $title ) {\n\treturn $title . '!';\n}\nadd_filter( 'the_title', 'my_first_plugin_shout' );\n```\n\nThe rule from the Plugin Handbook: a filter takes the value, changes it, and **returns** it. Filters should work on their own, with no side effects, and that includes not printing anything to the page.\n",
+      "goal": "See what a filter is, and why it must return.",
+      "key": "filters-give-back",
+      "question": "What do you think WordPress would show for the post if a the_content callback gave back nothing at all?"
+    },
+    {
+      "content": "This is the slip AI assistants make most with filters, and it's easy to miss when you skim:\n\n- `echo` prints something **right now**, wherever PHP happens to be in building the page.\n- `return` hands a value **back** to whoever called the function. Nothing is printed.\n\nIn a filter, WordPress wants the value back, so it can put it in the right place. Your preview is open on the default \"Hello world!\" post, showing your plugin running on a real site.\n\nNext, an AI assistant has written your plugin's first feature: a short thank-you note at the end of every post. Before you look at the preview, read the callback and predict what you'll see.\n",
+      "goal": "Tell echo from return.",
+      "key": "echo-versus-return",
+      "question": "Before you look, where do you think the post's content will end up?"
+    }
+  ],
+  "bug": {
+    "code": "<?php\n/**\n * Plugin Name: My First Plugin\n * Description: My first WordPress plugin, built with Learn WordPress, reimagined.\n * Version: 1.0.0\n * Requires at least: 6.6\n * Requires PHP: 7.4\n * Author: You\n * License: GPL v2 or later\n * License URI: https://www.gnu.org/licenses/gpl-2.0.html\n * Text Domain: my-first-plugin\n */\n\nif ( ! defined( 'ABSPATH' ) ) {\n\texit; // Stop if this file is opened directly, outside WordPress.\n}\n\n/**\n * Add a short thank-you note to the end of every post.\n */\nfunction my_first_plugin_add_note( $content ) {\n\t$note = '<p class=\"my-first-plugin-note\">Thanks for reading! This note was added by my first plugin.</p>';\n\n\techo $content . $note;\n}\nadd_filter( 'the_content', 'my_first_plugin_add_note' );\n",
+    "explanation": "The callback used echo where a filter needs return. echo printed the post and the note straight away, while WordPress was still building the page, so they landed at the very top, above the site's header. The callback then gave nothing back, and WordPress used that nothing as the post's content, so the post's own spot came up empty. Filters receive a value and must return it: return $content . $note puts the note after the post, where it belongs. It's an easy mistake for an AI assistant, because echo is right in so much other PHP. Your fixed file is now your plugin.",
+    "file": "my-first-plugin/my-first-plugin.php",
+    "fixChecks": [
+      {
+        "file": "my-first-plugin/my-first-plugin.php",
+        "message": "A filter callback shouldn't print anything. Look for the line that sends the content straight to the page.",
+        "pattern": "^(?![\\s\\S]*(?:^|\\n)(?![^\\S\\n]*(?://|#|/?\\*))[^\\n]*\\b(?:echo|print|printf)\\b)",
+        "type": "regex"
+      },
+      {
+        "file": "my-first-plugin/my-first-plugin.php",
+        "message": "The callback should give the post's content back to WordPress, with the note added to it. A filter returns the value it was given.",
+        "pattern": "\\breturn\\s*\\(?\\s*(?:\\$content\\s*\\.\\s*\\$note|\\$note\\s*\\.\\s*\\$content)\\s*\\)?\\s*;|\\$content\\s*\\.=\\s*\\$note\\s*;[\\s\\S]*?\\breturn\\s*\\(?\\s*\\$content\\s*\\)?\\s*;",
+        "type": "regex"
+      },
+      {
+        "file": "my-first-plugin/my-first-plugin.php",
+        "message": "Keep the add_filter line that hooks the callback to the_content, and fix the callback itself.",
+        "pattern": "^(?=[\\s\\S]*\\breturn\\b)[\\s\\S]*?\\badd_filter\\(\\s*['\"]the_content['\"]\\s*,\\s*(?:['\"]my_first_plugin_add_note['\"]|(?:static\\s+)?function\\b|fn\\b)",
+        "type": "regex"
+      },
+      {
+        "file": "my-first-plugin/my-first-plugin.php",
+        "message": "Keep the note itself, with its my-first-plugin-note class, and fix the callback itself. The next lesson styles it.",
+        "pattern": "^(?=[\\s\\S]*\\breturn\\b)[\\s\\S]*?class=\"my-first-plugin-note\"",
+        "type": "regex"
+      }
+    ],
+    "key": "bug-filter-echo",
+    "revealAfter": 3
+  },
+  "checkpoint": {
+    "branches": [
+      {
+        "key": "advance",
+        "message": "That's the rule, and you'll catch it in AI code from now on. Next, let's give that note some style.",
+        "success": true,
+        "to": "vc-enqueueing",
+        "when": "The answer meets the rubric."
+      },
+      {
+        "key": "review",
+        "message": "Let's go over filters and return once more. It's the idea everything else here builds on.",
+        "success": false,
+        "to": "vc-actions-and-filters",
+        "when": "The learner should revisit the material."
+      },
+      {
+        "key": "skip",
+        "message": "You know actions from filters already, so we'll skip ahead to keeping your plugin safe.",
+        "success": true,
+        "to": "vc-escaping-and-sanitizing",
+        "when": "The answer clearly shows mastery beyond the lesson."
+      }
+    ],
+    "key": "cp-filter-returns",
+    "kind": "free-text",
+    "question": "In a sentence or two: what does a filter callback have to give back to WordPress, and what happens to the post if it prints the content with echo instead?",
+    "rubric": "Advance if the answer says a filter callback must return a value: the value it was given (the content), usually changed. Wording can be loose (\"hand it back\", \"return the content\"). Credit any sensible consequence of echoing: the content comes up empty or missing, or it prints in the wrong place, at the top of the page. Review if it says the callback should echo or print, says it doesn't need to return anything, mixes up return and echo, or is unsure. Skip only if the answer gets the filter rule right and also correctly explains how actions differ (an action's callback does something and returns nothing, or WordPress ignores what it returns)."
+  },
+  "minutes": 6,
+  "referenceSolution": {
+    "bugFix": "<?php\n/**\n * Plugin Name: My First Plugin\n * Description: My first WordPress plugin, built with Learn WordPress, reimagined.\n * Version: 1.0.0\n * Requires at least: 6.6\n * Requires PHP: 7.4\n * Author: You\n * License: GPL v2 or later\n * License URI: https://www.gnu.org/licenses/gpl-2.0.html\n * Text Domain: my-first-plugin\n */\n\nif ( ! defined( 'ABSPATH' ) ) {\n\texit; // Stop if this file is opened directly, outside WordPress.\n}\n\n/**\n * Add a short thank-you note to the end of every post.\n */\nfunction my_first_plugin_add_note( $content ) {\n\t$note = '<p class=\"my-first-plugin-note\">Thanks for reading! This note was added by my first plugin.</p>';\n\n\t// Greet the visitor by name when the link ends in ?reader=Something.\n\tif ( isset( $_GET['reader'] ) ) {\n\t\t$reader = sanitize_text_field( wp_unslash( $_GET['reader'] ) );\n\t\t$note = '<p class=\"my-first-plugin-note\">Thanks for reading, ' . esc_html( $reader ) . '! This note was added by my first plugin.</p>';\n\t}\n\n\treturn $content . $note;\n}\nadd_filter( 'the_content', 'my_first_plugin_add_note' );\n\n/**\n * Load the plugin's stylesheet on the front of the site.\n */\nfunction my_first_plugin_enqueue_styles() {\n\twp_enqueue_style( 'my-first-plugin', plugins_url( 'style.css', __FILE__ ), array(), '1.0.0' );\n}\nadd_action( 'wp_enqueue_scripts', 'my_first_plugin_enqueue_styles' );\n\n/**\n * Give the theme's headings the purple from its own palette.\n */\nfunction my_first_plugin_theme_json( $theme_json ) {\n\t$new_data = array(\n\t\t'version' => 3,\n\t\t'styles'  => array(\n\t\t\t'elements' => array(\n\t\t\t\t'heading' => array(\n\t\t\t\t\t'color' => array(\n\t\t\t\t\t\t'text' => 'var:preset|color|accent-3',\n\t\t\t\t\t),\n\t\t\t\t),\n\t\t\t),\n\t\t),\n\t);\n\n\treturn $theme_json->update_with( $new_data );\n}\nadd_filter( 'wp_theme_json_data_theme', 'my_first_plugin_theme_json' );\n",
+    "files": {
+      "my-first-plugin/my-first-plugin.php": "<?php\n/**\n * Plugin Name: My First Plugin\n * Description: My first WordPress plugin, built with Learn WordPress, reimagined.\n * Version: 1.0.0\n * Requires at least: 6.6\n * Requires PHP: 7.4\n * Author: You\n * License: GPL v2 or later\n * License URI: https://www.gnu.org/licenses/gpl-2.0.html\n * Text Domain: my-first-plugin\n */\n\nif ( ! defined( 'ABSPATH' ) ) {\n\texit; // Stop if this file is opened directly, outside WordPress.\n}\n\n/**\n * Add a short thank-you note to the end of every post.\n */\nfunction my_first_plugin_add_note( $content ) {\n\t$note = '<p class=\"my-first-plugin-note\">Thanks for reading! This note was added by my first plugin.</p>';\n\n\t// Greet the visitor by name when the link ends in ?reader=Something.\n\tif ( isset( $_GET['reader'] ) ) {\n\t\t$reader = sanitize_text_field( wp_unslash( $_GET['reader'] ) );\n\t\t$note = '<p class=\"my-first-plugin-note\">Thanks for reading, ' . esc_html( $reader ) . '! This note was added by my first plugin.</p>';\n\t}\n\n\treturn $content . $note;\n}\nadd_filter( 'the_content', 'my_first_plugin_add_note' );\n\n/**\n * Load the plugin's stylesheet on the front of the site.\n */\nfunction my_first_plugin_enqueue_styles() {\n\twp_enqueue_style( 'my-first-plugin', plugins_url( 'style.css', __FILE__ ), array(), '1.0.0' );\n}\nadd_action( 'wp_enqueue_scripts', 'my_first_plugin_enqueue_styles' );\n\n/**\n * Give the theme's headings the purple from its own palette.\n */\nfunction my_first_plugin_theme_json( $theme_json ) {\n\t$new_data = array(\n\t\t'version' => 3,\n\t\t'styles'  => array(\n\t\t\t'elements' => array(\n\t\t\t\t'heading' => array(\n\t\t\t\t\t'color' => array(\n\t\t\t\t\t\t'text' => 'var:preset|color|accent-3',\n\t\t\t\t\t),\n\t\t\t\t),\n\t\t\t),\n\t\t),\n\t);\n\n\treturn $theme_json->update_with( $new_data );\n}\nadd_filter( 'wp_theme_json_data_theme', 'my_first_plugin_theme_json' );\n",
+      "my-first-plugin/style.css": "/* Styles for My First Plugin. WordPress loads this file once the plugin enqueues it. */\n.my-first-plugin-note {\n\tmargin-top: 2rem;\n\tpadding: 1rem 1.25rem;\n\tborder-left: 4px solid #3858e9;\n\tbackground: #eef1fd;\n}\n"
+    }
+  },
+  "sources": [
+    {
+      "title": "WordPress Hooks (Learn WordPress lesson)",
+      "url": "https://learn.wordpress.org/lesson/wordpress-hooks/"
+    },
+    {
+      "title": "Action Hooks (Learn WordPress lesson)",
+      "url": "https://learn.wordpress.org/lesson/action-hooks/"
+    },
+    {
+      "title": "Filter Hooks (Learn WordPress lesson)",
+      "url": "https://learn.wordpress.org/lesson/filter-hooks/"
+    },
+    {
+      "title": "Hooks (Plugin Handbook)",
+      "url": "https://developer.wordpress.org/plugins/hooks/"
+    },
+    {
+      "title": "Actions (Plugin Handbook)",
+      "url": "https://developer.wordpress.org/plugins/hooks/actions/"
+    },
+    {
+      "title": "Filters (Plugin Handbook)",
+      "url": "https://developer.wordpress.org/plugins/hooks/filters/"
+    },
+    {
+      "title": "the_content filter (Code Reference)",
+      "url": "https://developer.wordpress.org/reference/hooks/the_content/"
+    }
+  ],
+  "starterFiles": {
+    "my-first-plugin/my-first-plugin.php": "<?php\n/**\n * Plugin Name: My First Plugin\n * Description: My first WordPress plugin, built with Learn WordPress, reimagined.\n * Version: 1.0.0\n * Requires at least: 6.6\n * Requires PHP: 7.4\n * Author: You\n * License: GPL v2 or later\n * License URI: https://www.gnu.org/licenses/gpl-2.0.html\n * Text Domain: my-first-plugin\n */\n\nif ( ! defined( 'ABSPATH' ) ) {\n\texit; // Stop if this file is opened directly, outside WordPress.\n}\n\n// Your plugin's code goes below this line.\n"
+  }
+}

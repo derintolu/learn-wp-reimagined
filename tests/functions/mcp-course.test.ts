@@ -7,7 +7,7 @@ import { judgePrompt } from '../../functions/_lib/prompts';
 import { BRANCH_WHEN, COURSE_ACTIVITY_BASE, COURSE_ID } from '../../src/shared/course-meta';
 import type { ContentBundle } from '../../src/shared/types';
 
-const real = () => buildContent('content');
+const real = () => buildContent();
 
 afterEach(() => setCourseForTests(null));
 

@@ -4,7 +4,7 @@ import { cleanup, fireEvent, render, screen, waitFor } from '@testing-library/pr
 
 vi.mock('../../src/content', async () => {
   const { buildContent } = await import('../../scripts/build-content');
-  return { content: buildContent('content') };
+  return { content: buildContent() };
 });
 
 import { Finale } from '../../src/pages/Finale';

@@ -377,7 +377,7 @@ describe('Code checkpoint', () => {
     );
     await waitFor(() =>
       expect(feedbackMock).toHaveBeenCalledWith(
-        expect.objectContaining({ lessonId: 'templates-and-parts', file: 'theme.json', passed: false, failedMessages: ['Add a colour with a slug.'] }),
+        expect.objectContaining({ lessonId: 'templates-and-parts', file: 'theme.json', passed: false, failedMessages: ['Set version to 3.', 'Add a colour with a slug.'] }),
         expect.any(AbortSignal),
       ),
     );

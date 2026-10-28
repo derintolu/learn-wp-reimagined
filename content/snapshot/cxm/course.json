@@ -1,0 +1,307 @@
+{
+  "allowPractice": false,
+  "badgeIssuer": {
+    "claimPage": "https://learnwp.sqwrlz.com/claim",
+    "signer": "course-server"
+  },
+  "badges": [
+    {
+      "achievementType": "Certificate",
+      "awardOn": "block-satisfied",
+      "countWaived": true,
+      "criteria": {
+        "narrative": "Satisfy every lesson of the Learner path: pass its checkpoints, or be placed past a lesson by a skip."
+      },
+      "description": "Start from zero and build your first WordPress site.",
+      "for": "learner",
+      "id": "https://learnwp.sqwrlz.com/badges/learner",
+      "includeScore": false,
+      "name": "Learner"
+    },
+    {
+      "achievementType": "Certificate",
+      "awardOn": "block-satisfied",
+      "countWaived": true,
+      "criteria": {
+        "narrative": "Satisfy every lesson of the Block theme developer path: pass its checkpoints, or be placed past a lesson by a skip."
+      },
+      "description": "Build your first block theme with theme.json, templates, parts and patterns.",
+      "for": "block-theme",
+      "id": "https://learnwp.sqwrlz.com/badges/block-theme",
+      "includeScore": false,
+      "name": "Block theme developer"
+    },
+    {
+      "achievementType": "Certificate",
+      "awardOn": "block-satisfied",
+      "countWaived": true,
+      "criteria": {
+        "narrative": "Satisfy every lesson of the Vibe coder path: pass its checkpoints, or be placed past a lesson by a skip."
+      },
+      "description": "Ship WordPress code with an AI pair, and learn to spot what it gets wrong.",
+      "for": "vibe-coder",
+      "id": "https://learnwp.sqwrlz.com/badges/vibe-coder",
+      "includeScore": false,
+      "name": "Vibe coder"
+    }
+  ],
+  "custody": "server-kept",
+  "extensions": {
+    "https://learnwp.sqwrlz.com/cxm/studio/v1": {
+      "lessons": {
+        "bt-global-styles": {
+          "fallback": [
+            {
+              "label": "Review styles and preset references",
+              "outcome": "review"
+            }
+          ]
+        },
+        "bt-patterns": {
+          "fallback": [
+            {
+              "label": "A part is shared everywhere it's used; an inserted pattern becomes an independent copy",
+              "outcome": "advance"
+            },
+            {
+              "label": "They're the same thing with different file types",
+              "outcome": "review"
+            },
+            {
+              "label": "I'm not sure yet",
+              "outcome": "review"
+            }
+          ]
+        },
+        "bt-style-css-and-theme-json": {
+          "fallback": [
+            {
+              "label": "Review palette entries and layout widths",
+              "outcome": "review"
+            }
+          ]
+        },
+        "bt-templates-and-parts": {
+          "fallback": [
+            {
+              "label": "Review block markup and template parts",
+              "outcome": "review"
+            }
+          ]
+        },
+        "bt-what-is-a-block-theme": {
+          "fallback": [
+            {
+              "label": "style.css holds the theme's details, and templates/index.html is the fallback template",
+              "outcome": "advance"
+            },
+            {
+              "label": "theme.json and functions.php",
+              "outcome": "review"
+            },
+            {
+              "label": "I'm not sure yet",
+              "outcome": "review"
+            }
+          ]
+        },
+        "ln-ai-in-wordpress": {
+          "fallback": [
+            {
+              "label": "I'd check the facts, the alt text and the tone, because AI can get things wrong",
+              "outcome": "advance"
+            },
+            {
+              "label": "I'd publish it as it is, the AI wrote it",
+              "outcome": "review"
+            },
+            {
+              "label": "I'm not sure yet",
+              "outcome": "review"
+            }
+          ],
+          "landing": "/wp-admin/options-connectors.php"
+        },
+        "ln-blocks": {
+          "fallback": [
+            {
+              "label": "Review block markup and the Code editor",
+              "outcome": "review"
+            }
+          ],
+          "landing": "/about/"
+        },
+        "ln-navigation-and-site-editor": {
+          "fallback": [
+            {
+              "label": "In the Site Editor's Navigation, because the menu sits in the shared header",
+              "outcome": "advance"
+            },
+            {
+              "label": "In the Contact page itself",
+              "outcome": "review"
+            },
+            {
+              "label": "I'm not sure yet",
+              "outcome": "review"
+            }
+          ],
+          "landing": "/wp-admin/site-editor.php"
+        },
+        "ln-posts-and-pages": {
+          "fallback": [
+            {
+              "label": "Opening hours is a page, and the pumpkin loaves news is a post",
+              "outcome": "advance"
+            },
+            {
+              "label": "Both are posts",
+              "outcome": "review"
+            },
+            {
+              "label": "I'm not sure yet",
+              "outcome": "review"
+            }
+          ],
+          "landing": "/wp-admin/edit.php?post_type=page"
+        },
+        "ln-what-is-wordpress": {
+          "fallback": [
+            {
+              "label": "Media for the photo, and Appearance for the look of the site",
+              "outcome": "advance"
+            },
+            {
+              "label": "Posts for the photo, and Settings for the look of the site",
+              "outcome": "review"
+            },
+            {
+              "label": "I'm not sure yet",
+              "outcome": "review"
+            }
+          ],
+          "landing": "/wp-admin/"
+        },
+        "vc-actions-and-filters": {
+          "fallback": [
+            {
+              "label": "It must return the content, changed or not. With echo, the post's content goes missing.",
+              "outcome": "advance"
+            },
+            {
+              "label": "It should echo the new content, so the visitor sees it.",
+              "outcome": "review"
+            },
+            {
+              "label": "I'm not sure yet",
+              "outcome": "review"
+            }
+          ],
+          "landing": "/hello-world/"
+        },
+        "vc-enqueueing": {
+          "fallback": [
+            {
+              "label": "Review enqueueing and the wp_enqueue_scripts hook",
+              "outcome": "review"
+            }
+          ],
+          "landing": "/hello-world/"
+        },
+        "vc-escaping-and-sanitizing": {
+          "fallback": [
+            {
+              "label": "Review escaping and sanitizing",
+              "outcome": "review"
+            }
+          ],
+          "landing": "/hello-world/?reader=%3Cmark%3ESam%3C%2Fmark%3E"
+        },
+        "vc-template-hierarchy": {
+          "fallback": [
+            {
+              "label": "archive.html, because the theme has no category templates, so WordPress falls back to archive",
+              "outcome": "advance"
+            },
+            {
+              "label": "index.html, because a category list always uses index",
+              "outcome": "review"
+            },
+            {
+              "label": "I'm not sure yet",
+              "outcome": "review"
+            }
+          ],
+          "landing": "/category/uncategorized/"
+        },
+        "vc-theme-json-from-code": {
+          "fallback": [
+            {
+              "label": "Review the wp_theme_json_data_theme filter and update_with()",
+              "outcome": "review"
+            }
+          ],
+          "landing": "/hello-world/"
+        }
+      },
+      "paths": {
+        "block-theme": {
+          "preview": {
+            "kind": "theme",
+            "slug": "my-block-theme"
+          },
+          "previewFiles": {
+            "style.css": "/*\nTheme Name: My Block Theme\nAuthor: You\nDescription: My first block theme, built with Learn WordPress, reimagined.\nVersion: 1.0.0\nRequires at least: 6.6\nTested up to: 7.1\nRequires PHP: 7.4\nLicense: GNU General Public License v2 or later\nLicense URI: https://www.gnu.org/licenses/gpl-2.0.html\nText Domain: my-block-theme\n*/\n",
+            "templates/index.html": "<!-- wp:group {\"tagName\":\"header\",\"backgroundColor\":\"contrast\",\"textColor\":\"base\",\"style\":{\"spacing\":{\"padding\":{\"top\":\"4rem\",\"bottom\":\"4rem\",\"left\":\"2rem\",\"right\":\"2rem\"}}},\"layout\":{\"type\":\"constrained\"}} -->\n<header class=\"wp-block-group has-base-color has-contrast-background-color has-text-color has-background\" style=\"padding-top:4rem;padding-right:2rem;padding-bottom:4rem;padding-left:2rem\">\n<!-- wp:site-title {\"level\":1} /-->\n<!-- wp:paragraph -->\n<p>This band is painted with the Contrast colour from theme.json.</p>\n<!-- /wp:paragraph -->\n</header>\n<!-- /wp:group -->\n\n<!-- wp:group {\"tagName\":\"main\",\"backgroundColor\":\"subtle\",\"style\":{\"spacing\":{\"padding\":{\"top\":\"2rem\",\"bottom\":\"3rem\",\"left\":\"2rem\",\"right\":\"2rem\"}}},\"layout\":{\"type\":\"constrained\"}} -->\n<main class=\"wp-block-group has-subtle-background-color has-background\" style=\"padding-top:2rem;padding-right:2rem;padding-bottom:3rem;padding-left:2rem\">\n<!-- wp:query {\"query\":{\"perPage\":3,\"postType\":\"post\",\"inherit\":true}} -->\n<div class=\"wp-block-query\"><!-- wp:post-template -->\n<!-- wp:post-title {\"isLink\":true} /-->\n<!-- wp:post-excerpt /-->\n<!-- /wp:post-template --></div>\n<!-- /wp:query -->\n</main>\n<!-- /wp:group -->\n",
+            "theme.json": "{\n  \"$schema\": \"https://schemas.wp.org/trunk/theme.json\",\n  \"version\": 3,\n  \"settings\": {\n    \"color\": {\n      \"palette\": [\n        { \"name\": \"Base\", \"slug\": \"base\", \"color\": \"#ffffff\" },\n        { \"name\": \"Contrast\", \"slug\": \"contrast\", \"color\": \"#1e1e1e\" },\n        { \"name\": \"Subtle\", \"slug\": \"subtle\", \"color\": \"#f0f0f0\" }\n      ]\n    }\n  }\n}\n"
+          }
+        },
+        "learner": {
+          "preview": {
+            "kind": "site"
+          },
+          "previewFiles": {
+            "pages/home.html": "<!-- wp:heading -->\n<h2 class=\"wp-block-heading\">Welcome to my new site</h2>\n<!-- /wp:heading -->\n\n<!-- wp:paragraph -->\n<p>I'm building this site one lesson at a time. Have a look around.</p>\n<!-- /wp:paragraph -->\n"
+          }
+        },
+        "vibe-coder": {
+          "preview": {
+            "kind": "plugin",
+            "slug": "my-first-plugin"
+          },
+          "previewFiles": {
+            "my-first-plugin/my-first-plugin.php": "<?php\n/**\n * Plugin Name: My First Plugin\n * Description: My first WordPress plugin, built with Learn WordPress, reimagined.\n * Version: 1.0.0\n * Requires at least: 6.6\n * Requires PHP: 7.4\n * Author: You\n * License: GPL v2 or later\n * License URI: https://www.gnu.org/licenses/gpl-2.0.html\n * Text Domain: my-first-plugin\n */\n"
+          }
+        }
+      }
+    }
+  },
+  "flavour": "authoring",
+  "language": "en",
+  "license": "CC BY-SA 4.0",
+  "paths": {
+    "block-theme": {
+      "placementHints": "For people who know some HTML and CSS and want to build a WordPress block theme. Not for people who have never used WordPress or who don't write code: send them to the learner path. Start at bt-what-is-a-block-theme if block themes or theme.json are new to them, or if they are unsure. Start at bt-style-css-and-theme-json if they know what a block theme is but have never edited theme.json. Start at bt-templates-and-parts if they have edited theme.json settings but not written templates. Start at bt-global-styles if they have built templates and template parts and want to style the theme. Start at bt-patterns if they style themes in theme.json already and want to bundle patterns. Start at bt-ship-it only if they have built a block theme before and just want to export one.",
+      "tagline": "Build your first block theme with theme.json, templates, parts and patterns."
+    },
+    "learner": {
+      "placementHints": "For people who have never used WordPress, or have only looked around a site someone else set up. Pick this path for anyone who has never used WordPress and does not write code, even if they mention themes or plugins as a someday goal. Start at ln-what-is-wordpress if WordPress or its dashboard is new to them, or if they are unsure. Start at ln-posts-and-pages if they can find their way around the dashboard but aren't sure when to use a post or a page. Start at ln-blocks if they have written posts and pages and want to understand blocks and the Code editor. Start at ln-navigation-and-site-editor if they are comfortable with blocks and want to change the header, footer or site menu in the Site Editor. Start at ln-ai-in-wordpress if they already use the Site Editor and want to know about the AI features in WordPress 7 and how to check what AI writes. Start at ln-publish only if they have built pages and just want to publish them or put a site online.",
+      "tagline": "Start from zero and build your first WordPress site."
+    },
+    "vibe-coder": {
+      "placementHints": "For people who build WordPress sites or code with an AI assistant (Claude, ChatGPT, Cursor, Copilot and so on) and paste in PHP they don't fully read or understand. It teaches plugin fundamentals by reading and fixing AI-written code. Start at vc-actions-and-filters if hooks, actions or filters are new to them, or if they are unsure. Start at vc-enqueueing if they can explain the difference between an action and a filter but have never loaded a stylesheet or script from a plugin. Start at vc-escaping-and-sanitizing if they write hooks and enqueue assets already and want to learn to secure input and output. Start at vc-template-hierarchy if they already escape output and sanitize input, but don't know how WordPress picks a template or what a plugin may change about it. Start at vc-theme-json-from-code if they know the template hierarchy and want to change a block theme's theme.json settings and styles from a plugin. Start at vc-ship-it only if they have built a plugin before and just want to get it ready to share.",
+      "tagline": "Ship WordPress code with an AI pair, and learn to spot what it gets wrong."
+    }
+  },
+  "placement": {
+    "intro": "Ask the learner what they want to build with WordPress and what they have tried so far (for example, editing a theme, writing code or using AI to write it). Then place them on the path and lesson that fit, skipping only lessons they clearly know.",
+    "maxQuestions": 4
+  },
+  "rules": [
+    "These lessons are adapted from Learn WordPress (learn.wordpress.org) and have not been reviewed by the WordPress Training Team. Say so when it matters, and link the lesson's sources.",
+    "When you are unsure about a WordPress fact, say so and point to one of the lesson's sources instead of guessing.",
+    "The learner edits their files by hand. Never write a whole file for them; explain, hint and let them type it."
+  ],
+  "specVersion": "0.2",
+  "version": "0.1.0"
+}

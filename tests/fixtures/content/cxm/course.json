@@ -1,0 +1,184 @@
+{
+  "allowPractice": false,
+  "badgeIssuer": {
+    "claimPage": "https://learnwp.sqwrlz.com/claim",
+    "signer": "course-server"
+  },
+  "badges": [
+    {
+      "achievementType": "Certificate",
+      "awardOn": "block-satisfied",
+      "countWaived": true,
+      "criteria": {
+        "narrative": "Satisfy every lesson of the Learner path: pass its checkpoints, or be placed past a lesson by a skip."
+      },
+      "description": "Start from zero and build your first WordPress site.",
+      "for": "learner",
+      "id": "https://learnwp.sqwrlz.com/badges/learner",
+      "includeScore": false,
+      "name": "Learner"
+    },
+    {
+      "achievementType": "Certificate",
+      "awardOn": "block-satisfied",
+      "countWaived": true,
+      "criteria": {
+        "narrative": "Satisfy every lesson of the Block theme developer path: pass its checkpoints, or be placed past a lesson by a skip."
+      },
+      "description": "Build a modern block theme with theme.json, templates and patterns.",
+      "for": "block-theme",
+      "id": "https://learnwp.sqwrlz.com/badges/block-theme",
+      "includeScore": false,
+      "name": "Block theme developer"
+    },
+    {
+      "achievementType": "Certificate",
+      "awardOn": "block-satisfied",
+      "countWaived": true,
+      "criteria": {
+        "narrative": "Satisfy every lesson of the Vibe coder path: pass its checkpoints, or be placed past a lesson by a skip."
+      },
+      "description": "Ship WordPress code with an AI pair, and learn to spot what it gets wrong.",
+      "for": "vibe-coder",
+      "id": "https://learnwp.sqwrlz.com/badges/vibe-coder",
+      "includeScore": false,
+      "name": "Vibe coder"
+    }
+  ],
+  "custody": "server-kept",
+  "extensions": {
+    "https://learnwp.sqwrlz.com/cxm/studio/v1": {
+      "lessons": {
+        "ln-posts-and-pages": {
+          "fallback": [
+            {
+              "label": "Show me the answer",
+              "outcome": "review"
+            },
+            {
+              "label": "Skip this one",
+              "outcome": "skip"
+            }
+          ]
+        },
+        "ln-what-is-wordpress": {
+          "fallback": [
+            {
+              "label": "Media",
+              "outcome": "advance"
+            },
+            {
+              "label": "I'm not sure yet",
+              "outcome": "review"
+            }
+          ]
+        },
+        "templates-and-parts": {
+          "fallback": [
+            {
+              "label": "Show me the answer",
+              "outcome": "review"
+            },
+            {
+              "label": "Skip this one",
+              "outcome": "skip"
+            }
+          ]
+        },
+        "theme-json-basics": {
+          "fallback": [
+            {
+              "label": "Settings control editor options and presets",
+              "outcome": "advance"
+            },
+            {
+              "label": "I'm not sure yet",
+              "outcome": "review"
+            }
+          ]
+        },
+        "vc-actions-and-filters": {
+          "fallback": [
+            {
+              "label": "A filter changes a value",
+              "outcome": "advance"
+            },
+            {
+              "label": "I'm not sure yet",
+              "outcome": "review"
+            }
+          ]
+        },
+        "vc-enqueueing": {
+          "fallback": [
+            {
+              "label": "Show me the answer",
+              "outcome": "review"
+            },
+            {
+              "label": "Skip this one",
+              "outcome": "skip"
+            }
+          ]
+        }
+      },
+      "paths": {
+        "block-theme": {
+          "preview": {
+            "kind": "theme",
+            "slug": "fixture-theme"
+          },
+          "previewFiles": {
+            "style.css": "/* Theme Name: Fixture */\n",
+            "templates/index.html": "<!-- wp:site-title /-->\n"
+          }
+        },
+        "learner": {
+          "preview": {
+            "kind": "site"
+          },
+          "previewFiles": {
+            "pages/home.html": "<!-- wp:paragraph -->\n<p>Welcome</p>\n<!-- /wp:paragraph -->\n"
+          }
+        },
+        "vibe-coder": {
+          "preview": {
+            "kind": "plugin",
+            "slug": "my-first-plugin"
+          },
+          "previewFiles": {
+            "my-first-plugin/my-first-plugin.php": "<?php\n/**\n * Plugin Name: My First Plugin\n */\n"
+          }
+        }
+      }
+    }
+  },
+  "flavour": "authoring",
+  "language": "en",
+  "license": "CC BY-SA 4.0",
+  "paths": {
+    "block-theme": {
+      "placementHints": "For people who know HTML and CSS and want to build block themes. Not for people who have never used WordPress or who don't write code: send them to the learner path.",
+      "tagline": "Build a modern block theme with theme.json, templates and patterns."
+    },
+    "learner": {
+      "placementHints": "For people who have never used WordPress, or have only looked around a site someone else set up. Pick this path for anyone who has never used WordPress and does not write code, even if they mention themes or plugins as a someday goal. Start at ln-what-is-wordpress if WordPress or its dashboard is new to them, or if they are unsure. Start at ln-posts-and-pages if they can find their way around the dashboard but aren't sure when to use a post or a page.",
+      "tagline": "Start from zero and build your first WordPress site."
+    },
+    "vibe-coder": {
+      "placementHints": "For people who build WordPress sites or code with an AI assistant (Claude, ChatGPT, Cursor, Copilot and so on) and paste in PHP they don't fully read or understand. It teaches plugin fundamentals by reading and fixing AI-written code. Start at vc-actions-and-filters if hooks, actions or filters are new to them, or if they are unsure. Start at vc-enqueueing if they can explain the difference between an action and a filter but have never loaded a stylesheet or script from a plugin.",
+      "tagline": "Ship WordPress code with an AI pair, and learn to spot what it gets wrong."
+    }
+  },
+  "placement": {
+    "intro": "Ask the learner what they want to build with WordPress and what they have tried so far (for example, editing a theme, writing code or using AI to write it). Then place them on the path and lesson that fit, skipping only lessons they clearly know.",
+    "maxQuestions": 4
+  },
+  "rules": [
+    "These lessons are adapted from Learn WordPress (learn.wordpress.org) and have not been reviewed by the WordPress Training Team. Say so when it matters, and link the lesson's sources.",
+    "When you are unsure about a WordPress fact, say so and point to one of the lesson's sources instead of guessing.",
+    "The learner edits their files by hand. Never write a whole file for them; explain, hint and let them type it."
+  ],
+  "specVersion": "0.2",
+  "version": "0.1.0"
+}

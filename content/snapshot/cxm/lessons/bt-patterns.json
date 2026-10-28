@@ -1,0 +1,100 @@
+{
+  "beats": [
+    {
+      "content": "A block pattern is a group of blocks set up in advance, ready to insert. Think of a hero section, a call to action or a row of team members. People pick them from the **Patterns** tab in the inserter, in posts, pages and templates.\n\nEvery pattern your theme registers is **not synced**. When someone inserts it, they get their own copy of its blocks:\n\n- Editing the inserted blocks doesn't affect any other use of the pattern.\n- Changing the pattern file later doesn't change content that already used it.\n\nThat's the big difference from a template part. Your header part is one shared piece, and editing it changes it everywhere. A pattern is a starting point that people make their own.\n",
+      "goal": "Understand what a pattern is.",
+      "key": "what-patterns-are",
+      "question": "Would you build a site footer as a pattern or a template part?"
+    },
+    {
+      "content": "Any PHP file in your theme's `patterns/` folder is registered automatically, as long as it has a valid header comment. Here's the start of `patterns/hero.php`:\n\n```php\n<?php\n/**\n * Title: Hero\n * Slug: my-block-theme/hero\n * Categories: featured\n */\n?>\n<!-- wp:group {\"tagName\":\"section\",\"align\":\"full\",\"layout\":{\"type\":\"constrained\"}} -->\n...block markup...\n<!-- /wp:group -->\n```\n\n- `Title` is the name people see in the inserter.\n- `Slug` is a unique ID in the form `namespace/pattern-name`. Use your theme's slug as the namespace.\n- `Categories` is a comma-separated list. It decides where the pattern appears in the inserter.\n\nWordPress won't register a pattern file without a `Title` and a `Slug`. It skips the file, and the only sign is a notice when debugging is on. The handbook recommends adding at least Title, Slug and Categories.\n\nBecause pattern files are PHP, you can also make their text translatable, which template parts can't do.\n",
+      "goal": "Register a pattern from a file.",
+      "key": "pattern-files",
+      "question": "What would happen to a pattern file that had no Slug line?"
+    },
+    {
+      "content": "Templates and parts can include a pattern with the Pattern block, using the pattern's full slug:\n\n```html\n<!-- wp:pattern {\"slug\":\"my-block-theme/hero\"} /-->\n```\n\nYou won't find the Pattern block in the inserter. It's meant for theme files. For example, `templates/index.html` could show the hero just below the header:\n\n```html\n<!-- wp:template-part {\"slug\":\"header\",\"tagName\":\"header\"} /-->\n\n<!-- wp:pattern {\"slug\":\"my-block-theme/hero\"} /-->\n```\n\nDefault themes lean on this. In Twenty Twenty-Five, the header and footer parts each contain just one Pattern block, and the index template's main content is two Pattern blocks.\n",
+      "goal": "Use a pattern inside a template.",
+      "key": "patterns-in-templates",
+      "question": "Why might a theme put a section in a pattern and then include it in a template?"
+    }
+  ],
+  "bug": {
+    "code": "<?php\n/**\n * Name: Hero\n * Slug: my-block-theme/hero\n * Categories: featured\n */\n?>\n<!-- wp:group {\"tagName\":\"section\",\"align\":\"full\",\"layout\":{\"type\":\"constrained\"}} -->\n<section class=\"wp-block-group alignfull\">\n\t<!-- wp:heading {\"level\":1} -->\n\t<h1 class=\"wp-block-heading\">Hello from my block theme</h1>\n\t<!-- /wp:heading -->\n\n\t<!-- wp:paragraph -->\n\t<p>This section is a pattern. Insert it from the Patterns tab and make it your own.</p>\n\t<!-- /wp:paragraph -->\n</section>\n<!-- /wp:group -->\n",
+    "explanation": "The header said \"Name:\" where WordPress looks for \"Title:\". WordPress reads pattern headers by field name, and a file without a Title isn't registered at all, so this pattern would never appear in the inserter. The only clue is a \"Title field missing\" notice when debugging is switched on.",
+    "file": "patterns/hero.php",
+    "fixChecks": [
+      {
+        "file": "patterns/hero.php",
+        "flags": "mi",
+        "message": "WordPress reads the header by its field names. Compare each line with the fields the lesson lists.",
+        "pattern": "^\\s*\\*\\s*Title:\\s*\\S",
+        "type": "regex"
+      },
+      {
+        "file": "patterns/hero.php",
+        "flags": "m",
+        "message": "Keep the namespaced slug as it was while you fix the header.",
+        "pattern": "(?<![\\s\\S])(?=[\\s\\S]*^\\s*\\*\\s*[Tt][Ii][Tt][Ll][Ee]:\\s*\\S)[\\s\\S]*^\\s*\\*\\s*Slug:\\s*my-block-theme/hero\\s*$",
+        "type": "regex"
+      }
+    ],
+    "key": "bug-pattern-header",
+    "revealAfter": 3
+  },
+  "checkpoint": {
+    "branches": [
+      {
+        "key": "advance",
+        "message": "Exactly. Your theme is nearly done. Last stop, getting it out of the editor and into the world.",
+        "success": true,
+        "to": "bt-ship-it",
+        "when": "The answer meets the rubric."
+      },
+      {
+        "key": "review",
+        "message": "Let's look at synced and not-synced once more. It's the key to choosing between the two.",
+        "success": false,
+        "to": "bt-patterns",
+        "when": "The learner should revisit the material."
+      },
+      {
+        "key": "skip",
+        "message": "You've got this down. On to shipping your theme.",
+        "success": true,
+        "to": "bt-ship-it",
+        "when": "The answer clearly shows mastery beyond the lesson."
+      }
+    ],
+    "key": "cp-pattern-vs-part",
+    "kind": "free-text",
+    "question": "Your theme now has a template part (the header) and a pattern (the hero). In your own words, how does WordPress treat them differently?",
+    "rubric": "Advance if the answer captures the core difference: a template part is one shared section that templates include (via the Template Part block, from parts/), so changing it changes it everywhere; a theme pattern is a starting point people insert from the inserter, which gives them an independent copy of its blocks (not synced), so later edits don't affect other uses. Mentioning patterns/ PHP files or the header fields is a plus but not required. Review if the answer says they are the same, says theme patterns stay synced, or is unsure. Skip only if the answer is fully correct and adds accurate detail, such as patterns being PHP files that can hold translatable text, or the Pattern block in templates."
+  },
+  "minutes": 8,
+  "referenceSolution": {
+    "bugFix": "<?php\n/**\n * Title: Hero\n * Slug: my-block-theme/hero\n * Categories: featured\n */\n?>\n<!-- wp:group {\"tagName\":\"section\",\"align\":\"full\",\"backgroundColor\":\"subtle\",\"style\":{\"spacing\":{\"padding\":{\"top\":\"3rem\",\"bottom\":\"3rem\"}}},\"layout\":{\"type\":\"constrained\"}} -->\n<section class=\"wp-block-group alignfull has-subtle-background-color has-background\" style=\"padding-top:3rem;padding-bottom:3rem\">\n\t<!-- wp:heading {\"level\":1} -->\n\t<h1 class=\"wp-block-heading\">Hello from my block theme</h1>\n\t<!-- /wp:heading -->\n\n\t<!-- wp:paragraph -->\n\t<p>This section is a pattern. Insert it from the Patterns tab and make it your own.</p>\n\t<!-- /wp:paragraph -->\n</section>\n<!-- /wp:group -->\n",
+    "files": {}
+  },
+  "sources": [
+    {
+      "title": "Introduction to Patterns (Theme Handbook)",
+      "url": "https://developer.wordpress.org/themes/patterns/introduction-to-patterns/"
+    },
+    {
+      "title": "Registering Patterns (Theme Handbook)",
+      "url": "https://developer.wordpress.org/themes/patterns/registering-patterns/"
+    },
+    {
+      "title": "Using Patterns in Templates (Theme Handbook)",
+      "url": "https://developer.wordpress.org/themes/patterns/usage-in-templates/"
+    },
+    {
+      "title": "Theme Patterns (Learn WordPress lesson)",
+      "url": "https://learn.wordpress.org/lesson/theme-patterns/"
+    }
+  ],
+  "starterFiles": {
+    "patterns/hero.php": "<?php\n/**\n * Title: Hero\n * Slug: my-block-theme/hero\n * Categories: featured\n */\n?>\n<!-- wp:group {\"tagName\":\"section\",\"align\":\"full\",\"layout\":{\"type\":\"constrained\"}} -->\n<section class=\"wp-block-group alignfull\">\n\t<!-- wp:heading {\"level\":1} -->\n\t<h1 class=\"wp-block-heading\">Hello from my block theme</h1>\n\t<!-- /wp:heading -->\n\n\t<!-- wp:paragraph -->\n\t<p>This section is a pattern. Insert it from the Patterns tab and make it your own.</p>\n\t<!-- /wp:paragraph -->\n</section>\n<!-- /wp:group -->\n"
+  }
+}

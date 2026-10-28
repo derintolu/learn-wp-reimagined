@@ -1,0 +1,74 @@
+{
+  "beats": [
+    {
+      "content": "Templates are HTML files in the `templates/` folder.\n",
+      "goal": "Know where block templates live.",
+      "key": "files"
+    },
+    {
+      "content": "Template parts live in `parts/` and are included with the template-part block.\n",
+      "goal": "Reuse a header as a template part.",
+      "key": "parts"
+    }
+  ],
+  "checkpoint": {
+    "branches": [
+      {
+        "key": "advance",
+        "message": "Your theme.json looks right.",
+        "success": true,
+        "to": "patterns",
+        "when": "The answer meets the rubric."
+      },
+      {
+        "key": "review",
+        "message": "Let's revisit theme.json.",
+        "success": false,
+        "to": "theme-json-basics",
+        "when": "The learner should revisit the material."
+      },
+      {
+        "key": "skip",
+        "message": "Moving on to patterns.",
+        "success": true,
+        "to": "patterns",
+        "when": "The answer clearly shows mastery beyond the lesson."
+      }
+    ],
+    "checks": [
+      {
+        "equals": 3,
+        "file": "theme.json",
+        "message": "Set version to 3.",
+        "pointer": "/version",
+        "type": "json"
+      },
+      {
+        "file": "theme.json",
+        "message": "Add a colour with a slug.",
+        "type": "contains",
+        "value": "\"slug\""
+      }
+    ],
+    "file": "theme.json",
+    "key": "cp-theme-json-code",
+    "kind": "code",
+    "question": "Set the schema version in theme.json to 3 and add one palette colour.",
+    "rubric": "theme.json has version 3 and at least one palette entry."
+  },
+  "minutes": 12,
+  "referenceSolution": {
+    "files": {
+      "theme.json": "{\n  \"version\": 3,\n  \"settings\": { \"color\": { \"palette\": [ { \"name\": \"Base\", \"slug\": \"base\", \"color\": \"#ffffff\" } ] } }\n}\n"
+    }
+  },
+  "sources": [
+    {
+      "title": "Templates",
+      "url": "https://developer.wordpress.org/themes/templates/"
+    }
+  ],
+  "starterFiles": {
+    "theme.json": "{\n  \"version\": 2,\n  \"settings\": { \"color\": { \"palette\": [] } }\n}\n"
+  }
+}

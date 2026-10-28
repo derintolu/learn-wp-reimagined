@@ -22,7 +22,7 @@ import { PRACTICE_HOMEPAGE, PRACTICE_LABEL } from '../../vendor/course-xapi-mcp/
 import * as std from '../../vendor/course-xapi-mcp/core/session/index.ts';
 import type { XapiStatement as StdStatement } from '../../vendor/course-xapi-mcp/core/xapi/types.ts';
 
-const content = buildContent('content');
+const content = buildContent();
 const course = buildCourse(content);
 const final = content.paths['block-theme'].finalFiles!;
 

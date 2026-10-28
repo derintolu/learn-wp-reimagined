@@ -8,7 +8,7 @@ import { secretPointers } from '../../vendor/course-xapi-mcp/validator/behaviour
 import { lintIssues } from '../../vendor/course-xapi-mcp/validator/lint.ts';
 import type { ContentBundle } from '../../src/shared/types';
 
-const bundle = (): ContentBundle => buildContent('content');
+const bundle = (): ContentBundle => buildContent();
 const enc = new TextEncoder();
 const bytes = (f: Record<string, string>) => Object.fromEntries(Object.entries(f).map(([k, v]) => [k, enc.encode(v)]));
 

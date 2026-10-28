@@ -1,0 +1,51 @@
+{
+  "beats": [
+    {
+      "content": "Hooks let your plugin run code at set points in WordPress.\n",
+      "goal": "Know what a hook is.",
+      "key": "hooks",
+      "question": "What do you think a filter changes?"
+    }
+  ],
+  "checkpoint": {
+    "branches": [
+      {
+        "key": "advance",
+        "message": "Nice. On to enqueueing.",
+        "success": true,
+        "to": "vc-enqueueing",
+        "when": "The answer meets the rubric."
+      },
+      {
+        "key": "review",
+        "message": "Let's look at hooks once more.",
+        "success": false,
+        "to": "vc-actions-and-filters",
+        "when": "The learner should revisit the material."
+      },
+      {
+        "key": "skip",
+        "message": "Skipping ahead.",
+        "success": true,
+        "to": "vc-enqueueing",
+        "when": "The answer clearly shows mastery beyond the lesson."
+      }
+    ],
+    "key": "cp-hooks",
+    "kind": "free-text",
+    "question": "In your own words, what is the difference between an action and a filter?",
+    "rubric": "A good answer says an action runs code at a point and a filter changes a value and returns it."
+  },
+  "minutes": 8,
+  "referenceSolution": {
+    "files": {
+      "my-first-plugin/enqueue.php": "<?php\nadd_action( 'wp_enqueue_scripts', 'my_first_plugin_styles' );\nwp_enqueue_style( 'x', 'x.css' );\n"
+    }
+  },
+  "sources": [
+    {
+      "title": "Plugin API",
+      "url": "https://developer.wordpress.org/plugins/hooks/"
+    }
+  ]
+}

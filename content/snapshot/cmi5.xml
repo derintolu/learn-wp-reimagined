@@ -1,0 +1,136 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<courseStructure xmlns="https://w3id.org/xapi/profiles/cmi5/v1/CourseStructure.xsd" xmlns:cxm="https://course-xapi-mcp.sqwrlz.com/course/v1">
+  <course id="https://learnwp.sqwrlz.com/activities/course">
+    <title><langstring lang="en">Learn WordPress, reimagined</langstring></title>
+    <description><langstring lang="en">An unofficial concept course adapted from Learn WordPress. Build something real, one hand edit at a time. Paths: Learner, Block theme developer and Vibe coder.</langstring></description>
+    <cxm:course src="cxm/course.json" specVersion="0.2" mcp="https://learnwp.sqwrlz.com/api/mcp"/>
+  </course>
+  <au id="https://learnwp.sqwrlz.com/activities/placement" cxm:key="placement" cxm:role="placement" moveOn="NotApplicable" launchMethod="OwnWindow">
+    <title><langstring lang="en">Placement</langstring></title>
+    <description><langstring lang="en">Find out where to start.</langstring></description>
+    <url>https://learnwp.sqwrlz.com/learn?au=placement</url>
+  </au>
+  <block id="https://learnwp.sqwrlz.com/activities/paths/learner" cxm:key="learner">
+    <title><langstring lang="en">Learner</langstring></title>
+    <description><langstring lang="en">Start from zero and build your first WordPress site.</langstring></description>
+    <au id="https://learnwp.sqwrlz.com/activities/lessons/ln-what-is-wordpress" cxm:key="ln-what-is-wordpress" moveOn="CompletedAndPassed" launchMethod="OwnWindow">
+      <title><langstring lang="en">What WordPress is, and a tour of the dashboard</langstring></title>
+      <description><langstring lang="en">What WordPress is, and a tour of the dashboard</langstring></description>
+      <url>https://learnwp.sqwrlz.com/learn?au=ln-what-is-wordpress</url>
+      <cxm:lesson src="cxm/lessons/ln-what-is-wordpress.json"/>
+    </au>
+    <au id="https://learnwp.sqwrlz.com/activities/lessons/ln-posts-and-pages" cxm:key="ln-posts-and-pages" moveOn="CompletedAndPassed" launchMethod="OwnWindow">
+      <title><langstring lang="en">Posts and pages, and when to use which</langstring></title>
+      <description><langstring lang="en">Posts and pages, and when to use which</langstring></description>
+      <url>https://learnwp.sqwrlz.com/learn?au=ln-posts-and-pages</url>
+      <cxm:lesson src="cxm/lessons/ln-posts-and-pages.json"/>
+    </au>
+    <au id="https://learnwp.sqwrlz.com/activities/lessons/ln-blocks" cxm:key="ln-blocks" moveOn="CompletedAndPassed" launchMethod="OwnWindow">
+      <title><langstring lang="en">Blocks, and the Code editor view</langstring></title>
+      <description><langstring lang="en">Blocks, and the Code editor view</langstring></description>
+      <url>https://learnwp.sqwrlz.com/learn?au=ln-blocks</url>
+      <cxm:lesson src="cxm/lessons/ln-blocks.json"/>
+    </au>
+    <au id="https://learnwp.sqwrlz.com/activities/lessons/ln-navigation-and-site-editor" cxm:key="ln-navigation-and-site-editor" moveOn="CompletedAndPassed" launchMethod="OwnWindow">
+      <title><langstring lang="en">The Site Editor, and your site's menu</langstring></title>
+      <description><langstring lang="en">The Site Editor, and your site's menu</langstring></description>
+      <url>https://learnwp.sqwrlz.com/learn?au=ln-navigation-and-site-editor</url>
+      <cxm:lesson src="cxm/lessons/ln-navigation-and-site-editor.json"/>
+    </au>
+    <au id="https://learnwp.sqwrlz.com/activities/lessons/ln-ai-in-wordpress" cxm:key="ln-ai-in-wordpress" moveOn="CompletedAndPassed" launchMethod="OwnWindow">
+      <title><langstring lang="en">AI in WordPress 7, and checking what it writes</langstring></title>
+      <description><langstring lang="en">AI in WordPress 7, and checking what it writes</langstring></description>
+      <url>https://learnwp.sqwrlz.com/learn?au=ln-ai-in-wordpress</url>
+      <cxm:lesson src="cxm/lessons/ln-ai-in-wordpress.json"/>
+    </au>
+    <au id="https://learnwp.sqwrlz.com/activities/lessons/ln-publish" cxm:key="ln-publish" moveOn="Completed" launchMethod="OwnWindow">
+      <title><langstring lang="en">Publishing, and what comes next</langstring></title>
+      <description><langstring lang="en">Publishing, and what comes next</langstring></description>
+      <url>https://learnwp.sqwrlz.com/learn?au=ln-publish</url>
+      <cxm:lesson src="cxm/lessons/ln-publish.json"/>
+    </au>
+    <cxm:path src="cxm/course.json#/paths/learner"/>
+  </block>
+  <block id="https://learnwp.sqwrlz.com/activities/paths/block-theme" cxm:key="block-theme">
+    <title><langstring lang="en">Block theme developer</langstring></title>
+    <description><langstring lang="en">Build your first block theme with theme.json, templates, parts and patterns.</langstring></description>
+    <au id="https://learnwp.sqwrlz.com/activities/lessons/bt-what-is-a-block-theme" cxm:key="bt-what-is-a-block-theme" moveOn="CompletedAndPassed" launchMethod="OwnWindow">
+      <title><langstring lang="en">What makes a block theme</langstring></title>
+      <description><langstring lang="en">What makes a block theme</langstring></description>
+      <url>https://learnwp.sqwrlz.com/learn?au=bt-what-is-a-block-theme</url>
+      <cxm:lesson src="cxm/lessons/bt-what-is-a-block-theme.json"/>
+    </au>
+    <au id="https://learnwp.sqwrlz.com/activities/lessons/bt-style-css-and-theme-json" cxm:key="bt-style-css-and-theme-json" moveOn="CompletedAndPassed" launchMethod="OwnWindow">
+      <title><langstring lang="en">style.css and theme.json settings</langstring></title>
+      <description><langstring lang="en">style.css and theme.json settings</langstring></description>
+      <url>https://learnwp.sqwrlz.com/learn?au=bt-style-css-and-theme-json</url>
+      <cxm:lesson src="cxm/lessons/bt-style-css-and-theme-json.json"/>
+    </au>
+    <au id="https://learnwp.sqwrlz.com/activities/lessons/bt-templates-and-parts" cxm:key="bt-templates-and-parts" moveOn="CompletedAndPassed" launchMethod="OwnWindow">
+      <title><langstring lang="en">Templates and template parts</langstring></title>
+      <description><langstring lang="en">Templates and template parts</langstring></description>
+      <url>https://learnwp.sqwrlz.com/learn?au=bt-templates-and-parts</url>
+      <cxm:lesson src="cxm/lessons/bt-templates-and-parts.json"/>
+    </au>
+    <au id="https://learnwp.sqwrlz.com/activities/lessons/bt-global-styles" cxm:key="bt-global-styles" moveOn="CompletedAndPassed" launchMethod="OwnWindow">
+      <title><langstring lang="en">Global styles in theme.json</langstring></title>
+      <description><langstring lang="en">Global styles in theme.json</langstring></description>
+      <url>https://learnwp.sqwrlz.com/learn?au=bt-global-styles</url>
+      <cxm:lesson src="cxm/lessons/bt-global-styles.json"/>
+    </au>
+    <au id="https://learnwp.sqwrlz.com/activities/lessons/bt-patterns" cxm:key="bt-patterns" moveOn="CompletedAndPassed" launchMethod="OwnWindow">
+      <title><langstring lang="en">Block patterns</langstring></title>
+      <description><langstring lang="en">Block patterns</langstring></description>
+      <url>https://learnwp.sqwrlz.com/learn?au=bt-patterns</url>
+      <cxm:lesson src="cxm/lessons/bt-patterns.json"/>
+    </au>
+    <au id="https://learnwp.sqwrlz.com/activities/lessons/bt-ship-it" cxm:key="bt-ship-it" moveOn="Completed" launchMethod="OwnWindow">
+      <title><langstring lang="en">Ship your block theme</langstring></title>
+      <description><langstring lang="en">Ship your block theme</langstring></description>
+      <url>https://learnwp.sqwrlz.com/learn?au=bt-ship-it</url>
+      <cxm:lesson src="cxm/lessons/bt-ship-it.json"/>
+    </au>
+    <cxm:path src="cxm/course.json#/paths/block-theme"/>
+  </block>
+  <block id="https://learnwp.sqwrlz.com/activities/paths/vibe-coder" cxm:key="vibe-coder">
+    <title><langstring lang="en">Vibe coder</langstring></title>
+    <description><langstring lang="en">Ship WordPress code with an AI pair, and learn to spot what it gets wrong.</langstring></description>
+    <au id="https://learnwp.sqwrlz.com/activities/lessons/vc-actions-and-filters" cxm:key="vc-actions-and-filters" moveOn="CompletedAndPassed" launchMethod="OwnWindow">
+      <title><langstring lang="en">Hooks, actions and filters</langstring></title>
+      <description><langstring lang="en">Hooks, actions and filters</langstring></description>
+      <url>https://learnwp.sqwrlz.com/learn?au=vc-actions-and-filters</url>
+      <cxm:lesson src="cxm/lessons/vc-actions-and-filters.json"/>
+    </au>
+    <au id="https://learnwp.sqwrlz.com/activities/lessons/vc-enqueueing" cxm:key="vc-enqueueing" moveOn="CompletedAndPassed" launchMethod="OwnWindow">
+      <title><langstring lang="en">Loading CSS the WordPress way</langstring></title>
+      <description><langstring lang="en">Loading CSS the WordPress way</langstring></description>
+      <url>https://learnwp.sqwrlz.com/learn?au=vc-enqueueing</url>
+      <cxm:lesson src="cxm/lessons/vc-enqueueing.json"/>
+    </au>
+    <au id="https://learnwp.sqwrlz.com/activities/lessons/vc-escaping-and-sanitizing" cxm:key="vc-escaping-and-sanitizing" moveOn="CompletedAndPassed" launchMethod="OwnWindow">
+      <title><langstring lang="en">Escaping output, sanitizing input</langstring></title>
+      <description><langstring lang="en">Escaping output, sanitizing input</langstring></description>
+      <url>https://learnwp.sqwrlz.com/learn?au=vc-escaping-and-sanitizing</url>
+      <cxm:lesson src="cxm/lessons/vc-escaping-and-sanitizing.json"/>
+    </au>
+    <au id="https://learnwp.sqwrlz.com/activities/lessons/vc-template-hierarchy" cxm:key="vc-template-hierarchy" moveOn="CompletedAndPassed" launchMethod="OwnWindow">
+      <title><langstring lang="en">Which template renders this page?</langstring></title>
+      <description><langstring lang="en">Which template renders this page?</langstring></description>
+      <url>https://learnwp.sqwrlz.com/learn?au=vc-template-hierarchy</url>
+      <cxm:lesson src="cxm/lessons/vc-template-hierarchy.json"/>
+    </au>
+    <au id="https://learnwp.sqwrlz.com/activities/lessons/vc-theme-json-from-code" cxm:key="vc-theme-json-from-code" moveOn="CompletedAndPassed" launchMethod="OwnWindow">
+      <title><langstring lang="en">Changing theme.json from your plugin</langstring></title>
+      <description><langstring lang="en">Changing theme.json from your plugin</langstring></description>
+      <url>https://learnwp.sqwrlz.com/learn?au=vc-theme-json-from-code</url>
+      <cxm:lesson src="cxm/lessons/vc-theme-json-from-code.json"/>
+    </au>
+    <au id="https://learnwp.sqwrlz.com/activities/lessons/vc-ship-it" cxm:key="vc-ship-it" moveOn="Completed" launchMethod="OwnWindow">
+      <title><langstring lang="en">Ship your plugin</langstring></title>
+      <description><langstring lang="en">Ship your plugin</langstring></description>
+      <url>https://learnwp.sqwrlz.com/learn?au=vc-ship-it</url>
+      <cxm:lesson src="cxm/lessons/vc-ship-it.json"/>
+    </au>
+    <cxm:path src="cxm/course.json#/paths/vibe-coder"/>
+  </block>
+</courseStructure>

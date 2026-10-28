@@ -1,0 +1,38 @@
+{
+  "beats": [
+    {
+      "content": "Files in `patterns/` are registered automatically from their header comment.\n",
+      "goal": "Register a pattern from a PHP file.",
+      "key": "register"
+    }
+  ],
+  "bug": {
+    "code": "<?php\n/**\n * Title: Hero\n * Slug: hero\n */\n?>\n",
+    "explanation": "Pattern slugs must be namespaced like theme/name, otherwise they can collide.",
+    "file": "patterns/hero.php",
+    "fixChecks": [
+      {
+        "file": "patterns/hero.php",
+        "message": "Namespace the slug.",
+        "pattern": "Slug:\\s*\\w+/\\w+",
+        "type": "regex"
+      }
+    ],
+    "key": "bug-pattern-slug",
+    "revealAfter": 3
+  },
+  "minutes": 8,
+  "referenceSolution": {
+    "bugFix": "<?php\n/**\n * Title: Hero\n * Slug: fixture/hero\n */\n?>\n<!-- wp:heading -->\n<h2>Hello</h2>\n<!-- /wp:heading -->\n",
+    "files": {}
+  },
+  "sources": [
+    {
+      "title": "Patterns",
+      "url": "https://developer.wordpress.org/themes/patterns/"
+    }
+  ],
+  "starterFiles": {
+    "patterns/hero.php": "<?php\n/**\n * Title: Hero\n * Slug: hero\n */\n?>\n<!-- wp:heading --><h2>Hello</h2><!-- /wp:heading -->\n"
+  }
+}

@@ -1,0 +1,161 @@
+{
+  "beats": [
+    {
+      "content": "In the WordPress editor, everything you add to a post or page is a **block**: a paragraph, a heading, an image, a list, a gallery, a set of columns. You build a page by stacking blocks, no code required.\n\nThere are a few ways to add one:\n\n- Click the **+** (the block inserter) at the top left, or the one that appears inside the page.\n- Type `/` and the block's name, like `/image`, then press Enter.\n\nSelect a block and a small **toolbar** appears above it, for things like bold, links and moving the block. The **settings sidebar** on the right has more options for whichever block you've selected.\n",
+      "goal": "See what a block is.",
+      "key": "everything-is-a-block",
+      "question": "Which blocks do you think a simple About page would need?"
+    },
+    {
+      "content": "The editor normally shows your blocks visually. Behind the scenes, WordPress saves them as HTML with a little extra. To see it, open the **Options** menu (the three dots at the top right) and choose **Code editor**. Or press **Ctrl + Shift + Alt + M** on Windows, **⇧ + ⌥ + ⌘ + M** on a Mac. Choose **Exit code editor** to switch back.\n\nHere's a paragraph block in the Code editor:\n\n```html\n<!-- wp:paragraph -->\n<p>Hi there. This is my first WordPress site.</p>\n<!-- /wp:paragraph -->\n```\n\nThe two HTML comments are the block's edges. `<!-- wp:paragraph -->` says \"a paragraph block starts here\" and `<!-- /wp:paragraph -->` says \"it ends here\". Visitors never see them, but they're how the editor knows which block is which.\n",
+      "goal": "Open the Code editor and see what's behind the blocks.",
+      "key": "the-code-editor",
+      "question": "What do you think the comments around a heading block look like?"
+    },
+    {
+      "content": "A heading works the same way. A heading block is level 2 (`<h2>`) unless you choose otherwise:\n\n```html\n<!-- wp:heading -->\n<h2 class=\"wp-block-heading\">What I'm working on</h2>\n<!-- /wp:heading -->\n```\n\nSettings you choose go inside the opening comment, as a little bit of data. A level 3 heading starts `<!-- wp:heading {\"level\":3} -->`, for example. A few blocks have nothing inside them, so they close themselves in one comment ending in `/-->`.\n\nFor everything else, the opening and closing comments come in pairs. If a closing comment goes missing, WordPress can't tell where that block ends. It treats every block after it as being **inside** the unclosed one, and the unclosed block runs on to the end of the page. (The next closing comment it meets just closes the nested block.)\n\nThe sneaky part is that your visitors may never notice: the page can still look fine. But open it in the editor and a block you wrote can seem to vanish, because it's now tucked inside another block that doesn't show it. Anyone editing the page from there is working without it.\n",
+      "goal": "Know why every opening comment needs its closing one.",
+      "key": "blocks-come-in-pairs",
+      "question": "If you were checking someone's block markup by eye, what would you look for first?"
+    },
+    {
+      "content": "This lesson gives your site an **About** page. In the workspace it's the file `pages/about.html`, and it holds the page's block markup, exactly what you'd see in the Code editor.\n\nEdit it, then choose **Apply to site** to update the About page in your preview, which opens at your new page's address, `/about/`. In the dashboard, you'd find the same page under **Pages**.\n\nNext, an AI assistant has written an About page for you. The page itself may look fine in the preview, so don't trust your eyes there: read the markup, and count the comments.\n",
+      "goal": "Edit a page's block markup by hand.",
+      "key": "your-about-page",
+      "question": "Why might it be useful to read block markup, even if you mostly use the visual editor?"
+    }
+  ],
+  "bug": {
+    "code": "<!-- wp:paragraph -->\n<p>Hi there. This is my first WordPress site, and I'm building it myself.</p>\n\n<!-- wp:paragraph -->\n<p>I'm learning as I go, so expect it to change a lot.</p>\n<!-- /wp:paragraph -->\n",
+    "explanation": "The first paragraph had its opening wp:paragraph comment but no closing /wp:paragraph comment. Every block with content needs its closing comment, straight after its HTML. Without it, WordPress treats the second paragraph as being inside the first, which runs on to the end of the page. Visitors still see both paragraphs, but in the editor the second one disappears, so whoever edits the page next can't see or change it. A missing closing comment is an easy slip for an AI assistant (or a person) to make, and hard to spot unless you count the pairs. Your fixed file is now your site's About page.",
+    "file": "pages/about.html",
+    "fixChecks": [
+      {
+        "file": "pages/about.html",
+        "message": "Every paragraph's opening wp:paragraph comment needs a closing /wp:paragraph comment before the next block starts. Count the opening and closing comments.",
+        "pattern": "^(?![\\s\\S]*<!--\\s*wp:paragraph(?:\\s+\\{[^}]*\\})?\\s*-->(?:(?!<!--\\s{0,100}/?wp:)[\\s\\S])*(?:<!--\\s*wp:|$))",
+        "type": "regex"
+      },
+      {
+        "file": "pages/about.html",
+        "message": "There should be exactly one closing comment for each paragraph. Look for a missing one or an extra one.",
+        "pattern": "^(?=[\\s\\S]*?<!--\\s*/wp:paragraph\\s*-->[\\s\\S]*?<!--\\s*/wp:paragraph\\s*-->)(?![\\s\\S]*<!--\\s*/wp:paragraph\\s*-->(?:(?!<!--\\s{0,100}wp:paragraph\\b)[\\s\\S])*<!--\\s*/wp:paragraph\\s*-->)",
+        "type": "regex"
+      },
+      {
+        "file": "pages/about.html",
+        "message": "Keep the first paragraph as a paragraph block, with its opening comment, its text and its closing comment.",
+        "pattern": "<!--\\s*wp:paragraph\\s*-->\\s*<p>Hi there\\.(?:(?!<!--)[\\s\\S])*</p>\\s*<!--\\s*/wp:paragraph\\s*-->",
+        "type": "regex"
+      },
+      {
+        "file": "pages/about.html",
+        "message": "Keep the second paragraph as a paragraph block of its own, with its opening comment and its text, starting after the first one closes.",
+        "pattern": "<!--\\s*/wp:paragraph\\s*-->\\s*<!--\\s*wp:paragraph\\s*-->\\s*<p>I'm learning as I go",
+        "type": "regex"
+      }
+    ],
+    "key": "bug-paragraph-closer",
+    "revealAfter": 3
+  },
+  "checkpoint": {
+    "branches": [
+      {
+        "key": "advance",
+        "message": "Your About page has a heading of its own now, written by hand. Next, let's see how it got into your site's menu.",
+        "success": true,
+        "to": "ln-navigation-and-site-editor",
+        "when": "The answer meets the rubric."
+      },
+      {
+        "key": "review",
+        "message": "Let's look at how block comments pair up once more, then have another go.",
+        "success": false,
+        "to": "ln-blocks",
+        "when": "The learner should revisit the material."
+      },
+      {
+        "key": "skip",
+        "message": "You can read and write block markup. That's a real skill. On to the Site Editor.",
+        "success": true,
+        "to": "ln-navigation-and-site-editor",
+        "when": "The answer clearly shows mastery beyond the lesson."
+      }
+    ],
+    "checks": [
+      {
+        "file": "pages/about.html",
+        "message": "Start your heading block with its opening wp:heading comment, the same way the paragraphs start.",
+        "pattern": "<!--\\s*wp:heading(?:\\s+\\{[^}]*\\})?\\s*-->",
+        "type": "regex"
+      },
+      {
+        "file": "pages/about.html",
+        "message": "Close your heading block with a /wp:heading comment, straight after the heading's HTML.",
+        "pattern": "<!--\\s*/wp:heading\\s*-->",
+        "type": "regex"
+      },
+      {
+        "file": "pages/about.html",
+        "message": "Between the heading's two comments, put a heading element with some text. A plain wp:heading comment means an h2. For h3 to h6, the opening comment needs the matching level setting, like {\"level\":3}.",
+        "pattern": "(?:<!--\\s*wp:heading(?:\\s+\\{(?![^}]*\"level\")[^}]*\\})?\\s*-->\\s*<h2\\b[^>]*>(?:\\s|<(?!/h[1-6]>)[^>]{0,10000}>)*[^\\s<](?:(?!</h[1-6]>)[\\s\\S])*</h2>|<!--\\s*wp:heading\\s+\\{[^}]*\"level\"\\s*:\\s*([2-6])\\b[^}]*\\}\\s*-->\\s*<h\\1\\b[^>]*>(?:\\s|<(?!/h[1-6]>)[^>]{0,10000}>)*[^\\s<](?:(?!</h[1-6]>)[\\s\\S])*</h\\1>)\\s*<!--\\s*/wp:heading\\s*-->",
+        "type": "regex"
+      },
+      {
+        "file": "pages/about.html",
+        "message": "Straight after the heading, add a paragraph block with some text, with its opening and closing comments.",
+        "pattern": "<!--\\s*/wp:heading\\s*-->\\s*<!--\\s*wp:paragraph\\s*-->\\s*<p>(?:\\s|<(?!/p>)[^>]{0,10000}>)*[^\\s<](?:(?!</p>)[\\s\\S])*</p>\\s*<!--\\s*/wp:paragraph\\s*-->",
+        "type": "regex"
+      },
+      {
+        "file": "pages/about.html",
+        "message": "Every paragraph, including the one under your new heading, needs its closing comment before the next block starts.",
+        "pattern": "^(?=[\\s\\S]*<!--\\s*wp:heading\\b)(?![\\s\\S]*<!--\\s*wp:paragraph(?:\\s+\\{[^}]*\\})?\\s*-->(?:(?!<!--\\s{0,100}/?wp:)[\\s\\S])*(?:<!--\\s*wp:|$))",
+        "type": "regex"
+      },
+      {
+        "file": "pages/about.html",
+        "message": "Keep the two paragraphs that were there, and add your heading after them.",
+        "pattern": "<!--\\s*wp:paragraph\\s*-->\\s*<p>Hi there\\.[\\s\\S]*<!--\\s*wp:paragraph\\s*-->\\s*<p>I'm learning as I go[\\s\\S]*<!--\\s*wp:heading",
+        "type": "regex"
+      }
+    ],
+    "file": "pages/about.html",
+    "key": "cp-about-heading-code",
+    "kind": "code",
+    "question": "Now make the About page yours. In pages/about.html, add a heading block (level 2 to 6; a plain heading block is level 2), then a paragraph block under it, after the two paragraphs that are there. Write whatever you like in them.",
+    "rubric": "pages/about.html keeps its two paragraph blocks, then has a heading block (opening and closing comments around an h2, or an h3 to h6 whose level matches a \"level\" setting in the opening comment) followed directly by a paragraph block (opening and closing comments around a p element), and every paragraph's opening comment has its closing comment."
+  },
+  "minutes": 8,
+  "referenceSolution": {
+    "bugFix": "<!-- wp:paragraph -->\n<p>Hi there. This is my first WordPress site, and I'm building it myself.</p>\n<!-- /wp:paragraph -->\n\n<!-- wp:paragraph -->\n<p>I'm learning as I go, so expect it to change a lot.</p>\n<!-- /wp:paragraph -->\n\n<!-- wp:heading -->\n<h2 class=\"wp-block-heading\">What I'm working on</h2>\n<!-- /wp:heading -->\n\n<!-- wp:paragraph -->\n<p>Right now, I'm learning how blocks work.</p>\n<!-- /wp:paragraph -->\n",
+    "files": {
+      "pages/about.html": "<!-- wp:paragraph -->\n<p>Hi there. This is my first WordPress site, and I'm building it myself.</p>\n<!-- /wp:paragraph -->\n\n<!-- wp:paragraph -->\n<p>I'm learning as I go, so expect it to change a lot.</p>\n<!-- /wp:paragraph -->\n\n<!-- wp:heading -->\n<h2 class=\"wp-block-heading\">What I'm working on</h2>\n<!-- /wp:heading -->\n\n<!-- wp:paragraph -->\n<p>Right now, I'm learning how blocks work.</p>\n<!-- /wp:paragraph -->\n"
+    }
+  },
+  "sources": [
+    {
+      "title": "Creating posts and pages with the WordPress Block Editor (Learn WordPress lesson)",
+      "url": "https://learn.wordpress.org/lesson/creating-posts-and-pages-with-the-wordpress-block-editor/"
+    },
+    {
+      "title": "WordPress Block Editor (WordPress documentation)",
+      "url": "https://wordpress.org/documentation/article/wordpress-block-editor/"
+    },
+    {
+      "title": "Use keyboard shortcuts, Block Editor (WordPress documentation)",
+      "url": "https://wordpress.org/documentation/article/keyboard-shortcuts-block-editor/"
+    },
+    {
+      "title": "Key concepts (Block Editor Handbook)",
+      "url": "https://developer.wordpress.org/block-editor/explanations/architecture/key-concepts/"
+    },
+    {
+      "title": "Data flow and data format (Block Editor Handbook)",
+      "url": "https://developer.wordpress.org/block-editor/explanations/architecture/data-flow/"
+    }
+  ],
+  "starterFiles": {
+    "pages/about.html": "<!-- wp:paragraph -->\n<p>Hi there. This is my first WordPress site, and I'm building it myself.</p>\n<!-- /wp:paragraph -->\n\n<!-- wp:paragraph -->\n<p>I'm learning as I go, so expect it to change a lot.</p>\n<!-- /wp:paragraph -->\n"
+  }
+}

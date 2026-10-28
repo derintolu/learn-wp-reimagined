@@ -67,7 +67,7 @@ describe('POST /api/agent/handoff', () => {
   });
 
   it("every live path's lessons convert and seed", async () => {
-    const bundle = buildContent('content');
+    const bundle = buildContent();
     const all = Object.values(bundle.paths);
     const covered = new Set<string>();
     const skipped = new Set<string>();

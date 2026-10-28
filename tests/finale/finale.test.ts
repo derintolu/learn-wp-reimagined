@@ -7,7 +7,7 @@ import { liveFixturePaths } from './livePaths';
 import type { ContentBundle } from '../../src/shared/types';
 import { PLAYGROUND_URL_LIMIT, playgroundBlueprint, playgroundUrl } from '../../src/finale/playground';
 
-const c = buildContent('content');
+const c = buildContent();
 const resolveTheme = (b: ContentBundle, r: LearningRecord) => resolveFiles(b, r, 'block-theme');
 const buildThemeFiles = (b: ContentBundle, r: LearningRecord) => resolveTheme(b, r).files;
 const themeZip = (files: Record<string, string>) => pathZip(files, { kind: 'theme', slug: THEME_SLUG });

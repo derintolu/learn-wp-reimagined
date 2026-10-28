@@ -1,6 +1,6 @@
 import { unzipSync, zipSync } from 'fflate';
 import { describe, expect, it } from 'vitest';
-import { buildContent } from '../../scripts/build-content';
+import { buildContentFromYaml as buildContent } from '../../scripts/yaml-content';
 import { bundleZip, buildMigrationZip, migrate, packageErrors, zipPackage } from '../../scripts/migrate-to-sensei';
 import type { SpacefastApi } from '../../scripts/lib/spacefast';
 import type { ConnectorClient } from '../../functions/_lib/ledger/connector';

@@ -1,0 +1,78 @@
+{
+  "beats": [
+    {
+      "content": "Pages hold content that does not change often, like an About page.\n",
+      "goal": "Know when to use a page.",
+      "key": "difference"
+    }
+  ],
+  "bug": {
+    "code": "<!-- wp:heading -->\n<h2>About me</h3>\n<!-- /wp:heading -->\n",
+    "explanation": "The heading opens with h2 but closes with h3.",
+    "file": "pages/about.html",
+    "fixChecks": [
+      {
+        "file": "pages/about.html",
+        "message": "Close the heading with h2.",
+        "pattern": "<h2[^>]*>[^<]*</h2>",
+        "type": "regex"
+      }
+    ],
+    "key": "bug-about-heading",
+    "revealAfter": 3
+  },
+  "checkpoint": {
+    "branches": [
+      {
+        "key": "advance",
+        "message": "Your About page looks right.",
+        "success": true,
+        "to": "ln-posts-and-pages",
+        "when": "The answer meets the rubric."
+      },
+      {
+        "key": "review",
+        "message": "Let's revisit the editor.",
+        "success": false,
+        "to": "ln-posts-and-pages",
+        "when": "The learner should revisit the material."
+      },
+      {
+        "key": "skip",
+        "message": "Moving on.",
+        "success": true,
+        "to": "ln-posts-and-pages",
+        "when": "The answer clearly shows mastery beyond the lesson."
+      }
+    ],
+    "checks": [
+      {
+        "file": "pages/about.html",
+        "message": "Add a heading block.",
+        "type": "contains",
+        "value": "wp:heading"
+      }
+    ],
+    "file": "pages/about.html",
+    "key": "cp-about-page",
+    "kind": "code",
+    "question": "Add a heading block to the About page.",
+    "rubric": "The About page has a heading block."
+  },
+  "minutes": 8,
+  "referenceSolution": {
+    "bugFix": "<!-- wp:heading -->\n<h2>About me</h2>\n<!-- /wp:heading -->\n",
+    "files": {
+      "pages/about.html": "<!-- wp:heading -->\n<h2>About me</h2>\n<!-- /wp:heading -->\n"
+    }
+  },
+  "sources": [
+    {
+      "title": "Posts and pages",
+      "url": "https://wordpress.org/documentation/article/post-vs-page/"
+    }
+  ],
+  "starterFiles": {
+    "pages/about.html": "<!-- wp:paragraph -->\n<p>Hi there.</p>\n<!-- /wp:paragraph -->\n"
+  }
+}

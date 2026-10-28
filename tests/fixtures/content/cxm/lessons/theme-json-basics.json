@@ -1,0 +1,57 @@
+{
+  "beats": [
+    {
+      "content": "`theme.json` declares your palette, typography and layout in one file.\n",
+      "goal": "Understand why theme.json is the control centre of a block theme.",
+      "key": "why",
+      "question": "What would you put in theme.json instead of CSS?"
+    },
+    {
+      "content": "Colours live under `settings.color.palette`.\n",
+      "goal": "Add a colour palette.",
+      "key": "palette"
+    }
+  ],
+  "checkpoint": {
+    "branches": [
+      {
+        "key": "advance",
+        "message": "Nice. On to templates.",
+        "success": true,
+        "to": "templates-and-parts",
+        "when": "The answer meets the rubric."
+      },
+      {
+        "key": "review",
+        "message": "Let's look at settings once more.",
+        "success": false,
+        "to": "theme-json-basics",
+        "when": "The learner should revisit the material."
+      },
+      {
+        "key": "skip",
+        "message": "Skipping ahead to templates.",
+        "success": true,
+        "to": "templates-and-parts",
+        "when": "The answer clearly shows mastery beyond the lesson."
+      }
+    ],
+    "key": "cp-theme-json",
+    "kind": "free-text",
+    "question": "In your own words, what does the settings section of theme.json do?",
+    "rubric": "A good answer says settings configure which editor controls and presets are available."
+  },
+  "minutes": 10,
+  "referenceSolution": {
+    "files": {
+      "patterns/hero.php": "<?php\n/**\n * Title: Hero\n * Slug: fixture/hero\n */\n?>\n<!-- wp:heading -->\n<h2>Hello</h2>\n<!-- /wp:heading -->\n",
+      "theme.json": "{\n  \"version\": 3,\n  \"settings\": { \"color\": { \"palette\": [ { \"name\": \"Base\", \"slug\": \"base\", \"color\": \"#ffffff\" } ] } }\n}\n"
+    }
+  },
+  "sources": [
+    {
+      "title": "Introduction to theme.json",
+      "url": "https://developer.wordpress.org/themes/global-settings-and-styles/"
+    }
+  ]
+}

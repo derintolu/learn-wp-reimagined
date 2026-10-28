@@ -1,0 +1,45 @@
+{
+  "beats": [
+    {
+      "content": "Changes made in the Site Editor (templates, parts, styles) are saved in the site's database, not in your theme's files. That's fine for one site. But if you want to share the theme, use it on another site or keep a backup, those changes need to live in the theme files.\n\nThe **Create Block Theme** plugin does this. Once it's active, it adds a **Create Block Theme** panel to the Site Editor, opened from a wrench (tool) icon next to the Save button. From there you can:\n\n- **Save Changes to Theme**, which writes your editor changes into the active theme's files\n- **Export Zip**, which downloads the theme as a zip file\n- **Create Blank Theme**, which starts a new, empty theme\n- **Create Theme**, which offers **Clone Theme** or **Create Child Theme**\n\nA good workflow is to design in the Site Editor, save the changes to the theme, then check the files in your code editor.\n",
+      "goal": "Get Site Editor changes back into files.",
+      "key": "database-vs-files",
+      "question": "Why might you save editor changes into the theme even if you're the only one using it?"
+    },
+    {
+      "content": "A few optional files make a theme feel finished:\n\n- `screenshot.png` is the preview under **Appearance > Themes**. The recommended size is 1200×900. PNG or JPG both work.\n- `readme.txt` isn't used by WordPress itself, but you need it to submit to the WordPress.org Theme Directory.\n- `styles/*.json` files are **style variations**: alternative versions of theme.json that people can switch between, like skins. Each one can hold any setting or style that theme.json can.\n- `functions.php` is loaded automatically if present, for any custom PHP your theme needs.\n\nIf you plan to submit to the Theme Directory, fill in every required `style.css` header field and use a GPL-compatible license, typically GPLv2 or later, as WordPress itself does.\n",
+      "goal": "Add the finishing touches.",
+      "key": "finishing-touches",
+      "question": "What would a style variation for your theme change?"
+    },
+    {
+      "content": "Look at what you've built:\n\n- `style.css` with your theme's details\n- `theme.json` with a four-colour palette, layout widths and global styles, all using presets\n- `templates/index.html` listing your posts, with the header part on top\n- `parts/header.html` with the site title and navigation\n- `patterns/hero.php`, registered automatically\n\nThat's a complete, activatable block theme. On the next screen you can download it as a zip, upload it under **Appearance > Themes > Add Theme > Upload Theme**, then activate it and see it running.\n",
+      "goal": "Take your theme with you.",
+      "key": "your-theme",
+      "question": "What's the first thing you'd add to this theme next?"
+    }
+  ],
+  "minutes": 6,
+  "sources": [
+    {
+      "title": "Use the Create Block Theme plugin for exports, and theme variations (Learn WordPress lesson)",
+      "url": "https://learn.wordpress.org/lesson/use-the-create-block-theme-plugin-for-exports-and-theme-variations/"
+    },
+    {
+      "title": "Create Block Theme (WordPress.org plugin)",
+      "url": "https://wordpress.org/plugins/create-block-theme/"
+    },
+    {
+      "title": "Style Variations (Theme Handbook)",
+      "url": "https://developer.wordpress.org/themes/global-settings-and-styles/style-variations/"
+    },
+    {
+      "title": "Theme Structure (Theme Handbook)",
+      "url": "https://developer.wordpress.org/themes/core-concepts/theme-structure/"
+    },
+    {
+      "title": "Theme review requirements (Theme Handbook, Make WordPress Themes)",
+      "url": "https://make.wordpress.org/themes/handbook/review/required/"
+    }
+  ]
+}

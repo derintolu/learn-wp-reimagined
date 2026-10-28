@@ -1,0 +1,84 @@
+{
+  "beats": [
+    {
+      "content": "So far you've worked on one page at a time. That's the **block editor**: it edits the content of a single post or page.\n\nThe **Site Editor** works on the site as a whole. It uses the same blocks, but for the parts every visitor sees on every page: the header at the top, the footer at the bottom, and the layout in between.\n\n- You open it from **Appearance > Editor**.\n- It's only there when your site uses a **block theme**. The theme in your preview, Twenty Twenty-Five, is one.\n\nA handy way to keep them straight: the block editor is for *what a page says*, the Site Editor is for *how the whole site looks and fits together*.\n",
+      "goal": "Tell the block editor and the Site Editor apart.",
+      "key": "two-editors",
+      "question": "Which would you open to change the text on your About page, and which to change the header?"
+    },
+    {
+      "content": "The preview is open in the Site Editor. On a wide screen you'd see its menu on the left and a live view of your front page beside it. In a narrow window, like the preview, the menu takes the whole width.\n\n- **Identity**: your site's title, tagline, logo and icon.\n- **Styles**: colours, fonts and spacing for the whole site, plus the style variations that come with your theme.\n- **Pages**: your pages, which you can edit from here too.\n- **Navigation**: your site's menus.\n- **Patterns**: ready-made groups of blocks, and **template parts** like the header and footer.\n- **Templates**: the layouts WordPress uses for different kinds of page, such as a single page, a blog post or the 404 page.\n\nThe arrow at the top left takes you back a step, and the toolbar above it still takes you to the dashboard or your site.\n",
+      "goal": "Find your way around the Site Editor.",
+      "key": "around-the-site-editor",
+      "question": "Which of these would you open first to make the site feel like yours?"
+    },
+    {
+      "content": "A **template** is a layout. It usually starts with a **header** and ends with a **footer**, and in the middle sits a block that pulls in whichever page or post is being shown. You don't write content into a template: the content still comes from your pages.\n\nThe header and footer are **template parts**: pieces shared by many templates. Change the header once and it changes on every page that uses it.\n\nThat's also why the Site Editor is careful when you save. Press **Save** and it lists everything you've changed, header and menus included, and you can choose what to save. That way you can see when a change is about to reach every page that uses it, not just the one in front of you.\n",
+      "goal": "Know why the header is the same on every page.",
+      "key": "templates-and-parts",
+      "question": "Why might it be a good thing that the header isn't part of each page's own content?"
+    },
+    {
+      "content": "Visit your site (the house icon in the toolbar) and look at the menu in the header. Your pages are already there, including the About page you wrote in lesson 3. Nobody added it. (On a narrow screen, the menu may fold away behind a menu button.)\n\nThat's the **Navigation block**, which lives in the header. When a site has no custom menu yet, it starts with a **Page List**: a block that shows your published pages and adds each new one automatically.\n\nTo take control, select the menu, then the Page List, and choose **Edit**. It turns into one **Page Link** block per page, which you can reorder, rename or remove, and you can add custom links and submenus too. The catch: from then on, new pages are no longer added for you.\n\nYou can also open **Navigation** in the Site Editor's menu to see your menus, reorder items, and rename, duplicate or delete them. A menu is shared, so changes show up everywhere it's used.\n",
+      "goal": "See how your pages got into the menu.",
+      "key": "your-menu",
+      "question": "Would you rather your menu added new pages by itself, or keep control of it? Why?"
+    }
+  ],
+  "checkpoint": {
+    "branches": [
+      {
+        "key": "advance",
+        "message": "That's it. Next, let's look at the AI that's now part of WordPress, and how to check what it writes.",
+        "success": true,
+        "to": "ln-ai-in-wordpress",
+        "when": "The answer meets the rubric."
+      },
+      {
+        "key": "review",
+        "message": "Let's walk through the Site Editor once more. The key is that the header, and the menu in it, is shared.",
+        "success": false,
+        "to": "ln-navigation-and-site-editor",
+        "when": "The learner should revisit the material."
+      },
+      {
+        "key": "skip",
+        "message": "You know your way around the Site Editor. On to AI in WordPress.",
+        "success": true,
+        "to": "ln-ai-in-wordpress",
+        "when": "The answer clearly shows mastery beyond the lesson."
+      }
+    ],
+    "key": "cp-menu-where",
+    "kind": "free-text",
+    "question": "You've added a Contact page, and you want it to be the last item in your site's menu. Where would you go to make that change, and why will it show up on every page, not just one?",
+    "rubric": "Advance if the answer says to make the change in the Site Editor (Appearance > Editor), either in its Navigation section or by editing the Navigation block in the header (the header template part or the template), and gives a roughly right reason it shows everywhere: the menu lives in the header (a shared template part) or is a shared menu used across the site, rather than in one page's content. Wording can be loose. Review if the answer would edit the Contact page or another single page's content, goes to Settings, Plugins or the Customizer, has no reason or a wrong one, or is unsure. Skip only if the answer is right and also brings in another correct detail, such as the Page List adding new pages automatically until you choose Edit, the Page Link blocks you get after that, or the Save step listing the header or menu as changed."
+  },
+  "minutes": 7,
+  "sources": [
+    {
+      "title": "What is the difference between the Block Editor and Site Editor? (Learn WordPress lesson)",
+      "url": "https://learn.wordpress.org/lesson/what-is-the-difference-between-the-block-editor-and-site-editor/"
+    },
+    {
+      "title": "Intro to the Site Editor (Learn WordPress lesson)",
+      "url": "https://learn.wordpress.org/lesson/intro-to-the-site-editor/"
+    },
+    {
+      "title": "Setting up your pages, posts, site logo and navigation menu (Learn WordPress lesson)",
+      "url": "https://learn.wordpress.org/lesson/setting-up-your-pages-posts-site-logo-and-navigation-menu/"
+    },
+    {
+      "title": "Site Editor (WordPress documentation)",
+      "url": "https://wordpress.org/documentation/article/site-editor/"
+    },
+    {
+      "title": "Navigation block (WordPress documentation)",
+      "url": "https://wordpress.org/documentation/article/navigation-block/"
+    },
+    {
+      "title": "Site Editor navigation (WordPress documentation)",
+      "url": "https://wordpress.org/documentation/article/site-editor-navigation/"
+    }
+  ]
+}

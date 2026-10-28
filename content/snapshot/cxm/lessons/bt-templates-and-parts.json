@@ -1,0 +1,112 @@
+{
+  "beats": [
+    {
+      "content": "Templates are `.html` files in your theme's `templates/` folder, made entirely of block markup. Block markup is an HTML comment that WordPress reads as a block:\n\n```html\n<!-- wp:namespace/slug {\"align\":\"full\"} /-->\n```\n\n- `wp:` tells WordPress this is a block, not an ordinary comment.\n- `namespace/slug` names the block. Core blocks drop the `core/` namespace, so the Site Title block is just `<!-- wp:site-title /-->`. Blocks from plugins keep their namespace.\n- The JSON after it holds the block's settings.\n- A block with nothing inside ends with `/-->`. A block that wraps other blocks has an opening comment and a matching closing comment, such as `<!-- /wp:group -->`.\n\nYou rarely type all of this by hand. Build the layout in the Site Editor, open the **Code editor** from the Options (⋮) menu, and copy the markup into your file. Keep everything as blocks: plain HTML that isn't wrapped in block markup shows up as an error in the Site Editor.\n",
+      "goal": "Read block markup.",
+      "key": "block-markup",
+      "question": "What does the \"wp:\" at the start of a comment tell WordPress?"
+    },
+    {
+      "content": "`index.html` is the only template a block theme must have. For each page, WordPress looks for the most specific template your theme has, such as `single.html` for a post, `page.html` for a page or `archive.html` for an archive. If there isn't one, it falls back to `index.html`.\n\nYour theme's `templates/index.html` lists posts with a Query Loop block. `\"inherit\":true` tells the loop to use the query WordPress already ran for the page, so the same template works for the blog, archives and search results:\n\n```html\n<!-- wp:group {\"tagName\":\"main\",\"layout\":{\"type\":\"constrained\"}} -->\n<main class=\"wp-block-group\">\n  <!-- wp:query {\"query\":{\"inherit\":true, ...}} -->\n  <div class=\"wp-block-query\">\n    <!-- wp:post-template -->\n      <!-- wp:post-title {\"isLink\":true} /-->\n      <!-- wp:post-excerpt /-->\n    <!-- /wp:post-template -->\n  </div>\n  <!-- /wp:query -->\n</main>\n<!-- /wp:group -->\n```\n\nThe Group block's `\"tagName\":\"main\"` makes it output a `<main>` element. A `\"constrained\"` layout keeps its contents to your `contentSize` from theme.json.\n",
+      "goal": "See how WordPress picks a template.",
+      "key": "index-and-hierarchy",
+      "question": "If your theme only had index.html, which template would a single blog post use?"
+    },
+    {
+      "content": "A template part is a reusable piece of a template, like a header or footer. Parts live directly in your theme's `parts/` folder. Subfolders aren't supported.\n\nYour theme already has `parts/header.html`, with the site title and navigation:\n\n```html\n<!-- wp:group {\"layout\":{\"type\":\"flex\",\"justifyContent\":\"space-between\"}} -->\n<div class=\"wp-block-group\">\n  <!-- wp:site-title /-->\n  <!-- wp:navigation /-->\n</div>\n<!-- /wp:group -->\n```\n\nUnlike templates, parts are never loaded on their own. A template has to include them with the Template Part block:\n\n```html\n<!-- wp:template-part {\"slug\":\"header\",\"tagName\":\"header\"} /-->\n```\n\n- `slug` is required. WordPress loads `parts/{slug}.html`, so `\"header\"` loads `parts/header.html`.\n- `tagName` sets the wrapping element, here `<header>`.\n\nYou can also register parts in theme.json under the top-level `templateParts` key, with `name` (the file name without `.html`), `title` and `area`. WordPress 7.x has four built-in areas: `header`, `footer`, `uncategorized` (shown as \"General\") and `navigation-overlay` (shown as \"Navigation Overlay\", new in 7.0). Registering is optional, but it gives the part a proper label in the Site Editor.\n",
+      "goal": "Reuse a header with a template part.",
+      "key": "template-parts",
+      "question": "Why put the header in a part instead of copying it into every template?"
+    },
+    {
+      "content": "When you, or anyone using your theme, edits a template or part in the Site Editor and saves, the change is stored in the site's database. That saved copy then takes priority over the file in your theme.\n\nThis is great for site owners, but it means the theme files don't change. To ship your design, the markup has to end up back in the theme's `templates/` and `parts/` files. You can copy it from the Code editor, or use the Create Block Theme plugin, covered in the last lesson.\n",
+      "goal": "Know where Site Editor changes go.",
+      "key": "editor-vs-files",
+      "question": "You edited the header in the Site Editor and saved. Has parts/header.html changed?"
+    }
+  ],
+  "checkpoint": {
+    "branches": [
+      {
+        "key": "advance",
+        "message": "Your theme has a header now. Next, let's style the whole thing from theme.json.",
+        "success": true,
+        "to": "bt-global-styles",
+        "when": "The answer meets the rubric."
+      },
+      {
+        "key": "review",
+        "message": "Let's look at block markup and the Template Part block again, then have another go.",
+        "success": false,
+        "to": "bt-templates-and-parts",
+        "when": "The learner should revisit the material."
+      },
+      {
+        "key": "skip",
+        "message": "On to global styles.",
+        "success": true,
+        "to": "bt-global-styles",
+        "when": "The answer clearly shows mastery beyond the lesson."
+      }
+    ],
+    "checks": [
+      {
+        "file": "templates/index.html",
+        "message": "Add a self-closing Template Part block. Its slug is the part's file name without .html.",
+        "pattern": "<!--\\s*wp:template-part\\s+\\{[^}]*\"slug\"\\s*:\\s*\"header\"[^}]*\\}\\s*/-->",
+        "type": "regex"
+      },
+      {
+        "file": "templates/index.html",
+        "message": "Choose the part's wrapping element with the tagName setting in the same block.",
+        "pattern": "<!--\\s*wp:template-part\\s+\\{(?=[^}]*\"slug\"\\s*:\\s*\"header\")(?=[^}]*\"tagName\"\\s*:\\s*\"header\")[^}]*\\}\\s*/-->",
+        "type": "regex"
+      },
+      {
+        "file": "templates/index.html",
+        "message": "Keep the Query Loop that lists your posts, below the header part you add.",
+        "pattern": "<!--\\s*wp:template-part\\b[\\s\\S]*<!--\\s*wp:query\\s",
+        "type": "regex"
+      },
+      {
+        "file": "templates/index.html",
+        "message": "Put the header part at the very top of the file, before the main group and the posts.",
+        "pattern": "^\\s*<!--\\s*wp:template-part\\s+\\{[^}]*\"slug\"\\s*:\\s*\"header\"[^}]*\\}\\s*/-->[\\s\\S]*<main\\b[\\s\\S]*<!--\\s*wp:query\\s",
+        "type": "regex"
+      }
+    ],
+    "file": "templates/index.html",
+    "key": "cp-header-part-code",
+    "kind": "code",
+    "question": "Your index.html has no header yet. Add a Template Part block at the very top that loads parts/header.html and wraps it in a header element.",
+    "rubric": "templates/index.html starts with a self-closing template-part block with slug \"header\" and tagName \"header\", above the Query Loop, which is still present."
+  },
+  "minutes": 9,
+  "referenceSolution": {
+    "files": {
+      "templates/index.html": "<!-- wp:template-part {\"slug\":\"header\",\"tagName\":\"header\"} /-->\n\n<!-- wp:group {\"tagName\":\"main\",\"layout\":{\"type\":\"constrained\"}} -->\n<main class=\"wp-block-group\">\n\t<!-- wp:pattern {\"slug\":\"my-block-theme/hero\"} /-->\n\n\t<!-- wp:query {\"query\":{\"perPage\":10,\"pages\":0,\"offset\":0,\"postType\":\"post\",\"order\":\"desc\",\"orderBy\":\"date\",\"author\":\"\",\"search\":\"\",\"exclude\":[],\"sticky\":\"\",\"inherit\":true}} -->\n\t<div class=\"wp-block-query\">\n\t\t<!-- wp:post-template -->\n\t\t\t<!-- wp:post-title {\"isLink\":true} /-->\n\t\t\t<!-- wp:post-excerpt /-->\n\t\t<!-- /wp:post-template -->\n\n\t\t<!-- wp:query-pagination -->\n\t\t\t<!-- wp:query-pagination-previous /-->\n\t\t\t<!-- wp:query-pagination-next /-->\n\t\t<!-- /wp:query-pagination -->\n\n\t\t<!-- wp:query-no-results -->\n\t\t\t<!-- wp:paragraph -->\n\t\t\t<p>Nothing to show yet.</p>\n\t\t\t<!-- /wp:paragraph -->\n\t\t<!-- /wp:query-no-results -->\n\t</div>\n\t<!-- /wp:query -->\n</main>\n<!-- /wp:group -->\n\n<!-- wp:template-part {\"slug\":\"footer\",\"tagName\":\"footer\"} /-->\n"
+    }
+  },
+  "sources": [
+    {
+      "title": "Introduction to Templates (Theme Handbook)",
+      "url": "https://developer.wordpress.org/themes/templates/introduction-to-templates/"
+    },
+    {
+      "title": "Template Hierarchy (Theme Handbook)",
+      "url": "https://developer.wordpress.org/themes/templates/template-hierarchy/"
+    },
+    {
+      "title": "Template Parts (Theme Handbook)",
+      "url": "https://developer.wordpress.org/themes/templates/template-parts/"
+    },
+    {
+      "title": "Template overview (Learn WordPress lesson)",
+      "url": "https://learn.wordpress.org/lesson/template-overview/"
+    }
+  ],
+  "starterFiles": {
+    "parts/header.html": "<!-- wp:group {\"layout\":{\"type\":\"flex\",\"justifyContent\":\"space-between\"}} -->\n<div class=\"wp-block-group\">\n\t<!-- wp:site-title /-->\n\t<!-- wp:navigation /-->\n</div>\n<!-- /wp:group -->\n",
+    "templates/index.html": "<!-- wp:group {\"tagName\":\"main\",\"layout\":{\"type\":\"constrained\"}} -->\n<main class=\"wp-block-group\">\n\t<!-- wp:query {\"query\":{\"perPage\":10,\"pages\":0,\"offset\":0,\"postType\":\"post\",\"order\":\"desc\",\"orderBy\":\"date\",\"author\":\"\",\"search\":\"\",\"exclude\":[],\"sticky\":\"\",\"inherit\":true}} -->\n\t<div class=\"wp-block-query\">\n\t\t<!-- wp:post-template -->\n\t\t\t<!-- wp:post-title {\"isLink\":true} /-->\n\t\t\t<!-- wp:post-excerpt /-->\n\t\t<!-- /wp:post-template -->\n\n\t\t<!-- wp:query-pagination -->\n\t\t\t<!-- wp:query-pagination-previous /-->\n\t\t\t<!-- wp:query-pagination-next /-->\n\t\t<!-- /wp:query-pagination -->\n\n\t\t<!-- wp:query-no-results -->\n\t\t\t<!-- wp:paragraph -->\n\t\t\t<p>Nothing to show yet.</p>\n\t\t\t<!-- /wp:paragraph -->\n\t\t<!-- /wp:query-no-results -->\n\t</div>\n\t<!-- /wp:query -->\n</main>\n<!-- /wp:group -->\n"
+  }
+}

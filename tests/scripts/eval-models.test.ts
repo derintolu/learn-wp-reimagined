@@ -23,7 +23,7 @@ describe('eval-models content switch', () => {
 
   it('every expected start is a real lesson in the content it is checked against', () => {
     const fixture = buildContent(FIXTURE_CONTENT);
-    const real = buildContent('content');
+    const real = buildContent();
     for (const c of cases.placement) {
       for (const id of expectedStarts(c.expect, FIXTURE_CONTENT)) expect(fixture.lessons[id], `${c.id}: ${id}`).toBeTruthy();
       for (const id of expectedStarts(c.expect, 'content')) expect(real.lessons[id], `${c.id}: ${id}`).toBeTruthy();

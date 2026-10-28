@@ -12,7 +12,7 @@ import type { ContentBundle } from '../src/shared/types';
 import { loadPackage } from '../vendor/course-xapi-mcp/core/package/index.ts';
 import { behaviourIssues } from '../vendor/course-xapi-mcp/validator/behaviour.ts';
 import { lintIssues } from '../vendor/course-xapi-mcp/validator/lint.ts';
-import { buildContent } from './build-content';
+import { buildContentFromYaml } from './yaml-content';
 import type { SpacefastApi } from './lib/spacefast';
 
 const enc = new TextEncoder();
@@ -51,7 +51,7 @@ export function zipPackage(files: PackageFiles): Uint8Array {
 }
 
 export function buildMigrationZip(yamlDir: string): Uint8Array {
-  return zipPackage(bundleToPackage(buildContent(yamlDir)));
+  return zipPackage(bundleToPackage(buildContentFromYaml(yamlDir)));
 }
 
 export interface MigrateDeps {
@@ -90,7 +90,7 @@ async function main(argv: string[]): Promise<number> {
     if (!token || !spaceId) throw new Error('set SPACEFAST_TOKEN and SPACE_A_ID');
     const { readConnectorEnv } = await import('./keys');
     const env = readConnectorEnv(process.env.ENV_FILE ?? '.env.server') as unknown as ConstructorParameters<typeof Client>[0];
-    const r = await migrate({ api: httpSpacefastApi(token), connector: new Client(env), spaceId, packageUrl, yaml: buildContent('content') });
+    const r = await migrate({ api: httpSpacefastApi(token), connector: new Client(env), spaceId, packageUrl, yaml: buildContentFromYaml('content') });
     if (!r.imported) { console.error('the import failed'); return 1; }
     for (const d of r.diffs) console.log(d);
     console.log(r.diffs.length ? `${r.diffs.length} differences` : 'round trip clean');

@@ -5,7 +5,7 @@ import type { Check } from '../../src/shared/types';
 import { SOLUTIONS } from './solutions';
 
 /** The real block-theme path: every starter fails its checks, intended answers pass, plausible mistakes fail. */
-const c = buildContent('content');
+const c = buildContent();
 const L = c.lessons;
 const passes = (checks: Check[], files: Record<string, string>) => runChecks(checks, files).passed;
 

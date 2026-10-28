@@ -1,0 +1,112 @@
+{
+  "beats": [
+    {
+      "content": "WordPress reads the comment at the top of `style.css` and shows it under **Appearance > Themes**. Here is your theme's header:\n\n```css\n/*\nTheme Name: My Block Theme\nAuthor: You\nDescription: My first block theme, built with Learn WordPress, reimagined.\nVersion: 1.0.0\nRequires at least: 6.6\nTested up to: 7.1\nRequires PHP: 7.4\nLicense: GNU General Public License v2 or later\nLicense URI: https://www.gnu.org/licenses/gpl-2.0.html\nText Domain: my-block-theme\n*/\n```\n\n- `Theme Name` is the one that matters most. If it's missing, WordPress falls back to showing the folder name.\n- The WordPress.org Theme Directory requires the rest too: `Author`, `Description`, `Version`, `Requires at least`, `Tested up to`, `Requires PHP`, `License`, `License URI` and `Text Domain`.\n- `Requires at least: 6.6` is there because theme.json version 3 arrived in WordPress 6.6.\n\nYou can still write CSS below the header, but WordPress doesn't load it on its own. A theme that needs it enqueues it from `functions.php`. In a block theme, most styling belongs in theme.json anyway.\n",
+      "goal": "Fill in the style.css header.",
+      "key": "style-css-header",
+      "question": "Which header line would you change first to make this theme yours?"
+    },
+    {
+      "content": "`settings` in theme.json decides what the editor offers. Two useful settings:\n\n- `settings.color.palette` is your list of colours, each with `name`, `slug` and `color`. They appear in every colour picker.\n- `settings.color.defaultPalette` set to `false` hides WordPress's own default colours, so people only see yours.\n\nAnother is `settings.appearanceTools`. Set it to `true` and WordPress switches on a bundle of design controls in one go, including border, spacing (block gap, margin and padding), line height, and link, heading, button and caption colour controls.\n\n```json\n\"settings\": {\n  \"appearanceTools\": true,\n  \"color\": {\n    \"defaultPalette\": false,\n    \"palette\": [ ... ]\n  }\n}\n```\n\nSettings don't change how anything looks by themselves. They decide which tools and presets are available. Styles (a later lesson) use them.\n",
+      "goal": "See how settings shape the editor.",
+      "key": "settings-control-the-editor",
+      "question": "Why might a theme hide the default palette?"
+    },
+    {
+      "content": "`settings.layout` holds two widths:\n\n- `contentSize` is the default width of content, such as the text of a post. For comfortable reading, aim for roughly 45 to 75 characters per line.\n- `wideSize` is the width of blocks set to \"wide\" alignment. It should be bigger than `contentSize`, but not the full screen, because \"full\" alignment already covers that.\n\n```json\n\"settings\": {\n  \"layout\": {\n    \"contentSize\": \"40rem\",\n    \"wideSize\": \"64rem\"\n  }\n}\n```\n\nBoth take any CSS length, like `rem`, `px` or `%`. `layout` sits inside `settings`, next to `color`. It is not a top-level key.\n",
+      "goal": "Set the content and wide widths.",
+      "key": "layout-widths",
+      "question": "What would happen to reading comfort if contentSize were 100%?"
+    }
+  ],
+  "checkpoint": {
+    "branches": [
+      {
+        "key": "advance",
+        "message": "Your settings are in. Now let's give the theme templates that use them.",
+        "success": true,
+        "to": "bt-templates-and-parts",
+        "when": "The answer meets the rubric."
+      },
+      {
+        "key": "review",
+        "message": "Let's go back over palette entries and the layout widths, then try again.",
+        "success": false,
+        "to": "bt-style-css-and-theme-json",
+        "when": "The learner should revisit the material."
+      },
+      {
+        "key": "skip",
+        "message": "On to templates and template parts.",
+        "success": true,
+        "to": "bt-templates-and-parts",
+        "when": "The answer clearly shows mastery beyond the lesson."
+      }
+    ],
+    "checks": [
+      {
+        "equals": "64rem",
+        "file": "theme.json",
+        "message": "theme.json must be valid JSON once your new settings are in. Check commas between entries and keys.",
+        "pointer": "/settings/layout/wideSize",
+        "type": "json"
+      },
+      {
+        "file": "theme.json",
+        "message": "Add a palette entry with the slug accent. Like the others, it needs a name, a slug and a color with a hex value. Keep version 3 in theme.json.",
+        "pattern": "^(?=[\\s\\S]*\"version\"\\s*:\\s*3\\b)[\\s\\S]*?\\{(?=[^{}]*\"slug\"\\s*:\\s*\"accent\")(?=[^{}]*\"name\"\\s*:\\s*\"[^\"]+\")(?=[^{}]*\"color\"\\s*:\\s*\"#[0-9a-fA-F]{3,8}\")[^{}]*\\}",
+        "type": "regex"
+      },
+      {
+        "equals": "40rem",
+        "file": "theme.json",
+        "message": "Set the content width. It lives in a layout object inside settings, not at the top level.",
+        "pointer": "/settings/layout/contentSize",
+        "type": "json"
+      },
+      {
+        "equals": "64rem",
+        "file": "theme.json",
+        "message": "Set the wide width next to the content width, inside the same layout object.",
+        "pointer": "/settings/layout/wideSize",
+        "type": "json"
+      }
+    ],
+    "file": "theme.json",
+    "key": "cp-settings-code",
+    "kind": "code",
+    "question": "Edit your theme.json. Add a fourth palette colour named Accent with the slug accent (any hex colour), then set the content width to 40rem and the wide width to 64rem.",
+    "rubric": "theme.json is valid JSON with version 3, a palette entry with name, slug \"accent\" and a hex color, and settings.layout contentSize 40rem and wideSize 64rem."
+  },
+  "minutes": 8,
+  "referenceSolution": {
+    "files": {
+      "theme.json": "{\n  \"$schema\": \"https://schemas.wp.org/trunk/theme.json\",\n  \"version\": 3,\n  \"settings\": {\n    \"useRootPaddingAwareAlignments\": true,\n    \"color\": {\n      \"palette\": [\n        { \"name\": \"Base\", \"slug\": \"base\", \"color\": \"#ffffff\" },\n        { \"name\": \"Contrast\", \"slug\": \"contrast\", \"color\": \"#1e1e1e\" },\n        { \"name\": \"Subtle\", \"slug\": \"subtle\", \"color\": \"#f0f0f0\" },\n        { \"name\": \"Accent\", \"slug\": \"accent\", \"color\": \"#3858e9\" }\n      ]\n    },\n    \"layout\": {\n      \"contentSize\": \"40rem\",\n      \"wideSize\": \"64rem\"\n    },\n    \"typography\": {\n      \"fontFamilies\": [\n        {\n          \"name\": \"System Sans\",\n          \"slug\": \"system-sans\",\n          \"fontFamily\": \"system-ui, -apple-system, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif\"\n        }\n      ]\n    }\n  },\n  \"styles\": {\n    \"color\": {\n      \"background\": \"var:preset|color|base\",\n      \"text\": \"var:preset|color|contrast\"\n    },\n    \"spacing\": {\n      \"padding\": {\n        \"top\": \"0\",\n        \"right\": \"1.5rem\",\n        \"bottom\": \"0\",\n        \"left\": \"1.5rem\"\n      }\n    },\n    \"typography\": {\n      \"fontFamily\": \"var:preset|font-family|system-sans\",\n      \"lineHeight\": \"1.6\"\n    },\n    \"elements\": {\n      \"link\": {\n        \"color\": { \"text\": \"var:preset|color|accent\" }\n      },\n      \"heading\": {\n        \"typography\": { \"fontWeight\": \"700\", \"lineHeight\": \"1.2\" }\n      }\n    }\n  },\n  \"templateParts\": [\n    { \"name\": \"header\", \"title\": \"Header\", \"area\": \"header\" },\n    { \"name\": \"footer\", \"title\": \"Footer\", \"area\": \"footer\" }\n  ]\n}\n"
+    }
+  },
+  "sources": [
+    {
+      "title": "Main Stylesheet (style.css) (Theme Handbook)",
+      "url": "https://developer.wordpress.org/themes/basics/main-stylesheet-style-css/"
+    },
+    {
+      "title": "Global settings and styles (Learn WordPress lesson)",
+      "url": "https://learn.wordpress.org/lesson/global-settings-and-styles/"
+    },
+    {
+      "title": "Color settings (Theme Handbook)",
+      "url": "https://developer.wordpress.org/themes/global-settings-and-styles/settings/color/"
+    },
+    {
+      "title": "Layout settings (Theme Handbook)",
+      "url": "https://developer.wordpress.org/themes/global-settings-and-styles/settings/layout/"
+    },
+    {
+      "title": "theme.json reference, version 3 (Block Editor Handbook)",
+      "url": "https://developer.wordpress.org/block-editor/reference-guides/theme-json-reference/theme-json-living/"
+    }
+  ],
+  "starterFiles": {
+    "theme.json": "{\n  \"$schema\": \"https://schemas.wp.org/trunk/theme.json\",\n  \"version\": 3,\n  \"settings\": {\n    \"color\": {\n      \"palette\": [\n        { \"name\": \"Base\", \"slug\": \"base\", \"color\": \"#ffffff\" },\n        { \"name\": \"Contrast\", \"slug\": \"contrast\", \"color\": \"#1e1e1e\" },\n        { \"name\": \"Subtle\", \"slug\": \"subtle\", \"color\": \"#f0f0f0\" }\n      ]\n    }\n  }\n}\n"
+  }
+}

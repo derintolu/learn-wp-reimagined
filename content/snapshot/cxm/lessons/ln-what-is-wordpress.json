@@ -1,0 +1,82 @@
+{
+  "beats": [
+    {
+      "content": "WordPress is a **content management system**: software that lets you build a website and keep it up to date without writing code. Blogs, shops, portfolios and small business sites can all run on it.\n\nA few things worth knowing from the start:\n\n- It's **free and open source**. Anyone can download it and use it, and anyone can help improve it.\n- It's everywhere. More than 40% of all the websites in the world are built with WordPress.\n- A **theme** decides how your site looks. **Plugins** add features, like a contact form or an online shop.\n\nYou won't need any code for most of this path. In lesson 3 you'll peek under the hood, though, because that's where the interesting bits are.\n",
+      "goal": "Know what WordPress is and why so many sites use it.",
+      "key": "what-wordpress-is",
+      "question": "What kind of site would you like to build with WordPress?"
+    },
+    {
+      "content": "Every WordPress site has two sides:\n\n- **The site itself**, which is what your visitors see.\n- **The dashboard** (also called the admin area), where you manage everything. It lives at your site's address plus `/wp-admin`, for example `example.com/wp-admin`, and you log in to reach it.\n\nThe live preview in your workspace is a real WordPress site, open at its dashboard and already logged in.\n\nTo jump to the public side, use the black toolbar at the top. On a wide screen, hover over your site's name and choose **Visit Site**. In a narrow window, like the preview, the site name shrinks to a **house icon**. Once you're on the site, the same spot in the toolbar takes you back to the dashboard.\n",
+      "goal": "See the two sides of every WordPress site.",
+      "key": "two-sides",
+      "question": "Before you look, what do you expect to find in the dashboard that visitors never see?"
+    },
+    {
+      "content": "The first screen you land on is the dashboard's home. It's made of boxes called **widgets**:\n\n- **At a Glance** counts your posts, pages and comments, and names your theme and WordPress version.\n- **Activity** shows recently published posts, scheduled posts and the latest comments.\n- **Quick Draft** lets you jot down an idea and save it as a draft post.\n- **WordPress Events and News** lists nearby meetups and news from the WordPress project.\n\nDon't want one of them? Open **Screen Options** at the top right and untick it. You can also drag widgets around to rearrange them. Your dashboard may look a little different from someone else's, because plugins and hosts can add widgets of their own.\n",
+      "goal": "Read the dashboard's home screen.",
+      "key": "dashboard-home",
+      "question": "Which of these widgets do you think you'd actually use?"
+    },
+    {
+      "content": "The menu down the left side is how you get around. (In a narrow window, like the preview, it folds away behind the menu button at the top left.) Your content sits near the top:\n\n- **Posts**: articles that appear by date, like blog posts or news.\n- **Media**: your images, videos, audio and documents.\n- **Pages**: content that doesn't change often, like an About or Contact page.\n- **Comments**: what readers have said, ready to approve, reply to or mark as spam.\n\nBelow those are the tools for the site as a whole:\n\n- **Appearance**: change your theme and how the site looks. With a block theme like the one in your preview, **Appearance > Editor** opens the Site Editor.\n- **Plugins**: add, turn on and remove plugins.\n- **Users**: the people who can log in, and what each one is allowed to do.\n- **Tools**: import and export content, and check your Site Health.\n- **Settings**: site-wide options, such as your site's title.\n\nHave a click around the preview. You can't break anything that matters here: it's a practice site.\n",
+      "goal": "Know where things live in the left-hand menu.",
+      "key": "the-menu",
+      "question": "Which menu item would you open first, and why?"
+    }
+  ],
+  "checkpoint": {
+    "branches": [
+      {
+        "key": "advance",
+        "message": "Spot on. Next, let's sort out posts and pages, the two main kinds of content.",
+        "success": true,
+        "to": "ln-posts-and-pages",
+        "when": "The answer meets the rubric."
+      },
+      {
+        "key": "review",
+        "message": "Let's take the dashboard tour once more. It's quick, and you'll use it in every lesson.",
+        "success": false,
+        "to": "ln-what-is-wordpress",
+        "when": "The learner should revisit the material."
+      },
+      {
+        "key": "skip",
+        "message": "You know your way around, and you know posts from pages, so we'll skip ahead to blocks.",
+        "success": true,
+        "to": "ln-blocks",
+        "when": "The answer clearly shows mastery beyond the lesson."
+      }
+    ],
+    "key": "cp-dashboard-tour",
+    "kind": "free-text",
+    "question": "Imagine it's your site. Which part of the dashboard would you use to upload a photo, and which would you use to change how the whole site looks?",
+    "rubric": "Advance if the answer names Media for uploading a photo and Appearance (or the Site Editor, Appearance > Editor, or Themes) for changing how the whole site looks. Wording can be loose. Review if it gets either one wrong (for example Posts or Pages for uploading, or Settings or Plugins for the look), names only one of the two, or is unsure. Skip only if the answer gets both right and also shows the learner already knows the difference between posts and pages, for example that a blog article goes in Posts but an About or Contact page goes in Pages, or that posts are dated and pages are not. Correctly naming other menu items alone is not enough to skip."
+  },
+  "minutes": 5,
+  "referenceSolution": {
+    "files": {
+      "pages/about.html": "<!-- wp:paragraph -->\n<p>Hi there. This is my first WordPress site, and I'm building it myself.</p>\n<!-- /wp:paragraph -->\n\n<!-- wp:paragraph -->\n<p>I'm learning as I go, so expect it to change a lot.</p>\n<!-- /wp:paragraph -->\n\n<!-- wp:heading -->\n<h2 class=\"wp-block-heading\">What I'm working on</h2>\n<!-- /wp:heading -->\n\n<!-- wp:paragraph -->\n<p>Right now, I'm learning how blocks work.</p>\n<!-- /wp:paragraph -->\n",
+      "pages/home.html": "<!-- wp:heading -->\n<h2 class=\"wp-block-heading\">Welcome to my new site</h2>\n<!-- /wp:heading -->\n\n<!-- wp:paragraph -->\n<p>I'm building this site one lesson at a time. Have a look around.</p>\n<!-- /wp:paragraph -->\n"
+    }
+  },
+  "sources": [
+    {
+      "title": "Introduction to WordPress (Learn WordPress lesson)",
+      "url": "https://learn.wordpress.org/lesson/introduction-to-wordpress-2/"
+    },
+    {
+      "title": "Getting started with the WordPress dashboard (Learn WordPress lesson)",
+      "url": "https://learn.wordpress.org/lesson/getting-started-with-the-wordpress-dashboard/"
+    },
+    {
+      "title": "Dashboard screen (WordPress documentation)",
+      "url": "https://wordpress.org/documentation/article/dashboard-screen/"
+    },
+    {
+      "title": "Administration Screens (WordPress documentation)",
+      "url": "https://wordpress.org/documentation/article/administration-screens/"
+    }
+  ]
+}

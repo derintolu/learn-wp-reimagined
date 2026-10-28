@@ -5,7 +5,7 @@ import type { Check } from '../../src/shared/types';
 import { SOLUTIONS } from './solutions';
 
 /** The real Vibe coder path: starters fail their checks, intended answers pass, plausible mistakes fail. Checks are textual; no PHP runs. */
-const c = buildContent('content');
+const c = buildContent();
 const L = c.lessons;
 const MAIN = 'my-first-plugin/my-first-plugin.php';
 const passes = (checks: Check[], files: Record<string, string>) => runChecks(checks, files).passed;

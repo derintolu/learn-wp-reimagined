@@ -1,0 +1,123 @@
+{
+  "beats": [
+    {
+      "content": "The top-level `styles` key in theme.json styles your theme at three levels:\n\n- **Root (global):** properties directly under `styles`, such as `styles.color`, apply to the `<body>` and cascade down to everything.\n- **Elements:** `styles.elements` targets things like links and buttons across every block.\n- **Blocks:** `styles.blocks` targets one block type, using its full name, such as `core/code`.\n\n```json\n\"styles\": {\n  \"color\": { \"background\": \"#ffffff\", \"text\": \"#1e1e1e\" },\n  \"elements\": {\n    \"button\": { \"color\": { \"background\": \"#1e1e1e\", \"text\": \"#ffffff\" } }\n  },\n  \"blocks\": {\n    \"core/code\": { \"color\": { \"background\": \"#f0f0f0\" } }\n  }\n}\n```\n\nStyles set here show up in **Appearance > Editor > Styles**, so the people using your theme can change them without fighting CSS specificity. That's why the handbook recommends theme.json styles over a stylesheet wherever they can do the job.\n",
+      "goal": "Know the three levels you can style.",
+      "key": "three-levels",
+      "question": "Where would you put a style that should apply to every link on the site?"
+    },
+    {
+      "content": "The elements you can style include:\n\n- `link` for `<a>` links\n- `button` for buttons and button-like links, such as the Button block\n- `heading` for all headings `<h1>` to `<h6>`, or `h1` through `h6` one at a time\n- `caption` for media captions, and `cite` for citations in quotes\n\nLinks and buttons also accept pseudo-classes, nested under the element, including `:hover`, `:focus`, `:active` and `:visited`.\n\n```json\n\"elements\": {\n  \"link\": {\n    \"color\": { \"text\": \"#3858e9\" },\n    \":hover\": { \"color\": { \"text\": \"#1e1e1e\" } }\n  }\n}\n```\n\nIf a block has its own style, it wins over the element style. For example, Button block styles override `elements.button`.\n",
+      "goal": "Style elements such as links and headings.",
+      "key": "elements",
+      "question": "What would you change to give links a different colour on hover?"
+    },
+    {
+      "content": "Hard-coding `#1e1e1e` everywhere means editing every copy when the colour changes. Instead, point styles at the presets you registered in `settings`. theme.json has its own syntax for that:\n\n```text\nvar:preset|{feature}|{slug}\n```\n\nSo your `base` colour is `var:preset|color|base`:\n\n```json\n\"styles\": {\n  \"color\": {\n    \"background\": \"var:preset|color|base\",\n    \"text\": \"var:preset|color|contrast\"\n  }\n}\n```\n\nBehind the scenes, WordPress turns each preset into a CSS custom property, such as `--wp--preset--color--base`. In theme.json, use the `var:preset|…` form, because it shows up correctly in the Styles interface. Save the `var(--wp--preset--color--base)` form for when you're writing actual CSS.\n\nThe same idea works beyond colour. The finished theme at the end of this path uses two more:\n\n- **A font preset.** Register a font stack in `settings.typography.fontFamilies` (each entry has a `name`, a `slug` and a `fontFamily`), then apply it with `var:preset|font-family|{slug}` in `styles.typography.fontFamily`. A system stack such as `system-ui, sans-serif` needs no font files.\n- **Root padding.** `styles.spacing.padding` sets the padding around the whole site. Declare `top`, `right`, `bottom` and `left` separately and turn on `settings.useRootPaddingAwareAlignments`, so full-width blocks reach the screen edges while their content keeps that padding.\n",
+      "goal": "Use your presets instead of hex codes.",
+      "key": "presets-not-hex",
+      "question": "Why does referencing a preset make a later redesign easier?"
+    }
+  ],
+  "checkpoint": {
+    "branches": [
+      {
+        "key": "advance",
+        "message": "Your theme has a look of its own now. Next, let's give people a ready-made section to drop in.",
+        "success": true,
+        "to": "bt-patterns",
+        "when": "The answer meets the rubric."
+      },
+      {
+        "key": "review",
+        "message": "Let's walk through styles levels and preset references again, then try once more.",
+        "success": false,
+        "to": "bt-global-styles",
+        "when": "The learner should revisit the material."
+      },
+      {
+        "key": "skip",
+        "message": "On to block patterns.",
+        "success": true,
+        "to": "bt-patterns",
+        "when": "The answer clearly shows mastery beyond the lesson."
+      }
+    ],
+    "checks": [
+      {
+        "equals": "var:preset|color|base",
+        "file": "theme.json",
+        "message": "theme.json must be valid JSON once your styles are in. styles goes next to settings, separated by a comma.",
+        "pointer": "/styles/color/background",
+        "type": "json"
+      },
+      {
+        "file": "theme.json",
+        "message": "Your palette needs an accent entry (name, slug accent and a hex color), and your links need to use it. Keep version 3 in theme.json.",
+        "pattern": "^(?=[\\s\\S]*\"version\"\\s*:\\s*3\\b)(?=[\\s\\S]*\"var:preset\\|color\\|accent\")[\\s\\S]*?\\{(?=[^{}]*\"slug\"\\s*:\\s*\"accent\")(?=[^{}]*\"name\"\\s*:\\s*\"[^\"]+\")(?=[^{}]*\"color\"\\s*:\\s*\"#[0-9a-fA-F]{3,8}\")[^{}]*\\}",
+        "type": "regex"
+      },
+      {
+        "equals": "var:preset|color|base",
+        "file": "theme.json",
+        "message": "The site background goes in a color object directly under styles. Point it at the base preset with the var:preset syntax.",
+        "pointer": "/styles/color/background",
+        "type": "json"
+      },
+      {
+        "equals": "var:preset|color|contrast",
+        "file": "theme.json",
+        "message": "The text colour sits next to the background colour. Use the contrast preset.",
+        "pointer": "/styles/color/text",
+        "type": "json"
+      },
+      {
+        "equals": "var:preset|color|accent",
+        "file": "theme.json",
+        "message": "Links are an element, so they go under styles.elements, then link, then color. Use the accent preset.",
+        "pointer": "/styles/elements/link/color/text",
+        "type": "json"
+      }
+    ],
+    "file": "theme.json",
+    "key": "cp-global-styles-code",
+    "kind": "code",
+    "question": "Add a top-level styles section to your theme.json. Set the site background to your base colour, the text to your contrast colour, and every link to your accent colour. Use preset references, not hex codes.",
+    "rubric": "theme.json has styles.color.background \"var:preset|color|base\", styles.color.text \"var:preset|color|contrast\" and styles.elements.link.color.text \"var:preset|color|accent\", with version 3."
+  },
+  "minutes": 8,
+  "referenceSolution": {
+    "files": {
+      "theme.json": "{\n  \"$schema\": \"https://schemas.wp.org/trunk/theme.json\",\n  \"version\": 3,\n  \"settings\": {\n    \"useRootPaddingAwareAlignments\": true,\n    \"color\": {\n      \"palette\": [\n        { \"name\": \"Base\", \"slug\": \"base\", \"color\": \"#ffffff\" },\n        { \"name\": \"Contrast\", \"slug\": \"contrast\", \"color\": \"#1e1e1e\" },\n        { \"name\": \"Subtle\", \"slug\": \"subtle\", \"color\": \"#f0f0f0\" },\n        { \"name\": \"Accent\", \"slug\": \"accent\", \"color\": \"#3858e9\" }\n      ]\n    },\n    \"layout\": {\n      \"contentSize\": \"40rem\",\n      \"wideSize\": \"64rem\"\n    },\n    \"typography\": {\n      \"fontFamilies\": [\n        {\n          \"name\": \"System Sans\",\n          \"slug\": \"system-sans\",\n          \"fontFamily\": \"system-ui, -apple-system, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif\"\n        }\n      ]\n    }\n  },\n  \"styles\": {\n    \"color\": {\n      \"background\": \"var:preset|color|base\",\n      \"text\": \"var:preset|color|contrast\"\n    },\n    \"spacing\": {\n      \"padding\": {\n        \"top\": \"0\",\n        \"right\": \"1.5rem\",\n        \"bottom\": \"0\",\n        \"left\": \"1.5rem\"\n      }\n    },\n    \"typography\": {\n      \"fontFamily\": \"var:preset|font-family|system-sans\",\n      \"lineHeight\": \"1.6\"\n    },\n    \"elements\": {\n      \"link\": {\n        \"color\": { \"text\": \"var:preset|color|accent\" }\n      },\n      \"heading\": {\n        \"typography\": { \"fontWeight\": \"700\", \"lineHeight\": \"1.2\" }\n      }\n    }\n  },\n  \"templateParts\": [\n    { \"name\": \"header\", \"title\": \"Header\", \"area\": \"header\" },\n    { \"name\": \"footer\", \"title\": \"Footer\", \"area\": \"footer\" }\n  ]\n}\n"
+    }
+  },
+  "sources": [
+    {
+      "title": "Styles (Theme Handbook)",
+      "url": "https://developer.wordpress.org/themes/global-settings-and-styles/styles/"
+    },
+    {
+      "title": "Applying Styles (Theme Handbook)",
+      "url": "https://developer.wordpress.org/themes/global-settings-and-styles/styles/applying-styles/"
+    },
+    {
+      "title": "Using Presets (Theme Handbook)",
+      "url": "https://developer.wordpress.org/themes/global-settings-and-styles/styles/using-presets/"
+    },
+    {
+      "title": "Global settings and styles (Learn WordPress lesson)",
+      "url": "https://learn.wordpress.org/lesson/global-settings-and-styles/"
+    },
+    {
+      "title": "Typography settings (Theme Handbook)",
+      "url": "https://developer.wordpress.org/themes/global-settings-and-styles/settings/typography/"
+    },
+    {
+      "title": "theme.json reference, version 3 (Block Editor Handbook)",
+      "url": "https://developer.wordpress.org/block-editor/reference-guides/theme-json-reference/theme-json-living/"
+    }
+  ],
+  "starterFiles": {
+    "theme.json": "{\n  \"$schema\": \"https://schemas.wp.org/trunk/theme.json\",\n  \"version\": 3,\n  \"settings\": {\n    \"color\": {\n      \"palette\": [\n        { \"name\": \"Base\", \"slug\": \"base\", \"color\": \"#ffffff\" },\n        { \"name\": \"Contrast\", \"slug\": \"contrast\", \"color\": \"#1e1e1e\" },\n        { \"name\": \"Subtle\", \"slug\": \"subtle\", \"color\": \"#f0f0f0\" },\n        { \"name\": \"Accent\", \"slug\": \"accent\", \"color\": \"#3858e9\" }\n      ]\n    },\n    \"layout\": {\n      \"contentSize\": \"40rem\",\n      \"wideSize\": \"64rem\"\n    }\n  }\n}\n"
+  }
+}

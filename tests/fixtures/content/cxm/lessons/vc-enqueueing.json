@@ -1,0 +1,78 @@
+{
+  "beats": [
+    {
+      "content": "Use wp_enqueue_style on the wp_enqueue_scripts action.\n",
+      "goal": "Load a stylesheet from a plugin.",
+      "key": "enqueue"
+    }
+  ],
+  "bug": {
+    "code": "<?php\nadd_action( 'init', 'my_first_plugin_styles' );\n",
+    "explanation": "Styles belong on wp_enqueue_scripts, not init.",
+    "file": "my-first-plugin/enqueue.php",
+    "fixChecks": [
+      {
+        "file": "my-first-plugin/enqueue.php",
+        "message": "Use the wp_enqueue_scripts hook.",
+        "pattern": "wp_enqueue_scripts",
+        "type": "regex"
+      }
+    ],
+    "key": "bug-enqueue-hook",
+    "revealAfter": 3
+  },
+  "checkpoint": {
+    "branches": [
+      {
+        "key": "advance",
+        "message": "Your plugin loads its stylesheet.",
+        "success": true,
+        "to": "vc-enqueueing",
+        "when": "The answer meets the rubric."
+      },
+      {
+        "key": "review",
+        "message": "Let's revisit enqueueing.",
+        "success": false,
+        "to": "vc-enqueueing",
+        "when": "The learner should revisit the material."
+      },
+      {
+        "key": "skip",
+        "message": "Moving on.",
+        "success": true,
+        "to": "vc-enqueueing",
+        "when": "The answer clearly shows mastery beyond the lesson."
+      }
+    ],
+    "checks": [
+      {
+        "file": "my-first-plugin/enqueue.php",
+        "message": "Call wp_enqueue_style.",
+        "type": "contains",
+        "value": "wp_enqueue_style"
+      }
+    ],
+    "file": "my-first-plugin/enqueue.php",
+    "key": "cp-enqueue",
+    "kind": "code",
+    "question": "Enqueue the stylesheet with wp_enqueue_style.",
+    "rubric": "The plugin calls wp_enqueue_style."
+  },
+  "minutes": 10,
+  "referenceSolution": {
+    "bugFix": "<?php\nadd_action( 'wp_enqueue_scripts', 'my_first_plugin_styles' );\nwp_enqueue_style( 'x', 'x.css' );\n",
+    "files": {
+      "my-first-plugin/enqueue.php": "<?php\nadd_action( 'wp_enqueue_scripts', 'my_first_plugin_styles' );\nwp_enqueue_style( 'x', 'x.css' );\n"
+    }
+  },
+  "sources": [
+    {
+      "title": "Including CSS and JavaScript",
+      "url": "https://developer.wordpress.org/themes/basics/including-css-javascript/"
+    }
+  ],
+  "starterFiles": {
+    "my-first-plugin/enqueue.php": "<?php\nadd_action( 'wp_enqueue_scripts', 'my_first_plugin_styles' );\n"
+  }
+}
