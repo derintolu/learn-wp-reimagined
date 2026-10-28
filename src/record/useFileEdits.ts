@@ -1,5 +1,6 @@
 import { useEffect, useRef } from 'preact/hooks';
 import { getRecordManager } from './useRecord';
+import { notifyFileEdited } from './stateSync';
 
 /** How long typing must pause before an edit is written to the record. */
 export const FILE_EDIT_DEBOUNCE_MS = 500;
@@ -33,6 +34,7 @@ export function useFileEdits(lessonId?: string): { edit: (file: string, content:
     pending.current.delete(file);
     getRecordManager()
       .dispatch(p.lessonId ? { type: 'fileEdited', file, content: p.content, lessonId: p.lessonId } : { type: 'fileEdited', file, content: p.content })
+      .then(() => notifyFileEdited(file))
       .catch(() => {});
   };
   const flush = () => {

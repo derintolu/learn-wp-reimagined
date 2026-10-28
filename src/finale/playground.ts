@@ -1,4 +1,6 @@
+import type { LearningRecord } from '../shared/record';
 import type { Preview } from '../shared/types';
+import type { FilesDoc } from '../shared/stateDoc';
 
 /**
  * Playground has no documented fragment limit, and a fragment never reaches a server.
@@ -6,6 +8,17 @@ import type { Preview } from '../shared/types';
  * offers the zip instead.
  */
 export const PLAYGROUND_URL_LIMIT = 200_000;
+
+/**
+ * The record to build the finale from: when this browser holds none of the learner's files (a new device,
+ * cleared site data), the files from their State document stand in. Local files, when there are any, win.
+ */
+export function recordWithStateFiles(record: LearningRecord, remote: FilesDoc | null): LearningRecord {
+  if (!remote || Object.keys(record.files).length > 0 || Object.keys(remote.files).length === 0) return record;
+  const next: LearningRecord = { ...record, files: remote.files };
+  if (remote.fileLessons) next.fileLessons = remote.fileLessons;
+  return next;
+}
 
 /** Where the site kind's page files are written, for the pages PHP to read. */
 const PAGES_DIR = '/tmp/learn-pages';

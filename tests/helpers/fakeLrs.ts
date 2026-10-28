@@ -12,6 +12,8 @@ export function fakeLrs() {
     rejectIds: new Set<string>(),
     statements: [] as any[],
     state: new Map<string, unknown>(),
+    /** Bumped on every State write; the ETag is `"v<n>"`. */
+    versions: new Map<string, number>(),
     imports: [] as string[],
     calls: [] as { method: string; url: string }[],
     posts: [] as any[][],
@@ -29,12 +31,15 @@ export function fakeLrs() {
         const key = [p.get('activityId'), p.get('agent'), p.get('registration') ?? '', p.get('stateId')].join('|');
         if (method === 'GET') {
           return lrs.state.has(key)
-            ? new Response(JSON.stringify(lrs.state.get(key)), { status: 200, headers: { ETag: '"e1"' } })
+            ? new Response(JSON.stringify(lrs.state.get(key)), { status: 200, headers: { ETag: `"v${lrs.versions.get(key) ?? 1}"` } })
             : new Response(null, { status: 404 });
         }
         const h = new Headers(init?.headers);
         if (h.get('If-None-Match') === '*' && lrs.state.has(key)) return new Response(null, { status: 412 });
+        const ifMatch = h.get('If-Match');
+        if (ifMatch !== null && ifMatch !== `"v${lrs.versions.get(key) ?? 1}"`) return new Response(null, { status: 412 });
         lrs.state.set(key, JSON.parse(String(init?.body)));
+        lrs.versions.set(key, (lrs.versions.get(key) ?? 0) + 1);
         return new Response(null, { status: 204 });
       }
       if (url === `${LRS_XAPI}/statements` && method === 'POST') {

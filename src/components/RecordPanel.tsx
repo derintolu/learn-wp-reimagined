@@ -6,6 +6,7 @@ import { content } from '../content';
 import { downloadRecord, readRecordFile } from '../record/fileTransfer';
 import { supportsFolder } from '../record/folderStore';
 import { deleteMyDataDetailed } from '../record/session';
+import { stateSyncMessage, subscribeStateSync } from '../record/stateSync';
 import type { AttachResult } from '../record/store';
 import { cancelPendingEdits, flushPendingEdits } from '../record/useFileEdits';
 import { useRecord } from '../record/useRecord';
@@ -118,9 +119,16 @@ function DeleteDialog({ onKeep, onDelete, busy, failed }: { onKeep: () => void; 
   );
 }
 
+function useSyncMessage(): string | null {
+  const [msg, setMsg] = useState(stateSyncMessage());
+  useEffect(() => subscribeStateSync(() => setMsg(stateSyncMessage())), []);
+  return msg;
+}
+
 /** The header menu for the learning record: where it's saved, and download, restore or save to a folder. */
 export function RecordPanel() {
   const { manager, record, persistent, notice } = useRecord();
+  const syncMessage = useSyncMessage();
   const [open, setOpen] = useState(false);
   const [pendingRestore, setPendingRestore] = useState<LearningRecord | null>(null);
   const [msg, setMsg] = useState<Msg | null>(null);
@@ -147,7 +155,7 @@ export function RecordPanel() {
 
   const folder = manager.savingToFolder;
   const state: 'folder' | 'browser' | 'none' = folder ? 'folder' : persistent ? 'browser' : 'none';
-  const attention = Boolean(notice || manager.folderError);
+  const attention = Boolean(notice || manager.folderError || syncMessage);
   const handoffLesson = open ? (lessonInPath() ?? record.current?.lessonId ?? null) : null;
   const stateLabel = { folder: 'Saving to your folder', browser: 'Saved in this browser', none: 'Not saved' }[state];
 
@@ -337,6 +345,7 @@ export function RecordPanel() {
             </div>
           )}
           {notice && <p class="record__alert">{notice.message}</p>}
+          {syncMessage && <p class="record__alert" role="status">{syncMessage}</p>}
           {manager.folderError && (
             <p class="record__alert">
               We couldn't save to your folder ({manager.folderError.message}). Your progress is still kept in this browser.

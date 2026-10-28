@@ -18,6 +18,8 @@ import { BadgeClaim } from './pages/BadgeClaim';
 import { NotFound } from './pages/routes';
 import { APP_ROUTES } from './pages/appRoutes';
 import { content } from './content';
+import { startStateSync } from './record/stateSync';
+import { getRecordManager } from './record/useRecord';
 
 /**
  * preact-iso turns same-origin links like "/#paths" into pushState, which never
@@ -55,6 +57,8 @@ export function App() {
 }
 
 function Shell() {
+  // Files and resume go to the learner's State documents when the official record is on.
+  useEffect(() => startStateSync(getRecordManager()), []);
   return (
     <LocationProvider>
       <HashTarget />

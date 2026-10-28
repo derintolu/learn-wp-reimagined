@@ -1,8 +1,11 @@
-import { useMemo } from 'preact/hooks';
+import { useEffect, useMemo, useState } from 'preact/hooks';
 import { content } from '../content';
 import { useRecord } from '../record/useRecord';
 import { pathZip, resolveFiles } from '../finale/themeZip';
-import { PLAYGROUND_URL_LIMIT, playgroundUrl } from '../finale/playground';
+import { PLAYGROUND_URL_LIMIT, playgroundUrl, recordWithStateFiles } from '../finale/playground';
+import { FEATURES } from '../config';
+import { fetchFilesState } from '../record/stateSync';
+import type { FilesDoc } from '../shared/stateDoc';
 import { Bubble } from '../components/Bubble';
 import { SketchIcon } from '../components/SketchIcon';
 import { Swipe } from '../components/Swipe';
@@ -146,7 +149,17 @@ function FinaleFor({ pathId }: { pathId: PathId }) {
   const lessons = path.lessons.map((id) => content.lessons[id]).filter(Boolean);
   const done = new Set(record.completedLessons);
   const doneCount = lessons.filter((l) => done.has(l.id)).length;
-  const resolved = useMemo(() => resolveFiles(content, record, pathId), [record, pathId]);
+  const [remote, setRemote] = useState<FilesDoc | null>(null);
+  const noLocalFiles = Object.keys(record.files).length === 0;
+  useEffect(() => {
+    if (!FEATURES.officialRecord || !noLocalFiles) return;
+    let live = true;
+    fetchFilesState().then((d) => live && setRemote(d), () => {});
+    return () => {
+      live = false;
+    };
+  }, [noLocalFiles]);
+  const resolved = useMemo(() => resolveFiles(content, recordWithStateFiles(record, remote), pathId), [record, remote, pathId]);
   const files = resolved.files;
   const url = useMemo(() => playgroundUrl(files, preview), [files, preview]);
   const fits = url.length < PLAYGROUND_URL_LIMIT;

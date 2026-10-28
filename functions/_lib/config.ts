@@ -53,6 +53,7 @@ export const PRICES: Record<string, { inPerM: number; outPerM: number }> = {
  * badges: /api/badges lists the learner's path badges and mints a claim link on the LRS (Task 49); off answers 404.
  * officialRecord: /api/record, /api/record/export and /api/record/view-link read the learner's official record from the LRS (Task 34);
  * off answers 404 and nothing calls the LRS.
+ * officialRecord: the learner's files and resume position are State documents on the LRS (/api/state, Task 35); off answers 404.
  */
 export const SERVER_FLAGS = { serverEvents: true, sessions: true, mcpOnStandard: true, senseiLearners: false, lrsShadow: false, wordpressContent: false, senseiCertificates: false, badges: false, officialRecord: false };
 
