@@ -110,3 +110,30 @@ export async function verifySigned(i: {
     return false;
   }
 }
+
+/**
+ * Verify a request signed with the connector's request scheme (signRequest / the plugin's Signed_Request::sign):
+ * the ledger's content-changed ping. The key id header is not checked; the one configured public key must verify it.
+ */
+export async function verifyRequest(i: {
+  method: string;
+  path: string;
+  body: Uint8Array;
+  headers: Headers;
+  publicKeyB64: string;
+  now: number;
+}): Promise<{ ok: true; nonce: string } | { ok: false }> {
+  try {
+    const timestamp = i.headers.get(HEADER_TIMESTAMP) ?? '';
+    const nonce = i.headers.get(HEADER_NONCE) ?? '';
+    const sig = i.headers.get(HEADER_SIGNATURE) ?? '';
+    if (!nonce || nonce.length > 80 || !sig || !/^[0-9]{1,12}$/.test(timestamp) || Math.abs(i.now - Number(timestamp)) > WINDOW_SECONDS)
+      return { ok: false };
+    const canonical = `${i.method.toUpperCase()}\n${i.path}\n${await sha256Hex(i.body)}\n${timestamp}\n${nonce}`;
+    const key = await crypto.subtle.importKey('raw', fromB64(i.publicKeyB64), 'Ed25519', false, ['verify']);
+    const ok = await crypto.subtle.verify('Ed25519', key, fromB64(sig), enc.encode(canonical));
+    return ok ? { ok: true, nonce } : { ok: false };
+  } catch {
+    return { ok: false };
+  }
+}

@@ -88,11 +88,14 @@ export function buildCourse(bundle: ContentBundle): Course {
   return r.course;
 }
 
-let cached: Course | null = null;
+let cached: { src: ContentBundle; course: Course } | null = null;
 let override: Course | null = null;
 
 export function getCourse(): Course {
-  return override ?? (cached ??= buildCourse(getContent()));
+  if (override) return override;
+  const src = getContent();
+  if (cached?.src !== src) cached = { src, course: buildCourse(src) };
+  return cached.course;
 }
 
 /** Test-only: swap the course (pass null to restore the converted one). */

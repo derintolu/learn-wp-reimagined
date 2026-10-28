@@ -1,3 +1,5 @@
+import { importCourseOnNewVersion } from '../../functions/_lib/lrs/import';
+import { getStandardCourse } from '../../functions/_lib/mcp/standardCourse';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { zipSync } from 'fflate';
 import { createSqliteD1 } from '../../dev/sqliteD1';
@@ -5,10 +7,13 @@ import { SERVER_FLAGS } from '../../functions/_lib/config';
 import { buildContent } from '../../scripts/build-content';
 import { bundleToPackage } from '../../src/shared/package';
 import { getContent, setContentForTests, setCurrentContent } from '../../functions/_lib/content';
-import { COURSE_REVALIDATE_MS, onNewVersion, refreshContent } from '../../functions/_lib/course/cache';
+import { COURSE_REVALIDATE_MS, onNewVersion, refreshContent, resetCourseCacheForTests } from '../../functions/_lib/course/cache';
 import { GET as course } from '../../functions/api/course';
+import { signRequest } from '../../functions/_lib/ledger/sign';
 import { POST as ping } from '../../functions/api/content-changed';
 import type { Env } from '../../functions/_lib/env';
+
+vi.mock('../../functions/_lib/lrs/import', () => ({ importCourseOnNewVersion: vi.fn(async () => {}) }));
 
 const SEED_HEX = '9d61b19deffd5a60ba844af492ec2cc44449c5697b326919703bac031cae7f60';
 const KEY = Buffer.from('302e020100300506032b657004220420' + SEED_HEX, 'hex').toString('base64');
@@ -32,6 +37,7 @@ beforeEach(() => {
   vi.spyOn(console, 'error').mockImplementation(() => {});
   setContentForTests(null);
   setCurrentContent(null);
+  resetCourseCacheForTests();
 });
 afterEach(() => {
   SERVER_FLAGS.wordpressContent = false;
@@ -104,21 +110,26 @@ describe('refreshContent', () => {
 
 describe('POST /api/content-changed', () => {
   const body = enc.encode('{"program":"learn-wp-reimagined","version":2,"etag":"\\"e2\\""}');
-  async function signed(ts: number) {
-    // verifySigned signs timestamp "." body; the test vector key signs it the way the plugin's notification does.
-    const key = await crypto.subtle.importKey('pkcs8', Buffer.from(KEY, 'base64'), 'Ed25519', false, ['sign']);
-    const msg = new Uint8Array([...enc.encode(`${ts}.`), ...body]);
-    const sig = Buffer.from(await crypto.subtle.sign('Ed25519', key, msg)).toString('base64');
-    return { 'X-Learning-Ledger-Timestamp': String(ts), 'X-Learning-Ledger-Signature': sig };
-  }
-  const call = (headers: Record<string, string>) =>
-    ping(new Request('http://x/api/content-changed', { method: 'POST', headers, body }), { params: {}, env });
+  const URL_ = 'http://x/api/content-changed';
+  // Signed the way the plugin's Connector_Keys::sign does (Task 18's signRequest matches the PHP vector).
+  const signed = (o: { path?: string; now?: number; nonce?: string; body?: Uint8Array } = {}) =>
+    signRequest({
+      method: 'POST',
+      path: o.path ?? '/api/content-changed',
+      body: o.body ?? body,
+      keyId: 'kid1',
+      privateKeyPkcs8B64: KEY,
+      now: o.now ?? Math.floor(Date.now() / 1000),
+      nonce: o.nonce ?? crypto.randomUUID().replace(/-/g, ''),
+    });
+  const call = (headers: Record<string, string>, b = body) =>
+    ping(new Request(URL_, { method: 'POST', headers, body: b }), { params: {}, env });
 
   it('a signed ping forces a refresh', async () => {
     send200('"e1"', 1);
     await refreshContent(env, Date.now());
     send200('"e2"', 2);
-    const res = await call(await signed(Math.floor(Date.now() / 1000)));
+    const res = await call(await signed());
     expect(res.status).toBe(202);
     expect(fetchMock).toHaveBeenCalledTimes(2);
     const row = await env.DB.prepare('SELECT etag FROM course_cache').first<{ etag: string }>();
@@ -127,8 +138,78 @@ describe('POST /api/content-changed', () => {
 
   it('an unsigned or stale ping is 401', async () => {
     expect((await call({})).status).toBe(401);
-    expect((await call(await signed(Math.floor(Date.now() / 1000) - 3600))).status).toBe(401);
+    expect((await call(await signed({ now: Math.floor(Date.now() / 1000) - 3600 }))).status).toBe(401);
     expect(fetchMock).not.toHaveBeenCalled();
+  });
+
+  it('a ping for another path, a tampered body or a replayed nonce is 401', async () => {
+    expect((await call(await signed({ path: '/api/other' }))).status).toBe(401);
+    expect((await call(await signed(), enc.encode('{"x":1}'))).status).toBe(401);
+    send200('"e1"', 1);
+    const h = await signed({ nonce: 'samenonce' });
+    expect((await call(h)).status).toBe(202);
+    expect((await call(h)).status).toBe(401);
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+  });
+});
+
+describe('failures and hooks', () => {
+  it('a down connector costs one attempt per window, with or without a cached copy', async () => {
+    fetchMock.mockRejectedValue(new Error('down'));
+    await refreshContent(env, T0);
+    await refreshContent(env, T0 + 1000);
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+    await refreshContent(env, T0 + COURSE_REVALIDATE_MS);
+    expect(fetchMock).toHaveBeenCalledTimes(2);
+
+    fetchMock.mockReset();
+    env = { ...env, DB: createSqliteD1() };
+    resetCourseCacheForTests();
+    send200('"e1"', 1);
+    await refreshContent(env, T0);
+    fetchMock.mockRejectedValue(new Error('down'));
+    await refreshContent(env, T0 + COURSE_REVALIDATE_MS);
+    await refreshContent(env, T0 + COURSE_REVALIDATE_MS + 1000);
+    expect(fetchMock).toHaveBeenCalledTimes(2);
+  });
+
+  it('a new etag calls importCourseOnNewVersion once (R21)', async () => {
+    const imp = vi.mocked(importCourseOnNewVersion);
+    imp.mockClear();
+    send200('"e1"', 1);
+    await refreshContent(env, T0);
+    await refreshContent(env, T0 + 1, { force: false });
+    expect(imp).toHaveBeenCalledTimes(1);
+    expect(imp).toHaveBeenCalledWith(env, expect.any(Uint8Array), '"e1"');
+  });
+
+  it('a failed hook is retried on the next revalidation and does not break the refresh', async () => {
+    let fail = true;
+    const hook = vi.fn(async () => {
+      if (fail) throw new Error('lrs down');
+    });
+    const off = onNewVersion(hook);
+    send200('"e1"', 1);
+    expect((await refreshContent(env, T0)).changed).toBe(true);
+    expect(hook).toHaveBeenCalledTimes(1);
+    fail = false;
+    send200('"e1"', 1);
+    await refreshContent(env, T0 + COURSE_REVALIDATE_MS);
+    expect(hook).toHaveBeenCalledTimes(2);
+    fetchMock.mockImplementationOnce(async () => new Response(null, { status: 304 }));
+    await refreshContent(env, T0 + 2 * COURSE_REVALIDATE_MS);
+    expect(hook).toHaveBeenCalledTimes(2);
+    off();
+  });
+
+  it('MCP course models follow a refreshed bundle', async () => {
+    send200('"e1"', 1);
+    await refreshContent(env, T0);
+    const first = getStandardCourse();
+    expect(getStandardCourse()).toBe(first);
+    send200('"e2"', 2);
+    await refreshContent(env, T0 + 1, { force: true });
+    expect(getStandardCourse()).not.toBe(first);
   });
 });
 

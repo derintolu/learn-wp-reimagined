@@ -34,8 +34,10 @@ export function buildStandardCourse(bundle: ContentBundle): CourseModel {
   return loaded.course;
 }
 
-let cached: CourseModel | null = null;
+let cached: { src: ContentBundle; course: CourseModel } | null = null;
 
 export function getStandardCourse(): CourseModel {
-  return (cached ??= buildStandardCourse(getContent()));
+  const src = getContent();
+  if (cached?.src !== src) cached = { src, course: buildStandardCourse(src) };
+  return cached.course;
 }

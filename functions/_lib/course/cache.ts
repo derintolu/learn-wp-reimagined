@@ -13,7 +13,7 @@ import type { ContentBundle } from '../../../src/shared/types';
 
 export const COURSE_REVALIDATE_MS = 300_000;
 
-interface Row { etag: string; version: number; body: string; fetched: number }
+interface Row { etag: string; version: number; fetched: number; hooks_done: number }
 type NewVersionHook = (zip: Uint8Array, etag: string, env: Env) => Promise<void>;
 
 const hooks: NewVersionHook[] = [];
@@ -42,9 +42,12 @@ export function bakedEtag(): string {
   return (baked = `"baked-${h.toString(16)}"`);
 }
 
-function use(row: Row): void {
+/** Loads the cached bundle into memory when it is not the one already loaded (the body is read only then). */
+async function use(env: Env, row: Row): Promise<void> {
   if (loadedEtag === row.etag) return;
-  setCurrentContent(JSON.parse(row.body) as ContentBundle);
+  const r = await env.DB.prepare('SELECT body FROM course_cache WHERE course_id = ?').bind(PROGRAM_KEY).first<{ body: string }>();
+  if (!r) return;
+  setCurrentContent(JSON.parse(r.body) as ContentBundle);
   loadedEtag = row.etag;
 }
 
@@ -55,6 +58,22 @@ function decodePackage(zip: Uint8Array): ContentBundle {
   return packageToBundle(Object.fromEntries(Object.entries(files as Record<string, Uint8Array>).map(([k, v]) => [k, dec.decode(v)])));
 }
 
+/** Runs every hook; true only if all succeeded. */
+async function runHooks(env: Env, zip: Uint8Array, etag: string): Promise<boolean> {
+  let ok = true;
+  for (const hook of [...hooks]) {
+    try {
+      await hook(zip, etag, env);
+    } catch (e) {
+      ok = false;
+      console.error('onNewVersion hook failed', (e as Error)?.message);
+    }
+  }
+  return ok;
+}
+
+let failedAt = 0;
+
 /** The bundle's ETag and version after making sure the cache is current. Never throws for a connector failure. */
 export async function refreshContent(
   env: Env,
@@ -63,51 +82,62 @@ export async function refreshContent(
 ): Promise<{ etag: string; version: number; changed: boolean }> {
   if (!SERVER_FLAGS.wordpressContent) return { etag: bakedEtag(), version: 0, changed: false };
   await ensureCourseCacheSchema(env.DB);
-  const row = await env.DB.prepare('SELECT etag, version, body, fetched FROM course_cache WHERE course_id = ?')
+  const row = await env.DB.prepare('SELECT etag, version, fetched, hooks_done FROM course_cache WHERE course_id = ?')
     .bind(PROGRAM_KEY)
     .first<Row>();
   if (row && !opts.force && now - Number(row.fetched) < COURSE_REVALIDATE_MS) {
-    use(row);
+    await use(env, row);
     return { etag: row.etag, version: Number(row.version), changed: false };
   }
+  // No cached copy and the last attempt failed: do not try again until the window passes (one 3 s try per window).
+  if (!row && !opts.force && failedAt && now - failedAt < COURSE_REVALIDATE_MS) return { etag: bakedEtag(), version: 0, changed: false };
+  const hooksPending = !!row && Number(row.hooks_done) === 0;
   try {
-    const res = await new ConnectorClient(env).getPackage(PROGRAM_KEY, row?.etag);
+    // A version whose hooks failed is fetched in full again so the hooks can be retried with its zip.
+    const res = await new ConnectorClient(env).getPackage(PROGRAM_KEY, hooksPending ? undefined : row?.etag);
     if (res.status === 304) {
       if (!row) throw new ConnectorUnavailable('ledger answered 304 with no cached copy');
       await env.DB.prepare('UPDATE course_cache SET fetched = ? WHERE course_id = ?').bind(now, PROGRAM_KEY).run();
-      use(row);
+      await use(env, row);
       return { etag: row.etag, version: Number(row.version), changed: false };
     }
     const bundle = decodePackage(res.zip);
     const body = JSON.stringify(bundle);
+    const changed = res.etag !== row?.etag;
     if (row) {
-      await env.DB.prepare('UPDATE course_cache SET etag = ?, version = ?, body = ?, fetched = ? WHERE course_id = ?')
-        .bind(res.etag, res.version, body, now, PROGRAM_KEY)
+      await env.DB.prepare('UPDATE course_cache SET etag = ?, version = ?, body = ?, fetched = ?, hooks_done = ? WHERE course_id = ?')
+        .bind(res.etag, res.version, body, now, changed ? 0 : Number(row.hooks_done), PROGRAM_KEY)
         .run();
     } else {
-      await env.DB.prepare('INSERT INTO course_cache (course_id, etag, version, body, fetched) VALUES (?, ?, ?, ?, ?)')
+      await env.DB.prepare('INSERT INTO course_cache (course_id, etag, version, body, fetched, hooks_done) VALUES (?, ?, ?, ?, ?, 0)')
         .bind(PROGRAM_KEY, res.etag, res.version, body, now)
         .run();
     }
-    use({ etag: res.etag, version: res.version, body, fetched: now });
-    const changed = res.etag !== row?.etag;
-    if (changed) {
-      for (const hook of [...hooks]) {
-        try {
-          await hook(res.zip, res.etag, env);
-        } catch (e) {
-          console.error('onNewVersion hook failed', (e as Error)?.message);
-        }
+    setCurrentContent(bundle);
+    loadedEtag = res.etag;
+    failedAt = 0;
+    if (changed || hooksPending) {
+      if (await runHooks(env, res.zip, res.etag)) {
+        await env.DB.prepare('UPDATE course_cache SET hooks_done = 1 WHERE course_id = ? AND etag = ?').bind(PROGRAM_KEY, res.etag).run();
       }
     }
     return { etag: res.etag, version: res.version, changed };
   } catch (e) {
     if (!(e instanceof ConnectorUnavailable) && !(e instanceof ConnectorError) && !/^package:/.test((e as Error)?.message ?? '')) throw e;
     console.error('course refresh failed', (e as Error)?.message);
+    // Back off: record the attempt so a down connector costs one try per window, not one per request.
+    failedAt = now;
     if (row) {
-      use(row);
+      await env.DB.prepare('UPDATE course_cache SET fetched = ? WHERE course_id = ?').bind(now, PROGRAM_KEY).run();
+      await use(env, row);
       return { etag: row.etag, version: Number(row.version), changed: false };
     }
     return { etag: bakedEtag(), version: 0, changed: false };
   }
+}
+
+/** Test-only: forget what this isolate has loaded and any failure back-off. */
+export function resetCourseCacheForTests(): void {
+  loadedEtag = null;
+  failedAt = 0;
 }

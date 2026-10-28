@@ -62,9 +62,10 @@ export async function ensureCourseCacheSchema(db: D1Like): Promise<void> {
   if (courseCacheReady.has(db)) return;
   await db
     .prepare(
-      'CREATE TABLE IF NOT EXISTS course_cache (course_id VARCHAR(64) PRIMARY KEY, etag VARCHAR(80), version INT, body MEDIUMTEXT, fetched BIGINT)',
+      'CREATE TABLE IF NOT EXISTS course_cache (course_id VARCHAR(64) PRIMARY KEY, etag VARCHAR(80), version INT, body MEDIUMTEXT, fetched BIGINT, hooks_done INT)',
     )
     .run();
+  await db.prepare('CREATE TABLE IF NOT EXISTS ping_nonces (nonce VARCHAR(80) PRIMARY KEY, seen BIGINT)').run();
   courseCacheReady.add(db);
 }
 
