@@ -55,8 +55,11 @@ export const PRICES: Record<string, { inPerM: number; outPerM: number }> = {
  * officialRecord: /api/record, /api/record/export and /api/record/view-link read the learner's official record from the LRS (Task 34);
  * off answers 404 and nothing calls the LRS.
  * officialRecord: the learner's files and resume position are State documents on the LRS (/api/state, Task 35); off answers 404.
+ * agentOnStandard: /api/mcp needs an OAuth access token (Task 43) and keeps the record in the LRS (option 2,
+ * author-lrs custody, Task 45b): agent calls are decided and recorded as the studio's events are. Off, /api/mcp
+ * is the practice connector above (mcpOnStandard), unchanged.
  */
-export const SERVER_FLAGS = { serverEvents: true, sessions: true, mcpOnStandard: true, senseiLearners: false, lrsShadow: false, wordpressContent: false, senseiCertificates: false, badges: false, officialRecord: false };
+export const SERVER_FLAGS = { serverEvents: true, sessions: true, mcpOnStandard: true, senseiLearners: false, lrsShadow: false, wordpressContent: false, senseiCertificates: false, badges: false, officialRecord: false, agentOnStandard: false };
 
 /** Learning Ledger REST base (the plugin's learning-ledger/v1 namespace on the WordPress site). */
 export const LEDGER_BASE = 'https://learnwp.sqwrlz.com/wp-json/learning-ledger/v1';

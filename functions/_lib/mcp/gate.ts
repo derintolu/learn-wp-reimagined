@@ -1,5 +1,6 @@
 // What sits in front of the course server: a body cap, then rate limits on a global MCP ceiling, on
-// record creation and per handle (ruling R-d). Keys are namespaced `mcp:` so they never share a bucket
+// record creation and per handle (ruling R-d). Signed in (SERVER_FLAGS.agentOnStandard), the per-learner limit is
+// keyed by the access token's SHA-256 instead, and nothing creates a record. Keys are namespaced `mcp:` so they never share a bucket
 // with the AI routes (`g:global`, `c:…`, `ip:…`, `anon`). Spacefast passes no visitor IP to functions,
 // so the creation and global ceilings stand in for a per-IP limit.
 import type { D1Like, Env } from '../env';
@@ -19,6 +20,9 @@ export const MCP_CREATE_KEY = 'mcp:new';
 /** A handle's bucket. Both forms of one handle (`lr_X`, `cxp_X`) share it, under the key `lr_X` always had. */
 export const mcpHandleKey = async (handle: string) => 'mcp:h:' + (await handleKey(legacyForm(handle))).slice(0, 32);
 
+/** A signed-in agent's bucket: the first 128 bits of its access token's SHA-256 (hex), never the token. */
+export const mcpTokenKey = (tokenHash: string) => 'mcp:t:' + tokenHash.slice(0, 32);
+
 /** Tool calls that make a new record: today's link_record and fresh start_placement, the standard's resume_practice. */
 const creates = (name: unknown, handle: unknown) => name === 'link_record' || name === 'resume_practice' || (name === 'start_placement' && handle === undefined);
 
@@ -30,7 +34,12 @@ type JsonRpcId = string | number | null;
  * Invalid JSON gives one message and nothing else.
  */
 export function inspectMcpBody(text: string): { messages: number; handles: string[]; creates: number; ids: JsonRpcId[] } {
-  const out = { messages: 1, handles: [] as string[], creates: 0, ids: [] as JsonRpcId[] };
+  const { calls: _calls, ...out } = inspect(text);
+  return out;
+}
+
+function inspect(text: string): { messages: number; handles: string[]; creates: number; ids: JsonRpcId[]; calls: number } {
+  const out = { messages: 1, handles: [] as string[], creates: 0, ids: [] as JsonRpcId[], calls: 0 };
   let parsed: unknown;
   try {
     parsed = JSON.parse(text);
@@ -44,6 +53,7 @@ export function inspectMcpBody(text: string): { messages: number; handles: strin
     const msg = m as { id?: unknown; method?: unknown; params?: { name?: unknown; arguments?: Record<string, unknown> } };
     if (typeof msg.id === 'string' || typeof msg.id === 'number') out.ids.push(msg.id);
     if (msg.method !== 'tools/call') continue;
+    out.calls++;
     const name = msg.params?.name;
     const args = msg.params?.arguments;
     const handle = args && typeof args === 'object' ? args.handle : undefined;
@@ -89,12 +99,24 @@ async function readCapped(req: Request, max: number): Promise<Uint8Array<ArrayBu
   return buf;
 }
 
-/** Checks one request against the limits. Returns a rebuilt request, or the 413/429 response to send. */
-export async function gateMcp(req: Request, env: Pick<Env, 'DB'>, now: number): Promise<{ ok: true; req: Request } | { ok: false; res: Response }> {
+/**
+ * Checks one request against the limits. Returns a rebuilt request, or the 413/429 response to send. With
+ * `tokenHash` (signed in), every tool call is charged to the token's bucket and handles and creations are not.
+ */
+export async function gateMcp(
+  req: Request,
+  env: Pick<Env, 'DB'>,
+  now: number,
+  opts: { tokenHash?: string } = {},
+): Promise<{ ok: true; req: Request } | { ok: false; res: Response }> {
   const body = await readCapped(req, MCP_LIMITS.bodyBytes);
   if (body === null) return { ok: false, res: rpcError(413, null, -32600, TOO_LARGE) };
   // Inspect a decoded copy; the course server gets the original bytes.
-  const info = inspectMcpBody(new TextDecoder().decode(body));
+  const info = inspect(new TextDecoder().decode(body));
+  if (opts.tokenHash !== undefined) {
+    info.creates = 0;
+    info.handles = [];
+  }
   const limited = { ok: false as const, res: rpcError(429, info.ids[0] ?? null, -32000, TOO_MANY) };
   const db: D1Like = env.DB;
   const { global, create, perHandle } = MCP_LIMITS;
@@ -107,6 +129,11 @@ export async function gateMcp(req: Request, env: Pick<Env, 'DB'>, now: number): 
   }
   for (const h of info.handles) {
     if (!(await rateLimit(db, await mcpHandleKey(h), now, perHandle.limit, perHandle.windowMs))) return limited;
+  }
+  if (opts.tokenHash !== undefined) {
+    for (let i = 0; i < info.calls; i++) {
+      if (!(await rateLimit(db, mcpTokenKey(opts.tokenHash), now, perHandle.limit, perHandle.windowMs))) return limited;
+    }
   }
   const hasBody = req.method !== 'GET' && req.method !== 'HEAD';
   return { ok: true, req: new Request(req.url, { method: req.method, headers: req.headers, body: hasBody ? body : undefined }) };

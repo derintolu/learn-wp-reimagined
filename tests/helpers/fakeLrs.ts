@@ -3,7 +3,7 @@ import { LRS_API, LRS_XAPI } from '../../functions/_lib/config';
 /**
  * An in-memory stand-in for Learning Ledger's LRS, installed as the global fetch. `down` answers every call 503;
  * `hang` never answers (the call ends only when the client's timeout aborts it); `rejectIds` answers 400 to a
- * POST holding one of those statement ids and to a PUT of one.
+ * POST holding one of those statement ids and to a PUT of one. A statements GET returns the stored ones, by agent.
  */
 export function fakeLrs() {
   const lrs = {
@@ -48,6 +48,11 @@ export function fakeLrs() {
         if (batch.some((s) => lrs.rejectIds.has(s.id))) return new Response(null, { status: 400 });
         lrs.statements.push(...batch);
         return new Response(JSON.stringify(batch.map((s) => s.id)), { status: 200 });
+      }
+      if (url.startsWith(`${LRS_XAPI}/statements?`) && method === 'GET') {
+        const agent = u.searchParams.get('agent');
+        const statements = lrs.statements.filter((s) => agent === null || JSON.stringify(s.actor) === agent);
+        return new Response(JSON.stringify({ statements }), { status: 200, headers: { 'content-type': 'application/json' } });
       }
       if (url.startsWith(`${LRS_XAPI}/statements?statementId=`) && method === 'PUT') {
         const s = JSON.parse(String(init?.body));

@@ -9,10 +9,14 @@ export const TOOLS = [
   'submit_checkpoint', 'choose_branch', 'get_record', 'link_record', 'delete_record',
 ];
 
-/** An SDK client wired straight to a fetch handler (no network), after learning-mcp's test helpers. */
-export async function connectMcp(fetchFn: FetchFn, era: Era, url = 'http://localhost/api/mcp') {
+/**
+ * An SDK client wired straight to a fetch handler (no network), after learning-mcp's test helpers. `token`
+ * is sent as `Authorization: Bearer <token>` on every request (MCP authorization, SERVER_FLAGS.agentOnStandard).
+ */
+export async function connectMcp(fetchFn: FetchFn, era: Era, url = 'http://localhost/api/mcp', opts: { token?: string } = {}) {
   const transport = new StreamableHTTPClientTransport(new URL(url), {
     fetch: (u, init) => fetchFn(new Request(u, init)),
+    ...(opts.token ? { requestInit: { headers: { authorization: `Bearer ${opts.token}` } } } : {}),
   });
   const client = new Client(
     { name: 'learn-wp-test', version: '0.0.0' },
@@ -27,10 +31,10 @@ export async function connectMcp(fetchFn: FetchFn, era: Era, url = 'http://local
 }
 
 /** Dispatches a request to a route module's method exports, the way the Spacefast router does. */
-export function routeFetch(mod: Record<string, unknown>, env: Env): FetchFn {
+export function routeFetch(mod: Record<string, unknown>, env: Env, ctx: Record<string, unknown> = {}): FetchFn {
   return async (req) => {
     const fn = mod[req.method.toUpperCase()] as Handler | undefined;
     if (typeof fn !== 'function') return new Response('Method not allowed', { status: 405 });
-    return fn(req, { params: {}, env });
+    return fn(req, { params: {}, env, ...ctx });
   };
 }

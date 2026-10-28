@@ -2,6 +2,7 @@
 import type { Handler } from '../_lib/env';
 import { handleMcp } from '../_lib/mcp/handler';
 
-export const POST: Handler = (req, { env }) => handleMcp(req, env);
-export const GET: Handler = (req, { env }) => handleMcp(req, env);
-export const DELETE: Handler = (req, { env }) => handleMcp(req, env);
+// The handler context goes along so an agent's recorded events drain the LRS outbox as the studio's do (option 2).
+export const POST: Handler = (req, ctx) => handleMcp(req, ctx.env, {}, ctx);
+export const GET: Handler = (req, ctx) => handleMcp(req, ctx.env, {}, ctx);
+export const DELETE: Handler = (req, ctx) => handleMcp(req, ctx.env, {}, ctx);
