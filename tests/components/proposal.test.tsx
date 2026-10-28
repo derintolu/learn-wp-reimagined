@@ -208,7 +208,7 @@ describe('/proposal with the anonymous-accounts flag', () => {
     );
     expect(t).not.toContain('instead of accounts');
     expect(t).not.toContain('no accounts are needed');
-    expect(t).toContain('Progress is kept on the course server under an anonymous account: a random id, no email and no password.');
+    expect(t).toContain('You get an anonymous account on the course server: a random id, no email and no password. Your progress record stays in your browser.');
     expect(t).not.toContain("Progress stays in the learner's browser");
     expect(t).toContain('If the AI is down, the lessons read exactly as they do today.');
     expect(t).toContain('The server keeps a random session and an anonymous Sensei user with no name or email, and the learner can delete both from the record menu.');

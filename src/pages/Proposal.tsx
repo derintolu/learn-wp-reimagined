@@ -192,7 +192,7 @@ export function Proposal() {
           recommends a pathway course and a starting lesson. The only new content is a short note per course saying who it
           suits.
           {FEATURES.senseiLearners
-            ? " Progress is kept on the course server under an anonymous account: a random id, no email and no password."
+            ? " You get an anonymous account on the course server: a random id, no email and no password. Your progress record stays in your browser."
             : " Progress stays in the learner's browser, so no accounts are needed."}{' '}
           If the AI is down,
           the lessons read exactly as they do today.
