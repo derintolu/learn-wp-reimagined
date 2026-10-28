@@ -22,6 +22,7 @@ import { getStatus, codeFeedback, tutorStream } from '../../src/ai/client';
 import { content } from '../../src/content';
 import { setRecordManager } from '../../src/record/useRecord';
 import { setPlaygroundImporter } from '../../src/studio/previewClient';
+import { setEditorImporter } from '../../src/components/LazyCodeEditor';
 import { resetSaveWarning } from '../../src/components/RecordPanel';
 import { resetAiStatusForTests } from '../../src/ai/useAiStatus';
 import { RecordManager, type RecordStore } from '../../src/record/store';
@@ -94,6 +95,7 @@ afterEach(() => {
   vi.unstubAllGlobals();
   setRecordManager(null);
   setPlaygroundImporter(null);
+  setEditorImporter(null);
   resetSaveWarning();
   resetAiStatusForTests();
   vi.restoreAllMocks();
@@ -402,6 +404,25 @@ describe('Studio', () => {
     fireEvent.click(await screen.findByRole('button', { name: /checkpoint/i }));
     await screen.findByRole('region', { name: /Checkpoint/ });
     await waitFor(() => expect(document.activeElement).toBe(document.getElementById('cp-q-templates-and-parts')), { timeout: 5000 });
+  });
+
+  it('focus stays on the checkpoint question when the code editor finishes loading afterwards', async () => {
+    let release!: () => void;
+    const gate = new Promise<void>((res) => (release = res));
+    setEditorImporter(async () => {
+      await gate;
+      return import('../../src/components/CodeEditor');
+    });
+    use(at('templates-and-parts', 1));
+    open('/learn/templates-and-parts');
+    fireEvent.click(await screen.findByRole('button', { name: /checkpoint/i }));
+    await screen.findByRole('region', { name: /Checkpoint/ });
+    const q = document.getElementById('cp-q-templates-and-parts');
+    await waitFor(() => expect(document.activeElement).toBe(q));
+    expect(screen.queryByRole('textbox', { name: /theme\.json/ })).toBeNull();
+    release();
+    await screen.findByRole('textbox', { name: /theme\.json/ });
+    expect(document.activeElement).toBe(document.getElementById('cp-q-templates-and-parts'));
   });
 
   it('the code checkpoint editor is described by its question', async () => {

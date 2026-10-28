@@ -87,9 +87,10 @@ function LessonView({ lesson, onRestart }: { lesson: LessonT; onRestart: () => v
 
   // Keyboard and screen-reader users land on the cards after the last section (the feed handles sections).
   useEffect(() => {
-    if (!focusNext.current || step === null) return;
+    // Not consumed before the cards show: this effect can flush after a click that already asked for focus
+    // (the saved step landing late), and the flag must survive until the step that has cards.
+    if (!focusNext.current || step === null || step < n) return;
     focusNext.current = false;
-    if (step < n) return;
     const el = postRef.current;
     // The first card's heading (the bug's title, the checkpoint's question), not the unlabelled wrapper.
     (el?.querySelector<HTMLElement>('h2') ?? el)?.focus({ preventScroll: true });
