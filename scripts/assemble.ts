@@ -15,6 +15,7 @@ import { fileURLToPath } from 'node:url';
 import { build as esbuild } from 'esbuild';
 import { build as viteBuild } from 'vite';
 import { packCliPlugin, packTheme } from './pack-theme.ts';
+import { zipWpPlugin } from './zip-wp-plugin.ts';
 
 export const BUNDLE_LIMIT = 8 * 1024 * 1024; // Spacefast compiled bundle limit (docs/functions#limits)
 
@@ -104,6 +105,9 @@ export async function assemble(root: string): Promise<void> {
   console.log(`theme: ${relative(root, packTheme(join(root, 'wordpress/theme'), join(dist, 'theme')))}`);
   // `wp lwr-blog put`, installed by URL the same way, so posts longer than one WP-CLI argument fit.
   console.log(`plugin: ${relative(root, packCliPlugin(join(root, 'wordpress/mu-plugins/lwr-blog-cli.php'), join(dist, 'plugin')))}`);
+  // Our WordPress plugins, zipped and served as files so the space's WordPress can install them by URL.
+  const zips = zipWpPlugin(join(root, 'wordpress/lwr-backend-view'), join(root, 'dist/wp-zips'));
+  console.log(`wp-zip: ${relative(root, zips)}`);
   assertNoEnvFiles(dist);
   for (const f of files) console.log(`function: ${relative(root, f)} (${statSync(f).size} bytes)`);
 }

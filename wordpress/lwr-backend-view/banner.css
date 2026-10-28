@@ -1,0 +1,52 @@
+.lwr-backend-view {
+	display: flex;
+	flex-wrap: wrap;
+	align-items: center;
+	gap: 8px 16px;
+	margin: 16px 20px 8px 2px;
+	padding: 12px 16px;
+	border: 0;
+	border-left: 4px solid #3858E9;
+	background: #1e1e1e;
+	color: #fff;
+	font-family: Inter, -apple-system, "Segoe UI", sans-serif;
+	font-size: 14px;
+	line-height: 1.5;
+}
+
+.lwr-backend-view .lwr-backend-view__copy {
+	margin: 0;
+	padding: 0;
+	flex: 1 1 240px;
+	color: #fff;
+	font-size: 14px;
+}
+
+.lwr-backend-view .lwr-backend-view__link {
+	color: #9FB1FF;
+	font-weight: 600;
+	text-decoration: underline;
+	text-underline-offset: 3px;
+}
+
+.lwr-backend-view .lwr-backend-view__link:hover {
+	color: #fff;
+}
+
+.lwr-backend-view .lwr-backend-view__link:focus-visible {
+	outline: 2px solid #9FB1FF;
+	outline-offset: 2px;
+	box-shadow: none;
+}
+
+.lwr-backend-view .lwr-backend-view__sticker {
+	padding: 2px 10px;
+	border: 1px solid #9FB1FF;
+	border-radius: 999px;
+	color: #9FB1FF;
+	font-size: 12px;
+	font-weight: 600;
+	letter-spacing: 0.04em;
+	text-transform: uppercase;
+	white-space: nowrap;
+}
