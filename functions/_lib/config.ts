@@ -48,6 +48,7 @@ export const PRICES: Record<string, { inPerM: number; outPerM: number }> = {
  * senseiLearners: each session is a headless Sensei learner made through the Learning Ledger connector (Task 25).
  * lrsShadow: the course server also builds the official cmi5 statements and queues them for the LRS (Task 30);
  * off writes no outbox rows and makes no LRS calls.
+ * officialRecord: the official record is the learner's record (phase 6); today it gates /api/carry-over (Task 37), which answers 404 when off.
  * wordpressContent: the course comes from the Learning Ledger package (Task 19), cached and revalidated every 5 minutes;
  * off serves the baked bundle and never calls the connector.
  * badges: /api/badges lists the learner's path badges and mints a claim link on the LRS (Task 49); off answers 404.

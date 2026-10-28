@@ -96,6 +96,7 @@ export async function ensureRecordSchema(db: D1Like): Promise<void> {
       'CREATE TABLE IF NOT EXISTS official_outcomes (actor_name VARCHAR(64), activity_id VARCHAR(200), verb VARCHAR(12), event_id VARCHAR(64), PRIMARY KEY (actor_name, activity_id, verb))',
     )
     .run();
+  await db.prepare('CREATE TABLE IF NOT EXISTS carry_overs (actor_name VARCHAR(64) PRIMARY KEY, created BIGINT)').run();
   await db.prepare('CREATE TABLE IF NOT EXISTS lrs_imports (etag VARCHAR(200) PRIMARY KEY, imported BIGINT)').run();
   await db.prepare('CREATE TABLE IF NOT EXISTS record_cache (actor_name VARCHAR(64) PRIMARY KEY, body TEXT, at BIGINT)').run();
   await ensureSchema(db);

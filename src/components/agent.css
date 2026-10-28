@@ -87,3 +87,8 @@ pre.copy-field__value { white-space: pre; overflow-wrap: normal; overflow-x: aut
 .connect__docs { margin: 0; font-size: var(--step--1); }
 .connect__import { display: grid; gap: 1rem; }
 .connect__import .agent-import { max-width: 36rem; }
+
+/* The carry-over offer: a quiet band above the page, shown once. */
+.carry-over { display: grid; gap: 0.5rem; padding: 0.9rem var(--gutter); background: var(--tint); border-bottom: 1px solid var(--rule); }
+.carry-over__title { margin: 0; font-weight: 600; color: var(--ink); }
+.carry-over__text { margin: 0; max-width: var(--measure); color: var(--ink-muted); }

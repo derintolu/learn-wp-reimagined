@@ -43,7 +43,7 @@ export async function eraseLearner(env: Env, s: Session, opts: { revokeBadges: b
     } catch (e) {
       if (!(e instanceof LrsError && e.status === 404)) throw e;
     }
-    for (const table of ['shadow_facts', 'official_outcomes']) {
+    for (const table of ['shadow_facts', 'official_outcomes', 'carry_overs']) {
       await env.DB.prepare(`DELETE FROM ${table} WHERE actor_name = ?`).bind(s.actorName).run();
     }
   }

@@ -3,6 +3,7 @@ import { useEffect } from 'preact/hooks';
 import { LocationProvider, Route, Router, useLocation } from 'preact-iso';
 import { Header } from './components/Header';
 import { Footer } from './components/Footer';
+import { CarryOverOffer } from './components/CarryOverOffer';
 import { ErrorBoundary } from './components/ErrorBoundary';
 import { Home } from './pages/Home';
 import { Lesson } from './pages/Lesson';
@@ -109,6 +110,7 @@ function Frame() {
   return (
     <>
       <Header />
+      <CarryOverOffer />
       <main id="main" tabIndex={-1}>
         {routes}
       </main>

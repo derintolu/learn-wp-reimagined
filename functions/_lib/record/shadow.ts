@@ -60,7 +60,7 @@ const ONCE_VERBS = new Set<string>([ADL_VERBS.completed, ADL_VERBS.passed, ADL_V
  * Claims a defined completed, passed or waived for this learner and AU: true for the first event to send it,
  * and again for a retry of that same event (so its statement keeps its id); false for any other event.
  */
-async function claimOnce(env: Env, actorName: string, s: XapiStatement, eventId: string): Promise<boolean> {
+export async function claimOnce(env: Env, actorName: string, s: XapiStatement, eventId: string): Promise<boolean> {
   try {
     await env.DB
       .prepare('INSERT INTO official_outcomes (actor_name, activity_id, verb, event_id) VALUES (?, ?, ?, ?)')
@@ -92,7 +92,7 @@ function lessonsByAu(bundle: ContentBundle): Map<string, string> {
  * it: waived, or completed (moveOn Completed), or completed and passed (CompletedAndPassed). Such a lesson is
  * not waived again (vendored placement.ts and checkpoint.ts filter skips the same way).
  */
-async function satisfiedElsewhere(env: Env, actorName: string, auActivity: string, bundle: ContentBundle, eventId: string): Promise<boolean> {
+export async function satisfiedElsewhere(env: Env, actorName: string, auActivity: string, bundle: ContentBundle, eventId: string): Promise<boolean> {
   const lessonId = lessonsByAu(bundle).get(auActivity);
   const { results } = await env.DB
     .prepare('SELECT verb FROM official_outcomes WHERE actor_name = ? AND activity_id = ? AND event_id <> ?')

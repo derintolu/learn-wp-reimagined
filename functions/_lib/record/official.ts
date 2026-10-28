@@ -32,6 +32,9 @@ const SLOT_BODY = 4;
 /** A waiver's own LMS-role session id: deriveStatementId(eventId, OFFICIAL_ID_OFFSET + WAIVER_SESSION + slot). */
 const WAIVER_SESSION = 200;
 
+/** Marks a waived the learner's old local record carried over (design: result.extensions of the waived statement). */
+export const EXT_CARRIED_OVER = 'https://course-xapi-mcp.sqwrlz.com/xapi/extensions/carried-over';
+
 const CMI5_LAUNCH_EXT = {
   launchMode: 'https://w3id.org/xapi/cmi5/context/extensions/launchmode',
   launchUrl: 'https://w3id.org/xapi/cmi5/context/extensions/launchurl',
@@ -202,6 +205,20 @@ export async function buildOfficial(ctx: OfficialContext, e: ServerEvent, r: Ext
       break;
   }
   return out;
+}
+
+/**
+ * A lesson the learner finished in the old local record, waived with reason Administrative and the carried-over
+ * result extension. Its id and its LMS-role session id derive from the actor and lesson, so a retry is identical.
+ */
+export async function carriedOverStatement(ctx: { actor: Actor; registration: string }, actorName: string, lessonId: string, now: number): Promise<XapiStatement> {
+  const eventId = `carry-over:${actorName}:${lessonId}`;
+  return buildDefined(cmi5(ctx, await deriveStatementId(eventId, 1)), 'waived', { au: target(lessonId) }, {
+    id: await deriveStatementId(eventId, 0),
+    timestamp: new Date(now).toISOString(),
+    reason: 'Administrative',
+    extensions: { [EXT_CARRIED_OVER]: true },
+  });
 }
 
 /**
