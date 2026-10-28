@@ -51,8 +51,10 @@ export const PRICES: Record<string, { inPerM: number; outPerM: number }> = {
  * wordpressContent: the course comes from the Learning Ledger package (Task 19), cached and revalidated every 5 minutes;
  * off serves the baked bundle and never calls the connector.
  * badges: /api/badges lists the learner's path badges and mints a claim link on the LRS (Task 49); off answers 404.
+ * officialRecord: /api/record, /api/record/export and /api/record/view-link read the learner's official record from the LRS (Task 34);
+ * off answers 404 and nothing calls the LRS.
  */
-export const SERVER_FLAGS = { serverEvents: true, sessions: true, mcpOnStandard: true, senseiLearners: false, lrsShadow: false, wordpressContent: false, senseiCertificates: false, badges: false };
+export const SERVER_FLAGS = { serverEvents: true, sessions: true, mcpOnStandard: true, senseiLearners: false, lrsShadow: false, wordpressContent: false, senseiCertificates: false, badges: false, officialRecord: false };
 
 /** Learning Ledger REST base (the plugin's learning-ledger/v1 namespace on the WordPress site). */
 export const LEDGER_BASE = 'https://learnwp.sqwrlz.com/wp-json/learning-ledger/v1';

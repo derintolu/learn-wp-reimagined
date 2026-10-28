@@ -129,6 +129,17 @@ export class LrsClient {
     return j.more ? { statements: j.statements ?? [], more: j.more } : { statements: j.statements ?? [] };
   }
 
+  /** The next page, from the `more` link of a getStatements page. Only a link on the LRS's own origin is followed. */
+  async getStatementsMore(more: string): Promise<{ statements: XapiStatement[]; more?: string }> {
+    const base = new URL(LRS_XAPI);
+    const url = new URL(more, base.origin);
+    if (url.origin !== base.origin) throw new LrsError(502, 'the LRS sent a paging link to another origin');
+    const res = await this.send(url.toString(), { method: 'GET' });
+    if (!res.ok) throw this.fail(res);
+    const j = await this.readJson<{ statements?: XapiStatement[]; more?: string }>(res);
+    return j.more ? { statements: j.statements ?? [], more: j.more } : { statements: j.statements ?? [] };
+  }
+
   private stateUrl(k: StateKey): string {
     const p = new URLSearchParams({ activityId: k.activityId, agent: JSON.stringify(k.agent) });
     if (k.registration !== undefined) p.set('registration', k.registration);

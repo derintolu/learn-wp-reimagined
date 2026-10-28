@@ -97,6 +97,7 @@ export async function ensureRecordSchema(db: D1Like): Promise<void> {
     )
     .run();
   await db.prepare('CREATE TABLE IF NOT EXISTS lrs_imports (etag VARCHAR(200) PRIMARY KEY, imported BIGINT)').run();
+  await db.prepare('CREATE TABLE IF NOT EXISTS record_cache (actor_name VARCHAR(64) PRIMARY KEY, body TEXT, at BIGINT)').run();
   await ensureSchema(db);
   try {
     await db.prepare('ALTER TABLE sessions ADD COLUMN registration VARCHAR(36) NULL').run();

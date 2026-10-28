@@ -1,6 +1,7 @@
 import type { Env } from '../env';
 import { getContent } from '../content';
 import { recordOfficial } from '../record/shadow';
+import { invalidateRecordCache } from '../record/read';
 import type { Session } from '../session/session';
 import { deriveStatementId } from './ids';
 import { runChecks } from '../../../src/shared/checks';
@@ -142,5 +143,6 @@ export async function decideEvents(env: Env, actorName: string, events: ServerEv
     }
   }
   if (SERVER_FLAGS.lrsShadow && opts.session) await recordOfficial(env, opts.session, events, out, now, opts.handlerCtx);
+  if (SERVER_FLAGS.officialRecord && out.some((r) => r.ok)) await invalidateRecordCache(env, actorName);
   return out;
 }
