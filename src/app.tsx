@@ -12,6 +12,7 @@ import { Connect } from './pages/Connect';
 import { HowItWorks } from './pages/HowItWorks';
 import { Proposal } from './pages/Proposal';
 import { BlogIndex, BlogPostPage } from './pages/Blog';
+import { BackendView } from './pages/BackendView';
 import { NotFound } from './pages/routes';
 import { APP_ROUTES } from './pages/appRoutes';
 import { content } from './content';
@@ -82,6 +83,8 @@ const PAGES: Record<string, FunctionComponent<any>> = {
   '/proposal': Proposal,
   '/blog': BlogIndex,
   '/blog/:slug': BlogPostPage,
+  '/backend/:pathId': BackendView,
+  '/backend/:pathId/:lessonId': BackendView,
 };
 
 function Frame() {

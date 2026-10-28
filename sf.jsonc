@@ -16,7 +16,8 @@
     { "source": "/how-it-works", "destination": "/index.html" },
     { "source": "/proposal", "destination": "/index.html" },
     { "source": "/blog", "destination": "/index.html" },
-    { "source": "/blog/*", "destination": "/index.html" }
+    { "source": "/blog/*", "destination": "/index.html" },
+    { "source": "/backend/*", "destination": "/index.html" }
   ],
   "crons": [{ "path": "/api/mcp-sweep", "schedule": "daily" }]
 }

@@ -89,13 +89,6 @@ function Band({ id, title, dark, children, below }: { id: string; title: Compone
   );
 }
 
-const external = (label: string) => (
-  <>
-    {label}
-    <span class="visually-hidden"> (opens in a new tab)</span>
-  </>
-);
-
 /** /how-it-works: the system behind the site (course-xapi-mcp, Learning Ledger, Sensei), what's real and what's concept. */
 export function HowItWorks() {
   usePageTitle('How this works');
@@ -171,9 +164,7 @@ export function HowItWorks() {
         <>
           The lessons are stored in Sensei LMS {SENSEI_VERSION}, the same plugin Learn runs on, on a WordPress install
           that belongs to this prototype. You can read any lesson as Sensei shows it on{' '}
-          <a href={BACKEND_VIEW_PATH} target="_blank" rel="noopener noreferrer">
-            {external('the backend view')}
-          </a>
+          <a href={BACKEND_VIEW_PATH}>the backend view</a>
           . That view is Sensei's own page, with no AI and no branching. Take the lesson in the studio.
         </>
       ) : (

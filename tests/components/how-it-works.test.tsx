@@ -258,7 +258,7 @@ describe('/how-it-works with the Sensei content flag', () => {
   it('ships off, with the pinned version and the block-theme backend view', () => {
     expect(flags.wordpressContent).toBe(false);
     expect(SENSEI_VERSION).toBe('4.26.4');
-    expect(BACKEND_VIEW_PATH).toBe('/course/block-theme/');
+    expect(BACKEND_VIEW_PATH).toBe('/backend/block-theme');
   });
 
   it('off: no Sensei backend copy and no backend-view link', () => {
@@ -275,12 +275,10 @@ describe('/how-it-works with the Sensei content flag', () => {
     expect(hrefs(container)).toContain(BACKEND_VIEW_PATH);
     expect(screen.getAllByRole('link', { name: /^the backend view/ }).length).toBeGreaterThan(0);
     expect(text()).not.toMatch(/\p{Extended_Pictographic}/u);
-    // preact-iso's router (src/router.js, the click handler's `!/^(_?self)?$/i.test(link.target)` check) skips links
-    // with a non-self target, so this opens Sensei's page from the server instead of routing client-side to NotFound.
+    // An app route now: opens in the same tab through the router, so no target.
     const link = container.querySelector(`a[href="${BACKEND_VIEW_PATH}"]`)!;
-    expect(link.getAttribute('target')).toBe('_blank');
-    expect(link.getAttribute('rel')).toBe('noopener noreferrer');
-    expect(link.textContent).toContain('(opens in a new tab)');
+    expect(link.getAttribute('target')).toBeNull();
+    expect(link.textContent).not.toContain('opens in a new tab');
   });
 
   it('on: names Sensei with the pinned version, and updates the branching, concept and sources lines', () => {
