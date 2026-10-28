@@ -11,10 +11,15 @@ const KEEP = new Set([
 const DROP = new Set(['script', 'style', 'iframe', 'object', 'embed', 'svg', 'math', 'form', 'input', 'button', 'textarea', 'select', 'link', 'meta', 'template', 'noscript', 'base']);
 const ATTRS: Record<string, string[]> = { a: ['href', 'title'], img: ['src', 'alt', 'width', 'height'], th: ['colspan', 'rowspan'], td: ['colspan', 'rowspan'] };
 
-/** http(s), mailto, or a relative/same-origin URL. Anything with another scheme (javascript:, data:) is refused. */
+/**
+ * http(s), mailto, a fragment, or a file under /wp-content/. Anything with another scheme (javascript:, data:) is
+ * refused, and so is any other relative URL: the page is on the app's origin, where only /wp-content/ reaches
+ * WordPress, so a relative link to a WordPress page would land on the app's NotFound.
+ */
 function safeUrl(v: string): boolean {
   const t = v.replace(/[\u0000- ]/g, '');
-  return !/^[a-z][a-z0-9+.-]*:/i.test(t) || /^(https?|mailto):/i.test(t);
+  if (/^[a-z][a-z0-9+.-]*:/i.test(t)) return /^(https?|mailto):/i.test(t);
+  return t.startsWith('#') || t.startsWith('/wp-content/');
 }
 
 function clean(node: Node, doc: Document): void {
