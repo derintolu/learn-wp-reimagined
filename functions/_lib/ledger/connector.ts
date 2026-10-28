@@ -1,0 +1,145 @@
+import type { Env } from "../env";
+import { LEDGER_BASE } from "../config";
+import { signRequest } from "./sign";
+
+const TIMEOUT_MS = 3000;
+
+/** Timeout, network failure or a 5xx from the ledger. */
+export class ConnectorUnavailable extends Error {
+  constructor(message: string) {
+    super(message);
+    this.name = "ConnectorUnavailable";
+  }
+}
+
+/** A 4xx answer from the ledger (bad signature, missing capability, unknown program). */
+export class ConnectorError extends Error {
+  constructor(
+    readonly status: number,
+    message: string,
+  ) {
+    super(message);
+    this.name = "ConnectorError";
+  }
+}
+
+/**
+ * Fields follow the plugin's course-server/status route (Status_Route::payload plus the connector
+ * module's additions). The route reports no Sensei/certificate state or trusted-key list, so those
+ * stay null/empty until it does.
+ */
+export interface LedgerStatus {
+  versions: Record<string, string>;
+  roles: string[];
+  sensei: string | null;
+  certificates: string | null;
+  sodium: "native" | "compat" | null;
+  trustedKeys: string[];
+  connectorSecretSha256?: string;
+}
+
+export type PackageResult =
+  | { status: 304 }
+  | { status: 200; etag: string; version: number; zip: Uint8Array };
+
+function nonce(): string {
+  const b = crypto.getRandomValues(new Uint8Array(16));
+  let s = "";
+  for (const x of b) s += String.fromCharCode(x);
+  return btoa(s).replace(/\+/g, "-").replace(/\//g, "_").replace(/=+$/, "");
+}
+
+export class ConnectorClient {
+  constructor(
+    private env: Env,
+    private fetchFn: typeof fetch = fetch,
+  ) {}
+
+  async status(): Promise<LedgerStatus> {
+    const res = await this.send("GET", "/course-server/status");
+    const j = (await res.json()) as Record<string, unknown>;
+    const connector = (j.connector ?? {}) as Record<string, unknown>;
+    const versions: Record<string, string> = {};
+    for (const [k, v] of [
+      ["plugin", j.plugin_version],
+      ["wordpress", j.wp_version],
+      ["php", j.php_version],
+    ] as const) {
+      if (typeof v === "string") versions[k] = v;
+    }
+    const out: LedgerStatus = {
+      versions,
+      roles: Array.isArray(j.roles)
+        ? j.roles.filter((r): r is string => typeof r === "string")
+        : [],
+      sensei: null,
+      certificates: null,
+      sodium: j.sodium === "native" || j.sodium === "compat" ? j.sodium : null,
+      trustedKeys: [],
+    };
+    if (typeof connector.secret_sha256 === "string")
+      out.connectorSecretSha256 = connector.secret_sha256;
+    return out;
+  }
+
+  async getPackage(program: string, etag?: string): Promise<PackageResult> {
+    const res = await this.send(
+      "GET",
+      `/course-server/packages/${encodeURIComponent(program)}`,
+      etag ? { "If-None-Match": etag } : {},
+    );
+    if (res.status === 304) return { status: 304 };
+    return {
+      status: 200,
+      etag: res.headers.get("ETag") ?? "",
+      version: Number(res.headers.get("X-Package-Version") ?? 0),
+      zip: new Uint8Array(await res.arrayBuffer()),
+    };
+  }
+
+  /** Signed request with a 3 s timeout. Resolves for 2xx and 304; throws otherwise. */
+  protected async send(
+    method: string,
+    route: string,
+    extra: Record<string, string> = {},
+    body = new Uint8Array(),
+  ): Promise<Response> {
+    const { CONNECTOR_SIGNING_KEY: key, CONNECTOR_KEY_ID: keyId } = this.env;
+    if (!key || !keyId)
+      throw new ConnectorUnavailable("connector signing key is not configured");
+    const url = new URL(LEDGER_BASE + route);
+    const ctl = new AbortController();
+    const timer = setTimeout(() => ctl.abort(), TIMEOUT_MS);
+    let res: Response;
+    try {
+      const headers = await signRequest({
+        method,
+        path: url.pathname + url.search,
+        body,
+        keyId,
+        privateKeyPkcs8B64: key,
+        now: Math.floor(Date.now() / 1000),
+        nonce: nonce(),
+      });
+      res = await this.fetchFn(url.href, {
+        method,
+        headers: { ...headers, ...extra },
+        body: body.length ? body : undefined,
+        signal: ctl.signal,
+      });
+    } catch (e) {
+      throw new ConnectorUnavailable(
+        ctl.signal.aborted
+          ? "ledger request timed out"
+          : `ledger request failed: ${(e as Error).message}`,
+      );
+    } finally {
+      clearTimeout(timer);
+    }
+    if (res.status >= 500)
+      throw new ConnectorUnavailable(`ledger answered ${res.status}`);
+    if (res.status >= 400)
+      throw new ConnectorError(res.status, `ledger answered ${res.status}`);
+    return res;
+  }
+}

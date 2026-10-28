@@ -1,0 +1,141 @@
+import { afterEach, describe, expect, it, vi } from "vitest";
+import {
+  ConnectorClient,
+  ConnectorError,
+  ConnectorUnavailable,
+} from "../../functions/_lib/ledger/connector";
+import type { Env } from "../../functions/_lib/env";
+
+const SEED_HEX =
+  "9d61b19deffd5a60ba844af492ec2cc44449c5697b326919703bac031cae7f60";
+const KEY = Buffer.from(
+  "302e020100300506032b657004220420" + SEED_HEX,
+  "hex",
+).toString("base64");
+const env = {
+  DB: {} as Env["DB"],
+  CONNECTOR_SIGNING_KEY: KEY,
+  CONNECTOR_KEY_ID: "kid1",
+} as Env;
+
+afterEach(() => vi.useRealTimers());
+
+describe("ConnectorClient", () => {
+  it("getPackage sends If-None-Match and maps 304", async () => {
+    const fetchFn = vi.fn(async () => new Response(null, { status: 304 }));
+    const r = await new ConnectorClient(
+      env,
+      fetchFn as unknown as typeof fetch,
+    ).getPackage("learn-wp-reimagined", '"abc"');
+    expect(r).toEqual({ status: 304 });
+    const [url, init] = fetchFn.mock.calls[0] as unknown as [
+      string,
+      RequestInit,
+    ];
+    expect(url).toBe(
+      "https://learnwp.sqwrlz.com/wp-json/learning-ledger/v1/course-server/packages/learn-wp-reimagined",
+    );
+    const h = init.headers as Record<string, string>;
+    expect(h["If-None-Match"]).toBe('"abc"');
+    expect(h["X-Learning-Ledger-Key"]).toBe("kid1");
+    expect(h["X-Learning-Ledger-Signature"]).toBeTruthy();
+  });
+
+  it("maps a 200 to etag, version and zip bytes", async () => {
+    const fetchFn = vi.fn(
+      async () =>
+        new Response(new Uint8Array([80, 75, 3, 4]), {
+          status: 200,
+          headers: { ETag: '"e1"', "X-Package-Version": "7" },
+        }),
+    );
+    const r = await new ConnectorClient(
+      env,
+      fetchFn as unknown as typeof fetch,
+    ).getPackage("p");
+    expect(r).toEqual({
+      status: 200,
+      etag: '"e1"',
+      version: 7,
+      zip: new Uint8Array([80, 75, 3, 4]),
+    });
+    const h = (fetchFn.mock.calls[0] as unknown as [string, RequestInit])[1]
+      .headers as Record<string, string>;
+    expect(h["If-None-Match"]).toBeUndefined();
+  });
+
+  it("maps the status route payload", async () => {
+    const fetchFn = vi.fn(
+      async () =>
+        new Response(
+          JSON.stringify({
+            plugin_version: "1.2.3",
+            wp_version: "6.9",
+            php_version: "8.3.1",
+            roles: ["learner"],
+            sodium: "native",
+            connector: { secret_sha256: "ff00" },
+          }),
+          { status: 200 },
+        ),
+    );
+    const s = await new ConnectorClient(
+      env,
+      fetchFn as unknown as typeof fetch,
+    ).status();
+    expect(s).toEqual({
+      versions: { plugin: "1.2.3", wordpress: "6.9", php: "8.3.1" },
+      roles: ["learner"],
+      sensei: null,
+      certificates: null,
+      sodium: "native",
+      trustedKeys: [],
+      connectorSecretSha256: "ff00",
+    });
+  });
+
+  it("throws ConnectorUnavailable on a 5xx and ConnectorError on a 4xx", async () => {
+    const mk = (s: number) =>
+      new ConnectorClient(
+        env,
+        (async () =>
+          new Response("x", { status: s })) as unknown as typeof fetch,
+      );
+    await expect(mk(503).status()).rejects.toBeInstanceOf(ConnectorUnavailable);
+    await expect(mk(401).status()).rejects.toBeInstanceOf(ConnectorError);
+  });
+
+  it("throws ConnectorUnavailable when the signing key is not configured", async () => {
+    const c = new ConnectorClient(
+      { DB: {} as Env["DB"] } as Env,
+      vi.fn() as unknown as typeof fetch,
+    );
+    await expect(c.status()).rejects.toBeInstanceOf(ConnectorUnavailable);
+  });
+
+  it("throws ConnectorUnavailable after 3 s", async () => {
+    vi.useFakeTimers();
+    const hang = ((_u: string, init: RequestInit) =>
+      new Promise((_res, rej) => {
+        if (init.signal!.aborted) rej(new Error("aborted"));
+        init.signal!.addEventListener("abort", () => rej(new Error("aborted")));
+      })) as unknown as typeof fetch;
+    const p = new ConnectorClient(env, hang).status();
+    const assertion = expect(p).rejects.toBeInstanceOf(ConnectorUnavailable);
+    await vi.advanceTimersByTimeAsync(3000);
+    await assertion;
+  });
+});
+
+describe("request path", () => {
+  it("percent-encodes the program in the signed path", async () => {
+    const fetchFn = vi.fn(async () => new Response(null, { status: 304 }));
+    await new ConnectorClient(
+      env,
+      fetchFn as unknown as typeof fetch,
+    ).getPackage("a b");
+    expect((fetchFn.mock.calls[0] as unknown as [string])[0]).toMatch(
+      /packages\/a%20b$/,
+    );
+  });
+});

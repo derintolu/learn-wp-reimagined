@@ -22,6 +22,12 @@ export interface Env {
   CRON_SECRET?: string;
   /** HMAC key for hashing session cookies; sessions are off without it. */
   SESSION_KEY?: string;
+  /** Learning Ledger connector: Ed25519 private key, PKCS8 base64. */
+  CONNECTOR_SIGNING_KEY?: string;
+  /** Key id of that key, as trusted by the ledger. */
+  CONNECTOR_KEY_ID?: string;
+  /** Ledger's ping public key (raw 32 bytes, base64). */
+  CONNECTOR_PING_PUBLIC_KEY?: string;
 }
 
 export type Handler = (
