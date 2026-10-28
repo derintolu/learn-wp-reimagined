@@ -1,3 +1,4 @@
+import { clientId } from '../ai/client';
 import { FEATURES } from '../config';
 import { ensureSession, forgetSession } from './session';
 import { EVENTS_MAX, type EventResult, type ServerEvent } from '../shared/events';
@@ -106,7 +107,7 @@ export class EventClient {
       if (FEATURES.sessions) await ensureSession();
       const res = await fetch('/api/events', {
         method: 'POST',
-        headers: { 'content-type': 'application/json' },
+        headers: { 'content-type': 'application/json', 'x-client-id': clientId() },
         body: JSON.stringify({ learnerId: this.learnerId(), events }),
         signal: ctl.signal,
       });

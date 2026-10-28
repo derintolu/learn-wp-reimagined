@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from 'preact/hooks';
 import { usePageTitle } from '../usePageTitle';
+import { clientId } from '../ai/client';
 import '../styles/consent.css';
 
 export const EXPIRED = 'This sign-in request has expired. Start again from your agent.';
@@ -48,7 +49,8 @@ export function Consent() {
       const res = await fetch('/api/oauth/consent', {
         method: 'POST',
         credentials: 'same-origin',
-        headers: { 'content-type': 'application/json' },
+        // Allow can make a session, which the server rate-limits by this id.
+        headers: { 'content-type': 'application/json', 'x-client-id': clientId() },
         body: JSON.stringify({ request: id, decision }),
       });
       const body = await res.json().catch(() => null);

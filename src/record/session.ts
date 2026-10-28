@@ -1,3 +1,4 @@
+import { clientId } from '../ai/client';
 import { clearOfficial } from './official';
 import { FEATURES } from '../config';
 import { getEventClient } from './eventClient';
@@ -24,7 +25,8 @@ async function call(method: 'GET' | 'POST' | 'DELETE'): Promise<Response | null>
   const ctl = new AbortController();
   const timer = setTimeout(() => ctl.abort(), SESSION_TIMEOUT_MS);
   try {
-    return await fetch('/api/session', { method, signal: ctl.signal });
+    // The server rate-limits by this id where the platform gives it no visitor IP.
+    return await fetch('/api/session', { method, headers: { 'x-client-id': clientId() }, signal: ctl.signal });
   } catch {
     return null;
   } finally {

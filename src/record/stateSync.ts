@@ -1,5 +1,6 @@
 // Files and resume sync to State documents on the LRS, through the course server (/api/state/:kind).
 // Behind phaseOn('officialRecord'). Local editing never waits on this: every failure is quiet except "too big".
+import { clientId } from '../ai/client';
 import { phaseOn } from '../config';
 import type { LearningRecord } from '../shared/record';
 import {
@@ -44,7 +45,9 @@ function setTooBig(v: boolean) {
 async function request(kind: StateKind, init: RequestInit = {}): Promise<Response | null> {
   try {
     if (!(await ensureSession())) return null;
-    return await fetch(`/api/state/${kind}`, init);
+    const headers = new Headers(init.headers);
+    headers.set('x-client-id', clientId());
+    return await fetch(`/api/state/${kind}`, { ...init, headers });
   } catch {
     return null;
   }
