@@ -14,6 +14,7 @@ import { Proposal } from './pages/Proposal';
 import { BlogIndex, BlogPostPage } from './pages/Blog';
 import { BackendView } from './pages/BackendView';
 import { Consent } from './pages/Consent';
+import { BadgeClaim } from './pages/BadgeClaim';
 import { NotFound } from './pages/routes';
 import { APP_ROUTES } from './pages/appRoutes';
 import { content } from './content';
@@ -86,6 +87,7 @@ const PAGES: Record<string, FunctionComponent<any>> = {
   '/blog/:slug': BlogPostPage,
   '/backend/:pathId/:lessonId?': BackendView,
   '/consent': Consent,
+  '/badges/claim': BadgeClaim,
 };
 
 function Frame() {

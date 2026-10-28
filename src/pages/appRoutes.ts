@@ -15,4 +15,5 @@ export const APP_ROUTES: readonly { pattern: string; rewrite: string }[] = [
   { pattern: '/blog/*', rewrite: '/blog/:slug' },
   { pattern: '/backend/*', rewrite: '/backend/:pathId/:lessonId?' },
   { pattern: '/consent', rewrite: '/consent' },
+  { pattern: '/badges/*', rewrite: '/badges/claim' },
 ];

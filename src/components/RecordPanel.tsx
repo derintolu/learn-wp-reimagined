@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from 'preact/hooks';
 import { useLocation } from 'preact-iso';
+import { testedOutInWords, useBadges } from '../badges/badges';
 import { FEATURES } from '../config';
 import { content } from '../content';
 import { downloadRecord, readRecordFile } from '../record/fileTransfer';
@@ -133,6 +134,7 @@ export function RecordPanel() {
   const buttonRef = useRef<HTMLButtonElement>(null);
   const panelRef = useRef<HTMLDivElement>(null);
   const fileRef = useRef<HTMLInputElement>(null);
+  const badges = useBadges(open);
   const folderOk = supportsFolder();
   const loc = useLocation() as ReturnType<typeof useLocation> | undefined;
 
@@ -314,6 +316,26 @@ export function RecordPanel() {
                 : "Your progress stays on this device. Your answers and tutor messages go to the course server to be checked or answered, and aren't stored."}
           </p>
           <p class="record__summary">{summary(record)}</p>
+          {badges && badges.length > 0 && (
+            <div class="record__badges">
+              <p class="record__agent-title">Your badges</p>
+              <ul>
+                {badges.map((b) => (
+                  <li key={b.id}>
+                    {b.name}: {b.status === 'claimed' ? 'claimed' : 'ready to claim'}. You tested out of {testedOutInWords(b.testedOut)}.
+                    {b.status === 'pending' && (
+                      <>
+                        {' '}
+                        <a href={`/badges/claim?badge=${encodeURIComponent(b.id)}`} onClick={() => setOpen(false)}>
+                          Claim it
+                        </a>
+                      </>
+                    )}
+                  </li>
+                ))}
+              </ul>
+            </div>
+          )}
           {notice && <p class="record__alert">{notice.message}</p>}
           {manager.folderError && (
             <p class="record__alert">

@@ -1,3 +1,4 @@
+import { useBadges } from '../badges/badges';
 import { content } from '../content';
 import { nextLessonId, resolveBranch } from '../shared/engine';
 import type { LearningRecord } from '../shared/record';
@@ -26,6 +27,8 @@ export function pastOutcome(r: LearningRecord, lessonId: string): Outcome | null
  * learner got and where to go next, and dispatches nothing, so the record gains no duplicates.
  */
 export function CompletedSummary({ lesson, record }: { lesson: Lesson; record: LearningRecord }) {
+  const badges = useBadges();
+  const claimable = badges?.find((b) => b.pathId === lesson.pathId && b.status === 'pending');
   const outcome = lesson.checkpoint ? pastOutcome(record, lesson.id) : null;
   let branchTo: string | null = null;
   let message: string | null = null;
@@ -55,6 +58,11 @@ export function CompletedSummary({ lesson, record }: { lesson: Lesson; record: L
         </p>
       )}
       {lesson.bug && <p class="lesson-done__answer">You caught the planted bug.</p>}
+      {claimable && (
+        <p class="lesson-done__answer">
+          Your {claimable.name} badge is ready. <a href={`/badges/claim?badge=${encodeURIComponent(claimable.id)}`}>Claim it</a>
+        </p>
+      )}
       <a class="button" href={to ? `/learn/${to}` : `/finale/${lesson.pathId}`}>
         {title ? `Continue to “${title}”` : 'Continue to the finale'}
         <span aria-hidden="true">→</span>
