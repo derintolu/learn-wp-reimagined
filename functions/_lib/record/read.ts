@@ -9,13 +9,16 @@ import { OFFICIAL_COURSE_ID, officialActor } from './official';
 import { STATE_IDS } from '../../../vendor/course-xapi-mcp/core/constants';
 import type { XapiStatement } from '../../../vendor/course-xapi-mcp/core/xapi/types';
 
+/** A cached record older than this is read again from the LRS: a backstop for statements stored after the cache filled. */
+export const RECORD_CACHE_TTL_MS = 60_000;
+
 /** A learner's statements fit well under this; the cap only stops a paging loop that never ends. */
 const MAX_PAGES = 50;
 
-export async function readCachedRecord(env: Env, actorName: string): Promise<string | null> {
+export async function readCachedRecord(env: Env, actorName: string, now = Date.now()): Promise<string | null> {
   await ensureRecordSchema(env.DB);
-  const row = await env.DB.prepare('SELECT body FROM record_cache WHERE actor_name = ?').bind(actorName).first<{ body: string }>();
-  return row?.body ?? null;
+  const row = await env.DB.prepare('SELECT body, at FROM record_cache WHERE actor_name = ?').bind(actorName).first<{ body: string; at: number | string }>();
+  return row && now - Number(row.at) < RECORD_CACHE_TTL_MS ? row.body : null;
 }
 
 export async function writeCachedRecord(env: Env, actorName: string, body: string, now: number): Promise<void> {
@@ -35,7 +38,7 @@ export async function invalidateRecordCache(env: Env, actorName: string): Promis
 }
 
 /** Every statement the LRS holds for this learner's registration, and the actor and registration used. */
-export async function loadStatements(env: Env, s: Session, client = new LrsClient(env)): Promise<{ actor: Actor; registration: string; statements: XapiStatement[] }> {
+export async function loadStatements(env: Env, s: Session, client = new LrsClient(env)): Promise<{ actor: Actor; registration: string; statements: XapiStatement[]; complete: boolean }> {
   const registration = await getRegistration(env, s);
   const actor = officialActor(s.actorName) as Actor;
   const statements: XapiStatement[] = [];
@@ -45,7 +48,7 @@ export async function loadStatements(env: Env, s: Session, client = new LrsClien
     page = await client.getStatementsMore(page.more);
     statements.push(...page.statements);
   }
-  return { actor, registration, statements };
+  return { actor, registration, statements, complete: !page.more };
 }
 
 /** The `files` of the learner's State document, or {} when there is none. */

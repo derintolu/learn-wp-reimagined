@@ -59,8 +59,7 @@ export function projectOfficial(statements: XapiStatement[], bundle: ContentBund
       if (CXM_EXT['carried-over'] in ext) {
         carried.add(key);
         tested.delete(key);
-      }
-      else if (ext[CMI5.extReason] === 'Tested Out' && !carried.has(key)) tested.add(key);
+      } else if (ext[CMI5.extReason] === 'Tested Out' && !carried.has(key)) tested.add(key);
     } else if (verb === CXM_VERBS.branched) {
       const outcome = s.result?.extensions?.[CXM_EXT.branch];
       const from = lesson(s.context?.contextActivities?.parent?.[0]?.id);

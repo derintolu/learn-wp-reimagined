@@ -3,6 +3,8 @@
 // (the first body wins, ruling R7) and a re-sent statement is the identical one.
 import type { Env } from '../env';
 import { ensureRecordSchema, isDuplicateKey } from '../db';
+import { SERVER_FLAGS } from '../config';
+import { invalidateRecordCache } from '../record/read';
 import { LrsClient, LrsError, LrsUnavailable } from './client';
 import type { XapiStatement } from '../../../vendor/course-xapi-mcp/core/xapi/types';
 
@@ -21,6 +23,7 @@ export const DEAD_LETTER_AT = Number.MAX_SAFE_INTEGER;
 
 interface Row {
   statement_id: string;
+  actor_name: string | null;
   body: string;
   attempts: number | string;
 }
@@ -44,11 +47,15 @@ export async function enqueue(env: Env, statements: XapiStatement[], now = Date.
   }
 }
 
+/** The rows are stored at the LRS: delete them, and drop the cached official record of each learner they belong to. */
 async function remove(env: Env, rows: Row[]): Promise<void> {
   await env.DB
     .prepare(`DELETE FROM lrs_outbox WHERE statement_id IN (${rows.map(() => '?').join(', ')})`)
     .bind(...rows.map((r) => r.statement_id))
     .run();
+  if (SERVER_FLAGS.officialRecord) {
+    for (const a of new Set(rows.map((r) => r.actor_name))) if (a) await invalidateRecordCache(env, a);
+  }
 }
 
 /** A statement the LRS refused: backed off, or dead-lettered once it has had DEAD_LETTER_AFTER attempts. */
@@ -80,7 +87,7 @@ export async function drain(env: Env, now: number, budgetMs: number): Promise<{ 
   while (Date.now() - started < budgetMs) {
     const { results: rows } = await env.DB
       // A literal LIMIT: some MySQL drivers quote a bound LIMIT value.
-      .prepare(`SELECT statement_id, body, attempts FROM lrs_outbox WHERE next_at <= ? ORDER BY created, statement_id LIMIT ${DRAIN_BATCH}`)
+      .prepare(`SELECT statement_id, actor_name, body, attempts FROM lrs_outbox WHERE next_at <= ? ORDER BY created, statement_id LIMIT ${DRAIN_BATCH}`)
       .bind(now)
       .all<Row>();
     if (rows.length === 0) break;

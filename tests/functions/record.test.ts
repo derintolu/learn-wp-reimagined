@@ -8,6 +8,7 @@ import type { Env } from '../../functions/_lib/env';
 import { decideEvents } from '../../functions/_lib/events/decide';
 import { createSession, SESSION_COOKIE } from '../../functions/_lib/session/session';
 import { OFFICIAL_COURSE_ID, auIdOf, officialActor } from '../../functions/_lib/record/official';
+import { enqueue, drain } from '../../functions/_lib/lrs/outbox';
 import { lrsHealth } from '../../functions/_lib/record/registration';
 import { GET as getRecord } from '../../functions/api/record';
 import { GET as getExport } from '../../functions/api/record/export';
@@ -70,6 +71,7 @@ beforeEach(async () => {
     }
     if (url.startsWith(`${LRS_API}/badges?`)) return new Response(JSON.stringify([{ id: 'b1', achievement: { id: 'a', name: 'Block theme', image: null }, status: 'issued', created_at: 'x' }]), { status: 200 });
     if (url === `${LRS_API}/view-links` && method === 'POST') return new Response(JSON.stringify({ url: 'https://lrs.sqwrlz.com/view/abc' }), { status: 201 });
+    if (url === `${LRS_XAPI}/statements` && method === 'POST') held.push(...JSON.parse(String(init?.body)));
     return lrs.fetch(input, init);
   });
   lrsHealth.downUntil = 0;
@@ -152,5 +154,26 @@ describe('official record routes', () => {
     lrs.down = true;
     vi.stubGlobal('fetch', lrs.fetch);
     expect((await call(getRecord)).status).toBe(503);
+  });
+
+  it('a record read before the drain shows the statement once the drain stores it', async () => {
+    await call(getRecord); // fills the cache with nothing completed
+    await enqueue(env, [stmt(ADL_VERBS.completed, FREE, 1) as any], NOW);
+    expect((await (await call(getRecord)).json()).completed).toEqual([]);
+    await drain(env, NOW, 5000);
+    expect((await (await call(getRecord)).json()).completed).toEqual([FREE]);
+  });
+
+  it('a cached record expires after the TTL', async () => {
+    const now = vi.spyOn(Date, 'now');
+    now.mockReturnValue(NOW);
+    held = [];
+    await call(getRecord);
+    held = [stmt(ADL_VERBS.completed, FREE, 1)];
+    now.mockReturnValue(NOW + 30_000);
+    expect((await (await call(getRecord)).json()).completed).toEqual([]);
+    now.mockReturnValue(NOW + 61_000);
+    expect((await (await call(getRecord)).json()).completed).toEqual([FREE]);
+    now.mockRestore();
   });
 });
