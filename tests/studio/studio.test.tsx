@@ -487,4 +487,30 @@ describe('Studio outline, official record', () => {
       restoreFlags();
     }
   });
+  it('offers to carry over a completion the official record lacks, under the course bar', async () => {
+    phasesUpTo('officialRecord');
+    try {
+      vi.stubGlobal(
+        'fetch',
+        vi.fn(async (url: string) =>
+          url === '/api/record'
+            ? new Response(JSON.stringify({ completed: [], testedOut: [], carriedOver: [], branches: [], badges: [], asOf: 'x' }), { status: 200 })
+            : new Response('{}', { status: 200 }),
+        ),
+      );
+      use(at('templates-and-parts', 0, { completedLessons: ['theme-json-basics'] }));
+      const { container } = open('/learn/templates-and-parts');
+      const offer = await screen.findByRole('region', { name: 'Bring your progress over' });
+      expect(offer.closest('.studio-page__notices')?.parentElement).toBe(container.querySelector('.studio-page'));
+    } finally {
+      restoreFlags();
+    }
+  });
+
+  it('with the phase off the studio has no notices wrapper', async () => {
+    use(at('templates-and-parts', 0, { completedLessons: ['theme-json-basics'] }));
+    const { container } = open('/learn/templates-and-parts');
+    await outline();
+    expect(container.querySelector('.studio-page__notices')).toBeNull();
+  });
 });

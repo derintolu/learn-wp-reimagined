@@ -314,7 +314,8 @@
 .studio__pane { display: flex; flex-direction: column; min-width: 0; min-height: 0; }
 .studio__pane[hidden] { display: none; }
 .studio__pane--lesson:focus { outline: none; }
-.studio-page > .save-warning { margin: 0; border-radius: 0; padding-inline: clamp(1rem, 4vw, 3rem); }
+.studio-page > .save-warning,
+.studio-page__notices > .save-warning { margin: 0; border-radius: 0; padding-inline: clamp(1rem, 4vw, 3rem); }
 .studio__pane--workspace > .workspace { flex: 1; }
 
 /* ---------- Course bar ---------- */

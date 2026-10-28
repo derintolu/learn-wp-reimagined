@@ -4,9 +4,10 @@ import { useRoute } from 'preact-iso';
 import { useAiStatus } from '../ai/useAiStatus';
 import { Checkpoint, type Resolution } from '../components/Checkpoint';
 import { preloadCodeEditor } from '../components/LazyCodeEditor';
+import { CarryOverOffer } from '../components/CarryOverOffer';
 import { CompletedSummary } from '../components/CompletedSummary';
 import { RESTORED_EVENT, SaveWarning } from '../components/RecordPanel';
-import { FEATURES } from '../config';
+import { FEATURES, phaseOn } from '../config';
 import { adoptPending, content, prefetchLatest } from '../content';
 import { getEventClient } from '../record/eventClient';
 import { peekRecordManager, useRecord } from '../record/useRecord';
@@ -231,7 +232,15 @@ function StudioLayout({ lesson, step, bugSolved, children }: { lesson: LessonT; 
         Skip to content
       </a>
       <CourseBar lesson={lesson} narrow={narrow} />
-      <SaveWarning />
+      {/* Returning learners mostly land in the studio, so the carry-over offer shows here too, under the bar. */}
+      {phaseOn('officialRecord') ? (
+        <div class="studio-page__notices">
+          <SaveWarning />
+          <CarryOverOffer />
+        </div>
+      ) : (
+        <SaveWarning />
+      )}
       <div class="studio">
         <div class="studio__pane studio__pane--outline" data-pane-id="outline" hidden={hide('outline')}>
           <Outline lesson={lesson} step={step} bugSolved={bugSolved} />

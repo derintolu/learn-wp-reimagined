@@ -1,7 +1,9 @@
 import { useState } from 'preact/hooks';
 import { phaseOn } from '../config';
+import { useOfficialRecord } from '../record/official';
 import { ensureSession } from '../record/session';
 import { useRecord } from '../record/useRecord';
+import type { OfficialRecord } from '../shared/official';
 import type { LearningRecord } from '../shared/record';
 import './agent.css';
 
@@ -25,9 +27,16 @@ const remember = (v: 'done' | 'declined') => {
   }
 };
 
-/** A v1 record that holds progress worth carrying: a finished lesson, a saved file or a position. */
-export const hasProgress = (r: LearningRecord): boolean =>
-  r.version === 1 && (r.completedLessons.length > 0 || Object.keys(r.files).length > 0 || !!r.current);
+/**
+ * Lessons finished in this browser that the official record doesn't have (completed, tested out or carried
+ * over). Every record is version 1, so the version can't tell an old record from a new one; this can. Files and
+ * the position reach the official record through State sync, so they alone are no reason to offer. With no
+ * session yet (`official` null), every local completion is missing.
+ */
+export const missingFromOfficial = (r: LearningRecord, official: OfficialRecord | null): string[] => {
+  const known = new Set([...(official?.completed ?? []), ...(official?.testedOut ?? []), ...(official?.carriedOver ?? [])]);
+  return r.completedLessons.filter((id) => !known.has(id));
+};
 
 /** Offers, once, to carry the old local record's progress into the official record. Nothing is sent until the learner agrees. */
 export function CarryOverOffer() {
@@ -40,6 +49,8 @@ function Offer() {
   const [busy, setBusy] = useState(false);
   const [done, setDone] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  // Read the official record only when there is something local to compare.
+  const { official, none } = useOfficialRecord(!hidden && !done && record.completedLessons.length > 0);
 
   if (done) {
     return (
@@ -48,7 +59,8 @@ function Offer() {
       </div>
     );
   }
-  if (hidden || !hasProgress(record)) return null;
+  // Until the official record has been read (or is known to be empty), there is nothing to compare.
+  if (hidden || !(official || none) || missingFromOfficial(record, none ? null : official).length === 0) return null;
 
   async function bringOver() {
     setBusy(true);
