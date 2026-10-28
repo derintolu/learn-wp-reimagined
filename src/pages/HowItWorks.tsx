@@ -5,6 +5,7 @@ import { FEATURES, phaseOn, REPO_URL } from '../config';
 import { BACKEND_VIEW_PATH, COST_PER_1000_LEARNERS_USD, LRS_HOST, MCP_URL, RETENTION_DAYS, SENSEI_VERSION } from '../shared/course-meta';
 import { usePageTitle } from '../usePageTitle';
 import { BackendDiagram } from './HowItWorksDiagram';
+import { SHADOW_COPY } from './copy';
 import '../styles/how.css';
 
 export const SPEC_REPO_URL = 'https://github.com/derintolu/course-xapi-mcp';
@@ -94,6 +95,7 @@ export function HowItWorks() {
   usePageTitle('How this works');
   const sensei = FEATURES.wordpressContent;
   const anon = FEATURES.senseiLearners;
+  const shadow = phaseOn('lrsShadow');
   const official = phaseOn('officialRecord');
   const final = phaseOn('badges');
 
@@ -611,6 +613,7 @@ export function HowItWorks() {
               for you in this prototype's Sensei, so Sensei can enrol you. It has a random ID, no name, no email and no
               password, and you never sign in to it. "Delete my data" in the record menu deletes it. Nothing syncs between
               your devices unless you move the record yourself. Signing in with a WordPress.org account is not built.
+              {shadow && !official && ` ${SHADOW_COPY}`}
               {official && ' Records from before this change can be brought over once; those lessons show as complete but never count toward a badge.'}
             </li>
           ) : FEATURES.sessions ? (

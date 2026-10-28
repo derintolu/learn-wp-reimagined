@@ -11,7 +11,8 @@ import { ROUTES } from '../../functions/_lib/config';
 import { DAY_CAP_MICROS, MONTH_CAP_MICROS } from '../../functions/_lib/budget';
 import { MCP_LIMITS } from '../../functions/_lib/mcp/gate';
 import { MCP_TTL_MS } from '../../functions/_lib/mcp/recordStore';
-import { restoreFlags, setFlags } from '../helpers/flags';
+import { phasesUpTo, restoreFlags, setFlags } from '../helpers/flags';
+import { SHADOW_COPY } from '../../src/pages/copy';
 
 afterEach(() => {
   cleanup();
@@ -607,5 +608,33 @@ describe('/how-it-works LRS and Ledger parts per flag state', () => {
     const { container } = render(<HowItWorks />);
     expect(part(container, 'The LRS at')).toContain('writes every learning record here, and nothing else does.');
     expect(part(container, 'The LRS at')).not.toContain('practice records');
+  });
+});
+
+describe('/how-it-works with the LRS shadow (phase 5)', () => {
+  it('off: no second-server sentence', () => {
+    render(<HowItWorks />);
+    expect(text()).not.toContain(SHADOW_COPY);
+  });
+
+  it('on, in R30 order: the approved sentence, verbatim', () => {
+    phasesUpTo('lrsShadow');
+    render(<HowItWorks />);
+    expect(text()).toContain(
+      'While we test a separate record store, a copy of your steps, including the answers you type to checkpoints, is also kept on a second server, under your random ID. Your local record is still the one the site uses. "Delete my data" removes the copy.',
+    );
+  });
+
+  it('on out of order: nothing', () => {
+    setFlags({ lrsShadow: true });
+    render(<HowItWorks />);
+    expect(text()).not.toContain(SHADOW_COPY);
+  });
+
+  it('officialRecord on: the shadow sentence gives way to where the record lives', () => {
+    phasesUpTo('officialRecord');
+    render(<HowItWorks />);
+    expect(text()).not.toContain('Your local record is still the one the site uses.');
+    expect(text()).toContain('Where your record lives.');
   });
 });

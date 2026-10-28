@@ -8,7 +8,8 @@ import { BACKEND_VIEW_PATH, COST_PER_1000_LEARNERS_USD, LRS_HOST, RETENTION_DAYS
 import { REVIEW_DISCLAIMER } from '../../src/studio/Feed';
 import { DAY_CAP_MICROS, MONTH_CAP_MICROS } from '../../functions/_lib/budget';
 import { MCP_TTL_MS } from '../../functions/_lib/mcp/recordStore';
-import { restoreFlags, setFlags } from '../helpers/flags';
+import { phasesUpTo, restoreFlags, setFlags } from '../helpers/flags';
+import { SHADOW_COPY } from '../../src/pages/copy';
 
 afterEach(() => {
   cleanup();
@@ -424,5 +425,32 @@ describe('/proposal final rewrite (phase 8)', () => {
     expect(t).not.toContain('The record handle is the only key to an agent record.');
     expect(t).toContain('Agents sign in, instead of holding a handle.');
     expect(t).toContain('We don\'t fall back to a secret handle.');
+  });
+});
+
+describe('/proposal with the LRS shadow (phase 5)', () => {
+  it('on: the approved sentence in Privacy, and no line that says the record is on no server', () => {
+    phasesUpTo('lrsShadow');
+    render(<Proposal />);
+    const t = text();
+    expect(t).toContain(SHADOW_COPY);
+    expect(t).not.toContain("The record isn't kept on a server");
+    expect(t).not.toContain('Your progress record stays in your browser.');
+  });
+
+  it('off: unchanged', () => {
+    setFlags({ senseiLearners: true, wordpressContent: true });
+    render(<Proposal />);
+    const t = text();
+    expect(t).not.toContain(SHADOW_COPY);
+    expect(t).toContain("The record isn't kept on a server unless they opt in to the relay below.");
+    expect(t).toContain('Your progress record stays in your browser.');
+  });
+
+  it('officialRecord on: the official Privacy list replaces it', () => {
+    phasesUpTo('officialRecord');
+    render(<Proposal />);
+    expect(text()).not.toContain(SHADOW_COPY);
+    expect(text()).toContain('The official record is stored on our servers under a random ID');
   });
 });

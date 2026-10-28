@@ -26,6 +26,7 @@ import { Swipe } from '../components/Swipe';
 import { FEATURES, phaseOn, REPO_URL } from '../config';
 import { BACKEND_VIEW_PATH, COST_PER_1000_LEARNERS_USD, LRS_HOST, RETENTION_DAYS } from '../shared/course-meta';
 import { usePageTitle } from '../usePageTitle';
+import { SHADOW_COPY } from './copy';
 
 // These mirror server constants; tests/components/proposal.test.tsx checks each against its source file.
 const CAP = { month: 100, day: 10 };
@@ -98,6 +99,7 @@ function Band({ id, title, dark, children }: { id: string; title: ComponentChild
 /** /proposal: for the Training Team and leadership, written like a Make/Training post (spec §2, §3). */
 export function Proposal() {
   usePageTitle('The proposal');
+  const shadow = phaseOn('lrsShadow');
   const official = phaseOn('officialRecord');
   const final = phaseOn('badges');
   return (
@@ -202,7 +204,7 @@ export function Proposal() {
           recommends a pathway course and a starting lesson. The only new content is a short note per course saying who it
           suits.
           {FEATURES.senseiLearners
-            ? ` You get an anonymous account on the course server: a random id, no email and no password.${official ? '' : ' Your progress record stays in your browser.'}`
+            ? ` You get an anonymous account on the course server: a random id, no email and no password.${shadow ? '' : ' Your progress record stays in your browser.'}`
             : " Progress stays in the learner's browser, so no accounts are needed."}{' '}
           If the AI is down,
           the lessons read exactly as they do today.
@@ -351,13 +353,16 @@ export function Proposal() {
               </li>
             </>
           ) : (
-            <li>
-              The record lives in the learner's browser, or in a folder they pick, and they can download or restore it at any
-              time.
-              {FEATURES.sessions && !FEATURES.senseiLearners &&
-                ' The server keeps only a random session, with no name or email, and the learner can delete it from the record menu.'}{' '}
-              The record isn't kept on a server unless they opt in to the relay below.
-            </li>
+            <>
+              <li>
+                The record lives in the learner's browser, or in a folder they pick, and they can download or restore it at
+                any time.
+                {FEATURES.sessions && !FEATURES.senseiLearners &&
+                  ' The server keeps only a random session, with no name or email, and the learner can delete it from the record menu.'}
+                {!shadow && " The record isn't kept on a server unless they opt in to the relay below."}
+              </li>
+              {shadow && <li>{SHADOW_COPY}</li>}
+            </>
           )}
           {!FEATURES.agentOnStandard && (
           <li>

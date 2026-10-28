@@ -2,6 +2,7 @@ import { useEffect, useRef, useState } from 'preact/hooks';
 import { useLocation } from 'preact-iso';
 import { testedOutInWords, useBadges } from '../badges/badges';
 import { FEATURES, phaseOn } from '../config';
+import { LRS_HOST } from '../shared/course-meta';
 import { content } from '../content';
 import { downloadRecord, readRecordFile } from '../record/fileTransfer';
 import { supportsFolder } from '../record/folderStore';
@@ -38,6 +39,28 @@ export const BROWSER_NOT_CLEARED =
   "Your data was deleted on this site, but this browser's copy couldn't be cleared. Close this tab's site data to finish.";
 
 export const LRS_FAILED = "We couldn't open the LRS right now. Try again later.";
+
+/** Where the record and the learner's words go, for each flag state. Every sentence here must stay true with the flags as they are. */
+export const SHADOW_PANEL_COPY = 'While we test a separate record store, a copy of your steps, including the answers you type to checkpoints, is kept on a second server. "Delete my data" removes it.';
+export const OFFICIAL_PANEL_COPY = `Your official record, including the answers you type to checkpoints, is kept on our servers, in the record store at ${LRS_HOST}.`;
+
+function recordBody(state: 'folder' | 'browser' | 'none'): string {
+  const official = phaseOn('officialRecord');
+  const shadow = phaseOn('lrsShadow');
+  if (official) {
+    const where = state === 'none' ? "This browser can't keep a working copy." : state === 'folder' ? 'Your record and lesson files are also written to the folder you picked, and this browser keeps a working copy.' : 'This browser keeps a working copy so lessons stay quick.';
+    return `${OFFICIAL_PANEL_COPY} ${where} Tutor messages go to the course server to be answered, and aren't stored.`;
+  }
+  const local =
+    state === 'none'
+      ? NOT_SAVED
+      : state === 'folder'
+        ? 'Your record and lesson files are written to the folder you picked, and kept in this browser too.'
+        : shadow
+          ? "Your progress stays on this device. Your answers and tutor messages go to the course server to be checked or answered. Tutor messages aren't stored."
+          : "Your progress stays on this device. Your answers and tutor messages go to the course server to be checked or answered, and aren't stored.";
+  return shadow ? `${local} ${SHADOW_PANEL_COPY}` : local;
+}
 
 const countOf = (n: number, what: string) => `${n} ${n === 1 ? 'lesson' : 'lessons'} ${what}`;
 
@@ -335,13 +358,7 @@ export function RecordPanel() {
             <span class="record__dot" aria-hidden="true" />
             {stateLabel}
           </p>
-          <p class="record__body">
-            {state === 'none'
-              ? NOT_SAVED
-              : state === 'folder'
-                ? 'Your record and lesson files are written to the folder you picked, and kept in this browser too.'
-                : "Your progress stays on this device. Your answers and tutor messages go to the course server to be checked or answered, and aren't stored."}
-          </p>
+          <p class="record__body">{recordBody(state)}</p>
           <p class="record__summary">{summary(record)}</p>
           {officialOn && (
             <div class="record__official">
