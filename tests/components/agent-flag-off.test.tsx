@@ -8,9 +8,9 @@ vi.mock('../../src/config', () => ({ FEATURES: { agent: false }, REPO_URL: 'http
 import { CapNotice } from '../../src/components/CapNotice';
 
 describe('agent feature off', () => {
-  it('CapNotice hides "Continue in your own agent" but keeps the message', () => {
+  it('CapNotice hides "Continue in your own AI" but keeps the message', () => {
     const { container } = render(<CapNotice status={{ ai: 'capped', reason: 'day-cap' }} />);
-    expect(screen.queryByRole('link', { name: 'Continue in your own agent' })).toBeNull();
+    expect(screen.queryByRole('link', { name: 'Continue in your own AI' })).toBeNull();
     expect((container.textContent ?? '').length).toBeGreaterThan(20);
   });
 });

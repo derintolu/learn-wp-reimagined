@@ -92,9 +92,9 @@ describe('Course bar', () => {
 });
 
 describe('CapNotice', () => {
-  it('offers "Continue in your own agent", linking to /connect, and keeps the message', () => {
+  it('offers "Continue in your own AI", linking to /connect, and keeps the message', () => {
     const { container } = render(<CapNotice status={{ ai: 'capped', reason: 'day-cap' }} />);
-    expect(screen.getByRole('link', { name: 'Continue in your own agent' }).getAttribute('href')).toBe('/connect');
+    expect(screen.getByRole('link', { name: 'Continue in your own AI' }).getAttribute('href')).toBe('/connect');
     expect((container.textContent ?? '').length).toBeGreaterThan(20);
     expect(container.querySelector('[role="status"]')).toBeTruthy();
   });

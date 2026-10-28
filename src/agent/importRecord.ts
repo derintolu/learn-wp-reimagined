@@ -137,7 +137,7 @@ export function planImport(site: LearningRecord, raw: unknown, content: ContentB
       events.push({ type: 'codeChecked', lessonId: a.lessonId, file: a.name, passed: verb === VERBS.passed.id });
     }
   }
-  if (counts.beats) ignored.add(`beats taught in the agent: ${counts.beats}`);
+  if (counts.beats) ignored.add(`beats taught in your AI: ${counts.beats}`);
   if (counts.replies) ignored.add(`beat replies: ${counts.replies}`);
   if (counts.bugs) ignored.add(`planted bugs caught: ${counts.bugs}`);
 

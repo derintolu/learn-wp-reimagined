@@ -154,7 +154,7 @@ describe('planImport and applyImport', () => {
     expect(ig).toContain('file not in the course: evil.php');
     expect(ig).toMatch(/beat replies: \d+/);
     expect(ig).toMatch(/planted bugs caught: 1/);
-    expect(ig).toMatch(/beats taught in the agent: \d+/);
+    expect(ig).toMatch(/beats taught in your AI: \d+/);
   });
 
   it("rejects a site record, a newer version and another learner's statement with the parser's message", () => {

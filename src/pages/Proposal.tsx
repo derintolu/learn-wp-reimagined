@@ -166,8 +166,8 @@ export function Proposal() {
           </li>
           <li>
             <strong>WordPress can still try new things.</strong> It's built on Learn's own lessons, open models, WordPress
-            Playground and an MCP server, so a learner can take the course into the agent they already use (
-            <a href="/connect">Connect your agent</a>).
+            Playground and an MCP server, so a learner can take the course into the AI they already use (
+            <a href="/connect">Connect your AI</a>).
           </li>
         </ol>
         <p>
@@ -251,7 +251,7 @@ export function Proposal() {
         <p>
           This demo has a hard cap of ${CAP.month} a month across all providers and ${CAP.day} a day (
           <Cite to="src-budget">the budget code</Cite>). At the cap, the AI features switch to their no-AI versions until the
-          next day or month (UTC). Learners who bring their own agent aren't affected: the agent does the thinking on their
+          next day or month (UTC). Learners who bring their own AI aren't affected: their AI does the thinking on their
           own subscription, and no model runs on this site's account.
         </p>
         <h3>Privacy</h3>
@@ -265,7 +265,7 @@ export function Proposal() {
             time. The record isn't kept on a server unless they opt in to the relay below.
           </li>
           <li>
-            For web agents, which can't read local files, the learner can opt in to a relay. It keeps a copy under a random
+            For AI apps on the web, which can't read local files, the learner can opt in to a relay. It keeps a copy under a random
             handle, stores no personal data, expires after {RELAY_DAYS} days without use, and can be deleted at any time (
             <Cite to="src-relay">the relay</Cite>).
           </li>
@@ -330,10 +330,10 @@ export function Proposal() {
             content to write and keep current.
           </li>
           <li>
-            <strong>An MCP server, so learners can bring their own agent.</strong> Learners can take the course into
+            <strong>An MCP server, so learners can bring their own AI.</strong> Learners can take the course into
             Claude, ChatGPT, Cursor or any MCP client, and their subscription pays for the thinking (
             <Cite to="src-vendor">the course server</Cite>). The server sends only authored content, rubrics, outcomes and
-            check results. <em>The cost:</em> how well the agent teaches depends on a model we don't control. The server
+            check results. <em>The cost:</em> how well their AI teaches depends on a model we don't control. The server
             can hold the line on content, order and checks, but not on tone. Lesson order is strict, which can feel rigid in
             a long chat.
           </li>

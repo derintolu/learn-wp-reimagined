@@ -6,8 +6,8 @@ import { flushPendingEdits } from '../record/useFileEdits';
 import { getRecordManager } from '../record/useRecord';
 import './agent.css';
 
-export const IMPORT_DONE = "Your agent's progress is on the site now.";
-export const PRIVACY = 'The handle is the only key to your agent\'s copy. It holds no personal data and expires after 30 days without use.';
+export const IMPORT_DONE = "Your AI's progress is on the site now.";
+export const PRIVACY = 'The handle is the only key to your AI\'s copy. It holds no personal data and expires after 30 days without use.';
 
 const plural = (n: number, one: string) => `${n} ${one}${n === 1 ? '' : 's'}`;
 
@@ -94,7 +94,7 @@ export function ImportAgentProgress({ idPrefix = 'import', onDone }: { idPrefix?
     if (!r.ok) return setMsg({ tone: 'error', text: r.message });
     setHandle(null);
     reset();
-    setMsg({ tone: 'ok', text: r.data.deleted ? "The agent's copy is deleted." : 'There was no copy left to delete.' });
+    setMsg({ tone: 'ok', text: r.data.deleted ? "Your AI's copy is deleted." : 'There was no copy left to delete.' });
   }
 
   const toggle = (key: string) =>
@@ -156,12 +156,12 @@ export function ImportAgentProgress({ idPrefix = 'import', onDone }: { idPrefix?
                   />
                   <div>
                     <label class="agent-import__what" for={`${idPrefix}-${c.key}`}>
-                      Use the agent's version: {c.kind === 'file' ? c.key.slice(5) : c.kind === 'position' ? 'where you are' : 'placement'}
+                      Use your AI's version: {c.kind === 'file' ? c.key.slice(5) : c.kind === 'position' ? 'where you are' : 'placement'}
                     </label>
                     <div class="agent-import__vs" id={`${idPrefix}-${c.key}-vs`}>
                       <span>Site</span>
                       {c.kind === 'file' ? <pre>{c.site}</pre> : <span>{c.site}</span>}
-                      <span>Agent</span>
+                      <span>Your AI</span>
                       {c.kind === 'file' ? <pre>{c.agent}</pre> : <span>{c.agent}</span>}
                     </div>
                   </div>
@@ -195,7 +195,7 @@ export function ImportAgentProgress({ idPrefix = 'import', onDone }: { idPrefix?
           {confirmDelete ? (
             <div role="group" aria-labelledby={`${idPrefix}-del-q`}>
               <p id={`${idPrefix}-del-q`} class="record__confirm-q">
-                Delete the agent's copy? Your agent can't continue from it afterwards. Progress on this site stays.
+                Delete your AI's copy? Your AI can't continue from it afterwards. Progress on this site stays.
               </p>
               <div class="record__actions">
                 <button type="button" class="button" onClick={deleteCopy} disabled={busy}>
@@ -208,7 +208,7 @@ export function ImportAgentProgress({ idPrefix = 'import', onDone }: { idPrefix?
             </div>
           ) : (
             <button type="button" class="button button--quiet" onClick={() => setConfirmDelete(true)} disabled={busy}>
-              Delete the agent's copy
+              Delete your AI's copy
             </button>
           )}
         </div>

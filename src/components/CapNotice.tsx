@@ -48,7 +48,7 @@ export function CapNotice({ status }: { status?: AiStatus }) {
       <p class="cap-notice__body">{body}</p>
       {FEATURES.agent && (
         <div class="cap-notice__actions">
-          <a class="button" href="/connect">Continue in your own agent</a>
+          <a class="button" href="/connect">Continue in your own AI</a>
         </div>
       )}
     </div>

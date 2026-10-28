@@ -296,7 +296,7 @@ export function RecordPanel() {
             {state === 'none'
               ? NOT_SAVED
               : state === 'folder'
-                ? 'Your record and theme files are written to the folder you picked, and kept in this browser too.'
+                ? 'Your record and lesson files are written to the folder you picked, and kept in this browser too.'
                 : 'Your progress stays on this device. Nothing about you is sent to us.'}
           </p>
           <p class="record__summary">{summary(record)}</p>
@@ -317,7 +317,7 @@ export function RecordPanel() {
               {view === 'handoff' && handoffLesson && <AgentHandoff lessonId={handoffLesson} lessonTitle={titleOf(handoffLesson)} />}
               {view === 'import' && (
                 <>
-                  <p class="record__confirm-q">Bring back your agent's progress</p>
+                  <p class="record__confirm-q">Bring back your AI's progress</p>
                   <ImportAgentProgress idPrefix="record-import" onDone={goToRestored} />
                 </>
               )}
@@ -366,14 +366,14 @@ export function RecordPanel() {
               )}
               {FEATURES.agent && (
                 <div class="record__agent record__actions record__actions--stack">
-                  <p class="record__agent-title">Your own AI agent</p>
+                  <p class="record__agent-title">Your own AI</p>
                   {handoffLesson && (
                     <button type="button" class="button button--quiet" onClick={() => setView('handoff')}>
-                      Continue in your agent
+                      Continue in your AI
                     </button>
                   )}
                   <button type="button" class="button button--quiet" onClick={() => setView('import')}>
-                    Bring back your agent's progress
+                    Bring back your AI's progress
                   </button>
                 </div>
               )}

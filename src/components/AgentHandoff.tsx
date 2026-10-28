@@ -5,8 +5,8 @@ import { getRecordManager } from '../record/useRecord';
 import { CopyField } from './CopyField';
 import './agent.css';
 
-export const KEEP_PRIVATE = "Keep this handle private. It's the key to your progress in the agent.";
-export const HANDOFF_FAILED = "Couldn't create a handle right now. You can still connect your agent from the Connect page.";
+export const KEEP_PRIVATE = "Keep this handle private. It's the key to your progress in your AI.";
+export const HANDOFF_FAILED = "Couldn't create a handle right now. You can still connect your AI from the Connect page.";
 
 type Handoff = { handle: string; mcpUrl: string; prompt: string };
 
@@ -49,8 +49,8 @@ export function AgentHandoff({ lessonId, lessonTitle }: { lessonId: string; less
 
   return (
     <div class="agent-handoff" aria-busy={state.kind === 'loading'}>
-      <p class="record__confirm-q">Continue “{lessonTitle}” in your agent</p>
-      {state.kind === 'loading' && <p class="record__body">Making a handle for your agent…</p>}
+      <p class="record__confirm-q">Continue “{lessonTitle}” in your AI</p>
+      {state.kind === 'loading' && <p class="record__body">Making a handle for your AI…</p>}
       {state.kind === 'failed' && (
         <p class="record__alert" role="alert">
           {HANDOFF_FAILED}
@@ -67,13 +67,13 @@ export function AgentHandoff({ lessonId, lessonTitle }: { lessonId: string; less
               <p class="agent-handoff__note">{KEEP_PRIVATE}</p>
             </li>
             <li>
-              <CopyField label="Message for your agent" value={state.prompt} multiline />
+              <CopyField label="Message for your AI" value={state.prompt} multiline />
             </li>
           </ol>
         </>
       )}
       <p class="agent-handoff__link">
-        <a href="/connect">Set up your agent</a>
+        <a href="/connect">Set up your AI</a>
       </p>
     </div>
   );

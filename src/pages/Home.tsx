@@ -88,7 +88,7 @@ export function Home() {
               </li>
             </ul>
             <p class="home-note">
-              Already started here? On any lesson, open <b>Your record</b> and choose <b>Continue in your agent</b>. Your AI
+              Already started here? On any lesson, open <b>Your record</b> and choose <b>Continue in your AI</b>. Your AI
               picks up at that lesson, with your files.
             </p>
             <p class="home-note">

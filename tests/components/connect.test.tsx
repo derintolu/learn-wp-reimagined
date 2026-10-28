@@ -69,7 +69,7 @@ describe('/connect', () => {
     const { container } = render(<Connect />);
     for (const n of ['Claude', 'ChatGPT', 'Claude Code', 'Cursor', 'Any MCP client']) expect(screen.getByRole('heading', { level: 3, name: n })).toBeTruthy();
     expect(container.querySelectorAll('img, svg:not(.swipe__mark)').length).toBe(0);
-    expect(screen.getByRole('heading', { level: 1 }).textContent).toBe('Connect your agent');
+    expect(screen.getByRole('heading', { level: 1 }).textContent).toBe('Connect your AI');
   });
 
   it('shows the exact Claude Code command, and Copy writes the connector URL', async () => {
@@ -100,7 +100,7 @@ describe('/connect', () => {
     const before = m.record.current;
     render(<Connect />);
     paste(JSON.stringify(agentAtLesson3()));
-    const box = await screen.findByRole('checkbox', { name: /Use the agent's version: where you are/ });
+    const box = await screen.findByRole('checkbox', { name: /Use your AI's version: where you are/ });
     expect((box as HTMLInputElement).checked).toBe(false);
     fireEvent.click(screen.getByRole('button', { name: 'Bring it back' }));
     expect(await screen.findByText(IMPORT_DONE)).toBeTruthy();
@@ -124,11 +124,11 @@ describe('/connect', () => {
     h.deleteAgentRecord.mockResolvedValue({ ok: true, data: { deleted: true } });
     render(<Connect />);
     paste(HANDLE);
-    fireEvent.click(await screen.findByRole('button', { name: "Delete the agent's copy" }));
+    fireEvent.click(await screen.findByRole('button', { name: "Delete your AI's copy" }));
     expect(h.deleteAgentRecord).not.toHaveBeenCalled();
     fireEvent.click(screen.getByRole('button', { name: 'Yes, delete it' }));
     await waitFor(() => expect(h.deleteAgentRecord).toHaveBeenCalledWith(HANDLE));
-    expect(await screen.findByText("The agent's copy is deleted.")).toBeTruthy();
+    expect(await screen.findByText("Your AI's copy is deleted.")).toBeTruthy();
   });
 
   it('every control has an accessible name', () => {
@@ -140,7 +140,7 @@ describe('/connect', () => {
   });
 });
 
-describe('Your record: Continue in your agent', () => {
+describe('Your record: Continue in your AI', () => {
   const openPanel = async () => {
     history.replaceState(null, '', '/learn/bt-templates-and-parts');
     render(
@@ -157,16 +157,16 @@ describe('Your record: Continue in your agent', () => {
     await m.restore(applyEvent(newRecord(), { type: 'fileEdited', file: 'theme.json', content: '{}' }, content));
     h.startHandoff.mockResolvedValue({ ok: true, data: { handle: HANDLE, mcpUrl: MCP_URL, prompt: agentPrompt(HANDLE) } });
     const dialog = await openPanel();
-    fireEvent.click(within(dialog).getByRole('button', { name: 'Continue in your agent' }));
+    fireEvent.click(within(dialog).getByRole('button', { name: 'Continue in your AI' }));
     expect(await within(dialog).findByText(HANDLE)).toBeTruthy();
     expect(h.startHandoff).toHaveBeenCalledWith('bt-templates-and-parts', { 'theme.json': '{}' });
     expect(within(dialog).getByText(MCP_URL)).toBeTruthy();
     expect(within(dialog).getByText(agentPrompt(HANDLE))).toBeTruthy();
     expect(within(dialog).getByText(KEEP_PRIVATE)).toBeTruthy();
-    expect(within(dialog).getByRole('link', { name: 'Set up your agent' }).getAttribute('href')).toBe('/connect');
+    expect(within(dialog).getByRole('link', { name: 'Set up your AI' }).getAttribute('href')).toBe('/connect');
     // Reopening shows the same handle and makes no second record.
     fireEvent.click(within(dialog).getByRole('button', { name: 'Back' }));
-    fireEvent.click(within(dialog).getByRole('button', { name: 'Continue in your agent' }));
+    fireEvent.click(within(dialog).getByRole('button', { name: 'Continue in your AI' }));
     expect(await within(dialog).findByText(HANDLE)).toBeTruthy();
     expect(h.startHandoff).toHaveBeenCalledTimes(1);
   });
@@ -178,21 +178,21 @@ describe('Your record: Continue in your agent', () => {
     expect(await screen.findByRole('button', { name: 'Bring it back' })).toBeTruthy();
     fireEvent.input(screen.getByLabelText('Record handle or exported JSON'), { target: { value: 'something else' } });
     expect(screen.queryByRole('button', { name: 'Bring it back' })).toBeNull();
-    expect(screen.queryByRole('button', { name: "Delete the agent's copy" })).toBeNull();
+    expect(screen.queryByRole('button', { name: "Delete your AI's copy" })).toBeNull();
   });
 
   it('a failure shows the fallback copy and the /connect link', async () => {
     h.startHandoff.mockResolvedValue({ ok: false, message: 'nope' });
     const dialog = await openPanel();
-    fireEvent.click(within(dialog).getByRole('button', { name: 'Continue in your agent' }));
+    fireEvent.click(within(dialog).getByRole('button', { name: 'Continue in your AI' }));
     expect(await within(dialog).findByText(HANDOFF_FAILED)).toBeTruthy();
-    expect(within(dialog).getByRole('link', { name: 'Set up your agent' })).toBeTruthy();
+    expect(within(dialog).getByRole('link', { name: 'Set up your AI' })).toBeTruthy();
   });
 
   it('Back returns to the menu and Escape closes it and returns focus', async () => {
     h.startHandoff.mockResolvedValue({ ok: false, message: 'nope' });
     const dialog = await openPanel();
-    fireEvent.click(within(dialog).getByRole('button', { name: "Bring back your agent's progress" }));
+    fireEvent.click(within(dialog).getByRole('button', { name: "Bring back your AI's progress" }));
     expect(within(dialog).getByLabelText('Record handle or exported JSON')).toBeTruthy();
     fireEvent.click(within(dialog).getByRole('button', { name: 'Back' }));
     expect(within(dialog).getByRole('button', { name: 'Download record' })).toBeTruthy();

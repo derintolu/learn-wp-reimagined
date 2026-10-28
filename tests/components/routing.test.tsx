@@ -44,7 +44,7 @@ describe('routing', () => {
     ['/finale/learner', 'Where this path ends up', `Finale: Learner · ${SITE}`],
     ['/finale/vibe-coder', 'Where this path ends up', `Finale: Vibe coder · ${SITE}`],
     ['/finale/nope', 'Nothing here', `Page not found · ${SITE}`],
-    ['/connect', 'Connect your agent', `Connect your agent · ${SITE}`],
+    ['/connect', 'Connect your AI', `Connect your AI · ${SITE}`],
     ['/how-it-works', 'How this works', `How this works · ${SITE}`],
     ['/proposal', 'The proposal', `The proposal · ${SITE}`],
     ['/no/such/page', 'Nothing here', `Page not found · ${SITE}`],
