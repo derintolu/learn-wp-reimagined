@@ -198,14 +198,21 @@ describe('/how-it-works', () => {
       'The MCP connector': STATUS.live,
       'Record handles': STATUS.live,
       'The course-xapi-mcp reference server': STATUS.live,
-      'Learning Ledger': STATUS.progress,
-      'The LRS at lrs.sqwrlz.com': STATUS.idle,
+      'Learning Ledger': STATUS.installed,
+      'The LRS at lrs.sqwrlz.com': STATUS.installed,
       'Sensei as the course back end': STATUS.next,
       Badges: STATUS.next,
     });
     expect(text()).toContain(MCP_URL);
     expect(MCP_URL).toBe('https://learnwp.sqwrlz.com/api/mcp');
-    expect(text()).toContain("Learning Ledger isn't installed there yet, so it holds no records");
+    expect(STATUS.installed).toBe('Installed, not connected yet');
+    expect(text()).not.toContain("isn't installed there yet");
+    expect(text()).toContain(
+      "Version 0.1.0 runs on the LRS space at lrs.sqwrlz.com, with the LRS role on and badge signing keys made. The Sensei connector isn't installed on this site yet, and the course server doesn't write to the LRS yet. The public repo is where work continues.",
+    );
+    expect(text()).toContain(
+      "Learning Ledger 0.1.0 runs here as the LRS, and its xAPI endpoint answers. The course server and Sensei aren't connected to it yet, so it holds no course records.",
+    );
   });
 
   it('explains the four custody options in order, and only practice earns no badge', () => {

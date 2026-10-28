@@ -29,6 +29,7 @@ export const STATUS = {
   public: 'Public, not running here',
   progress: 'In progress',
   idle: 'Running, not wired in',
+  installed: 'Installed, not connected yet',
   next: 'Next',
 } as const;
 type StatusKind = keyof typeof STATUS;
@@ -153,7 +154,7 @@ export function HowItWorks() {
     },
     {
       name: 'Learning Ledger',
-      status: official ? 'live' : 'progress',
+      status: official ? 'live' : 'installed',
       body: official ? (
         <>
           The LRS and the Sensei connector are installed and running here, on two installs{final ? ', and so is badge signing' : ''}. The public
@@ -161,14 +162,15 @@ export function HowItWorks() {
         </>
       ) : (
         <>
-          The LRS, the Sensei connector, the cmi5 player and badge signing are in the public repo, and work continues. It
-          isn't installed on either space yet.
+          Version 0.1.0 runs on the LRS space at {LRS_HOST}, with the LRS role on and badge signing keys made. The Sensei
+          connector isn't installed on this site yet, and the course server doesn't write to the LRS yet. The public repo
+          is where work continues.
         </>
       ),
     },
     {
       name: <>The LRS at {LRS_HOST}</>,
-      status: official ? 'live' : 'idle',
+      status: official ? 'live' : 'installed',
       body: official ? (
         FEATURES.agentOnStandard ? (
           <>The course server writes every learning record here, and nothing else does.</>
@@ -177,8 +179,8 @@ export function HowItWorks() {
         )
       ) : (
         <>
-          A WordPress install on its own space, and it answers, but Learning Ledger isn't installed there yet, so it holds
-          no records.
+          Learning Ledger 0.1.0 runs here as the LRS, and its xAPI endpoint answers. The course server and Sensei aren't
+          connected to it yet, so it holds no course records.
         </>
       ),
     },

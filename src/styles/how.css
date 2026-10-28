@@ -24,8 +24,10 @@
 }
 .status--live { --status: var(--outcome-skip); }
 .status--public { --status: var(--wp-blue); }
-.status--progress { --status: var(--outcome-review); }
-.status--progress::before { background: linear-gradient(90deg, var(--status) 50%, transparent 50%); box-shadow: inset 0 0 0 1.5px var(--status); }
+.status--progress,
+.status--installed { --status: var(--outcome-review); }
+.status--progress::before,
+.status--installed::before { background: linear-gradient(90deg, var(--status) 50%, transparent 50%); box-shadow: inset 0 0 0 1.5px var(--status); }
 .status--idle::before,
 .status--next::before { background: transparent; box-shadow: inset 0 0 0 1.5px var(--status); }
 .status--next { border-style: dashed; }
@@ -33,7 +35,8 @@
 .band--dark-2 .status { --status: var(--on-dark-muted); }
 .band--dark-2 .status--live { --status: var(--live); }
 .band--dark-2 .status--public { --status: var(--wp-blue-light); }
-.band--dark-2 .status--progress { --status: var(--warn-on-dark); }
+.band--dark-2 .status--progress,
+.band--dark-2 .status--installed { --status: var(--warn-on-dark); }
 
 .how-status-line { display: flex; flex-wrap: wrap; align-items: center; gap: 0.5rem 0.75rem; }
 
