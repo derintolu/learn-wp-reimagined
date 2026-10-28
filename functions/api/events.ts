@@ -7,7 +7,6 @@ import { rateLimit } from '../_lib/ratelimit';
 import { SERVER_FLAGS } from '../_lib/config';
 import { readSession } from '../_lib/session/session';
 import { decideEvents } from '../_lib/events/decide';
-import { drainAfterDecide } from '../_lib/lrs/outbox';
 import { EVENTS_MAX_BYTES, parseEvents } from '../../src/shared/events';
 
 export const POST: Handler = (req, ctx) =>
@@ -31,8 +30,7 @@ export const POST: Handler = (req, ctx) =>
     if (!parsed.ok) return error(400, 'bad-request', parsed.error);
     const actor = session ? session.actorName : parsed.learnerId;
     try {
-      const results = await decideEvents(env, actor, parsed.events, now, { wpUserId: session?.wpUserId ?? null, session });
-      if (SERVER_FLAGS.lrsShadow && session) await drainAfterDecide(ctx, env, now);
+      const results = await decideEvents(env, actor, parsed.events, now, { wpUserId: session?.wpUserId ?? null, session, handlerCtx: ctx });
       return json({ results });
     } catch (e) {
       console.error('events failed', (e as Error)?.message);

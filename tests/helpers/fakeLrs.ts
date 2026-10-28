@@ -2,11 +2,13 @@ import { LRS_API, LRS_XAPI } from '../../functions/_lib/config';
 
 /**
  * An in-memory stand-in for Learning Ledger's LRS, installed as the global fetch. `down` answers every call 503;
- * `rejectIds` answers 400 to a POST holding one of those statement ids and to a PUT of one.
+ * `hang` never answers (the call ends only when the client's timeout aborts it); `rejectIds` answers 400 to a
+ * POST holding one of those statement ids and to a PUT of one.
  */
 export function fakeLrs() {
   const lrs = {
     down: false,
+    hang: false,
     rejectIds: new Set<string>(),
     statements: [] as any[],
     state: new Map<string, unknown>(),
@@ -18,6 +20,9 @@ export function fakeLrs() {
       const method = init?.method ?? 'GET';
       lrs.calls.push({ method, url });
       if (lrs.down) return new Response(null, { status: 503 });
+      if (lrs.hang) {
+        return new Promise<Response>((_, reject) => init?.signal?.addEventListener('abort', () => reject(new DOMException('aborted', 'AbortError'))));
+      }
       const u = new URL(url);
       if (url.startsWith(`${LRS_XAPI}/activities/state`)) {
         const p = u.searchParams;

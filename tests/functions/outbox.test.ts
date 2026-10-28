@@ -8,7 +8,8 @@ import type { Env } from '../../functions/_lib/env';
 import { POST as events } from '../../functions/api/events';
 import { GET as lrsDrain } from '../../functions/api/lrs-drain';
 import { SESSION_COOKIE, createSession } from '../../functions/_lib/session/session';
-import { BACKOFF_MINUTES, DRAIN_BATCH, drain, enqueue } from '../../functions/_lib/lrs/outbox';
+import { BACKOFF_MINUTES, DEAD_LETTER_AFTER, DRAIN_BATCH, INLINE_DRAIN_BUDGET_MS, drain, enqueue } from '../../functions/_lib/lrs/outbox';
+import { lrsHealth } from '../../functions/_lib/record/registration';
 import { auIdOf } from '../../functions/_lib/record/official';
 import { ADL_VERBS, CMI5, activityIds } from '../../vendor/course-xapi-mcp/core/constants';
 import { checkProfile } from '../../vendor/course-xapi-mcp/core/xapi/profile-check';
@@ -38,10 +39,12 @@ beforeEach(async () => {
   await ensureRecordSchema(db);
   lrs = fakeLrs();
   vi.stubGlobal('fetch', lrs.fetch);
+  lrsHealth.downUntil = 0;
 });
 afterEach(() => {
   SERVER_FLAGS.lrsShadow = false;
   vi.unstubAllGlobals();
+  vi.restoreAllMocks();
 });
 
 describe('outbox', () => {
@@ -91,6 +94,32 @@ describe('outbox', () => {
     expect(lrs.calls).toEqual([]);
   });
 
+  it('rows queued later in a request are due at once, in queue order', async () => {
+    await enqueue(env, [stmt(1)], NOW, 0);
+    await enqueue(env, [stmt(2), stmt(3)], NOW, 1);
+    expect(await drain(env, NOW, 800)).toEqual({ sent: 3, left: 0 });
+    expect(lrs.posts[0].map((s) => s.id)).toEqual([stmt(1).id, stmt(2).id, stmt(3).id]);
+  });
+
+  it('a statement the LRS keeps refusing is dead-lettered, not retried for ever', async () => {
+    const log = vi.spyOn(console, 'error').mockImplementation(() => {});
+    await enqueue(env, [stmt(1)], NOW);
+    lrs.rejectIds.add(stmt(1).id);
+    let t = NOW;
+    for (let i = 1; i < DEAD_LETTER_AFTER; i++) {
+      expect(await drain(env, t, 800)).toEqual({ sent: 0, left: 1 });
+      t = (await rows())[0].next_at;
+    }
+    expect(log).not.toHaveBeenCalled();
+    expect(await drain(env, t, 800)).toEqual({ sent: 0, left: 0 });
+    expect(log).toHaveBeenCalledWith('lrs statement dead-lettered', stmt(1).id, 400);
+    const [r] = await rows();
+    expect(r.attempts).toBe(DEAD_LETTER_AFTER);
+    const posts = lrs.posts.length;
+    expect(await drain(env, t + 365 * 24 * 60 * MIN, 800)).toEqual({ sent: 0, left: 0 });
+    expect(lrs.posts.length).toBe(posts);
+  });
+
   it('a rejected statement does not hold back the rest of its batch', async () => {
     await enqueue(env, [stmt(1), stmt(2), stmt(3)], NOW);
     lrs.rejectIds.add(stmt(2).id);
@@ -127,6 +156,54 @@ describe('POST /api/events with the LRS in shadow', () => {
     const r = await rows();
     expect(r.map((x) => JSON.parse(x.body).verb.id)).toEqual([ADL_VERBS.launched, ADL_VERBS.initialized, ADL_VERBS.completed]);
     expect(r.every((x) => x.attempts === 1)).toBe(true);
+  });
+
+  it('a batch of several events is drained whole after deciding', async () => {
+    SERVER_FLAGS.lrsShadow = true;
+    const cookie = await returningLearner();
+    const res = await post(
+      {
+        learnerId: completed.learnerId,
+        events: [
+          { eventId: 'evt-00000011', type: 'lessonOpened', lessonId: FREE },
+          { eventId: 'evt-00000012', type: 'beatViewed', lessonId: FREE, beatIndex: 0 },
+          { eventId: 'evt-00000013', type: 'lessonCompleted', lessonId: FREE },
+        ],
+      },
+      cookie,
+    );
+    expect(res.status).toBe(200);
+    expect(lrs.statements.map((s) => s.verb.id)).toEqual([ADL_VERBS.launched, ADL_VERBS.initialized, ADL_VERBS.experienced, ADL_VERBS.completed]);
+    expect(await rows()).toEqual([]);
+  });
+
+  it('a hanging LRS: a new learner is answered within the budget, and the LRS is not asked again at once', async () => {
+    SERVER_FLAGS.lrsShadow = true;
+    const { cookie } = await createSession(env, Date.now());
+    const value = cookie.split(';')[0].split('=').slice(1).join('=');
+    lrs.hang = true;
+    const t0 = Date.now();
+    const res = await post(completed, value);
+    expect(Date.now() - t0).toBeLessThan(INLINE_DRAIN_BUDGET_MS + 400);
+    expect(res.status).toBe(200);
+    expect(((await res.json()) as any).results[0]).toMatchObject({ ok: true });
+    expect(await rows()).toEqual([]);
+    const calls = lrs.calls.length;
+    const t1 = Date.now();
+    expect((await post(completed, value)).status).toBe(200);
+    expect(Date.now() - t1).toBeLessThan(300);
+    expect(lrs.calls.length).toBe(calls);
+  });
+
+  it('a hanging LRS: a returning learner is answered within the budget and the rows stay queued', async () => {
+    SERVER_FLAGS.lrsShadow = true;
+    const cookie = await returningLearner();
+    lrs.hang = true;
+    const t0 = Date.now();
+    const res = await post(completed, cookie);
+    expect(Date.now() - t0).toBeLessThan(INLINE_DRAIN_BUDGET_MS + 400);
+    expect(res.status).toBe(200);
+    expect((await rows()).map((x) => JSON.parse(x.body).verb.id)).toEqual([ADL_VERBS.launched, ADL_VERBS.initialized, ADL_VERBS.completed]);
   });
 
   it('LRS up: the statements are posted after deciding and leave the outbox', async () => {

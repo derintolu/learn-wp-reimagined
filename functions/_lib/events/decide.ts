@@ -119,6 +119,11 @@ export interface DecideOptions {
   connector?: Pick<ConnectorClient, 'enrol'>;
   /** The session, which names the official actor (Task 30). */
   session?: Session | null;
+  /**
+   * The route's handler context: with it, the shadow record also drains the LRS outbox after recording
+   * (after the response when the context offers waitUntil, else inline within ruling R22's budget).
+   */
+  handlerCtx?: unknown;
 }
 
 /**
@@ -136,6 +141,6 @@ export async function decideEvents(env: Env, actorName: string, events: ServerEv
       if (path) await ensureEnrolled(env, opts.wpUserId, path, opts.connector, now);
     }
   }
-  if (SERVER_FLAGS.lrsShadow && opts.session) await recordOfficial(env, opts.session, events, out, now);
+  if (SERVER_FLAGS.lrsShadow && opts.session) await recordOfficial(env, opts.session, events, out, now, opts.handlerCtx);
   return out;
 }

@@ -4,14 +4,13 @@
 import type { Env } from '../env';
 import { ensureRecordSchema, isDuplicateKey } from '../db';
 import { getContent } from '../content';
-import { LrsError, LrsUnavailable } from '../lrs/client';
-import { enqueue } from '../lrs/outbox';
+import { INLINE_DRAIN_BUDGET_MS, drainAfterDecide, enqueue } from '../lrs/outbox';
 import type { Session } from '../session/session';
 import type { EventResult, ServerEvent } from '../../../src/shared/events';
 import type { ContentBundle } from '../../../src/shared/types';
 import { ADL_VERBS, CMI5, CXM_EXT, CXM_VERBS, activityIds } from '../../../vendor/course-xapi-mcp/core/constants';
 import type { XapiStatement } from '../../../vendor/course-xapi-mcp/core/xapi/types';
-import { getRegistration } from './registration';
+import { lrsHealth, registrationWithin } from './registration';
 import {
   AU_IDLE_MS,
   PLACEMENT_AU_KEY,
@@ -78,13 +77,36 @@ async function claimOnce(env: Env, actorName: string, s: XapiStatement, eventId:
   }
 }
 
-/** The facts the sent statements state, mapped back to lesson ids. */
-function factsOf(statements: XapiStatement[], bundle: ContentBundle): LearningFact[] {
+/** Lesson ids by their AU publisher id and AU activity id. */
+function lessonsByAu(bundle: ContentBundle): Map<string, string> {
   const byAu = new Map<string, string>();
   for (const id of Object.keys(bundle.lessons)) {
     byAu.set(auIdOf(id), id);
     byAu.set(activityIds.au(auIdOf(id)), id);
   }
+  return byAu;
+}
+
+/**
+ * True when another event already satisfied this AU in the registration, as the standard's isSatisfied reads
+ * it: waived, or completed (moveOn Completed), or completed and passed (CompletedAndPassed). Such a lesson is
+ * not waived again (vendored placement.ts and checkpoint.ts filter skips the same way).
+ */
+async function satisfiedElsewhere(env: Env, actorName: string, auActivity: string, bundle: ContentBundle, eventId: string): Promise<boolean> {
+  const lessonId = lessonsByAu(bundle).get(auActivity);
+  const { results } = await env.DB
+    .prepare('SELECT verb FROM official_outcomes WHERE actor_name = ? AND activity_id = ? AND event_id <> ?')
+    .bind(actorName, auActivity, eventId)
+    .all<{ verb: string }>();
+  const done = new Set(results.map((r) => r.verb));
+  if (done.has('waived')) return true;
+  const needsPass = lessonId !== undefined && !!bundle.lessons[lessonId].checkpoint;
+  return done.has('completed') && (!needsPass || done.has('passed'));
+}
+
+/** The facts the sent statements state, mapped back to lesson ids. */
+function factsOf(statements: XapiStatement[], bundle: ContentBundle): LearningFact[] {
+  const byAu = lessonsByAu(bundle);
   const facts: LearningFact[] = [];
   const add = (iri: unknown, kind: LearningFact['kind']) => {
     const lessonId = typeof iri === 'string' ? byAu.get(iri) : undefined;
@@ -132,7 +154,7 @@ async function officialFor(
   e: ServerEvent,
   r: Extract<EventResult, { ok: true }>,
   now: number,
-  queuedAt: number,
+  seq: number,
 ): Promise<XapiStatement[]> {
   const auKey = e.type === 'placed' ? PLACEMENT_AU_KEY : e.lessonId;
   const closing = e.type === 'lessonLeft';
@@ -142,11 +164,12 @@ async function officialFor(
   for (const row of plan.abandon) out.push(await abandonedStatement(ctx, row));
   if (plan.session) {
     for (const s of await buildOfficial({ ...ctx, auSession: plan.session }, e, r)) {
+      if (isDefined(s) && s.verb.id === ADL_VERBS.waived && (await satisfiedElsewhere(env, actorName, s.object.id, ctx.bundle, e.eventId))) continue;
       if (!isDefined(s) || !ONCE_VERBS.has(s.verb.id) || (await claimOnce(env, actorName, s, e.eventId))) out.push(s);
     }
   }
   // Queue first, then move the session rows: a retry after a failure in between plans the same statements.
-  await enqueue(env, out, queuedAt);
+  await enqueue(env, out, now, seq);
   for (const row of [...plan.abandon, ...plan.end]) await deleteAuSession(env, actorName, row);
   if (plan.session && !closing) {
     if (e.type === 'placed') {
@@ -168,35 +191,40 @@ async function officialFor(
 }
 
 /**
- * Builds, queues and records the official statements for a decided batch. Without a registration (the LRS
- * cannot be reached for a learner it has not seen yet) nothing official is recorded for this batch; any other
- * failure is logged. The studio's answer never depends on this.
+ * Builds, queues and records the official statements for a decided batch, then, given the handler context,
+ * drains the outbox. The registration lookup and the drain share one INLINE_DRAIN_BUDGET_MS budget that starts
+ * here, after deciding (ruling R22). Without a registration (the LRS slow or unreachable for a learner it has
+ * not seen yet) nothing official is recorded for this batch. Any failure is logged; the studio's answer never
+ * depends on this.
  */
-export async function recordOfficial(env: Env, session: Session, events: ServerEvent[], results: EventResult[], now: number): Promise<void> {
+export async function recordOfficial(
+  env: Env,
+  session: Session,
+  events: ServerEvent[],
+  results: EventResult[],
+  now: number,
+  handlerCtx?: unknown,
+): Promise<void> {
+  const deadline = Date.now() + INLINE_DRAIN_BUDGET_MS;
   try {
     await ensureRecordSchema(env.DB);
-    let registration: string;
-    try {
-      registration = await getRegistration(env, session);
-    } catch (e) {
-      if (e instanceof LrsUnavailable || e instanceof LrsError) {
-        console.error('official record skipped: no registration', e.message);
-        return;
+    const registration = await registrationWithin(env, session, deadline);
+    if (registration) {
+      const bundle = getContent();
+      const ctx = { actor: officialActor(session.actorName), registration, bundle };
+      let queued = 0;
+      for (const [i, e] of events.entries()) {
+        const r = results[i];
+        if (!r?.ok) continue;
+        // Queue times stay distinct across the batch, so the drain sends in decision order.
+        const sent = await officialFor(env, ctx, session.actorName, e, r, now, queued);
+        queued += sent.length;
+        for (const fact of factsOf(sent, bundle)) await recordShadowFact(env, session.actorName, fact, now);
       }
-      throw e;
-    }
-    const bundle = getContent();
-    const ctx = { actor: officialActor(session.actorName), registration, bundle };
-    let queued = 0;
-    for (const [i, e] of events.entries()) {
-      const r = results[i];
-      if (!r?.ok) continue;
-      // Queue times stay distinct across the batch, so the drain sends in decision order.
-      const sent = await officialFor(env, ctx, session.actorName, e, r, now, now + queued);
-      queued += sent.length;
-      for (const fact of factsOf(sent, bundle)) await recordShadowFact(env, session.actorName, fact, now);
     }
   } catch (e) {
     console.error('official record failed', (e as Error)?.name, (e as Error)?.message);
   }
+  // Not while the LRS is known to be down: the cron retries the rows.
+  if (handlerCtx !== undefined && Date.now() >= lrsHealth.downUntil) await drainAfterDecide(handlerCtx, env, now, deadline);
 }

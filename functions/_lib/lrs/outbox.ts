@@ -9,8 +9,15 @@ import type { XapiStatement } from '../../../vendor/course-xapi-mcp/core/xapi/ty
 export const DRAIN_BATCH = 50;
 /** Wait before the next try after the 1st, 2nd, 3rd and every later failure. */
 export const BACKOFF_MINUTES = [1, 5, 15, 60] as const;
-/** The inline drain after /api/events (ruling R22); the 5-minute cron takes the rest. */
+/**
+ * What the shadow record may add to /api/events (ruling R22): the registration lookup and the inline drain
+ * share this budget; the 5-minute cron takes the rest.
+ */
 export const INLINE_DRAIN_BUDGET_MS = 800;
+/** A statement the LRS refuses (4xx) is given up after this many attempts and kept, dead-lettered. */
+export const DEAD_LETTER_AFTER = 5;
+/** next_at of a dead-lettered row: never due, not counted as left. */
+export const DEAD_LETTER_AT = Number.MAX_SAFE_INTEGER;
 
 interface Row {
   statement_id: string;
@@ -18,15 +25,18 @@ interface Row {
   attempts: number | string;
 }
 
-/** Queues statements in order. `now` stamps them as created and due. */
-export async function enqueue(env: Env, statements: XapiStatement[], now = Date.now()): Promise<void> {
+/**
+ * Queues statements, due at once (`next_at = now`). `created` orders them for the drain: `now + seq + i`,
+ * so a caller queuing several groups in one request passes the count already queued as `seq`.
+ */
+export async function enqueue(env: Env, statements: XapiStatement[], now = Date.now(), seq = 0): Promise<void> {
   if (statements.length === 0) return;
   await ensureRecordSchema(env.DB);
   for (const [i, s] of statements.entries()) {
     try {
       await env.DB
         .prepare('INSERT INTO lrs_outbox (statement_id, body, created, attempts, next_at) VALUES (?, ?, ?, 0, ?)')
-        .bind(s.id, JSON.stringify(s), now + i, now)
+        .bind(s.id, JSON.stringify(s), now + seq + i, now)
         .run();
     } catch (e) {
       if (!isDuplicateKey(e)) throw e;
@@ -41,6 +51,13 @@ async function remove(env: Env, rows: Row[]): Promise<void> {
     .run();
 }
 
+/** A statement the LRS refused: backed off, or dead-lettered once it has had DEAD_LETTER_AFTER attempts. */
+async function refused(env: Env, r: Row, e: LrsError, now: number): Promise<void> {
+  if (Number(r.attempts) + 1 < DEAD_LETTER_AFTER) return backOff(env, [r], now);
+  console.error('lrs statement dead-lettered', r.statement_id, e.status);
+  await env.DB.prepare('UPDATE lrs_outbox SET attempts = attempts + 1, next_at = ? WHERE statement_id = ?').bind(DEAD_LETTER_AT, r.statement_id).run();
+}
+
 async function backOff(env: Env, rows: Row[], now: number): Promise<void> {
   for (const r of rows) {
     const attempts = Number(r.attempts) + 1;
@@ -51,7 +68,8 @@ async function backOff(env: Env, rows: Row[], now: number): Promise<void> {
 
 /**
  * Sends due rows, oldest first, in batches of DRAIN_BATCH, starting no new batch once `budgetMs` has passed.
- * A batch the LRS refuses (4xx) is retried one statement at a time, so one bad statement holds back only itself.
+ * A batch the LRS refuses (4xx) is retried one statement at a time, so one bad statement holds back only itself;
+ * a statement refused DEAD_LETTER_AFTER times is dead-lettered (kept, never sent again).
  * When the LRS is unavailable the batch backs off and the drain stops. Other errors propagate.
  */
 export async function drain(env: Env, now: number, budgetMs: number): Promise<{ sent: number; left: number }> {
@@ -89,7 +107,7 @@ export async function drain(env: Env, now: number, budgetMs: number): Promise<{ 
           return { sent, left: await count(env) };
         }
         if (!(e instanceof LrsError)) throw e;
-        await backOff(env, [r], now);
+        await refused(env, r, e, now);
       }
     }
   }
@@ -97,7 +115,7 @@ export async function drain(env: Env, now: number, budgetMs: number): Promise<{ 
 }
 
 async function count(env: Env): Promise<number> {
-  const row = await env.DB.prepare('SELECT COUNT(*) AS n FROM lrs_outbox').first<{ n: number | string }>();
+  const row = await env.DB.prepare('SELECT COUNT(*) AS n FROM lrs_outbox WHERE next_at < ?').bind(DEAD_LETTER_AT).first<{ n: number | string }>();
   return Number(row?.n ?? 0);
 }
 
@@ -105,17 +123,19 @@ type WaitUntil = (p: Promise<unknown>) => void;
 
 /**
  * Drains after a request has been decided. When the handler context offers waitUntil (feature-detected on
- * `ctx.ctx` or the context itself, ruling R22) the drain runs after the response; otherwise inline, waiting
- * at most INLINE_DRAIN_BUDGET_MS. A failure is logged, never thrown: the rows stay for the cron.
+ * `ctx.ctx` or the context itself, ruling R22) the drain runs after the response with a full budget;
+ * otherwise inline, waiting no later than `deadline` (the budget shared with the registration lookup).
+ * A failure is logged, never thrown: the rows stay for the cron.
  */
-export async function drainAfterDecide(handlerCtx: unknown, env: Env, now: number): Promise<void> {
-  const run = drain(env, now, INLINE_DRAIN_BUDGET_MS).catch((e) => {
+export async function drainAfterDecide(handlerCtx: unknown, env: Env, now: number, deadline: number): Promise<void> {
+  const c = handlerCtx as { ctx?: { waitUntil?: WaitUntil }; waitUntil?: WaitUntil } | null;
+  const host = typeof c?.ctx?.waitUntil === 'function' ? c.ctx : typeof c?.waitUntil === 'function' ? c : null;
+  const budget = host ? INLINE_DRAIN_BUDGET_MS : Math.max(0, deadline - Date.now());
+  const run = drain(env, now, budget).catch((e) => {
     console.error('lrs drain failed', (e as Error)?.name, (e as Error)?.message);
   });
-  const c = handlerCtx as { ctx?: { waitUntil?: WaitUntil }; waitUntil?: WaitUntil } | null;
-  if (typeof c?.ctx?.waitUntil === 'function') return c.ctx.waitUntil(run);
-  if (typeof c?.waitUntil === 'function') return c.waitUntil(run);
+  if (host) return host.waitUntil!(run);
   let timer: ReturnType<typeof setTimeout> | undefined;
-  await Promise.race([run, new Promise<void>((resolve) => (timer = setTimeout(resolve, INLINE_DRAIN_BUDGET_MS)))]);
+  await Promise.race([run, new Promise<void>((resolve) => (timer = setTimeout(resolve, budget)))]);
   clearTimeout(timer);
 }

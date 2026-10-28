@@ -9,7 +9,7 @@ import { decideEvents } from '../../functions/_lib/events/decide';
 import { deriveStatementId } from '../../functions/_lib/events/ids';
 import { createSession, type Session } from '../../functions/_lib/session/session';
 import { OFFICIAL_COURSE_ID, OFFICIAL_ID_OFFSET, auIdOf, buildOfficial, officialActor, type AuSession } from '../../functions/_lib/record/official';
-import { getRegistration } from '../../functions/_lib/record/registration';
+import { getRegistration, lrsHealth } from '../../functions/_lib/record/registration';
 import { listShadowFacts } from '../../functions/_lib/record/shadow';
 import { importCourseOnNewVersion } from '../../functions/_lib/lrs/import';
 import { parseEvents, type EventResult, type ServerEvent } from '../../src/shared/events';
@@ -64,10 +64,12 @@ beforeEach(async () => {
   await ensureSchema(db);
   lrs = fakeLrs();
   vi.stubGlobal('fetch', lrs.fetch);
+  lrsHealth.downUntil = 0;
 });
 afterEach(() => {
   SERVER_FLAGS.lrsShadow = false;
   vi.unstubAllGlobals();
+  vi.restoreAllMocks();
 });
 
 describe('buildOfficial', () => {
@@ -260,6 +262,23 @@ describe('decide with the LRS in shadow', () => {
     expectConformant(await outbox());
   });
 
+  it('with Sensei enrolment on too: both run, and a slow enrolment does not eat the shadow budget', async () => {
+    SERVER_FLAGS.lrsShadow = true;
+    const { session } = await createSession(env, NOW);
+    SERVER_FLAGS.senseiLearners = true;
+    try {
+      const enrol = vi.fn(() => new Promise<void>((resolve) => setTimeout(resolve, 900)));
+      const p = parseEvents({ learnerId: '3f2b8c1e-5d4a-4e6f-8a9b-0c1d2e3f4a5b', events: [{ eventId: eid(), type: 'lessonCompleted', lessonId: FREE }] });
+      if (!p.ok) throw new Error(p.error);
+      const [r] = await decideEvents(env, session.actorName, p.events, NOW, { wpUserId: 9, connector: { enrol } as any, session });
+      expect(r.ok).toBe(true);
+      expect(enrol).toHaveBeenCalledWith(9, 'block-theme');
+      expect((await outbox()).map(verbOf)).toEqual(['launched', 'initialized', 'completed']);
+    } finally {
+      SERVER_FLAGS.senseiLearners = false;
+    }
+  });
+
   it('no session: nothing official is recorded', async () => {
     SERVER_FLAGS.lrsShadow = true;
     const [r] = (await decide(null, [{ eventId: eid(), type: 'lessonCompleted', lessonId: FREE }])) as any[];
@@ -267,12 +286,58 @@ describe('decide with the LRS in shadow', () => {
     expect(lrs.calls).toEqual([]);
   });
 
-  it('an unreachable LRS with no known registration still answers the event', async () => {
+  it('an unreachable LRS with no known registration still answers the event, and is not asked again at once', async () => {
     SERVER_FLAGS.lrsShadow = true;
     lrs.down = true;
+    const log = vi.spyOn(console, 'error').mockImplementation(() => {});
     const { session } = await createSession(env, NOW);
     const [r] = (await decide(session, [{ eventId: eid(), type: 'lessonCompleted', lessonId: FREE }])) as EventResult[];
     expect(r.ok).toBe(true);
+    const calls = lrs.calls.length;
+    expect(calls).toBeGreaterThan(0);
+    await decide(session, [{ eventId: eid(), type: 'lessonCompleted', lessonId: FREE }]);
+    expect(lrs.calls.length).toBe(calls);
+    expect(await outbox()).toEqual([]);
+    expect(log).not.toHaveBeenCalled();
+  });
+
+  it('a placement never waives a lesson already satisfied', async () => {
+    SERVER_FLAGS.lrsShadow = true;
+    const { session } = await createSession(env, NOW);
+    await decide(session, [
+      { eventId: eid(), type: 'checkpointAnswered', lessonId: FREE, response: 'r', outcome: 'advance' },
+      { eventId: eid(), type: 'lessonCompleted', lessonId: FREE },
+      { eventId: eid(), type: 'placed', placement: { pathId: 'block-theme', startLessonId: 'patterns', skip: [FREE, 'templates-and-parts'], reason: 'Knows it.' } },
+    ]);
+    const waived = (await outbox()).filter((s) => verbOf(s) === 'waived').map((s) => s.object.id);
+    expect(waived).toEqual([activityIds.au(auIdOf('templates-and-parts'))]);
+  });
+
+  it('a skip branch never waives a jumped lesson already satisfied', async () => {
+    SERVER_FLAGS.lrsShadow = true;
+    getContent().lessons[FREE].checkpoint!.branches.find((b) => b.outcome === 'skip')!.to = 'patterns';
+    const { session } = await createSession(env, NOW);
+    const decisionId = crypto.randomUUID();
+    await db.prepare('INSERT INTO decisions (id, lesson_id, outcome, created, used) VALUES (?, ?, ?, ?, 0)').bind(decisionId, FREE, 'skip', NOW).run();
+    const good = { 'theme.json': '{"version":3,"settings":{"color":{"palette":[{"slug":"a"}]}}}' };
+    await decide(session, [
+      { eventId: eid(), type: 'checkpointAnswered', lessonId: 'templates-and-parts', response: 'r', outcome: 'advance', files: good },
+      { eventId: eid(), type: 'lessonCompleted', lessonId: 'templates-and-parts' },
+      { eventId: eid(), type: 'checkpointAnswered', lessonId: FREE, response: 'r', outcome: 'skip', decisionId },
+    ]);
+    const q = await outbox();
+    expect(q.filter((s) => verbOf(s) === 'branched')).toHaveLength(2);
+    expect(q.filter((s) => verbOf(s) === 'waived')).toEqual([]);
+  });
+
+  it('a lesson completed but not yet passed is still waived, as the standard does', async () => {
+    SERVER_FLAGS.lrsShadow = true;
+    const { session } = await createSession(env, NOW);
+    await decide(session, [
+      { eventId: eid(), type: 'lessonCompleted', lessonId: FREE },
+      { eventId: eid(), type: 'placed', placement: { pathId: 'block-theme', startLessonId: 'templates-and-parts', skip: [FREE], reason: 'Knows it.' } },
+    ]);
+    expect((await outbox()).filter((s) => verbOf(s) === 'waived').map((s) => s.object.id)).toEqual([activityIds.au(auIdOf(FREE))]);
   });
 });
 

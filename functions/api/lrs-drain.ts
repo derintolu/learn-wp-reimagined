@@ -6,7 +6,7 @@ import { sameSecret } from '../_lib/guards';
 import { SERVER_FLAGS } from '../_lib/config';
 import { ensureRecordSchema } from '../_lib/db';
 import { drain, enqueue } from '../_lib/lrs/outbox';
-import { abandonedStatement, deleteAuSession, listIdleAuSessions, officialActor } from '../_lib/record/official';
+import { abandonedStatement, listIdleAuSessions, officialActor } from '../_lib/record/official';
 
 /** Leaves headroom under the function time limit; what is left waits for the next run. */
 export const CRON_DRAIN_BUDGET_MS = 20_000;
@@ -24,12 +24,16 @@ export const GET: Handler = async (req, { env }) => {
       .prepare('SELECT registration FROM sessions WHERE actor_name = ? AND registration IS NOT NULL')
       .bind(row.actor_name)
       .first<{ registration: string }>();
+    // Only a session still idle: an event that extended it meanwhile keeps it open.
+    const gone = await env.DB
+      .prepare('DELETE FROM au_sessions WHERE actor_name = ? AND au_key = ? AND session_id = ? AND last = ?')
+      .bind(row.actor_name, row.au_key, row.session_id, row.last)
+      .run();
     // A learner whose sessions are all gone (deleted their data) gets no statement; the row just goes.
-    if (reg) {
+    if (gone.meta.changes === 1 && reg) {
       await enqueue(env, [await abandonedStatement({ actor: officialActor(row.actor_name), registration: reg.registration }, row)], now);
       abandoned++;
     }
-    await deleteAuSession(env, row.actor_name, row);
   }
   return json({ ...(await drain(env, now, CRON_DRAIN_BUDGET_MS)), abandoned });
 };
