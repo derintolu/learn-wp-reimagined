@@ -1,7 +1,8 @@
 // @vitest-environment happy-dom
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { cleanup, fireEvent, render, screen, waitFor } from '@testing-library/preact';
-import { Consent, EXPIRED } from '../../src/pages/Consent';
+import { Consent, EXPIRED, LOAD_FAILED } from '../../src/pages/Consent';
+import { restoreFlags, setFlags } from '../helpers/flags';
 
 const json = (body: unknown, status = 200) =>
   new Response(JSON.stringify(body), { status, headers: { 'content-type': 'application/json' } });
@@ -27,6 +28,7 @@ beforeEach(() => {
 });
 afterEach(() => {
   cleanup();
+  restoreFlags();
   vi.unstubAllGlobals();
   vi.restoreAllMocks();
   history.replaceState(null, '', '/');
@@ -81,5 +83,24 @@ describe('Consent page', () => {
     mount();
     expect(await screen.findByText(EXPIRED)).toBeTruthy();
     expect(fetchMock).not.toHaveBeenCalled();
+  });
+
+  it('agentOnStandard off (today): a server error still reads as expired', async () => {
+    mount({ error: { code: 'internal' } }, 503);
+    expect(await screen.findByText(EXPIRED)).toBeTruthy();
+  });
+
+  it('agentOnStandard on: a server error or no answer is not "expired": it says try again, and Try again asks once more', async () => {
+    setFlags({ agentOnStandard: true });
+    for (const fail of [() => json({ error: { code: 'internal' } }, 503), () => Promise.reject(new Error('offline'))]) {
+      let n = 0;
+      fetchMock.mockImplementation(async () => (++n === 1 ? fail() : json({ clientName: 'Claude', redirectHost: 'claude.ai', hasSession: true })));
+      render(<Consent />);
+      expect(await screen.findByText(LOAD_FAILED)).toBeTruthy();
+      expect(screen.queryByText(EXPIRED)).toBeNull();
+      fireEvent.click(screen.getByRole('button', { name: 'Try again' }));
+      expect(await screen.findByRole('heading', { name: /continue your course as you/ })).toBeTruthy();
+      cleanup();
+    }
   });
 });
