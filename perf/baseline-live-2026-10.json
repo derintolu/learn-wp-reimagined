@@ -1,0 +1,20 @@
+{
+  "baseUrl": "https://learnwp.sqwrlz.com",
+  "lesson": "bt-what-is-a-block-theme",
+  "runs": 5,
+  "statistic": "median",
+  "measuredAt": "2026-10-28T15:48:43Z",
+  "provisional": false,
+  "conditions": "live site v104 (learn-wp-reimagined, Spacefast), AI judge on, phase 2 sessions on; agent-browser CLI from the controller machine",
+  "checkpointPath": "ai",
+  "1440x900": {
+    "lessonOpenMs": 575,
+    "beatAdvanceMs": 5,
+    "checkpointResultMs": 3155
+  },
+  "390x844": {
+    "lessonOpenMs": 600,
+    "beatAdvanceMs": 2,
+    "checkpointResultMs": 2729
+  }
+}
