@@ -34,3 +34,8 @@ export const COST_PER_1000_LEARNERS_USD = 4.97;
 export const SENSEI_VERSION = '4.26.4';
 /** The app-rendered backend view of the block-theme course in Sensei (ruling R13; the course slug is the path id). */
 export const BACKEND_VIEW_PATH = '/backend/block-theme';
+
+/** The host of the LRS, the learning record store Learning Ledger runs as. The pages that name it read it from here. */
+export const LRS_HOST = 'lrs.sqwrlz.com';
+/** Days a learner may be idle before the record is deleted (design 6.4). The pages read it from here. */
+export const RETENTION_DAYS = 180;

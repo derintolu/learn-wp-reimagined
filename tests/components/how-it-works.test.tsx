@@ -5,7 +5,7 @@ import { cleanup, render, screen } from '@testing-library/preact';
 import { HowItWorks, LEDGER_REPO_URL, SPEC, SPEC_REPO_URL, STATUS } from '../../src/pages/HowItWorks';
 import { DIAGRAM_LABEL } from '../../src/pages/HowItWorksDiagram';
 import { FEATURES, REPO_URL } from '../../src/config';
-import { BACKEND_VIEW_PATH, COST_PER_1000_LEARNERS_USD, MCP_URL, SENSEI_VERSION } from '../../src/shared/course-meta';
+import { BACKEND_VIEW_PATH, COST_PER_1000_LEARNERS_USD, LRS_HOST, MCP_URL, RETENTION_DAYS, SENSEI_VERSION } from '../../src/shared/course-meta';
 import { REVIEW_DISCLAIMER } from '../../src/studio/Feed';
 import { ROUTES } from '../../functions/_lib/config';
 import { DAY_CAP_MICROS, MONTH_CAP_MICROS } from '../../functions/_lib/budget';
@@ -364,5 +364,75 @@ describe('/how-it-works with the anonymous-accounts flag', () => {
     flags.senseiLearners = false;
     view();
     expect(text()).not.toContain(enrol);
+  });
+});
+
+describe('/how-it-works with the official-record flag', () => {
+  const flags = FEATURES as { officialRecord: boolean; senseiLearners: boolean; wordpressContent: boolean };
+  const view = () => render(<HowItWorks />);
+  afterEach(() => {
+    flags.officialRecord = false;
+    flags.senseiLearners = false;
+    flags.wordpressContent = false;
+  });
+
+  it('ships off, with the numbers from course-meta', () => {
+    expect(flags.officialRecord).toBe(false);
+    expect(RETENTION_DAYS).toBe(180);
+    expect(LRS_HOST).toBe('lrs.sqwrlz.com');
+  });
+
+  it('off: no where-the-record-lives copy, and the page text is what it was', () => {
+    const before = (view(), text());
+    expect(before).not.toContain('Where your record lives');
+    expect(before).not.toContain('Progress that reaches Sensei');
+    expect(before).not.toContain(`${RETENTION_DAYS} days`);
+    expect(before).not.toContain('A real record, kept in a real LRS');
+  });
+
+  it('on: the approved copy, verbatim, with the numbers read from course-meta', () => {
+    flags.officialRecord = true;
+    view();
+    const t = text();
+    expect(t).toContain(
+      `A real record, kept in a real LRS. Your progress is a set of xAPI statements, the standard format for learning records, under a random ID with no name or email. The official copy is kept in a learning record store at ${LRS_HOST}, a separate WordPress install running the Learning Ledger plugin. Only the course server writes to it.`,
+    );
+    expect(t).toContain("you can't edit it. Your browser keeps a working copy so the lesson stays quick, and your files can also be saved to a folder you pick (in Chromium browsers).");
+    expect(t).toContain(
+      'Progress that reaches Sensei. When you finish a lesson, or skip one by showing you already know it, the record store tells Sensei, which marks the lesson complete. A skipped lesson is marked complete in Sensei and shown as "tested out" in your record menu and in the "What Sensei sees" panel. Sensei\'s own reports only say "Complete". We aim for Sensei to catch up within 30 seconds and have set 90 seconds as the limit; both are targets we are measuring, not a promise.',
+    );
+    expect(t).toContain(
+      `Where your record lives. It lives on our servers under a random ID, in two places: the record store at ${LRS_HOST}, and the Sensei user that tracks your lessons. It holds your steps, the answers you typed to checkpoints in your own words, and the files you edited, because those are what resuming and a future badge need. It holds no email unless you add one, which isn't built yet. A learner with no activity for ${RETENTION_DAYS} days is deleted, and "Delete my data" in the record menu deletes it at once: your steps and files in the record store, your Sensei user and its progress, and any connected agents. "Download my record" gives you a copy first. There is no third-party analytics.`,
+    );
+    expect(t).not.toMatch(/\p{Extended_Pictographic}/u);
+  });
+
+  it('on: has its own heading, and the relay copy is still there', () => {
+    flags.officialRecord = true;
+    const { container } = view();
+    expect(Array.from(container.querySelectorAll('h2')).map((h) => h.textContent)).toContain('Where your record lives');
+    expect(text()).toContain('Record handles');
+  });
+
+  it('on: Sensei and concept lines follow phase 6', () => {
+    flags.officialRecord = true;
+    flags.wordpressContent = true;
+    flags.senseiLearners = true;
+    view();
+    const t = text();
+    expect(t).toContain('Your progress in Sensei is shown in the "What Sensei sees" panel in the studio.');
+    expect(t).toContain("This Sensei is the prototype's own, so your progress here doesn't count on Learn.");
+    expect(t).not.toContain('Your progress does not appear in Sensei yet.');
+    expect(t).toContain('Records from before this change can be brought over once; those lessons show as complete but never count toward a badge.');
+  });
+
+  it('off with the other flags on: phase 4 lines unchanged', () => {
+    flags.wordpressContent = true;
+    flags.senseiLearners = true;
+    view();
+    const t = text();
+    expect(t).toContain('Your progress does not appear in Sensei yet.');
+    expect(t).not.toContain('What Sensei sees');
+    expect(t).not.toContain('Records from before this change');
   });
 });

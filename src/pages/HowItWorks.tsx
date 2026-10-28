@@ -2,14 +2,13 @@ import type { ComponentChildren } from 'preact';
 import { Sticker } from '../components/Sticker';
 import { Swipe } from '../components/Swipe';
 import { FEATURES, REPO_URL } from '../config';
-import { BACKEND_VIEW_PATH, COST_PER_1000_LEARNERS_USD, MCP_URL, SENSEI_VERSION } from '../shared/course-meta';
+import { BACKEND_VIEW_PATH, COST_PER_1000_LEARNERS_USD, LRS_HOST, MCP_URL, RETENTION_DAYS, SENSEI_VERSION } from '../shared/course-meta';
 import { usePageTitle } from '../usePageTitle';
 import { BackendDiagram } from './HowItWorksDiagram';
 import '../styles/how.css';
 
 export const SPEC_REPO_URL = 'https://github.com/derintolu/course-xapi-mcp';
 export const LEDGER_REPO_URL = 'https://github.com/derintolu/learning-ledger';
-export const LRS_HOST = 'lrs.sqwrlz.com';
 
 /** From course-xapi-mcp docs/STATUS.md ("Verified", run 2026-10-27 at commit 3c30d4a). */
 export const SPEC = { draft: '0.2', requirements: 149, tests: 725 };
@@ -94,6 +93,7 @@ export function HowItWorks() {
   usePageTitle('How this works');
   const sensei = FEATURES.wordpressContent;
   const anon = FEATURES.senseiLearners;
+  const official = FEATURES.officialRecord;
 
   const parts: { name: ComponentChildren; status: StatusKind; body: ComponentChildren }[] = [
     {
@@ -169,6 +169,7 @@ export function HowItWorks() {
           <a href={BACKEND_VIEW_PATH}>the backend view</a>
           . That view is Sensei's own page, with no AI and no branching. Take the lesson in the studio.
           {anon && " Sensei enrols you in a path when you start it. Sensei's own pages are the same for everyone and don't show your progress."}
+          {anon && official && ' Your progress in Sensei is shown in the "What Sensei sees" panel in the studio.'}
         </>
       ) : (
         <>
@@ -515,6 +516,35 @@ export function HowItWorks() {
         </p>
       </Band>
 
+      {official && (
+        <Band id="record-title" title={<>Where your <Swipe>record</Swipe> lives</>}>
+          <p>
+            <strong>A real record, kept in a real LRS.</strong> Your progress is a set of xAPI statements, the standard
+            format for learning records, under a random ID with no name or email. The official copy is kept in a learning
+            record store at {LRS_HOST}, a separate WordPress install running the Learning Ledger plugin. Only the course
+            server writes to it. You can read it, download it, and see it on the store's own page from the record menu, but
+            you can't edit it. Your browser keeps a working copy so the lesson stays quick, and your files can also be saved
+            to a folder you pick (in Chromium browsers). The format is <Cite to="src-record">documented in the repo</Cite>.
+          </p>
+          <p>
+            <strong>Progress that reaches Sensei.</strong> When you finish a lesson, or skip one by showing you already know
+            it, the record store tells Sensei, which marks the lesson complete. A skipped lesson is marked complete in Sensei
+            and shown as "tested out" in your record menu and in the "What Sensei sees" panel. Sensei's own reports only say
+            "Complete". We aim for Sensei to catch up within 30 seconds and have set 90 seconds as the limit; both are
+            targets we are measuring, not a promise.
+          </p>
+          <p>
+            <strong>Where your record lives.</strong> It lives on our servers under a random ID, in two places: the record
+            store at {LRS_HOST}, and the Sensei user that tracks your lessons. It holds your steps, the answers you typed to
+            checkpoints in your own words, and the files you edited, because those are what resuming and a future badge need.
+            It holds no email unless you add one, which isn't built yet. A learner with no activity for {RETENTION_DAYS} days
+            is deleted, and "Delete my data" in the record menu deletes it at once: your steps and files in the record
+            store, your Sensei user and its progress, and any connected agents. "Download my record" gives you a copy first.
+            There is no third-party analytics.
+          </p>
+        </Band>
+      )}
+
       <Band id="concept-title" title={<>What's <Swipe>concept</Swipe></>} dark>
         <p>
           <Sticker>unofficial concept</Sticker>
@@ -536,6 +566,7 @@ export function HowItWorks() {
               for you in this prototype's Sensei, so Sensei can enrol you. It has a random ID, no name, no email and no
               password, and you never sign in to it. "Delete my data" in the record menu deletes it. Nothing syncs between
               your devices unless you move the record yourself. Signing in with a WordPress.org account is not built.
+              {official && ' Records from before this change can be brought over once; those lessons show as complete but never count toward a badge.'}
             </li>
           ) : (
             <li>
@@ -547,7 +578,7 @@ export function HowItWorks() {
           <li>
             <strong>It isn't connected to Learn.</strong>{' '}
             {sensei
-              ? "This is not learn.wordpress.org. The Sensei here is the prototype's own install, with the prototype's own lessons, so nothing you do counts toward anything on Learn. Your progress does not appear in Sensei yet."
+              ? `This is not learn.wordpress.org. The Sensei here is the prototype's own install, with the prototype's own lessons, so nothing you do counts toward anything on Learn. ${official ? "This Sensei is the prototype's own, so your progress here doesn't count on Learn." : 'Your progress does not appear in Sensei yet.'}`
               : "Nothing here talks to learn.wordpress.org or Sensei, and progress here doesn't count there."}
           </li>
           <li>

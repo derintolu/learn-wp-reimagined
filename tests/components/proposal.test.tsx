@@ -4,7 +4,7 @@ import { readFileSync } from 'node:fs';
 import { cleanup, render, screen } from '@testing-library/preact';
 import { Proposal } from '../../src/pages/Proposal';
 import { FEATURES, REPO_URL } from '../../src/config';
-import { BACKEND_VIEW_PATH, COST_PER_1000_LEARNERS_USD, SENSEI_VERSION } from '../../src/shared/course-meta';
+import { BACKEND_VIEW_PATH, COST_PER_1000_LEARNERS_USD, LRS_HOST, RETENTION_DAYS, SENSEI_VERSION } from '../../src/shared/course-meta';
 import { REVIEW_DISCLAIMER } from '../../src/studio/Feed';
 import { DAY_CAP_MICROS, MONTH_CAP_MICROS } from '../../functions/_lib/budget';
 import { MCP_TTL_MS } from '../../functions/_lib/mcp/recordStore';
@@ -216,5 +216,60 @@ describe('/proposal with the anonymous-accounts flag', () => {
     expect(t).not.toContain('Phase 2: keep the record with a WordPress.org login');
     expect(t).toContain("In this concept the learner already has an anonymous account that Sensei tracks. What's still open is only the harder step, linking it to a WordPress.org login.");
     expect(t).not.toMatch(/\p{Extended_Pictographic}/u);
+  });
+});
+
+describe('/proposal with the official-record flag', () => {
+  const flags = FEATURES as { officialRecord: boolean; senseiLearners: boolean };
+  afterEach(() => {
+    flags.officialRecord = false;
+    flags.senseiLearners = false;
+  });
+
+  it('ships off', () => {
+    expect(flags.officialRecord).toBe(false);
+  });
+
+  it('off: phases 2 and 3, privacy and decisions unchanged', () => {
+    render(<Proposal />);
+    const t = text();
+    expect(t).toContain('Phase 2: keep the record with a WordPress.org login');
+    expect(t).toContain('Phase 3: Sensei progress');
+    expect(t).toContain('The record lives in the learner\'s browser, or in a folder they pick');
+    expect(t).not.toContain('A separate record store.');
+    expect(t).not.toContain(LRS_HOST);
+    expect(t).not.toContain(`${RETENTION_DAYS} days`);
+  });
+
+  it('on: phases 2 and 3, privacy and the new decision, verbatim, with numbers from course-meta', () => {
+    flags.officialRecord = true;
+    render(<Proposal />);
+    const t = text();
+    expect(t).toContain('Phase 2: the record in a store, not in the browser');
+    expect(t).toContain('Phase 3: Sensei progress');
+    expect(t).toContain("In this concept the learner's record is written by the course server to a separate learning record store, and read back into the studio.");
+    expect(t).toContain('a record under an anonymous ID can\'t be rewritten, so linking it to a profile needs an agreed approach, such as a signed "linked" statement.');
+    expect(t).toContain('with skipped lessons marked complete and recorded as "tested out". Sensei has no REST route for this, so the plugin calls Sensei\'s PHP from inside WordPress.');
+    expect(t).not.toContain('Phase 2: keep the record');
+    expect(t).not.toContain('Once a learner is signed in');
+    expect(t).toContain('The official record is stored on our servers under a random ID, with no name or email. It includes the answers a learner types to checkpoints, in their own words, because the record, and later a badge, link to that evidence.');
+    expect(t).toContain(`It is kept in a separate store at ${LRS_HOST}, owned by the same person, with no third-party analytics.`);
+    expect(t).toContain(`A learner who is idle for ${RETENTION_DAYS} days is deleted.`);
+    expect(t).toContain('A learner can download their record at any time and delete it at any time from the record menu. Deleting removes the statements, files, Sensei user and progress, and connected agents.');
+    expect(t).not.toContain("The record lives in the learner's browser");
+    expect(t).toContain('What a learner types to the AI is sent to the model provider to get a reply.');
+    expect(t).toContain('A separate record store. The official record is kept apart from Sensei and from the learner.');
+    expect(t).toContain('A daily check compares the two and reports any difference.');
+    expect(t).not.toMatch(/\p{Extended_Pictographic}/u);
+  });
+
+  it('on: phase 1 stops saying the record stays in the browser, and the new sources are cited', () => {
+    flags.officialRecord = true;
+    flags.senseiLearners = true;
+    const { container } = render(<Proposal />);
+    expect(text()).not.toContain('Your progress record stays in your browser.');
+    const hrefs = Array.from(container.querySelectorAll('.prose__sources a')).map((a) => a.getAttribute('href'));
+    expect(hrefs).toContain('https://github.com/derintolu/learning-ledger');
+    expect(hrefs.some((h) => h!.endsWith('functions/_lib/lrs'))).toBe(true);
   });
 });
