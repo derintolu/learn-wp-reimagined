@@ -1,11 +1,12 @@
 import { mkdtempSync, readFileSync, rmSync, statSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
+import { chmodSync } from 'node:fs';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
-import { generateKeys } from '../../scripts/keys';
+import { generateKeys, readConnectorEnv } from '../../scripts/keys';
 import { provisionSpaceA } from '../../scripts/provision';
 import { httpSpacefastApi, type SpacefastApi } from '../../scripts/lib/spacefast';
-import type { LedgerStatus } from '../../functions/_lib/ledger/connector';
+import { ConnectorError, ConnectorUnavailable, type LedgerStatus } from '../../functions/_lib/ledger/connector';
 
 const PUB = 'PUBKEYb64PUBKEYb64PUBKEYb64PUBKEYb64PUBKEYb64=';
 const cfg = {
@@ -71,10 +72,27 @@ describe('provisionSpaceA', () => {
     expect(f.installs()).toHaveLength(2);
   });
 
-  it('treats an unreachable status route as nothing installed yet', async () => {
+  it('treats a 404 status route as nothing installed yet', async () => {
     const f = fake();
-    const report = await provisionSpaceA(f.api, async () => { throw new Error('connector down'); }, cfg);
+    const report = await provisionSpaceA(f.api, async () => { throw new ConnectorError(404, 'no route'); }, cfg);
     expect(report.every((s) => s.state === 'done')).toBe(true);
+  });
+
+  it('stops with a failed status step on any other status error, running nothing', async () => {
+    for (const err of [new ConnectorUnavailable('connector signing key is not configured'), new ConnectorError(401, 'bad sig')]) {
+      const f = fake();
+      const report = await provisionSpaceA(f.api, async () => { throw err; }, cfg);
+      expect(report).toEqual([{ name: 'status', state: 'failed' }]);
+      expect(f.calls).toEqual([]);
+    }
+  });
+
+  it('a transport error is a failed step, not "not installed"', async () => {
+    const calls: string[][] = [];
+    const api: SpacefastApi = { async wpCli(_i, a) { calls.push(a); throw new Error('network'); } };
+    const report = await provisionSpaceA(api, async () => EMPTY, cfg);
+    expect(report.map((s) => [s.name, s.state])).toEqual([['sensei', 'failed']]);
+    expect(calls).toEqual([['plugin', 'is-active', 'sensei-lms']]);
   });
 
   it('skips the program step when no program id is given', async () => {
@@ -119,6 +137,22 @@ describe('generateKeys', () => {
     expect(Buffer.from(a.publicKeyB64, 'base64')).toHaveLength(32);
     expect(generateKeys(f).publicKeyB64).toBe(a.publicKeyB64);
     expect(readFileSync(f, 'utf8')).toBe(text);
+  });
+
+  it('tightens an existing 0644 file to 0600 when it writes the key', () => {
+    const f = join(dir, '.env.server');
+    writeFileSync(f, 'ADMIN_TOKEN=x\n');
+    chmodSync(f, 0o644);
+    generateKeys(f);
+    expect(statSync(f).mode & 0o777).toBe(0o600);
+  });
+
+  it('readConnectorEnv returns the file values', () => {
+    const f = join(dir, '.env.server');
+    generateKeys(f);
+    const e = readConnectorEnv(f);
+    expect(e.CONNECTOR_KEY_ID).toBe('course-server');
+    expect(e.CONNECTOR_SIGNING_KEY.length).toBeGreaterThan(20);
   });
 
   it('creates the file when absent and never returns the private key', () => {

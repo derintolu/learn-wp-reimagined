@@ -1,7 +1,10 @@
 // Idempotent Space A provisioning through WP-CLI. Only public values appear in arguments.
 // CLI: npx tsx scripts/provision.ts space-a   (SPACE_A_ID, SPACEFAST_TOKEN, LEDGER_ZIP_URL, BACKEND_VIEW_ZIP_URL,
-// optional PROGRAM_ID from `wp learning-ledger program list`)
-import type { LedgerStatus } from '../functions/_lib/ledger/connector';
+// optional PROGRAM_ID from `wp learning-ledger program list`). Connector key is read from the env file
+// (ENV_FILE, default .env.server). The ledger step is skipped once the plugin reports a version, so a newer
+// zip is never pushed by re-running; reinstall it by hand.
+import { ConnectorError, type LedgerStatus } from '../functions/_lib/ledger/connector';
+import type { Env } from '../functions/_lib/env';
 import { httpSpacefastApi, type SpacefastApi } from './lib/spacefast';
 
 export interface StepReport {
@@ -17,6 +20,8 @@ export interface ProvisionConfig {
   publicKeyB64: string;
   /** Learning Ledger program post id. The plugin pings `<course-server-url>/content-changed`. */
   programId?: number;
+  /** Trusted key id; must match the CONNECTOR_KEY_ID the client signs with. */
+  keyId?: string;
   /** Base the plugin appends `/content-changed` to. */
   pingBase?: string;
 }
@@ -31,9 +36,16 @@ export async function provisionSpaceA(
   status: () => Promise<LedgerStatus>,
   cfg: ProvisionConfig,
 ): Promise<StepReport[]> {
-  const run = (args: string[]) => api.wpCli(cfg.spaceId, args).then((r) => r.ok, () => false);
-  // Before the Ledger plugin is installed the status route does not exist: that means "nothing yet".
-  const read = () => status().catch(() => EMPTY);
+  // A transport error rejects and is reported as a failed step; it is never read as "not installed".
+  const keyId = cfg.keyId ?? KEY_ID;
+  const run = (args: string[]) => api.wpCli(cfg.spaceId, args).then((r) => r.ok);
+  // Before the Ledger plugin is installed its route is a 404, which means "nothing yet". Anything else
+  // (missing key, timeout, 5xx, bad signature) stops the run.
+  const read = () =>
+    status().catch((e: unknown) => {
+      if (e instanceof ConnectorError && e.status === 404) return EMPTY;
+      throw e;
+    });
   const active = (slug: string) => () => run(['plugin', 'is-active', slug]);
 
   interface Step {
@@ -52,23 +64,33 @@ export async function provisionSpaceA(
     // No read-back exists for the permalink structure; setting it again is harmless.
     { name: 'rewrite', args: ['rewrite', 'structure', '/%postname%/'], skip: () => false },
     { name: 'role', args: ['learning-ledger', 'role', 'enable', 'connector'], skip: (s) => s.roles.includes('connector') },
-    { name: 'trust-key', args: ['learning-ledger', 'connector', 'trust-key', `--id=${KEY_ID}`, `--public-key=${cfg.publicKeyB64}`], skip: (s) => s.trustedKeys.includes(KEY_ID) },
+    { name: 'trust-key', args: ['learning-ledger', 'connector', 'trust-key', `--id=${keyId}`, `--public-key=${cfg.publicKeyB64}`], skip: (s) => s.trustedKeys.includes(keyId) },
     cfg.programId === undefined
       ? { name: 'content-ping', skip: () => true, unavailable: true }
       : { name: 'content-ping', args: ['learning-ledger', 'program', 'update', String(cfg.programId), `--course-server-url=${cfg.pingBase ?? PING_BASE}`], skip: () => false },
   ];
 
   const report: StepReport[] = [];
-  let current = await read();
-  for (const step of steps) {
-    if (step.unavailable || (await step.skip(current))) {
-      report.push({ name: step.name, state: 'skipped' });
-      continue;
-    }
-    const ok = await run(step.args!);
-    report.push({ name: step.name, state: ok ? 'done' : 'failed', args: step.args });
-    if (!ok) break;
+  let current: LedgerStatus;
+  try {
     current = await read();
+  } catch {
+    return [{ name: 'status', state: 'failed' }];
+  }
+  for (const step of steps) {
+    try {
+      if (step.unavailable || (await step.skip(current))) {
+        report.push({ name: step.name, state: 'skipped' });
+        continue;
+      }
+      const ok = await run(step.args!);
+      report.push({ name: step.name, state: ok ? 'done' : 'failed', args: step.args });
+      if (!ok) break;
+      current = await read();
+    } catch {
+      report.push({ name: step.name, state: 'failed', args: step.args });
+      break;
+    }
   }
   return report;
 }
@@ -76,16 +98,18 @@ export async function provisionSpaceA(
 async function main(): Promise<void> {
   if (process.argv[2] !== 'space-a') throw new Error('usage: tsx scripts/provision.ts space-a');
   const need = (k: string) => process.env[k] || (() => { throw new Error(`${k} is not set`); })();
-  const { generateKeys } = await import('./keys');
+  const { generateKeys, readConnectorEnv } = await import('./keys');
   const { ConnectorClient } = await import('../functions/_lib/ledger/connector');
-  const { publicKeyB64 } = generateKeys(process.env.ENV_FILE ?? '.env.server');
-  const env = { CONNECTOR_SIGNING_KEY: process.env.CONNECTOR_SIGNING_KEY, CONNECTOR_KEY_ID: process.env.CONNECTOR_KEY_ID };
-  const client = new ConnectorClient(env as never);
+  const envFile = process.env.ENV_FILE ?? '.env.server';
+  const { publicKeyB64 } = generateKeys(envFile);
+  const connectorEnv = readConnectorEnv(envFile);
+  const client = new ConnectorClient(connectorEnv as Env);
   const report = await provisionSpaceA(httpSpacefastApi(need('SPACEFAST_TOKEN')), () => client.status(), {
     spaceId: need('SPACE_A_ID'),
     ledgerZipUrl: need('LEDGER_ZIP_URL'),
     backendViewZipUrl: need('BACKEND_VIEW_ZIP_URL'),
     publicKeyB64,
+    keyId: connectorEnv.CONNECTOR_KEY_ID,
     programId: process.env.PROGRAM_ID ? Number(process.env.PROGRAM_ID) : undefined,
   });
   for (const s of report) console.log(`${s.state.padEnd(8)} ${s.name}`);
