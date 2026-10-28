@@ -16,6 +16,11 @@ import {
 import { applyEvent, newRecord, parseRecord, type LearningRecord } from '../../src/shared/record';
 import { XAPI_BASE, activityId } from '../../src/shared/xapi';
 import { COURSE_ID } from '../../src/shared/course-meta';
+import { getStandardCourse } from '../../functions/_lib/mcp/standardCourse';
+import { PRACTICE_FORMAT, PRACTICE_VERSION, newPracticeHandle, type PracticeRecord } from '../../vendor/course-xapi-mcp/core/practice-record.ts';
+import { PRACTICE_HOMEPAGE, PRACTICE_LABEL } from '../../vendor/course-xapi-mcp/core/constants.ts';
+import * as std from '../../vendor/course-xapi-mcp/core/session/index.ts';
+import type { XapiStatement as StdStatement } from '../../vendor/course-xapi-mcp/core/xapi/types.ts';
 
 const content = buildContent('content');
 const course = buildCourse(content);
@@ -188,5 +193,86 @@ describe('classifyPaste', () => {
     expect(classifyPaste(`  ${h}\n`)).toEqual({ kind: 'handle', handle: h });
     expect(classifyPaste(' {"a":1} ')).toEqual({ kind: 'json', value: { a: 1 } });
     for (const bad of ['{broken', 'hello', '', 'lr_short']) expect(classifyPaste(bad)).toEqual({ kind: 'invalid', message: INVALID_PASTE });
+  });
+});
+
+// ---------------------------------------------------------------------------
+// The same run on the course-xapi-mcp reference server (/api/mcp with SERVER_FLAGS.mcpOnStandard): its
+// practice copy, as /api/agent/record returns it.
+
+function practiceRun(answer = 'style.css and templates/index.html'): PracticeRecord {
+  const c = ctx();
+  const model = getStandardCourse();
+  const actor = { objectType: 'Agent' as const, account: { homePage: PRACTICE_HOMEPAGE, name: '00000000-0000-4000-8000-0000000000aa' } };
+  const env: std.Env = { now: c.now, uuid: c.uuid, actor, custody: 'practice', practice: true };
+  const statements: StdStatement[] = [];
+  const run = <T extends std.Step<object>>(r: T) => {
+    const s = ok(r as std.Step<object>);
+    statements.push(...s.statements);
+    return s;
+  };
+  let s = run(std.startPlacement(model, undefined, env));
+  s = run(std.choosePlacement(model, s.state, { pathKey: 'block-theme', startLessonKey: 'bt-what-is-a-block-theme', skip: [], reason: 'New to themes.' }, env));
+  s = run(std.nextBeat(model, s.state, {}, env));
+  for (let i = 0; i < 20 && (s.data as { step: string }).step === 'beat'; i++) {
+    const q = (s.data as { beat: { question: string | null } }).beat.question;
+    s = run(std.nextBeat(model, s.state, q ? { learner_reply: 'A reply.' } : {}, env));
+  }
+  s = run(std.checkCode(model, s.state, { file: 'theme.json', content: final['theme.json'] }, env));
+  s = run(std.nextBeat(model, s.state, {}, env));
+  s = run(std.submitCheckpoint(model, s.state, { response: answer }, env));
+  s = run(std.chooseBranch(model, s.state, { branch: 'advance', rationale: 'Meets the rubric.' }, env));
+  s = run(std.nextBeat(model, s.state, {}, env));
+  const state = s.state;
+  return {
+    format: PRACTICE_FORMAT,
+    version: PRACTICE_VERSION,
+    official: false,
+    label: PRACTICE_LABEL,
+    courseId: model.id,
+    actor,
+    createdAt: state.createdAt,
+    updatedAt: state.updatedAt,
+    state,
+    statements,
+  };
+}
+
+describe('planImport of a practice copy from the standard', () => {
+  it('imports exactly what the same run on today\'s server imports', () => {
+    const fromLegacy = ok(planImport(newRecord(), agentRun(), content));
+    const fromStandard = ok(planImport(newRecord(), JSON.parse(JSON.stringify(practiceRun())), content));
+    expect(fromStandard.plan.summary).toEqual({ lessons: 1, checkpoints: 1, files: 1 });
+    expect(fromStandard.plan.conflicts).toEqual([]);
+    const a = applyImport(newRecord(), fromLegacy.plan, new Set(), content);
+    const b = applyImport(newRecord(), fromStandard.plan, new Set(), content);
+    const shape = (r: LearningRecord) => ({
+      completedLessons: r.completedLessons,
+      files: r.files,
+      fileLessons: r.fileLessons,
+      current: r.current,
+      placement: r.placement,
+      statements: r.statements.map((s) => [s.verb.id, s.object.id, s.result?.response ?? null, s.result?.success ?? null]),
+    });
+    expect(shape(b)).toEqual(shape(a));
+  });
+
+  it('a practice copy for another course or with a damaged statement is refused with the reason', () => {
+    const other = { ...practiceRun(), courseId: 'https://example.org/course' };
+    const r = planImport(newRecord(), other, content);
+    expect(r.ok).toBe(false);
+    expect(!r.ok && r.error).toContain('another course');
+    const copy = practiceRun();
+    copy.statements[0] = { ...copy.statements[0], actor: { objectType: 'Agent', account: { homePage: PRACTICE_HOMEPAGE, name: 'someone-else' } } };
+    const bad = planImport(newRecord(), copy, content);
+    expect(bad.ok).toBe(false);
+  });
+});
+
+describe('classifyPaste on the standard', () => {
+  it('takes a practice handle as a handle', () => {
+    const h = newPracticeHandle();
+    expect(classifyPaste(` ${h}\n`)).toEqual({ kind: 'handle', handle: h });
+    expect(classifyPaste('cxp_short').kind).toBe('invalid');
   });
 });

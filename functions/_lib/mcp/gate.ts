@@ -4,7 +4,7 @@
 // so the creation and global ceilings stand in for a per-IP limit.
 import type { D1Like, Env } from '../env';
 import { rateLimit } from '../ratelimit';
-import { isHandle } from '../../../vendor/learning-mcp/core/index.ts';
+import { isAnyHandle, legacyForm } from './handles';
 import { handleKey } from './recordStore';
 
 export const MCP_LIMITS = {
@@ -16,7 +16,11 @@ export const MCP_LIMITS = {
 
 export const MCP_GLOBAL_KEY = 'mcp:g';
 export const MCP_CREATE_KEY = 'mcp:new';
-export const mcpHandleKey = async (handle: string) => 'mcp:h:' + (await handleKey(handle)).slice(0, 32);
+/** A handle's bucket. Both forms of one handle (`lr_X`, `cxp_X`) share it, under the key `lr_X` always had. */
+export const mcpHandleKey = async (handle: string) => 'mcp:h:' + (await handleKey(legacyForm(handle))).slice(0, 32);
+
+/** Tool calls that make a new record: today's link_record and fresh start_placement, the standard's resume_practice. */
+const creates = (name: unknown, handle: unknown) => name === 'link_record' || name === 'resume_practice' || (name === 'start_placement' && handle === undefined);
 
 type JsonRpcId = string | number | null;
 
@@ -43,8 +47,8 @@ export function inspectMcpBody(text: string): { messages: number; handles: strin
     const name = msg.params?.name;
     const args = msg.params?.arguments;
     const handle = args && typeof args === 'object' ? args.handle : undefined;
-    if (isHandle(handle)) out.handles.push(handle);
-    if (name === 'link_record' || (name === 'start_placement' && handle === undefined)) out.creates++;
+    if (isAnyHandle(handle)) out.handles.push(handle);
+    if (creates(name, handle)) out.creates++;
   }
   return out;
 }

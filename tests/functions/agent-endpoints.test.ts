@@ -1,6 +1,7 @@
 import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest';
 import { buildContent } from '../../scripts/build-content';
 import { createSqliteD1 } from '../../dev/sqliteD1';
+import { SERVER_FLAGS } from '../../functions/_lib/config';
 import { POST as handoff } from '../../functions/api/agent/handoff';
 import { POST as getRecord } from '../../functions/api/agent/record';
 import { POST as del } from '../../functions/api/agent/delete';
@@ -33,14 +34,18 @@ afterAll(() => {
   vi.restoreAllMocks();
 });
 
+// Today's learning-mcp server: what /api/mcp serves with SERVER_FLAGS.mcpOnStandard off (the rollback).
+// The standard's behaviour is in mcp-standard.test.ts and agent-endpoints-standard.test.ts.
 beforeEach(() => {
   db = createSqliteD1();
   env = { DB: db } as Env;
+  SERVER_FLAGS.mcpOnStandard = false;
 });
 let open: { close(): Promise<void> }[] = [];
 afterEach(async () => {
   await Promise.all(open.map((c) => c.close()));
   open = [];
+  SERVER_FLAGS.mcpOnStandard = true;
 });
 
 describe('POST /api/agent/handoff', () => {

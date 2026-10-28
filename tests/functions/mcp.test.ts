@@ -1,5 +1,6 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { createSqliteD1 } from '../../dev/sqliteD1';
+import { SERVER_FLAGS } from '../../functions/_lib/config';
 import * as route from '../../functions/api/mcp';
 import { GET as status } from '../../functions/api/status';
 import { handleMcp } from '../../functions/_lib/mcp/handler';
@@ -15,13 +16,17 @@ let db: D1Like;
 let env: Env;
 let open: { close(): Promise<void> }[] = [];
 
+// Today's learning-mcp server: what /api/mcp serves with SERVER_FLAGS.mcpOnStandard off (the rollback).
+// The standard's behaviour is in mcp-standard.test.ts and agent-endpoints-standard.test.ts.
 beforeEach(() => {
   db = createSqliteD1();
   env = { DB: db } as Env;
+  SERVER_FLAGS.mcpOnStandard = false;
 });
 afterEach(async () => {
   await Promise.all(open.map((c) => c.close()));
   open = [];
+  SERVER_FLAGS.mcpOnStandard = true;
   vi.restoreAllMocks();
 });
 

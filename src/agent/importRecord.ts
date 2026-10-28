@@ -1,8 +1,11 @@
-// "Bring back your agent's progress": turns an agent's learning-mcp record into the site's own events.
+// "Bring back your agent's progress": turns an agent's learning-mcp record, or a course-xapi-mcp practice copy
+// from /api/mcp on the standard (read through practiceView below), into the site's own events.
 // Pure. The two record formats stay separate (plan B, B4): the site's statements are only ever made by
 // the site's applyEvent, so the agent's statements are read, never copied. Nothing that differs from
 // the site changes without the learner's tick, and the result must pass the site's parseRecord.
 import { EXT, LIMITS, VERBS, isHandle, parseRecord as parseMcpRecord, type LearningRecord as McpRecord } from '../../vendor/learning-mcp/core/index.ts';
+import { CXM_EXT, CXM_VERBS } from '../../vendor/course-xapi-mcp/core/constants.ts';
+import { PRACTICE_FORMAT, isPracticeHandle, parsePracticeRecord, type PracticeRecord } from '../../vendor/course-xapi-mcp/core/practice-record.ts';
 import { COURSE_ACTIVITY_BASE, COURSE_ID } from '../shared/course-meta';
 import { resolveBranch, validatePlacement } from '../shared/engine';
 import { applyEvent, parseRecord, type LearningRecord, type RecordEvent } from '../shared/record';
@@ -16,7 +19,7 @@ export type Paste = { kind: 'handle'; handle: string } | { kind: 'json'; value: 
 
 export function classifyPaste(text: string): Paste {
   const t = text.trim();
-  if (isHandle(t as unknown)) return { kind: 'handle', handle: t };
+  if (isHandle(t as unknown) || isPracticeHandle(t as unknown)) return { kind: 'handle', handle: t };
   if (t.startsWith('{')) {
     try {
       return { kind: 'json', value: JSON.parse(t) };
@@ -81,8 +84,62 @@ function diffPreview(site: string, agent: string): { site: string; agent: string
   return { site: from(a), agent: from(b) };
 }
 
+/** The standard's own verb and extension IRIs that differ from learning-mcp's, as planImport reads them. */
+const STANDARD_VERBS: Record<string, string> = { [CXM_VERBS.branched]: VERBS.branched.id, [CXM_VERBS.caught]: VERBS.caught.id };
+
+/**
+ * A practice copy as the learning-mcp record planImport reads: its course state, and its statements with the
+ * standard's branched and caught verbs and branch extension under learning-mcp's IRIs. Activity IRIs already
+ * match (the standard's course IRI is COURSE_ACTIVITY_BASE). A lesson counts as completed once its moveOn is
+ * met (completed, and passed when it has a checkpoint); the standard's other statements are not read.
+ */
+function practiceView(p: PracticeRecord, content: ContentBundle): McpRecord {
+  const s = p.state;
+  const done = Object.entries(s.au)
+    .filter(([k, a]) => a.completed && (!content.lessons[k]?.checkpoint || a.passed))
+    .map(([k]) => k);
+  const c = s.cursor;
+  const statements = p.statements.map((st) => {
+    const ext = st.result?.extensions;
+    const branch = ext && CXM_EXT.branch in ext ? { [EXT.branch]: ext[CXM_EXT.branch] } : {};
+    return {
+      ...st,
+      verb: { ...st.verb, id: STANDARD_VERBS[st.verb.id] ?? st.verb.id },
+      ...(st.result ? { result: { ...st.result, ...(ext ? { extensions: { ...ext, ...branch } } : {}) } } : {}),
+    };
+  });
+  return {
+    format: 'learning-mcp/record',
+    version: 1,
+    learnerId: p.actor.account.name,
+    createdAt: p.createdAt,
+    updatedAt: p.updatedAt,
+    courses: {
+      [COURSE_ID]: {
+        courseVersion: s.courseVersion,
+        registration: s.registration,
+        ...(s.placement ? { placement: { pathId: s.placement.pathKey, startLessonId: s.placement.startLessonKey, skip: s.placement.skip, reason: s.placement.reason } } : {}),
+        ...(c ? { cursor: { pathId: c.pathKey, lessonId: c.lessonKey, beat: c.beat, phase: c.phase === 'review' ? 'checkpoint' : c.phase } } : {}),
+        completedLessons: done,
+        caughtBugs: [],
+        files: s.files,
+      },
+    },
+    statements: statements as unknown as McpRecord['statements'],
+  };
+}
+
+/** The agent's record: a learning-mcp record, or a practice copy of this course, each checked by its own parser. */
+function readAgentRecord(raw: unknown, content: ContentBundle): { ok: true; record: McpRecord } | { ok: false; error: string } {
+  if (raw !== null && typeof raw === 'object' && (raw as { format?: unknown }).format === PRACTICE_FORMAT) {
+    const p = parsePracticeRecord(raw, COURSE_ACTIVITY_BASE);
+    return p.ok ? { ok: true, record: practiceView(p.record, content) } : p;
+  }
+  return parseMcpRecord(raw);
+}
+
 export function planImport(site: LearningRecord, raw: unknown, content: ContentBundle): { ok: true; plan: ImportPlan } | { ok: false; error: string } {
-  const parsed = parseMcpRecord(raw);
+  const parsed = readAgentRecord(raw, content);
   if (!parsed.ok) return { ok: false, error: parsed.error };
   const rec: McpRecord = parsed.record;
   if (!has(rec.courses, COURSE_ID)) return { ok: false, error: NO_PROGRESS };

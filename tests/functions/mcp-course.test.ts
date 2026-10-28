@@ -2,6 +2,7 @@ import { afterEach, describe, expect, it } from 'vitest';
 import { buildContent } from '../../scripts/build-content';
 import { buildCourse, getCourse, setCourseForTests, toCourse } from '../../functions/_lib/mcp/course';
 import { parseCourse } from '../../vendor/learning-mcp/core/index.ts';
+import { buildStandardCourse } from '../../functions/_lib/mcp/standardCourse';
 import { judgePrompt } from '../../functions/_lib/prompts';
 import { BRANCH_WHEN, COURSE_ACTIVITY_BASE, COURSE_ID } from '../../src/shared/course-meta';
 import type { ContentBundle } from '../../src/shared/types';
@@ -72,5 +73,28 @@ describe('course conversion', () => {
     const bundle = real();
     bundle.lessons['bt-what-is-a-block-theme'].checkpoint!.branches[0].to = 'nowhere';
     expect(() => buildCourse(bundle)).toThrow(/branches/);
+  });
+});
+
+describe('the content as a course-xapi-mcp package (/api/mcp on the standard)', () => {
+  it('loads with the standard loader: same paths, lessons, beats, bugs and checks, practice custody', () => {
+    const bundle = real();
+    const m = buildStandardCourse(bundle);
+    expect(m.id).toBe(COURSE_ACTIVITY_BASE);
+    expect(m.custody).toBe('practice');
+    expect(m.flavour).toBe('authoring');
+    expect(Object.keys(m.paths).sort()).toEqual(Object.keys(bundle.paths).sort());
+    expect(Object.keys(m.lessons).sort()).toEqual(Object.keys(bundle.lessons).sort());
+    for (const l of Object.values(bundle.lessons)) {
+      const ml = m.lessons[l.id];
+      expect(ml.pathKey).toBe(l.pathId);
+      expect(ml.beats.map((b) => b.key)).toEqual(l.beats.map((b) => b.id));
+      expect(ml.starterFiles ?? {}).toEqual(l.starterFiles ?? {});
+      expect(ml.bug?.fixChecks).toEqual(l.bug?.fixChecks);
+      expect(ml.bug?.explanation).toBe(l.bug?.explanation);
+      if (l.bug) expect(ml.bug?.revealAfter).toBe(3);
+      expect(ml.checkpoint?.checks).toEqual(l.checkpoint?.checks);
+      expect(ml.checkpoint?.branches.map((b) => b.key)).toEqual(l.checkpoint?.branches.map((b) => b.outcome));
+    }
   });
 });

@@ -4,7 +4,9 @@
 //
 // Extra request headers (for example an access token for a private space) are read from the JSON file
 // named by $MCP_HEADERS_FILE. Prints only the server name, the tool names and, with --handle-file, the
-// lesson the record continues at. Never prints header values or handles.
+// lesson the record continues at. Never prints header values or handles. Works with both servers /api/mcp
+// can be (SERVER_FLAGS.mcpOnStandard): the course-xapi-mcp reference server and today's learning-mcp one;
+// --export writes the practice copy (standard) or the learning-mcp record.
 import { readFileSync, writeFileSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import { Client, StreamableHTTPClientTransport } from '@modelcontextprotocol/client';
@@ -13,9 +15,9 @@ export async function verifyMcp(
   url: string,
   era: 'legacy' | 'modern',
   headers: Record<string, string>,
-  opts: { handle?: string; exportTo?: string } = {},
+  opts: { handle?: string; exportTo?: string; fetch?: (url: string | URL, init?: RequestInit) => Promise<Response> } = {},
 ): Promise<{ serverName: string; tools: string[]; lessonId?: string }> {
-  const transport = new StreamableHTTPClientTransport(new URL(url), { requestInit: { headers } });
+  const transport = new StreamableHTTPClientTransport(new URL(url), { requestInit: { headers }, ...(opts.fetch ? { fetch: opts.fetch } : {}) });
   const client = new Client(
     { name: 'learn-wp-verify', version: '0.0.0' },
     era === 'modern' ? { versionNegotiation: { mode: { pin: '2026-07-28' } } } : {},
@@ -29,10 +31,12 @@ export async function verifyMcp(
       const start = await call('start_placement', { handle: opts.handle });
       if (start.isError) throw new Error(`start_placement failed: ${start.structuredContent?.error}`);
       const beat = await call('next_beat', { handle: opts.handle });
-      out.lessonId = beat.structuredContent?.lesson?.id;
+      // The standard names a lesson by key, learning-mcp by id.
+      out.lessonId = beat.structuredContent?.lesson?.key ?? beat.structuredContent?.lesson?.id;
       if (opts.exportTo) {
         const rec = await call('get_record', { handle: opts.handle });
-        writeFileSync(opts.exportTo, JSON.stringify(rec.structuredContent.record, null, 2), { mode: 0o600 });
+        const copy = rec.content?.find((c: { type: string }) => c.type === 'resource')?.resource?.text;
+        writeFileSync(opts.exportTo, copy ?? JSON.stringify(rec.structuredContent.record, null, 2), { mode: 0o600 });
       }
     }
     return out;

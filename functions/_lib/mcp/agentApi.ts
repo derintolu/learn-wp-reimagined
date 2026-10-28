@@ -2,11 +2,13 @@
 // Handles are bearer secrets: they are never logged, and errors never echo them.
 import { isHandle } from '../../../vendor/learning-mcp/core/index.ts';
 import type { Env } from '../env';
+import { SERVER_FLAGS } from '../config';
 import { error } from '../http';
 import { HttpError, readJsonCapped } from '../guards';
 import { ensureSchema } from '../db';
 import { rateLimit } from '../ratelimit';
 import { MCP_GLOBAL_KEY, MCP_LIMITS, mcpHandleKey } from './gate';
+import { isAnyHandle } from './handles';
 import { ensureMcpSchema } from './recordStore';
 
 export const BAD_HANDLE = "That doesn't look like a record handle. It starts with lr_.";
@@ -31,11 +33,12 @@ export async function limit(env: Env, key: string, l: { limit: number; windowMs:
   if (!(await rateLimit(env.DB, key, now, l.limit, l.windowMs))) throw new HttpError(429, 'rate-limited', LIMITED);
 }
 
-/** Reads `{ handle }`, checks its shape and applies the global and per-handle limits. */
+/** Reads `{ handle }`, checks its shape and applies the global and per-handle limits. On the standard either format. */
 export async function readHandle(req: Request, env: Env, now: number): Promise<string> {
   const body = await readJsonCapped<{ handle?: unknown }>(req, 1024);
   const handle = typeof body?.handle === 'string' ? body.handle.trim() : body?.handle;
-  if (!isHandle(handle)) throw new HttpError(400, 'bad-handle', BAD_HANDLE);
+  const valid = SERVER_FLAGS.mcpOnStandard ? isAnyHandle : isHandle;
+  if (!valid(handle)) throw new HttpError(400, 'bad-handle', BAD_HANDLE);
   await limit(env, MCP_GLOBAL_KEY, MCP_LIMITS.global, now);
   await limit(env, await mcpHandleKey(handle), MCP_LIMITS.perHandle, now);
   return handle;

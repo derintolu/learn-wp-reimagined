@@ -2,9 +2,11 @@ import { build } from 'esbuild';
 import { beforeEach, describe, expect, it } from 'vitest';
 import { createSqliteD1 } from '../../dev/sqliteD1';
 import { handleMcp } from '../../functions/_lib/mcp/handler';
-import { MCP_LIMITS, TOO_LARGE, TOO_MANY, inspectMcpBody } from '../../functions/_lib/mcp/gate';
+import { MCP_LIMITS, TOO_LARGE, TOO_MANY, inspectMcpBody, mcpHandleKey } from '../../functions/_lib/mcp/gate';
+import { practiceForm } from '../../functions/_lib/mcp/handles';
 import type { D1Like, Env } from '../../functions/_lib/env';
 import { newHandle } from '../../vendor/learning-mcp/core/index.ts';
+import { vendorShimsEsbuild } from '../../scripts/vendor-shims';
 
 let db: D1Like;
 let env: Env;
@@ -90,6 +92,17 @@ describe('MCP gate', () => {
     expect(inspectMcpBody(JSON.stringify(toolCall(1, 'get_record', { handle: 'not-a-handle' }))).handles).toEqual([]);
   });
 
+  it('counts practice handles and resume_practice too; both forms of one handle share its bucket', async () => {
+    const legacy = newHandle();
+    const practice = practiceForm(legacy);
+    expect(practice).toMatch(/^cxp_[A-Za-z0-9_-]{32}$/);
+    expect(
+      inspectMcpBody(JSON.stringify([toolCall(1, 'next_beat', { handle: practice }), toolCall(2, 'resume_practice', { record: '{}' }), toolCall(3, 'start_placement', {})])),
+    ).toEqual({ messages: 3, handles: [practice], creates: 2, ids: [1, 2, 3] });
+    expect(await mcpHandleKey(practice)).toBe(await mcpHandleKey(legacy));
+    expect(await mcpHandleKey(newHandle())).not.toBe(await mcpHandleKey(legacy));
+  });
+
   it('a batch is charged per call: 121 calls on one handle in batches get 429', async () => {
     const h = newHandle();
     const batch = (n: number) => Array.from({ length: n }, (_, i) => toolCall(i, 'get_record', { handle: h }));
@@ -114,9 +127,11 @@ describe('no AI on the MCP path', () => {
       conditions: ['workerd', 'worker', 'browser'],
       outdir: 'out',
       logLevel: 'silent',
+      plugins: [vendorShimsEsbuild()],
     });
     const inputs = Object.keys(r.metafile!.inputs);
     expect(inputs.some((i) => i.includes('vendor/learning-mcp/server/server.ts'))).toBe(true);
+    expect(inputs.some((i) => i.includes('vendor/course-xapi-mcp/server/server.ts'))).toBe(true);
     expect(inputs.filter((i) => /functions\/_lib\/(ai|budget|prompts)\.ts|functions\/_lib\/providers\//.test(i))).toEqual([]);
   });
 });

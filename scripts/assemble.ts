@@ -16,6 +16,7 @@ import { build as esbuild } from 'esbuild';
 import { build as viteBuild } from 'vite';
 import { packCliPlugin, packTheme } from './pack-theme.ts';
 import { zipWpPlugin } from './zip-wp-plugin.ts';
+import { vendorShimsEsbuild } from './vendor-shims.ts';
 
 export const BUNDLE_LIMIT = 8 * 1024 * 1024; // Spacefast compiled bundle limit (docs/functions#limits)
 
@@ -57,6 +58,8 @@ export async function bundleFunctions(srcDir: string, outDir: string): Promise<s
       conditions: ['workerd', 'worker', 'browser'],
       target: 'es2022',
       external: [],
+      // The vendored course-xapi-mcp server's Node built-ins resolve to web shims (scripts/vendor-shims.ts).
+      plugins: [vendorShimsEsbuild()],
       logLevel: 'warning',
     });
     const size = statSync(outfile).size;
@@ -91,11 +94,15 @@ export async function assemble(root: string): Promise<void> {
     cwd: root,
     stdio: 'inherit',
   });
-  // The MCP connector converts the content at runtime; fail the build here if it no longer fits learning-mcp.
+  // The MCP connector converts the content at runtime; fail the build here if it no longer fits learning-mcp
+  // or no longer loads as a course-xapi-mcp package.
   // Imported late: the converter reads src/generated/content.json, which the step above just wrote.
   const { buildContent } = await import('./build-content.ts');
   const { buildCourse } = await import('../functions/_lib/mcp/course.ts');
   buildCourse(buildContent(join(root, 'content')));
+  // And as the course-xapi-mcp package the standard's server loads (SERVER_FLAGS.mcpOnStandard).
+  const { buildStandardCourse } = await import('../functions/_lib/mcp/standardCourse.ts');
+  buildStandardCourse(buildContent(join(root, 'content')));
   await viteBuild({ root, logLevel: 'warn' });
   const dist = join(root, 'dist');
   rmSync(join(dist, 'functions'), { recursive: true, force: true });

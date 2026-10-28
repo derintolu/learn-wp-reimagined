@@ -40,8 +40,12 @@ export const PRICES: Record<string, { inPerM: number; outPerM: number }> = {
   'claude-sonnet-5-5': { inPerM: 2, outPerM: 10 },
 };
 
-/** Server-side behaviour switches. Rollback = set to false and republish. */
-export const SERVER_FLAGS = { serverEvents: true, sessions: true };
+/**
+ * Server-side behaviour switches. Rollback = set to false and republish.
+ * mcpOnStandard: /api/mcp and /api/agent/* on the course-xapi-mcp reference server with practice custody
+ * (Task 45a); off serves today's learning-mcp server. Handles issued by either keep resolving on the standard.
+ */
+export const SERVER_FLAGS = { serverEvents: true, sessions: true, mcpOnStandard: true };
 
 /** Learning Ledger REST base (the plugin's learning-ledger/v1 namespace on the WordPress site). */
 export const LEDGER_BASE = 'https://learnwp.sqwrlz.com/wp-json/learning-ledger/v1';

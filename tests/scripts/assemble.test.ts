@@ -4,6 +4,8 @@ import { join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { afterEach, describe, expect, it } from 'vitest';
 import { BUNDLE_LIMIT, assertNoEnvFiles, bundleFunctions, envFilesIn, routeModules } from '../../scripts/assemble';
+import { getContent } from '../../functions/_lib/content';
+import { connectMcp } from '../helpers/mcpClient';
 
 const API = fileURLToPath(new URL('../../functions/api', import.meta.url));
 
@@ -75,7 +77,40 @@ describe('the MCP connector bundle', () => {
     );
     expect(res.status).toBe(200);
     const text = await res.text();
-    for (const t of ['list_paths', 'start_placement', 'next_beat', 'delete_record']) expect(text).toContain(`"${t}"`);
+    for (const t of ['get_status', 'start_placement', 'next_beat', 'reveal_bug', 'delete_practice_record']) expect(text).toContain(`"${t}"`);
+  });
+
+  it('carries the reference server without its Node-only parts: no Directory stores, private files or badge signing', async () => {
+    const out = tmp();
+    const files = await bundleFunctions(API, out);
+    for (const f of files.filter((x) => /\/(mcp|agent\/\w+)\.js$/.test(x))) {
+      const code = readFileSync(f, 'utf8');
+      for (const gone of ['DirectoryPracticeStore', 'DirectoryServerStore', 'writeFileAtomic', 'digitalbazaar', 'readFileSync', 'gzipSync']) expect(code, `${f}: ${gone}`).not.toContain(gone);
+    }
+  });
+
+  it('the bundled connector runs a code checkpoint with its regex checks (the web shims, not Node)', async () => {
+    const out = tmp();
+    const files = await bundleFunctions(API, out);
+    const mod = await import(files.find((f) => f.endsWith('/mcp.js'))!);
+    const { createSqliteD1 } = await import('../../dev/sqliteD1');
+    const env = { DB: createSqliteD1() };
+    const { client, call } = await connectMcp((req) => mod.POST(req, { params: {}, env }), 'modern');
+    try {
+      const handle = (await call('start_placement')).data.handle as string;
+      expect(handle).toMatch(/^cxp_/);
+      await call('choose_placement', { handle, pathKey: 'block-theme', startLessonKey: 'bt-style-css-and-theme-json', skip: ['bt-what-is-a-block-theme'], reason: 'x' });
+      let r = await call('next_beat', { handle });
+      for (let i = 0; i < 20 && r.data.step === 'beat'; i++) r = await call('next_beat', r.data.beat.question ? { handle, learner_reply: 'Yes.' } : { handle });
+      expect(r.data.step).toBe('checkpoint');
+      const bad = await call('check_code', { handle, file: 'theme.json', content: '{}' });
+      expect(bad.data.passed).toBe(false);
+      const good = await call('check_code', { handle, file: 'theme.json', content: getContent().paths['block-theme'].finalFiles!['theme.json'] });
+      expect(good.data).toMatchObject({ passed: true });
+      expect(good.data.checks.every((c: { passed: boolean }) => c.passed)).toBe(true);
+    } finally {
+      await client.close();
+    }
   });
 });
 
