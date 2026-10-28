@@ -8,6 +8,8 @@ import { ensureSchema } from '../../functions/_lib/db';
 import type { Env } from '../../functions/_lib/env';
 import { POST as events } from '../../functions/api/events';
 import { decideEvents } from '../../functions/_lib/events/decide';
+import { ConnectorError, ConnectorUnavailable } from '../../functions/_lib/ledger/connector';
+import { ENROL_RETRY_MS, enrolHealth } from '../../functions/_lib/session/enrol';
 import { deriveStatementId } from '../../functions/_lib/events/ids';
 import { EVENTS_MAX, EVENTS_MAX_BYTES, parseEvents } from '../../src/shared/events';
 import { EXT_CHOSEN_BY } from '../../src/shared/xapi';
@@ -271,6 +273,7 @@ describe('Sensei enrolment on events', () => {
   };
   afterEach(() => {
     SERVER_FLAGS.senseiLearners = false;
+    enrolHealth.downUntil = 0;
   });
   const rows = async () => (await db.prepare('SELECT wp_user_id, course_key FROM enrolments').all<any>()).results;
 
@@ -300,6 +303,40 @@ describe('Sensei enrolment on events', () => {
     expect(r2.ok).toBe(true);
     expect(enrol).toHaveBeenCalledTimes(2);
     expect(await rows()).toHaveLength(1);
+  });
+
+  it('a slow or down connector costs one enrol attempt per batch, then backs off for a minute', async () => {
+    SERVER_FLAGS.senseiLearners = true;
+    const enrol = vi.fn(async () => {
+      throw new ConnectorUnavailable('timeout');
+    });
+    const lessons = getContent().paths['block-theme'].lessons;
+    const batch = () => Array.from({ length: 10 }, () => ({ eventId: eid(), type: 'beatViewed', lessonId: lessons[0], beatIndex: 0 }));
+    const results = (await run(batch(), enrol)) as any[];
+    expect(results.every((r) => r.ok)).toBe(true);
+    expect(enrol).toHaveBeenCalledTimes(1);
+    // The next batch within the minute does not wait on the connector at all.
+    await run(batch(), enrol);
+    expect(enrol).toHaveBeenCalledTimes(1);
+    expect(await rows()).toEqual([]);
+    // After the minute, the next event tries again.
+    const p = parseEvents({ learnerId: LEARNER, events: batch() });
+    if (!p.ok) throw new Error(p.error);
+    enrol.mockImplementation(async () => {});
+    await decideEvents(env, p.learnerId, p.events, NOW + ENROL_RETRY_MS, { wpUserId: 9, connector: { enrol } as any });
+    expect(enrol).toHaveBeenCalledTimes(2);
+    expect(await rows()).toHaveLength(1);
+  });
+
+  it('a refused enrolment is tried once per batch and path, and again on the next batch', async () => {
+    SERVER_FLAGS.senseiLearners = true;
+    const enrol = vi.fn(async () => {
+      throw new ConnectorError(403, 'refused');
+    });
+    await run([placed('block-theme'), placed('block-theme'), placed('block-theme')], enrol);
+    expect(enrol).toHaveBeenCalledTimes(1);
+    await run([placed('block-theme')], enrol);
+    expect(enrol).toHaveBeenCalledTimes(2);
   });
 
   it('does nothing with the flag off or without a learner', async () => {

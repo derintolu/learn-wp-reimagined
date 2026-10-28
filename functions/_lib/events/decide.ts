@@ -133,13 +133,15 @@ export interface DecideOptions {
  */
 export async function decideEvents(env: Env, actorName: string, events: ServerEvent[], now: number, opts: DecideOptions = {}): Promise<EventResult[]> {
   const out: EventResult[] = [];
+  // Paths whose enrolment failed in this batch: not tried again until the next request.
+  const enrolFailed = new Set<PathId>();
   for (const e of events) {
     // Validation failures are returned as results above; infrastructure errors propagate so the client retries.
     const r = await decideOne(env, actorName, e, now);
     out.push(r);
     if (r.ok && SERVER_FLAGS.senseiLearners && opts.wpUserId != null) {
       const path = pathOf(e);
-      if (path) await ensureEnrolled(env, opts.wpUserId, path, opts.connector, now);
+      if (path && !enrolFailed.has(path) && !(await ensureEnrolled(env, opts.wpUserId, path, opts.connector, now))) enrolFailed.add(path);
     }
   }
   if (SERVER_FLAGS.lrsShadow && opts.session) await recordOfficial(env, opts.session, events, out, now, opts.handlerCtx);
