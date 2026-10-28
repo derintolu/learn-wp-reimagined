@@ -38,6 +38,8 @@ function publish(official: OfficialRecord | null) {
 }
 /** Forget the official record held here, e.g. after the learner's data is deleted. */
 let seq = 0;
+let inflight = 0;
+const notify = () => listeners.forEach((fn) => fn());
 export const clearOfficial = (): void => {
   seq++;
   publish(null);
@@ -49,7 +51,6 @@ export const clearOfficial = (): void => {
  */
 export function useOfficialRecord(active = true): { official: OfficialRecord | null; version: number; loading: boolean; refresh: () => void } {
   const [, force] = useState(0);
-  const [loading, setLoading] = useState(false);
   const [tick, setTick] = useState(0);
   const refresh = useCallback(() => setTick((t) => t + 1), []);
   const on = phaseOn('officialRecord') && active;
@@ -61,11 +62,13 @@ export function useOfficialRecord(active = true): { official: OfficialRecord | n
   useEffect(() => {
     if (!on) return;
     const mine = ++seq;
-    setLoading(true);
+    inflight++;
+    notify();
     fetchOfficial().then((r) => {
-      if (mine !== seq) return; // a newer read, or a delete, has overtaken this one
-      setLoading(false);
-      publish(r);
+      inflight--;
+      // A newer read, or a delete, has overtaken this one: drop its result but still end its loading.
+      if (mine === seq) publish(r);
+      else notify();
     });
   }, [on, tick]);
   useEffect(() => {
@@ -73,5 +76,5 @@ export function useOfficialRecord(active = true): { official: OfficialRecord | n
     window.addEventListener('focus', refresh);
     return () => window.removeEventListener('focus', refresh);
   }, [on, refresh]);
-  return { official: on ? shared.official : null, version: shared.version, loading, refresh };
+  return { official: on ? shared.official : null, version: shared.version, loading: on && inflight > 0, refresh };
 }

@@ -125,6 +125,18 @@ describe('the official record in the record panel', () => {
     expect(screen.queryByText('2 lessons completed, 1 lesson tested out.')).toBeNull();
   });
 
+  it('two concurrent reads (focus and Refresh) leave loading false and the newest data shown', async () => {
+    await openPanel();
+    await screen.findByText('2 lessons completed, 1 lesson tested out.');
+    await waitFor(() => expect(screen.getByRole('button', { name: 'Refresh' }).getAttribute('aria-disabled')).toBeNull());
+    official.completed = [ids[0], ids[1], ids[3]];
+    fireEvent(window, new Event('focus'));
+    fireEvent(window, new Event('focus'));
+    await screen.findByText('3 lessons completed, 1 lesson tested out.');
+    await waitFor(() => expect(screen.getByRole('button', { name: 'Refresh' }).getAttribute('aria-disabled')).toBeNull());
+    official.completed = [ids[0], ids[1]];
+  });
+
   it('is unchanged with the phase off', async () => {
     flags.officialRecord = false;
     const panel = await openPanel();
