@@ -1,19 +1,39 @@
 // @vitest-environment happy-dom
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { BEAT_FLUSH_MS, EventClient } from '../../src/record/eventClient';
+import { resetSession } from '../../src/record/session';
 
 const LEARNER = '11111111-2222-4333-8444-555555555555';
 let fetchMock: ReturnType<typeof vi.fn>;
-const bodyOf = (i: number) => JSON.parse(fetchMock.mock.calls[i][1].body);
+/** Only the /api/events requests: sessions are on, so /api/session requests come first and are not what these tests are about. */
+const eventCalls = () => fetchMock.mock.calls.filter((c) => c[0] === '/api/events');
+const sessionCalls = () => fetchMock.mock.calls.filter((c) => c[0] === '/api/session');
+const bodyOf = (i: number) => JSON.parse(eventCalls()[i][1].body);
+/** Outcomes for the next /api/events requests, in order; anything not listed succeeds. */
+let eventOutcomes: ('ok' | 'offline' | '500')[];
+let sessionMode: 'ok' | 'offline';
 const okResponse = (events: { eventId: string }[]) =>
   ({ ok: true, json: async () => ({ results: events.map((e) => ({ eventId: e.eventId, ok: true, statements: [] })) }) }) as Response;
 
 beforeEach(() => {
   vi.useFakeTimers();
-  fetchMock = vi.fn(async (_u: string, init: RequestInit) => okResponse(JSON.parse(init.body as string).events));
+  resetSession();
+  eventOutcomes = [];
+  sessionMode = 'ok';
+  fetchMock = vi.fn(async (url: string, init: RequestInit) => {
+    if (url === '/api/session') {
+      if (sessionMode === 'offline') throw new Error('offline');
+      return { ok: true, json: async () => ({ actor: { homePage: 'https://learnwp.sqwrlz.com/', name: 'Learner' } }) } as Response;
+    }
+    const outcome = eventOutcomes.shift() ?? 'ok';
+    if (outcome === 'offline') throw new Error('offline');
+    if (outcome === '500') return { ok: false, status: 500 } as Response;
+    return okResponse(JSON.parse(init.body as string).events);
+  });
   vi.stubGlobal('fetch', fetchMock);
 });
 afterEach(() => {
+  resetSession();
   vi.useRealTimers();
   vi.unstubAllGlobals();
 });
@@ -26,7 +46,7 @@ describe('EventClient', () => {
     await vi.advanceTimersByTimeAsync(BEAT_FLUSH_MS - 1);
     expect(fetchMock).not.toHaveBeenCalled();
     await vi.advanceTimersByTimeAsync(1);
-    expect(fetchMock).toHaveBeenCalledTimes(1);
+    expect(eventCalls()).toHaveLength(1);
     const body = bodyOf(0);
     expect(body.learnerId).toBe(LEARNER);
     expect(body.events.map((e: { beatIndex: number }) => e.beatIndex)).toEqual([0, 1]);
@@ -36,9 +56,9 @@ describe('EventClient', () => {
     const c = new EventClient(() => LEARNER);
     c.queueBeat('l1', 0);
     await c.flush();
-    expect(fetchMock).toHaveBeenCalledTimes(1);
+    expect(eventCalls()).toHaveLength(1);
     await vi.advanceTimersByTimeAsync(BEAT_FLUSH_MS * 2);
-    expect(fetchMock).toHaveBeenCalledTimes(1);
+    expect(eventCalls()).toHaveLength(1);
   });
 
   it('pagehide uses sendBeacon', () => {
@@ -56,7 +76,7 @@ describe('EventClient', () => {
     const c = new EventClient(() => LEARNER);
     for (let i = 0; i < 120; i++) c.queueBeat('l1', i);
     await c.flush();
-    expect(fetchMock).toHaveBeenCalledTimes(3);
+    expect(eventCalls()).toHaveLength(3);
     expect(bodyOf(0).events).toHaveLength(50);
     expect(bodyOf(2).events).toHaveLength(20);
   });
@@ -64,7 +84,7 @@ describe('EventClient', () => {
   it('send returns the server result, and null on failure while keeping beats queued with the same ids', async () => {
     const c = new EventClient(() => LEARNER);
     c.queueBeat('l1', 0);
-    fetchMock.mockRejectedValueOnce(new Error('offline'));
+    eventOutcomes = ['offline'];
     expect(await c.send({ type: 'lessonCompleted', lessonId: 'l1' })).toBeNull();
     const firstBeatId = bodyOf(0).events[0].eventId;
     const r = await c.send({ type: 'lessonCompleted', lessonId: 'l1' });
@@ -74,7 +94,7 @@ describe('EventClient', () => {
 
   it('send returns null on a 5xx', async () => {
     const c = new EventClient(() => LEARNER);
-    fetchMock.mockResolvedValueOnce({ ok: false, status: 500 } as Response);
+    eventOutcomes = ['500'];
     expect(await c.send({ type: 'lessonCompleted', lessonId: 'l1' })).toBeNull();
   });
 
@@ -84,7 +104,7 @@ describe('EventClient', () => {
     const c = new EventClient(() => LEARNER);
     c.queueBeat('l1', 0);
     c.queueBeat('l1', 1);
-    fetchMock.mockRejectedValueOnce(new Error('offline'));
+    eventOutcomes = ['offline'];
     await c.flush();
     const failedIds = bodyOf(0).events.map((e: { eventId: string }) => e.eventId);
     window.dispatchEvent(new Event('pagehide'));
@@ -95,10 +115,29 @@ describe('EventClient', () => {
   it('re-arms the flush timer when a failed batch is queued again', async () => {
     const c = new EventClient(() => LEARNER);
     c.queueBeat('l1', 0);
-    fetchMock.mockRejectedValueOnce(new Error('offline'));
+    eventOutcomes = ['offline'];
     await c.flush();
-    expect(fetchMock).toHaveBeenCalledTimes(1);
+    expect(eventCalls()).toHaveLength(1);
     await vi.advanceTimersByTimeAsync(BEAT_FLUSH_MS);
-    expect(fetchMock).toHaveBeenCalledTimes(2);
+    expect(eventCalls()).toHaveLength(2);
+  });
+
+  it('asks the server for the session before the first send, and only once', async () => {
+    const c = new EventClient(() => LEARNER);
+    await c.send({ type: 'lessonCompleted', lessonId: 'l1' });
+    await c.send({ type: 'lessonCompleted', lessonId: 'l2' });
+    expect(sessionCalls().map((x) => x[1].method)).toEqual(['GET']);
+    expect(fetchMock.mock.calls[0][0]).toBe('/api/session');
+    expect(eventCalls()).toHaveLength(2);
+  });
+
+  it('still sends events when the session request fails', async () => {
+    sessionMode = 'offline';
+    const c = new EventClient(() => LEARNER);
+    const r = await c.send({ type: 'lessonCompleted', lessonId: 'l1' });
+    expect(r?.ok).toBe(true);
+    expect(sessionCalls().length).toBeGreaterThan(0);
+    expect(eventCalls()).toHaveLength(1);
+    expect(bodyOf(0).learnerId).toBe(LEARNER);
   });
 });

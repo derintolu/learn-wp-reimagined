@@ -41,7 +41,7 @@ export const PRICES: Record<string, { inPerM: number; outPerM: number }> = {
 };
 
 /** Server-side behaviour switches. Rollback = set to false and republish. */
-export const SERVER_FLAGS = { serverEvents: true, sessions: false };
+export const SERVER_FLAGS = { serverEvents: true, sessions: true };
 
 /** Learning Ledger REST base (the plugin's learning-ledger/v1 namespace on the WordPress site). */
 export const LEDGER_BASE = 'https://learnwp.sqwrlz.com/wp-json/learning-ledger/v1';
