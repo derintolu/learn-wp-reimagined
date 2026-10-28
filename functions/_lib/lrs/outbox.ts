@@ -35,8 +35,8 @@ export async function enqueue(env: Env, statements: XapiStatement[], now = Date.
   for (const [i, s] of statements.entries()) {
     try {
       await env.DB
-        .prepare('INSERT INTO lrs_outbox (statement_id, body, created, attempts, next_at) VALUES (?, ?, ?, 0, ?)')
-        .bind(s.id, JSON.stringify(s), now + seq + i, now)
+        .prepare('INSERT INTO lrs_outbox (statement_id, actor_name, body, created, attempts, next_at) VALUES (?, ?, ?, ?, 0, ?)')
+        .bind(s.id, s.actor?.account?.name ?? null, JSON.stringify(s), now + seq + i, now)
         .run();
     } catch (e) {
       if (!isDuplicateKey(e)) throw e;

@@ -64,12 +64,12 @@ describe('sessions', () => {
     expect(await none.json()).toEqual({ actor: null });
   });
 
-  it('expired cookie is treated as no session and cleared', async () => {
+  it('expired cookie is treated as no session and cleared; the row is left for the retention sweep', async () => {
     const created = await post();
     const value = cookieOf(created);
     const later = Date.now() + SESSION_IDLE_MS + 1000;
     expect(await readSession(withCookie(value), env, later)).toBeNull();
-    expect(await count()).toBe(0);
+    expect(await count()).toBe(1);
     // through the route: row expired by rewriting touched, cookie cleared
     const again = await post(2);
     await db.prepare('UPDATE sessions SET touched = 1').run();

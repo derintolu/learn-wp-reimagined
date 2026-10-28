@@ -81,7 +81,7 @@ const recordReady = new WeakSet<D1Like>();
 export async function ensureRecordSchema(db: D1Like): Promise<void> {
   if (recordReady.has(db)) return;
   await db
-    .prepare('CREATE TABLE IF NOT EXISTS lrs_outbox (statement_id VARCHAR(36) PRIMARY KEY, body TEXT, created BIGINT, attempts INT, next_at BIGINT)')
+    .prepare('CREATE TABLE IF NOT EXISTS lrs_outbox (statement_id VARCHAR(36) PRIMARY KEY, actor_name VARCHAR(64) NULL, body TEXT, created BIGINT, attempts INT, next_at BIGINT)')
     .run();
   await db
     .prepare(

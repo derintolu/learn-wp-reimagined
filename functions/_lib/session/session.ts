@@ -69,10 +69,8 @@ export async function readSession(req: Request, env: Env, now: number): Promise<
     createdAt: Number(row.created),
     touchedAt: Number(row.touched),
   };
-  if (now - session.touchedAt > SESSION_IDLE_MS) {
-    await deleteSession(env, session);
-    return null;
-  }
+  // An over-age session is left for the retention sweep, whose eraseLearner removes it everywhere.
+  if (now - session.touchedAt > SESSION_IDLE_MS) return null;
   if (now - session.touchedAt >= TOUCH_EVERY_MS) {
     await env.DB.prepare('UPDATE sessions SET touched = ? WHERE sid_hash = ?').bind(now, sidHash).run();
     session.touchedAt = now;

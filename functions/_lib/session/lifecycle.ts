@@ -1,11 +1,10 @@
 // "Delete my data" and the 180-day retention sweep (Task 39), plus the Sensei/LRS drift check.
 import type { Env } from '../env';
-import { SERVER_FLAGS, PROGRAM_KEY } from '../config';
-import { ensureRecordSchema } from '../db';
-import { ensureEnrolmentSchema } from '../db';
+import { SERVER_FLAGS } from '../config';
+import { ensureEnrolmentSchema, ensureRecordSchema } from '../db';
 import { LrsClient, LrsError, type Actor } from '../lrs/client';
 import { ConnectorClient, ConnectorError } from '../ledger/connector';
-import { lessonKeysBySenseiId } from '../ledger/lessonIds';
+import { lessonKeyBySenseiId } from '../ledger/lesson-ids';
 import { revokeAllForActor } from '../oauth/store';
 import { officialActor } from '../record/official';
 import { listShadowFacts } from '../record/shadow';
@@ -14,6 +13,8 @@ import { SESSION_IDLE_MS, deleteSession, type Session } from './session';
 import { activityId } from '../../../src/shared/xapi';
 
 export interface DriftReport {
+  /** 'not-configured' when LEDGER_PROGRAM_ID is unset, so an unchecked report is not mistaken for a clean one. */
+  status?: 'not-configured';
   checked: number;
   mismatched: { actor: string; lrsOnly: string[]; senseiOnly: string[] }[];
 }
@@ -32,13 +33,17 @@ export const SWEEP_BUDGET_MS = 20_000;
  */
 export async function eraseLearner(env: Env, s: Session, opts: { revokeBadges: boolean }): Promise<void> {
   if (SERVER_FLAGS.lrsShadow) {
+    // Queued statements and open AU sessions go first, so a drain cannot re-create the actor after the erase.
+    await ensureRecordSchema(env.DB);
+    for (const table of ['lrs_outbox', 'au_sessions']) {
+      await env.DB.prepare(`DELETE FROM ${table} WHERE actor_name = ?`).bind(s.actorName).run();
+    }
     try {
       await new LrsClient(env).eraseActor(lrsActor(s.actorName), opts);
     } catch (e) {
       if (!(e instanceof LrsError && e.status === 404)) throw e;
     }
-    await ensureRecordSchema(env.DB);
-    for (const table of ['shadow_facts', 'au_sessions', 'official_outcomes']) {
+    for (const table of ['shadow_facts', 'official_outcomes']) {
       await env.DB.prepare(`DELETE FROM ${table} WHERE actor_name = ?`).bind(s.actorName).run();
     }
   }
@@ -77,10 +82,10 @@ async function lrsLessons(env: Env, actor: string): Promise<Set<string>> {
   return out;
 }
 
-async function senseiLessons(env: Env, wpUserId: number): Promise<Set<string>> {
-  const keys = lessonKeysBySenseiId(env);
-  const p = await new ConnectorClient(env).progress(wpUserId, PROGRAM_KEY);
-  return new Set([...p.completedLessons, ...p.testedOutLessons].map((id) => keys.get(id) ?? id));
+async function senseiLessons(env: Env, wpUserId: number, programId: string): Promise<Set<string>> {
+  const keys = lessonKeyBySenseiId(env);
+  const p = await new ConnectorClient(env).progress(wpUserId, programId);
+  return new Set([...p.completedLessons, ...p.testedOutLessons].map((id) => keys[id] ?? id));
 }
 
 /**
@@ -91,13 +96,14 @@ async function senseiLessons(env: Env, wpUserId: number): Promise<Set<string>> {
 export async function checkDrift(env: Env, now: number): Promise<DriftReport> {
   const report: DriftReport = { checked: 0, mismatched: [] };
   if (!SERVER_FLAGS.lrsShadow || !SERVER_FLAGS.senseiLearners) return report;
+  if (!env.LEDGER_PROGRAM_ID) return { ...report, status: 'not-configured' };
   const actors = new Set<string>();
   for (const day of [dayOf(now - 86_400_000), dayOf(now)]) for (const a of await listShadowFacts(env, day)) actors.add(a.actor);
   for (const actor of [...actors].sort()) {
     const row = await env.DB.prepare('SELECT wp_user_id FROM sessions WHERE actor_name = ?').bind(actor).first<{ wp_user_id: number | string | null }>();
     if (!row || row.wp_user_id == null) continue;
     try {
-      const [lrs, sensei] = [await lrsLessons(env, actor), await senseiLessons(env, Number(row.wp_user_id))];
+      const [lrs, sensei] = [await lrsLessons(env, actor), await senseiLessons(env, Number(row.wp_user_id), env.LEDGER_PROGRAM_ID)];
       report.checked++;
       const lrsOnly = [...lrs].filter((k) => !sensei.has(k)).sort();
       const senseiOnly = [...sensei].filter((k) => !lrs.has(k)).sort();

@@ -9,6 +9,7 @@ import { ensureOAuthSchema, ensureSchema } from '../db';
 import { HttpError, clientKey, readTextCapped } from '../guards';
 import { LEGACY_XAPI_BASES, XAPI_BASE } from '../../../src/shared/xapi';
 import { b64url, safeEqual } from './pkce';
+import { TOUCH_EVERY_MS } from '../session/session';
 
 export const SCOPE = 'course';
 export const ACCESS_TTL_S = 3600;
@@ -459,5 +460,10 @@ export async function resolveToken(
     .bind(await sha256Hex(m[1]))
     .first<{ actor_name: string; wp_user_id: number | string | null; registration: string | null; expires: number | string }>();
   if (!row || now >= Number(row.expires)) return null;
+  // Using the agent counts as being active: the retention sweep reads sessions.touched (Task 39).
+  await env.DB
+    .prepare('UPDATE sessions SET touched = ? WHERE actor_name = ? AND touched < ?')
+    .bind(now, row.actor_name, now - TOUCH_EVERY_MS)
+    .run();
   return { actor: actorOf(row.actor_name), wpUserId: Number(row.wp_user_id ?? 0), registration: row.registration ?? '' };
 }

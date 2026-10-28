@@ -2,7 +2,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { SERVER_FLAGS } from '../../functions/_lib/config';
 import { LEDGER_BASE, LRS_API, LRS_XAPI } from '../../functions/_lib/config';
 import { createSqliteD1 } from '../../dev/sqliteD1';
-import { ensureSchema, ensureRecordSchema } from '../../functions/_lib/db';
+import { ensureSchema, ensureRecordSchema, ensureOAuthSchema } from '../../functions/_lib/db';
 import type { Env } from '../../functions/_lib/env';
 import { eraseLearner, sweep, latestDrift } from '../../functions/_lib/session/lifecycle';
 import { SESSION_IDLE_MS, type Session } from '../../functions/_lib/session/session';
@@ -11,7 +11,8 @@ import { SESSION_COOKIE } from '../../functions/_lib/session/session';
 import { GET as sweepRoute } from '../../functions/api/sweep';
 import { GET as driftRoute } from '../../functions/api/admin/drift';
 import { recordShadowFact } from '../../functions/_lib/record/shadow';
-import { ensureOAuthSchema } from '../../functions/_lib/db';
+import { enqueue, drain } from '../../functions/_lib/lrs/outbox';
+import { resolveToken, sha256Hex } from '../../functions/_lib/oauth/store';
 import { activityId, XAPI_BASE } from '../../src/shared/xapi';
 
 const SEED_HEX = '9d61b19deffd5a60ba844af492ec2cc44449c5697b326919703bac031cae7f60';
@@ -37,6 +38,7 @@ beforeEach(async () => {
     LRS_KEY: 'a',
     LRS_SECRET: 'b',
     SENSEI_COURSE_IDS: '{"learner":12}',
+    LEDGER_PROGRAM_ID: '9',
     SENSEI_LESSON_IDS: '{"theme-json-basics":101,"block-patterns":102}',
   };
   await ensureSchema(db);
@@ -114,6 +116,51 @@ describe('eraseLearner', () => {
     answer = (m) => (m === 'DELETE' ? new Response('x', { status: 404 }) : undefined);
     await eraseLearner(env, s, { revokeBadges: true });
     expect(await count()).toBe(0);
+  });
+});
+
+describe('erase and the LRS outbox', () => {
+  it('drops the learner queued statements, so a later drain posts nothing for them', async () => {
+    const s = await addSession('abc', null, NOW);
+    const st = (id: string, name: string) =>
+      ({ id, actor: { objectType: 'Agent', account: { homePage: XAPI_BASE, name } }, verb: { id: 'http://x/v' }, object: { id: 'http://x/o' } }) as any;
+    await enqueue(env, [st('00000000-0000-4000-8000-000000000001', 'abc'), st('00000000-0000-4000-8000-000000000002', 'other')], NOW);
+    await eraseLearner(env, s, { revokeBadges: true });
+    calls.length = 0;
+    await drain(env, NOW + 1, 5000);
+    const posts = calls.filter((c) => c.url === `${LRS_XAPI}/statements` && c.method === 'POST');
+    expect(posts).toHaveLength(1);
+    expect(posts[0].body).toContain('other');
+    expect(posts[0].body).not.toContain('"abc"');
+  });
+});
+
+describe('agent activity keeps a learner', () => {
+  const TOKEN = 'T'.repeat(43);
+  const tokenRow = async (name: string) => {
+    await ensureOAuthSchema(db);
+    await db
+      .prepare('INSERT INTO oauth_tokens (token_hash, kind, family_id, client_id, actor_name, wp_user_id, registration, created, expires, used) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, 0)')
+      .bind(await sha256Hex(TOKEN), 'access', 'f', 'c', name, 1, 'r', NOW, NOW + 3_600_000)
+      .run();
+  };
+  const use = (now: number) => resolveToken(env, new Request('http://x/mcp', { headers: { authorization: `Bearer ${TOKEN}` } }), now);
+
+  it('a successful token use refreshes the session, so the sweep keeps that learner', async () => {
+    await addSession('agent', 5, NOW - SESSION_IDLE_MS - 10 * DAY);
+    await addSession('gone', 6, NOW - SESSION_IDLE_MS - 10 * DAY);
+    await tokenRow('agent');
+    expect(await use(NOW)).not.toBeNull();
+    const r = await sweep(env, NOW);
+    expect(r.expired).toBe(1);
+    expect((await db.prepare('SELECT actor_name FROM sessions').first<any>()).actor_name).toBe('agent');
+  });
+
+  it('a failed token use does not refresh the session', async () => {
+    await addSession('agent', 5, NOW - SESSION_IDLE_MS - 10 * DAY);
+    await tokenRow('agent');
+    expect(await use(NOW + 4_000_000)).toBeNull();
+    expect((await sweep(env, NOW + 4_000_000)).expired).toBe(1);
   });
 });
 
@@ -201,6 +248,20 @@ describe('drift', () => {
     expect((await sweep(env, NOW)).drift.mismatched).toEqual([{ actor: 'abc', lrsOnly: [], senseiOnly: ['theme-json-basics'] }]);
     wire([lrsStatement('theme-json-basics', 'completed')], { completed: [101], tested_out: [] });
     expect((await sweep(env, NOW)).drift).toEqual({ checked: 1, mismatched: [] });
+  });
+
+  it('says not configured, not checked 0, without LEDGER_PROGRAM_ID', async () => {
+    delete env.LEDGER_PROGRAM_ID;
+    await recordShadowFact(env, 'abc', { lessonId: 'theme-json-basics', kind: 'completed' }, NOW);
+    expect((await sweep(env, NOW)).drift).toEqual({ checked: 0, mismatched: [], status: 'not-configured' });
+  });
+
+  it('asks the ledger for the configured program', async () => {
+    await addSession('abc', 77, NOW - DAY);
+    await recordShadowFact(env, 'abc', { lessonId: 'theme-json-basics', kind: 'completed' }, NOW);
+    wire([], { completed: [], tested_out: [] });
+    await sweep(env, NOW);
+    expect(calls.find((c) => c.url.includes('/progress'))!.url).toContain('program=9');
   });
 
   it('checks nothing with the Sensei or LRS flag off', async () => {
