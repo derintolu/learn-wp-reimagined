@@ -8,6 +8,9 @@ import type { D1Like, Env } from '../../functions/_lib/env';
 import { newHandle } from '../../vendor/learning-mcp/core/index.ts';
 import { vendorShimsEsbuild } from '../../scripts/vendor-shims';
 
+// Each loop test makes 60 to 121 sequential MCP requests (about 1 s alone); under parallel load that is several times slower.
+const LOOP_TIMEOUT = 60_000;
+
 let db: D1Like;
 let env: Env;
 let t: number;
@@ -50,7 +53,7 @@ describe('MCP gate', () => {
     expect((await rpc(toolCall(1, 'get_record', { handle: newHandle() }))).status).toBe(200);
     t += MCP_LIMITS.perHandle.windowMs;
     expect((await rpc(toolCall(1, 'get_record', { handle: h }))).status).toBe(200);
-  });
+  }, LOOP_TIMEOUT);
 
   it('the 61st record creation gets 429', async () => {
     for (let i = 0; i < MCP_LIMITS.create.limit; i++) expect((await rpc(toolCall(i, 'start_placement', {}))).status).toBe(200);
@@ -58,7 +61,7 @@ describe('MCP gate', () => {
     expect((await rpc(toolCall(62, 'link_record', { record: '{}' }))).status).toBe(429);
     const rows = await db.prepare('SELECT COUNT(*) AS n FROM mcp_records').first<{ n: number }>();
     expect(Number(rows!.n)).toBe(MCP_LIMITS.create.limit);
-  });
+  }, LOOP_TIMEOUT);
 
   it('the global ceiling holds', async () => {
     await db.prepare('CREATE TABLE IF NOT EXISTS hits (k VARCHAR(80) PRIMARY KEY, window_start BIGINT, n INT)').run();
@@ -71,7 +74,7 @@ describe('MCP gate', () => {
     const { results } = await db.prepare('SELECT k FROM hits').all<{ k: string }>();
     expect(results.length).toBeGreaterThan(1);
     for (const { k } of results) expect(k.startsWith('mcp:')).toBe(true);
-  });
+  }, LOOP_TIMEOUT);
 
   it('inspectMcpBody finds handles and creations in a batch and ignores invalid JSON', () => {
     const a = newHandle();
@@ -111,7 +114,7 @@ describe('MCP gate', () => {
     expect((await rpc(batch(1))).status).toBe(429);
     const g = await db.prepare("SELECT n FROM hits WHERE k = 'mcp:g'").first<{ n: number }>();
     expect(Number(g!.n)).toBe(121);
-  });
+  }, LOOP_TIMEOUT);
 });
 
 describe('no AI on the MCP path', () => {

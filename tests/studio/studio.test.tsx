@@ -397,10 +397,11 @@ describe('Studio', () => {
   it('after the last section, focus lands on the checkpoint question', async () => {
     use(at('templates-and-parts', 1));
     open('/learn/templates-and-parts');
-    await new Promise((res) => setTimeout(res, 30));
+    // Wait for the lazy code editor to finish mounting, not a fixed delay: when it lands late it re-renders the pane and drops focus.
+    await screen.findByRole('textbox', { name: /theme\.json/ });
     fireEvent.click(await screen.findByRole('button', { name: /checkpoint/i }));
     await screen.findByRole('region', { name: /Checkpoint/ });
-    await waitFor(() => expect(document.activeElement).toBe(document.getElementById('cp-q-templates-and-parts')));
+    await waitFor(() => expect(document.activeElement).toBe(document.getElementById('cp-q-templates-and-parts')), { timeout: 5000 });
   });
 
   it('the code checkpoint editor is described by its question', async () => {
