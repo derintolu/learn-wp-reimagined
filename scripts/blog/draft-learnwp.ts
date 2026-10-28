@@ -5,17 +5,21 @@
 // It never publishes: Derin reviews and publishes in wp-admin. A remote WP-CLI run reports only
 // success or failure, so this can't see whether the draft already exists; running it twice makes
 // two drafts. No secrets cross WP-CLI here: the arguments are the post's own text.
+//
+// A remote WP-CLI argument holds at most 4,096 characters (spacefast.com/docs/wordpress), so a
+// post body longer than that can't go through `post create` in one argument; draftArgs refuses it.
 import { execFileSync } from 'node:child_process';
 import { readFileSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import { parsePost, toBlocks } from './markdown.ts';
 
 export const SPACE = 'learn-wp-reimagined';
+export const MAX_ARG = 4096;
 
 /** The `wp` arguments for one draft post. */
 export function draftArgs(source: string, author: number): string[] {
   const post = parsePost(source);
-  return [
+  const args = [
     'post',
     'create',
     '--post_type=post',
@@ -26,6 +30,9 @@ export function draftArgs(source: string, author: number): string[] {
     `--post_excerpt=${post.excerpt}`,
     `--post_content=${toBlocks(post.body)}`,
   ];
+  const long = args.find((a) => a.length > MAX_ARG);
+  if (long) throw new Error(`${long.split('=')[0]} is ${long.length} characters; remote WP-CLI takes at most ${MAX_ARG} per argument`);
+  return args;
 }
 
 function main(argv: string[]): void {

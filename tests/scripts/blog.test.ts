@@ -71,6 +71,10 @@ describe('draftArgs', () => {
     expect(args).toContain('--post_author=2');
     expect(args).toContain('--post_name=a-post');
   });
+  it('refuses a body over the 4,096-character WP-CLI argument limit', () => {
+    const long = POST.replace('Same paragraph.', 'x'.repeat(5000));
+    expect(() => draftArgs(long, 2)).toThrow(/--post_content is \d+ characters/);
+  });
 });
 
 describe('cross-post', () => {
