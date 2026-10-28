@@ -1,0 +1,5 @@
+.consent__wrap { max-width: 40rem; }
+.consent__title { font-size: var(--step-3, 2rem); outline: none; overflow-wrap: anywhere; }
+.consent__host { color: var(--ink-muted, inherit); overflow-wrap: anywhere; }
+.consent__problem { font-weight: 600; }
+.consent__actions { display: flex; flex-wrap: wrap; gap: 0.75rem; margin-top: 1.5rem; }
