@@ -105,7 +105,7 @@ async function satisfiedElsewhere(env: Env, actorName: string, auActivity: strin
 }
 
 /** The facts the sent statements state, mapped back to lesson ids. */
-function factsOf(statements: XapiStatement[], bundle: ContentBundle): LearningFact[] {
+export function factsOf(statements: XapiStatement[], bundle: ContentBundle): LearningFact[] {
   const byAu = lessonsByAu(bundle);
   const facts: LearningFact[] = [];
   const add = (iri: unknown, kind: LearningFact['kind']) => {
