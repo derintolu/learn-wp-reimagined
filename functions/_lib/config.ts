@@ -46,3 +46,6 @@ export const SERVER_FLAGS = { serverEvents: true, sessions: false };
 /** Learning Ledger REST base (the plugin's learning-ledger/v1 namespace on the WordPress site). */
 export const LEDGER_BASE = 'https://learnwp.sqwrlz.com/wp-json/learning-ledger/v1';
 export const PROGRAM_KEY = 'learn-wp-reimagined';
+/** Learning Ledger LRS (lrs.sqwrlz.com): the xAPI endpoint and the REST API for courses, links, badges and erasure. */
+export const LRS_XAPI = 'https://lrs.sqwrlz.com/wp-json/learning-ledger/xapi';
+export const LRS_API = 'https://lrs.sqwrlz.com/wp-json/learning-ledger/v1';

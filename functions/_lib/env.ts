@@ -28,6 +28,9 @@ export interface Env {
   CONNECTOR_KEY_ID?: string;
   /** Ledger's ping public key (raw 32 bytes, base64). */
   CONNECTOR_PING_PUBLIC_KEY?: string;
+  /** Learning Ledger LRS client key and secret (HTTP Basic); the LRS client is unavailable without both. */
+  LRS_KEY?: string;
+  LRS_SECRET?: string;
 }
 
 export type Handler = (
