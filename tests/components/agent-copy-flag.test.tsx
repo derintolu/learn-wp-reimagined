@@ -30,10 +30,10 @@ describe('Home', () => {
     expect(container.querySelector('a[href="/connect#import"]')).toBeNull();
   });
   it('promises the files in the AI only on the handle path, which carries them', () => {
-    expect(body(render(<Home />).container)).toContain('Your AI picks up at that lesson, with your files.');
+    expect(body(render(<Home />).container as HTMLElement)).toContain('Your AI picks up at that lesson, with your files.');
     cleanup();
     flags.agentOnStandard = true;
-    const t = body(render(<Home />).container);
+    const t = body(render(<Home />).container as HTMLElement);
     expect(t).toContain('Your AI picks up at that lesson.');
     expect(t).not.toContain('with your files');
   });

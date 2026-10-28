@@ -662,7 +662,7 @@ describe('/how-it-works certificate sentence follows FEATURES.senseiCertificates
 });
 
 describe('/how-it-works agent copy across officialRecord and agentOnStandard (I10)', () => {
-  const card = (c: HTMLElement, id: string) => Array.from(c.querySelectorAll('.custody__card')).find((x) => x.textContent!.includes(id))!.textContent!;
+  const card = (c: Element, id: string) => Array.from(c.querySelectorAll('.custody__card')).find((x) => x.textContent!.includes(id))!.textContent!;
   it('officialRecord on, agents still practice: connector says practice record, custody still "moving"', () => {
     phasesUpTo('officialRecord');
     const { container } = render(<HowItWorks />);
