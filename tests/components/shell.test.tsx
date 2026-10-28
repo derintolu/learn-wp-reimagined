@@ -35,6 +35,15 @@ describe('Header', () => {
     const nav = screen.getByRole('navigation', { name: 'Main' });
     expect(within(nav).getByRole('link', { name: 'How this works' }).getAttribute('href')).toBe('/how-it-works');
   });
+
+  it('links to the WordPress blog in the main nav, outside the client router', () => {
+    render(<Header />);
+    const nav = screen.getByRole('navigation', { name: 'Main' });
+    const blog = within(nav).getByRole('link', { name: 'Blog' });
+    expect(blog.getAttribute('href')).toBe('/blog/');
+    // preact-iso intercepts same-origin links unless target is set; /blog/ must reach WordPress.
+    expect(blog.getAttribute('target')).toBe('_top');
+  });
 });
 
 describe('Footer', () => {
