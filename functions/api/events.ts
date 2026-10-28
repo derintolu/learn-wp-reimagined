@@ -5,7 +5,7 @@ import { guarded } from '../_lib/ai';
 import { ensureSchema } from '../_lib/db';
 import { rateLimit } from '../_lib/ratelimit';
 import { SERVER_FLAGS } from '../_lib/config';
-import { readSession } from '../_lib/session/session';
+import { ensureLearner, readSession } from '../_lib/session/session';
 import { refreshContent } from '../_lib/course/cache';
 import { decideEvents } from '../_lib/events/decide';
 import { EVENTS_MAX_BYTES, parseEvents } from '../../src/shared/events';
@@ -31,6 +31,7 @@ export const POST: Handler = (req, ctx) =>
     );
     if (!parsed.ok) return error(400, 'bad-request', parsed.error);
     const actor = session ? session.actorName : parsed.learnerId;
+    if (session) await ensureLearner(env, session, now);
     try {
       const results = await decideEvents(env, actor, parsed.events, now, { wpUserId: session?.wpUserId ?? null, session, handlerCtx: ctx });
       return json({ results });

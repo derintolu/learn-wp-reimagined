@@ -9,6 +9,8 @@ import { POST as create, GET as read, DELETE as del } from '../../functions/api/
 import { POST as events } from '../../functions/api/events';
 import { SESSION_COOKIE, SESSION_IDLE_MS, TOUCH_EVERY_MS, readSession } from '../../functions/_lib/session/session';
 import { XAPI_BASE } from '../../src/shared/xapi';
+import { ENROL_RETRY_MS, enrolHealth } from '../../functions/_lib/session/enrol';
+import { GET as senseiGet } from '../../functions/api/sensei';
 
 const KEY = 'test-session-key-not-a-secret';
 const NOW = Date.UTC(2026, 9, 27, 12, 0, 0);
@@ -237,5 +239,105 @@ describe('sessions bound to Sensei learners', () => {
     const res = await del(withCookie(cookieOf(created), { method: 'DELETE' }), ctx());
     expect(res.status).toBe(503);
     expect(await count()).toBe(1);
+  });
+});
+
+describe('a Sensei learner for sessions made before learners were on', () => {
+  const SEED_HEX = '9d61b19deffd5a60ba844af492ec2cc44449c5697b326919703bac031cae7f60';
+  const SIGNING = Buffer.from('302e020100300506032b657004220420' + SEED_HEX, 'hex').toString('base64');
+  let calls: Array<{ method: string; url: string }>;
+  let nextId: number;
+  let down: boolean;
+  let legacy: { cookie: string; actor: string };
+
+  const learnerRow = async () => Number((await db.prepare('SELECT wp_user_id FROM sessions').first<any>())!.wp_user_id ?? 0) || null;
+  const send = (cookie: string, n = 1) =>
+    events(
+      new Request('http://x/api/events', {
+        method: 'POST',
+        headers: { cookie: `${SESSION_COOKIE}=${cookie}`, ...ip(n) },
+        body: JSON.stringify({ events: [{ eventId: `evt-${String(Math.floor(Math.random() * 1e8)).padStart(8, '0')}`, type: 'beatViewed', lessonId: FREE, beatIndex: 0 }] }),
+      }),
+      ctx(),
+    );
+  const created = () => calls.filter((c) => c.method === 'POST' && /\/learners$/.test(c.url));
+
+  beforeEach(async () => {
+    env = { DB: db, SESSION_KEY: KEY, CONNECTOR_SIGNING_KEY: SIGNING, CONNECTOR_KEY_ID: 'kid1', SENSEI_COURSE_IDS: JSON.stringify({ 'block-theme': 13, 'learner': 12 }) };
+    enrolHealth.downUntil = 0;
+    calls = [];
+    nextId = 100;
+    down = false;
+    vi.stubGlobal('fetch', async (url: string, init: RequestInit) => {
+      calls.push({ method: init.method!, url });
+      if (down) return new Response('x', { status: 503 });
+      if (init.method === 'POST' && /\/learners$/.test(url)) {
+        const id = nextId++;
+        await new Promise((r) => setTimeout(r, 5));
+        return new Response(JSON.stringify({ user_id: id, actor: { objectType: 'Agent', account: { homePage: XAPI_BASE, name: `ledger-${id}` } } }), { status: 201 });
+      }
+      return new Response('{}', { status: 200 });
+    });
+    // A session minted before the flag existed: no wp_user_id.
+    const res = await post();
+    legacy = { cookie: cookieOf(res), actor: ((await res.json()) as any).actor.name };
+    calls = [];
+    SERVER_FLAGS.senseiLearners = true;
+  });
+  afterEach(() => {
+    SERVER_FLAGS.senseiLearners = false;
+    enrolHealth.downUntil = 0;
+    vi.unstubAllGlobals();
+  });
+
+  it('gets a learner on its first event, keeps its actor name, and is enrolled on that event', async () => {
+    expect((await send(legacy.cookie)).status).toBe(200);
+    expect(await learnerRow()).toBe(100);
+    expect((await db.prepare('SELECT actor_name FROM sessions').first<any>())!.actor_name).toBe(legacy.actor);
+    expect(created()).toHaveLength(1);
+    expect(calls.some((c) => /\/learners\/100\/enrolments$/.test(c.url))).toBe(true);
+    // The next event makes no second learner.
+    await send(legacy.cookie);
+    expect(created()).toHaveLength(1);
+  });
+
+  it('two concurrent first events leave exactly one learner', async () => {
+    const [a, b] = await Promise.all([send(legacy.cookie, 1), send(legacy.cookie, 2)]);
+    expect(a.status).toBe(200);
+    expect(b.status).toBe(200);
+    const kept = await learnerRow();
+    expect(kept).not.toBeNull();
+    expect(created()).toHaveLength(2);
+    const deleted = calls.filter((c) => c.method === 'DELETE').map((c) => Number(c.url.split('/').pop()));
+    expect(deleted).toHaveLength(1);
+    expect(deleted[0]).not.toBe(kept);
+  });
+
+  it('connector down: the event succeeds, no learner, backs off, then retries', async () => {
+    down = true;
+    const log = vi.spyOn(console, 'error').mockImplementation(() => {});
+    expect((await send(legacy.cookie)).status).toBe(200);
+    expect(await learnerRow()).toBeNull();
+    expect(created()).toHaveLength(1);
+    // Within the back-off no connector call is made.
+    expect((await send(legacy.cookie)).status).toBe(200);
+    expect(created()).toHaveLength(1);
+    // /api/sensei still answers 401 for the session.
+    const sres = await senseiGet(withCookie(legacy.cookie), ctx());
+    expect(sres.status).toBe(401);
+    // After the back-off, with the connector back, the next event gets the learner.
+    down = false;
+    enrolHealth.downUntil = Date.now() - 1;
+    await send(legacy.cookie);
+    expect(await learnerRow()).toBe(100);
+    log.mockRestore();
+    void ENROL_RETRY_MS;
+  });
+
+  it('flag off makes no connector call', async () => {
+    SERVER_FLAGS.senseiLearners = false;
+    expect((await send(legacy.cookie)).status).toBe(200);
+    expect(calls).toHaveLength(0);
+    expect(await learnerRow()).toBeNull();
   });
 });

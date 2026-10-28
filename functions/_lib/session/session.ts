@@ -3,6 +3,7 @@ import { ensureSchema } from '../db';
 import { SERVER_FLAGS } from '../config';
 import { ConnectorClient, ConnectorUnavailable } from '../ledger/connector';
 import { XAPI_BASE } from '../../../src/shared/xapi';
+import { ENROL_RETRY_MS, enrolHealth } from './enrol';
 
 export const SESSION_COOKIE = 'lwr_sid';
 export const SESSION_IDLE_MS = 180 * 24 * 60 * 60 * 1000;
@@ -117,6 +118,50 @@ export async function createSession(
     throw e;
   }
   return { session, actor: learner?.actor, cookie: `${SESSION_COOKIE}=${value}; HttpOnly; Secure; SameSite=Lax; Path=/; Max-Age=${MAX_AGE_S}` };
+}
+
+/**
+ * A session made before senseiLearners was on has no WordPress learner. With the flag on, make one on its first
+ * event and store it on the row. The session keeps its own actor name: our records keep one identity, and the
+ * ledger's actor name for this learner is not used. The conditional UPDATE lets only one of two concurrent
+ * requests keep its learner: the loser deletes the one it made and reads the winner's. A connector failure
+ * leaves the session without a learner (the event still succeeds) and backs off like enrolment does.
+ */
+export async function ensureLearner(
+  env: Env,
+  s: Session,
+  now: number,
+  connector?: Pick<ConnectorClient, 'createLearner' | 'deleteLearner'>,
+): Promise<number | null> {
+  if (!SERVER_FLAGS.senseiLearners || s.wpUserId != null) return s.wpUserId;
+  if (now < enrolHealth.downUntil) return null;
+  const c = connector ?? new ConnectorClient(env);
+  let learner: { userId: number; actor: { homePage: string; name: string } };
+  try {
+    learner = await c.createLearner();
+  } catch (e) {
+    console.error('sensei learner for an older session failed', (e as Error)?.message);
+    if (e instanceof ConnectorUnavailable) enrolHealth.downUntil = now + ENROL_RETRY_MS;
+    return null;
+  }
+  if (learner.actor.homePage !== XAPI_BASE) {
+    console.error('sensei learner refused: the ledger actor homePage is not XAPI_BASE; set the WordPress home option');
+    await c.deleteLearner(learner.userId).catch(() => {});
+    enrolHealth.downUntil = now + ENROL_RETRY_MS;
+    return null;
+  }
+  const r = await env.DB
+    .prepare('UPDATE sessions SET wp_user_id = ? WHERE sid_hash = ? AND wp_user_id IS NULL')
+    .bind(learner.userId, s.sidHash)
+    .run();
+  if (r.meta.changes === 1) {
+    s.wpUserId = learner.userId;
+    return learner.userId;
+  }
+  await c.deleteLearner(learner.userId).catch(() => {});
+  const row = await env.DB.prepare('SELECT wp_user_id FROM sessions WHERE sid_hash = ?').bind(s.sidHash).first<{ wp_user_id: number | string | null }>();
+  s.wpUserId = row?.wp_user_id == null ? null : Number(row.wp_user_id);
+  return s.wpUserId;
 }
 
 export async function deleteSession(env: Env, s: Session): Promise<void> {
