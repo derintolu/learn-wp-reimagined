@@ -2,8 +2,17 @@ import type { ComponentChildren } from 'preact';
 import { Sticker } from '../components/Sticker';
 import { Swipe } from '../components/Swipe';
 import { FEATURES, REPO_URL } from '../config';
-import { BACKEND_VIEW_PATH, COST_PER_1000_LEARNERS_USD, SENSEI_VERSION } from '../shared/course-meta';
+import { BACKEND_VIEW_PATH, COST_PER_1000_LEARNERS_USD, MCP_URL, SENSEI_VERSION } from '../shared/course-meta';
 import { usePageTitle } from '../usePageTitle';
+import { BackendDiagram } from './HowItWorksDiagram';
+import '../styles/how.css';
+
+export const SPEC_REPO_URL = 'https://github.com/derintolu/course-xapi-mcp';
+export const LEDGER_REPO_URL = 'https://github.com/derintolu/learning-ledger';
+export const LRS_HOST = 'lrs.sqwrlz.com';
+
+/** From course-xapi-mcp docs/STATUS.md ("Verified", run 2026-10-27 at commit 3c30d4a). */
+export const SPEC = { draft: '0.2', requirements: 149, tests: 725 };
 
 // These mirror server constants; tests/components/how-it-works.test.tsx checks each against its source file.
 const MODELS = {
@@ -14,7 +23,18 @@ const CAP = { month: 100, day: 10 };
 const EVAL = { refusalsTried: 4, tutorRefused: 4, structuredRefused: 3, placementOk: 14, placementCases: 14 };
 const MCP = { bodyMb: 1, global: '1,200', perHandle: 120, create: 60, windowMin: 10, relayDays: 30 };
 
+/** One small label per component: where it stands on this site today. */
+export const STATUS = {
+  live: 'Live here',
+  public: 'Public, not running here',
+  progress: 'In progress',
+  idle: 'Running, not wired in',
+  next: 'Next',
+} as const;
+type StatusKind = keyof typeof STATUS;
+
 const SOURCES = [
+  { id: 'src-backend', file: 'docs/superpowers/specs/2026-10-27-sensei-backend-prototype-design.md', what: 'The design of the backend: the two spaces, the one write path and the record.' },
   { id: 'src-eval', file: 'docs/model-eval.md', what: 'Model evaluation, October 2026: the models for each task, how they were chosen, and the cost estimate.' },
   { id: 'src-config', file: 'functions/_lib/config.ts', what: 'The provider and model for each task, and the price of each model.' },
   { id: 'src-providers', file: 'functions/_lib/providers/', what: 'The provider interface, the Workers AI adapter and the Anthropic adapter.' },
@@ -49,22 +69,228 @@ function Cite({ to, children }: { to: (typeof SOURCES)[number]['id']; children: 
   );
 }
 
-function Band({ id, title, dark, children }: { id: string; title: ComponentChildren; dark?: boolean; children: ComponentChildren }) {
+function Status({ kind }: { kind: StatusKind }) {
+  return <span class={`status status--${kind}`}>{STATUS[kind]}</span>;
+}
+
+function Band({ id, title, dark, children, below }: { id: string; title: ComponentChildren; dark?: boolean; children: ComponentChildren; below?: ComponentChildren }) {
   return (
     <section class={`band ${dark ? 'band--dark-2' : 'band--light'}`} aria-labelledby={id}>
-      <div class="wrap split">
-        <h2 id={id} class="split__title">
-          {title}
-        </h2>
-        <div class="split__body prose">{children}</div>
+      <div class="wrap">
+        <div class="split">
+          <h2 id={id} class="split__title">
+            {title}
+          </h2>
+          <div class="split__body prose">{children}</div>
+        </div>
+        {below}
       </div>
     </section>
   );
 }
 
-/** /how-it-works: what's real, what's concept, and where every number comes from (spec §3). */
+const external = (label: string) => (
+  <>
+    {label}
+    <span class="visually-hidden"> (opens in a new tab)</span>
+  </>
+);
+
+/** /how-it-works: the system behind the site (course-xapi-mcp, Learning Ledger, Sensei), what's real and what's concept. */
 export function HowItWorks() {
   usePageTitle('How this works');
+  const sensei = FEATURES.wordpressContent;
+
+  const parts: { name: ComponentChildren; status: StatusKind; body: ComponentChildren }[] = [
+    {
+      name: 'The studio',
+      status: 'live',
+      body: (
+        <>
+          The lessons, placement chat, tutor, code checks and the WordPress Playground finale. Paths, lessons,
+          checkpoints and branches are{' '}
+          {sensei ? 'authored in Sensei, with a reviewable copy committed to the repo' : 'authored as plain files in the repo'}.
+        </>
+      ),
+    },
+    {
+      name: 'The MCP connector',
+      status: 'live',
+      body: (
+        <>
+          <code>{MCP_URL}</code>. It runs learning-mcp 0.1, the earlier draft that course-xapi-mcp grew out of, with the
+          same tools for beats, code checks, checkpoints and branches. <a href="/connect">Connect your AI</a>.
+        </>
+      ),
+    },
+    {
+      name: 'Record handles',
+      status: 'live',
+      body: (
+        <>
+          In your AI, your progress is kept under a random handle that only you hold. It stores no personal data and is
+          deleted after {MCP.relayDays} days without use (<Cite to="src-store">the record store</Cite>), or when you ask. In
+          course-xapi-mcp terms that's a practice record, which nobody holds officially.
+        </>
+      ),
+    },
+    {
+      name: 'The course-xapi-mcp reference server',
+      status: 'public',
+      body: (
+        <>
+          Built, tested and on GitHub. The course server here still runs learning-mcp 0.1, and moves onto the reference
+          server next.
+        </>
+      ),
+    },
+    {
+      name: 'Learning Ledger',
+      status: 'progress',
+      body: (
+        <>
+          The LRS, the Sensei connector, the cmi5 player and badge signing are in the public repo, and work continues. It
+          isn't installed on either space yet.
+        </>
+      ),
+    },
+    {
+      name: <>The LRS at {LRS_HOST}</>,
+      status: 'idle',
+      body: (
+        <>
+          A WordPress install on its own space, and it answers, but Learning Ledger isn't installed there yet, so it holds
+          no records.
+        </>
+      ),
+    },
+    {
+      name: 'Sensei as the course back end',
+      status: sensei ? 'live' : 'next',
+      body: sensei ? (
+        <>
+          The lessons are stored in Sensei LMS {SENSEI_VERSION}, the same plugin Learn runs on, on a WordPress install
+          that belongs to this prototype. You can read any lesson as Sensei shows it on{' '}
+          <a href={BACKEND_VIEW_PATH} target="_blank" rel="noopener noreferrer">
+            {external('the backend view')}
+          </a>
+          . That view is Sensei's own page, with no AI and no branching. Take the lesson in the studio.
+        </>
+      ) : (
+        <>
+          Sensei LMS, the plugin Learn runs on, takes over the lessons, learners, enrolment and completion. It isn't
+          installed on this site's WordPress yet.
+        </>
+      ),
+    },
+    {
+      name: 'Badges',
+      status: 'next',
+      body: (
+        <>
+          Open Badges 3.0, signed by the LRS as <code>did:web:{LRS_HOST}</code> and claimed from the studio.
+        </>
+      ),
+    },
+  ];
+
+  const custody: { id: string; who: string; body: ComponentChildren; badges: string; here?: ComponentChildren }[] = [
+    {
+      id: 'lms-launched',
+      who: 'Your LMS',
+      body: "Your LMS launches the lesson like any cmi5 lesson, and you carry on in your AI. Statements go to the LMS's own LRS, under the identity the LMS gives you.",
+      badges: 'Yes',
+    },
+    {
+      id: 'author-lrs',
+      who: "The author's LRS",
+      body: 'The course author names an LRS. The course server signs you in and writes every statement there in real time, including your free-text answers.',
+      badges: 'Yes',
+      here: <>This site is moving to this option, with Learning Ledger at {LRS_HOST}.</>,
+    },
+    {
+      id: 'server-kept',
+      who: 'The course server',
+      body: 'The course server keeps the record in its own store, signs you in against its own accounts, and publishes how long it keeps data and how to delete it.',
+      badges: 'Yes',
+    },
+    {
+      id: 'practice',
+      who: 'Nobody',
+      body: `No official record. Every result is labelled unofficial, the server hands the statements back to you, and it may relay them under a private handle for up to ${MCP.relayDays} days.`,
+      badges: 'No',
+      here: 'The agent path live here today works much like this.',
+    },
+  ];
+
+  const steps: { title: string; status: StatusKind; body: ComponentChildren }[] = [
+    {
+      title: 'Connect',
+      status: 'next',
+      body: (
+        <>
+          You add <code>{MCP_URL}</code> to your AI and sign in once through MCP authorization. Your AI calls{' '}
+          <code>get_status</code> and tells you where your record is kept and whether it's official. Today there's no
+          sign-in, and you give your AI a record handle instead.
+        </>
+      ),
+    },
+    {
+      title: 'Learn a beat',
+      status: 'live',
+      body: (
+        <>
+          The agent calls <code>get_lesson</code> and <code>next_beat</code>, explains the beat in its own words and asks
+          the beat's question. Your reply goes back to the server word for word, and the server records it.
+        </>
+      ),
+    },
+    {
+      title: 'Fix the code',
+      status: 'live',
+      body: (
+        <>
+          You edit the lesson's code and the agent calls <code>check_code</code>. The authored checks decide pass or fail,
+          and that result is final. Some lessons show code labelled <q>AI-written code. We planted one bug. Find it.</q> The
+          bug was planted on purpose by the course author, so every learner meets the same mistake (
+          <Cite to="src-spec">the design spec, section 8</Cite>), and the agent is told never to point at it.
+        </>
+      ),
+    },
+    {
+      title: 'Answer the checkpoint',
+      status: 'live',
+      body: (
+        <>
+          The agent sends your answer with <code>submit_checkpoint</code>, judges it against the authored rubric, and calls{' '}
+          <code>choose_branch</code> with one of the allowed branches and a one-sentence reason. The server refuses any
+          other branch and records nothing for it.
+        </>
+      ),
+    },
+    {
+      title: 'Write the record',
+      status: 'next',
+      body: (
+        <>
+          The course server builds each xAPI statement itself and sends it to the LRS straight away. It's the only writer,
+          so nothing the browser or the agent sends becomes a statement.
+        </>
+      ),
+    },
+    {
+      title: 'Sensei catches up',
+      status: 'next',
+      body: (
+        <>
+          The LRS tells the connector over a signed webhook, with a catch-up poll as backup, and the connector marks the
+          lesson complete in Sensei. The target is within 90 seconds at p95. When you finish a path, the LRS has a badge
+          for you to claim.
+        </>
+      ),
+    },
+  ];
+
   return (
     <div class="how-page">
       <section class="band band--light" aria-labelledby="how-page-title">
@@ -74,59 +300,223 @@ export function HowItWorks() {
           </h1>
           <div class="split__body lede">
             <p>
-              This site is a working concept: a picture of what Learn WordPress could feel like if the AI faced the learner.
-              Some of it is real and some of it is pretend. Here's which is which, and where every number on this page comes
-              from.
+              This site is a course you can take here or inside your own AI. Under it sit two open projects:
+              course-xapi-mcp, a spec for teaching courses over MCP on top of cmi5 and xAPI, and Learning Ledger, a
+              WordPress plugin that keeps the learning record and feeds it to Sensei. This page shows how they fit
+              together, and labels each part with what runs here today and what doesn't yet.
             </p>
           </div>
         </div>
       </section>
 
-      <Band id="real-title" title={<>What's <Swipe>real</Swipe></>}>
+      <Band id="standard-title" title={<>One course, <Swipe>any AI</Swipe></>} dark>
+        <p>
+          <a href={SPEC_REPO_URL}>course-xapi-mcp</a> is an open spec for taking a course inside the AI you already use:
+          Claude, ChatGPT, Cursor, Claude Code or any other MCP client. You add the course's MCP URL, and your AI
+          becomes the tutor. The course server supplies everything that has to be authored, or decided the same way every
+          time: the lessons, rubrics, branches, code checks, planted bugs and the teaching rules the agent follows.
+        </p>
+        <p>
+          It builds on standards LMSs already run. A course is a valid cmi5 package, with its extra parts in a namespaced
+          extension, so a cmi5 LMS can import and launch it without knowing anything about MCP. Every step is recorded as
+          an xAPI statement, and badges are Open Badges 3.0. MCP carries only the conversation.
+        </p>
+        <p>
+          The split of work is strict. The server decides what exists, what comes next, whether code passes and which
+          branches are allowed, and it never calls a model. The agent decides how to explain, and which authored branch
+          fits a free-text answer. No tool accepts a statement, a record or an actor id from the agent, so nobody in the
+          chat, you or the AI, can change the official record.
+        </p>
         <ul>
-          {FEATURES.wordpressContent && (
-            <li>
-              <strong>Real Sensei LMS.</strong> The lessons are stored in Sensei LMS {SENSEI_VERSION}, the same plugin Learn
-              runs on, on a WordPress install that belongs to this prototype. Authors edit them in the block editor, and the
-              studio shows the edit. You can read any lesson as Sensei shows it on{' '}
-              <a href={BACKEND_VIEW_PATH} target="_blank" rel="noopener noreferrer">the backend view<span class="visually-hidden"> (opens in a new tab)</span></a>. That view is Sensei's own page, with no AI and no branching,
-              and it is not the learner experience. Take the lesson in the studio.
-            </li>
-          )}
           <li>
-            <strong>Live AI on open models.</strong> The placement chat, the checkpoint judge, the lesson tutor and the
-            feedback on your code all call open models on Cloudflare Workers AI, live.
+            Draft {SPEC.draft}, not stable. The package format, tools and record format can still change before 1.0.
+          </li>
+          <li>{SPEC.requirements} numbered requirements, each mapped to a test in a black-box conformance suite.</li>
+          <li>
+            A TypeScript reference implementation: the course server for all four custody options, a cmi5 launch bridge, an
+            LRS client, a badge issuer and the <code>cxm</code> package validator. {SPEC.tests} unit and integration tests
+            pass, and it passes its own conformance suite in every profile.
           </li>
           <li>
-            <strong>Real Learn WordPress content.</strong> Every lesson is adapted from a{' '}
-            <a href="https://learn.wordpress.org/">Learn WordPress</a> course or the WordPress Developer Handbooks, and
-            names and links its sources.
+            Not yet tried: a launch from a real LMS (only the bundled simulator), a real AI host teaching with a real model,
+            and ADL's CATAPULT cmi5 test suite.
           </li>
-          <li>
-            <strong>Real branching, written by hand.</strong> Paths, lessons, checkpoints and where each answer leads are
-            {FEATURES.wordpressContent ? ' authored in Sensei, with a reviewable copy committed to the repo' : ' authored as plain files in the repo'}. The AI reads your answer and picks one of the authored outcomes (move on,
-            review, or skip ahead). The server rejects anything else.
-          </li>
-          <li>
-            <strong>Code checks that don't guess.</strong> When you edit code, authored checks decide pass or fail: text
-            that must or mustn't be there, patterns, and values in JSON. The AI only explains the result. With the AI off,
-            the checks still run.
-          </li>
-          <li>
-            <strong>A record you own.</strong> Your progress is one JSON file of real xAPI statements, under an anonymous
-            ID with no name or email. It lives in your browser, or in a folder you pick (in Chromium browsers), and you can
-            download or restore it at any time. The format is <Cite to="src-record">documented in the repo</Cite>.
-          </li>
-          <li>
-            <strong>A real MCP server.</strong> The whole course is a remote MCP server. Add it to Claude, ChatGPT, Claude
-            Code, Cursor or any MCP client and your agent becomes the tutor, with the same lessons, checks and branches.{' '}
-            <a href="/connect">Connect your agent</a>.
-          </li>
-          <li>
-            <strong>Real WordPress at the end.</strong> Each path's finale opens what you built in a full WordPress site
-            running in your browser, with WordPress Playground.
-          </li>
+          <li>Apache-2.0.</li>
         </ul>
+        <p class="how-status-line">
+          <Status kind="public" /> <a href={SPEC_REPO_URL}>course-xapi-mcp on GitHub</a>
+        </p>
+      </Band>
+
+      <Band
+        id="backend-title"
+        title={<>The <Swipe>backend</Swipe></>}
+        below={
+          <>
+            <BackendDiagram />
+            <div class="how-parts">
+              <h3 class="how-parts__title">Each part, and where it stands</h3>
+              <ul class="how-parts__list">
+                {parts.map((p, i) => (
+                  <li key={i}>
+                    <div class="how-parts__head">
+                      <strong>{p.name}</strong>
+                      <Status kind={p.status} />
+                    </div>
+                    <p>{p.body}</p>
+                  </li>
+                ))}
+              </ul>
+            </div>
+          </>
+        }
+      >
+        <p>
+          The backend runs on two Spacefast spaces. The first holds this app, the course server (Spacefast Functions) and
+          a WordPress install for Sensei LMS with Learning Ledger's connector. The second, at {LRS_HOST}, is a separate
+          WordPress that runs Learning Ledger as the LRS. It's kept apart because a busy LRS slows the site it sits on.
+        </p>
+        <p>
+          The course server is the only thing that writes learning records. Learners are headless: each has a WordPress
+          user that Sensei tracks, and nobody signs in to WordPress. The full plan is in{' '}
+          <Cite to="src-backend">the backend design</Cite>.
+        </p>
+      </Band>
+
+      <Band
+        id="custody-title"
+        title={<>Who holds the <Swipe>record</Swipe></>}
+        dark
+        below={
+          <ul class="custody">
+            {custody.map((c, i) => (
+              <li key={c.id} class="custody__card">
+                <h3>
+                  <span class="custody__num">{i + 1}</span> {c.who}
+                </h3>
+                <p>
+                  <code>{c.id}</code>
+                </p>
+                <p>{c.body}</p>
+                <p class="custody__badges">Badges: {c.badges}</p>
+                {c.here && <p class="custody__here">{c.here}</p>}
+              </li>
+            ))}
+          </ul>
+        }
+      >
+        <p>
+          A course declares one of four custody options, and the agent has to tell you which one applies before the first
+          recorded step. In every option, the agent can't write or replace the official record.
+        </p>
+        <p>
+          In the first three you can always view and export your record, and deleting it goes through whoever holds it,
+          never through a tool in the chat. A course can also allow practice runs alongside, and a practice run never
+          becomes official.
+        </p>
+      </Band>
+
+      <Band id="ledger-title" title={<>Learning <Swipe>Ledger</Swipe></>}>
+        <p>
+          WordPress has no maintained open-source LRS. The only open plugin, wp-xapi-lrs, has been abandoned since about
+          2017. <a href={LEDGER_REPO_URL}>Learning Ledger</a> is a WordPress plugin with two roles. As an LRS it stores
+          xAPI statements, with voiding and queries, and the State, Agent Profile and Activity Profile documents. As an LMS
+          connector it sits on the LMS site, applies results from the LRS as LMS progress and keeps the map between xAPI
+          actors and WordPress users. The roles can share one install or run on two. It doesn't depend on
+          course-xapi-mcp, and any xAPI tool can write to it.
+        </p>
+
+        <h3>Sensei first</h3>
+        <p>
+          Each LMS integration is a folder that loads only when that LMS is active, and Sensei's is first. It goes through
+          Sensei's own progress functions, such as <code>Sensei_Utils::sensei_start_lesson()</code>, and never touches
+          Sensei's progress storage directly, so course completion and certificates follow as they do now. Lessons skipped
+          by placement or branching show as complete, marked <q>Tested out</q> in the course outline, learning mode and
+          reports. The connector can also send on-site Sensei learning to the LRS as xAPI. That stays off for courses a
+          course server drives, so each course has one writer.
+        </p>
+
+        <h3>A cmi5 player for Sensei</h3>
+        <p>
+          On a Sensei site the connector is also the cmi5 LMS. It imports any cmi5 package, as a ZIP or a{' '}
+          <code>cmi5.xml</code>. Top-level blocks become Sensei courses, and each AU becomes a lesson with a launch block. A
+          launch follows cmi5: one registration per learner and course, <code>LMS.LaunchData</code>, a fetch URL that
+          works once, and a short-lived token limited to one learner and one registration. When an AU's moveOn criteria are
+          met, its Sensei lesson is marked complete.
+        </p>
+        <p>
+          AU files are served from a separate hostname, or sandboxed when there's only one, so third-party JavaScript
+          never runs as your WordPress origin. ADL's CATAPULT cmi5 test suite is wired in as a release gate and hasn't
+          been run yet.
+        </p>
+
+        <h3>More LMSs</h3>
+        <p>
+          LifterLMS, Tutor LMS and LearnPress come next, in that order, through the same interface. None of them is in the
+          public repo yet.
+        </p>
+
+        <h3>Badge signing</h3>
+        <p>
+          The LRS issues Open Badges 3.0 credentials with an <code>eddsa-rdfc-2022</code> proof over an Ed25519 key and a{' '}
+          <code>did:web</code> issuer, <code>did:web:{LRS_HOST}</code> for this site. Revoking a badge flips a bit in a
+          signed Bitstring Status List. A badge is worked out only from statements the course server wrote, cites exactly
+          one earning statement as evidence, and is signed when you claim it. No MCP tool can sign anything. The signing
+          code passes the W3C test vectors, and the claim pages aren't public yet.
+        </p>
+        <p class="how-status-line">
+          <Status kind="progress" /> <a href={LEDGER_REPO_URL}>Learning Ledger on GitHub</a>, GPL-2.0-or-later
+        </p>
+      </Band>
+
+      <Band
+        id="flow-title"
+        title={<>One lesson, <Swipe>end to end</Swipe></>}
+        dark
+        below={
+          <ol class="how-flow">
+            {steps.map((s) => (
+              <li key={s.title}>
+                <div class="how-flow__head">
+                  <h3>{s.title}</h3>
+                  <Status kind={s.status} />
+                </div>
+                <p>{s.body}</p>
+              </li>
+            ))}
+          </ol>
+        }
+      >
+        <p>
+          The path one lesson takes in your AI once the backend is wired up. Steps 2 to 4 run on this site today, on
+          the learning-mcp server.
+        </p>
+      </Band>
+
+      <Band id="cost-title" title={<>What the AI <Swipe>costs</Swipe></>}>
+        <p>
+          On the site, placement and the checkpoint judge run on <code>{MODELS.structured}</code>, and the tutor and code
+          feedback run on <code>{MODELS.chat}</code>, both on Cloudflare Workers AI. They were chosen by testing (
+          <Cite to="src-eval">our model evaluation, October 2026</Cite>). The tests tried {EVAL.refusalsTried} times to get
+          a full solution out of the AI. The tutor model refused all {EVAL.tutorRefused}; the placement and judge model
+          refused {EVAL.structuredRefused} of {EVAL.refusalsTried}, one reason it doesn't run the tutor. In the latest run,
+          placement got {EVAL.placementOk} of {EVAL.placementCases} test conversations right, measured on this site's own
+          lessons. The rules it follows are in <Cite to="src-prompts">the prompts</Cite>, and the provider and model are{' '}
+          <Cite to="src-config">server settings</Cite> behind <Cite to="src-providers">a small provider interface</Cite>.
+        </p>
+        <p>
+          The AI costs about ${COST_PER_1000_LEARNERS_USD.toFixed(2)} per 1000 learners, assuming 1 placement chat, 6
+          checkpoint judgements and 20 tutor turns each. Real tutor conversations run longer, so expect more. Spending has a
+          hard cap of ${CAP.month} a month and ${CAP.day} a day (<Cite to="src-budget">the budget code</Cite>). At the cap,
+          placement becomes a list of paths, checkpoints become multiple choice, and lessons, code checks and your record
+          keep working.
+        </p>
+        <p>
+          In your own AI, the model runs on your subscription, so it costs this site nothing. The MCP server takes requests
+          of up to {MCP.bodyMb} MB, and allows {MCP.global} requests every {MCP.windowMin} minutes across everyone,{' '}
+          {MCP.perHandle} tool calls every {MCP.windowMin} minutes for each record handle, and {MCP.create} new records
+          every {MCP.windowMin} minutes (<Cite to="src-gate">the MCP gate</Cite>).
+        </p>
       </Band>
 
       <Band id="concept-title" title={<>What's <Swipe>concept</Swipe></>} dark>
@@ -140,156 +530,26 @@ export function HowItWorks() {
           </li>
           <li>
             <strong>The lessons aren't reviewed.</strong> They're adapted from Learn WordPress, not reviewed by the Training
-            Team. Each one was checked against its live sources while it was written (
-            <Cite to="src-accuracy">Block theme</Cite>, <Cite to="src-accuracy-learner">Learner</Cite>,{' '}
-            <Cite to="src-accuracy-vibe">Vibe coder</Cite>), but nobody from the team has signed them off.
+            Team. Each was checked against its live sources (<Cite to="src-accuracy">Block theme</Cite>,{' '}
+            <Cite to="src-accuracy-learner">Learner</Cite>, <Cite to="src-accuracy-vibe">Vibe coder</Cite>), but nobody from
+            the team has signed them off.
           </li>
           <li>
-            <strong>There are no accounts.</strong> Nobody signs in, and nothing syncs between your devices unless you move
-            the record yourself. Signing in with a WordPress.org account is a possible next step, and it isn't built.
+            <strong>There are no accounts yet.</strong> Nobody signs in today. In the browser, your progress is one JSON
+            file of xAPI statements under an anonymous ID (<Cite to="src-record">the record format</Cite>), and it stays on
+            your device.
           </li>
           <li>
             <strong>It isn't connected to Learn.</strong>{' '}
-            {FEATURES.wordpressContent
+            {sensei
               ? "This is not learn.wordpress.org. The Sensei here is the prototype's own install, with the prototype's own lessons, so nothing you do counts toward anything on Learn. Your progress does not appear in Sensei yet."
               : "Nothing here talks to learn.wordpress.org or Sensei, and progress here doesn't count there."}
           </li>
           <li>
-            <strong>It's small.</strong> Three short paths, not whole courses.
+            <strong>It's small.</strong> Three short paths, from <Cite to="src-content">the lesson files</Cite>, not whole
+            courses.
           </li>
         </ul>
-      </Band>
-
-      <Band id="ai-title" title={<>What the AI <Swipe>does</Swipe></>}>
-        <h3>Which models</h3>
-        <div class="prose__table">
-          <table>
-            <caption>Model for each task</caption>
-            <thead>
-              <tr>
-                <th scope="col">Task</th>
-                <th scope="col">Model</th>
-              </tr>
-            </thead>
-            <tbody>
-              <tr>
-                <th scope="row">Placement chat</th>
-                <td><code>{MODELS.structured}</code></td>
-              </tr>
-              <tr>
-                <th scope="row">Checkpoint judge</th>
-                <td><code>{MODELS.structured}</code></td>
-              </tr>
-              <tr>
-                <th scope="row">Lesson tutor</th>
-                <td><code>{MODELS.chat}</code></td>
-              </tr>
-              <tr>
-                <th scope="row">Code feedback</th>
-                <td><code>{MODELS.chat}</code></td>
-              </tr>
-            </tbody>
-          </table>
-        </div>
-        <p>
-          These were chosen by testing, <Cite to="src-eval">from our model evaluation, October 2026</Cite>: five candidate
-          models on Workers AI, 26 test cases (placement chats, checkpoint answers, tutor questions and code feedback), and a
-          rule that placement and judging must return valid JSON at least 95% of the time.
-        </p>
-        <p>
-          It isn't perfect. The tests tried {EVAL.refusalsTried} times to get the answer out of the AI. The tutor model
-          refused all {EVAL.tutorRefused}. The placement and judge model refused {EVAL.structuredRefused} of{' '}
-          {EVAL.refusalsTried}, which is one reason it doesn't run the tutor. In the latest run, placement got{' '}
-          {EVAL.placementOk} of {EVAL.placementCases} test conversations right, measured on this site's own lessons for all
-          three paths. If a reply ever comes back unreadable, the site shows the path buttons instead.
-        </p>
-
-        <h3>What it may do</h3>
-        <ul>
-          <li>Ask a few questions, then recommend a path and a first lesson from the authored list, and say why. The server checks the lessons are real.</li>
-          <li>Judge a checkpoint answer against the authored rubric, and choose one of that checkpoint's authored outcomes.</li>
-          <li>Put each part of a lesson in its own words, and answer questions about the lesson you're on.</li>
-          <li>Give a hint about your code after the authored checks have run.</li>
-        </ul>
-
-        <h3>What it may not do</h3>
-        <ul>
-          <li>Invent a path, a lesson or a branch.</li>
-          <li>Hand over a complete solution.</li>
-          <li>Name the planted bug, point at its line, or write the fix.</li>
-          <li>Add settings, functions or hooks that aren't in the lesson material.</li>
-          <li>Take orders from what you type. Your text is treated as data, never as instructions.</li>
-        </ul>
-        <p>
-          Those rules are in <Cite to="src-prompts">the prompts</Cite>, and the server checks the AI's choices against the
-          authored content.
-        </p>
-
-        <h3>When it's away</h3>
-        <p>
-          If the AI is slow, down or out of budget, placement becomes a short list of paths to pick from, checkpoints become
-          multiple choice, and the tutor tells you it's away. Lessons, code checks and your record keep working.
-        </p>
-
-        <h3>No single model</h3>
-        <p>
-          The server talks to models through a <Cite to="src-providers">small provider interface</Cite>. Workers AI is the
-          live provider. An Anthropic adapter is written and tested, and stays off unless an API key is added. The provider
-          and model for each task are <Cite to="src-config">server settings</Cite>, so changing either is a config change,
-          not a rewrite. It's the same idea as the Connectors in WordPress 7: the learning layer (the lessons, branches,
-          checks and your record) doesn't depend on any one model.
-        </p>
-      </Band>
-
-      <Band id="bugs-title" title={<>The planted <Swipe>bugs</Swipe></>} dark>
-        <p>
-          Every path has at least one moment labelled <q>AI-written code. We planted one bug. Find it.</q> The snippet is
-          written ahead of time by an AI model, and the bug is planted on purpose by the course author, so every learner
-          sees the same reliable mistake (<Cite to="src-spec">the design spec, section 8</Cite>). The snippet, its bug and
-          the checks for the fix are fixed in <Cite to="src-content">the lesson files</Cite>; nothing is generated live.
-        </p>
-        <p>
-          A live model might write different code each time, or no bug at all, which makes for a poor lesson. The tutor is
-          told never to give the bug away, and authored checks confirm your fix.
-        </p>
-      </Band>
-
-      <Band id="cost-title" title={<>What it <Swipe>costs</Swipe></>}>
-        <p>
-          The AI costs about ${COST_PER_1000_LEARNERS_USD.toFixed(2)} per 1000 learners,{' '}
-          <Cite to="src-eval">from our model evaluation, October 2026</Cite>. That assumes 1 placement chat, 6 checkpoint
-          judgements and 20 tutor turns per learner, priced from measured token counts. Real tutor conversations are longer
-          than the test cases, so expect it to cost more.
-        </p>
-        <p>
-          Spending has a hard cap of ${CAP.month} a month across all providers, and a ${CAP.day} a day sub-cap so one busy
-          day can't use up the month (<Cite to="src-budget">the budget code</Cite>). Each request reserves its worst-case
-          cost before it runs, and is refused if that would cross a cap. The daily cap resets at 00:00 UTC, the monthly one
-          on the 1st (UTC).
-        </p>
-        <p>
-          At the cap, the AI features switch to their no-AI versions and the site offers to continue in your own agent. The
-          MCP path keeps working, because your agent does the thinking on your own subscription and no model runs on this
-          site's account.
-        </p>
-      </Band>
-
-      <Band id="agent-title" title={<>Your own <Swipe>agent</Swipe></>} dark>
-        <p>
-          The MCP server sits behind a few limits (<Cite to="src-gate">the MCP gate</Cite>):
-        </p>
-        <ul>
-          <li>requests of up to {MCP.bodyMb} MB</li>
-          <li>{MCP.global} requests every {MCP.windowMin} minutes, across everyone</li>
-          <li>{MCP.perHandle} tool calls every {MCP.windowMin} minutes for each record handle</li>
-          <li>{MCP.create} new records every {MCP.windowMin} minutes, across everyone</li>
-        </ul>
-        <p>
-          When you take the course into an agent, the server keeps your progress under a random record handle that only you
-          hold. It stores no personal data, expires after {MCP.relayDays} days without use (
-          <Cite to="src-store">the record store</Cite>), and you can delete it at any time from{' '}
-          <a href="/connect">Connect your agent</a>.
-        </p>
       </Band>
 
       <Band id="credit-title" title={<>Credit</>}>

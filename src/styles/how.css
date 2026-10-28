@@ -1,0 +1,160 @@
+/* ---------- How this works (/how-it-works) ---------- */
+
+/* Status labels: one per component. Text carries the meaning; the dot's shape repeats it. */
+.status {
+  --status: var(--ink-muted);
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4rem;
+  padding: 0.16rem 0.6rem 0.2rem;
+  border: 1px solid var(--status);
+  border-radius: 999px;
+  color: var(--status);
+  font: 600 0.78rem / 1.3 var(--font-ui);
+  white-space: nowrap;
+  vertical-align: middle;
+}
+.status::before {
+  content: '';
+  flex: none;
+  width: 0.5rem;
+  height: 0.5rem;
+  border-radius: 50%;
+  background: var(--status);
+}
+.status--live { --status: var(--outcome-skip); }
+.status--public { --status: var(--wp-blue); }
+.status--progress { --status: var(--outcome-review); }
+.status--progress::before { background: linear-gradient(90deg, var(--status) 50%, transparent 50%); box-shadow: inset 0 0 0 1.5px var(--status); }
+.status--idle::before,
+.status--next::before { background: transparent; box-shadow: inset 0 0 0 1.5px var(--status); }
+.status--next { border-style: dashed; }
+
+.band--dark-2 .status { --status: var(--on-dark-muted); }
+.band--dark-2 .status--live { --status: var(--live); }
+.band--dark-2 .status--public { --status: var(--wp-blue-light); }
+.band--dark-2 .status--progress { --status: var(--warn-on-dark); }
+
+.how-status-line { display: flex; flex-wrap: wrap; align-items: center; gap: 0.5rem 0.75rem; }
+
+/* The backend diagram: a wide drawing on large screens, a tall one below 960px. */
+.how-diagram { margin: clamp(2.5rem, 1.5rem + 3vw, 4rem) 0 0; }
+.how-diagram svg { display: block; width: 100%; height: auto; color: var(--ink); overflow: visible; }
+.how-diagram .how-diagram__tall { display: none; }
+@media (max-width: 959px) {
+  .how-diagram .how-diagram__wide { display: none; }
+  .how-diagram .how-diagram__tall { display: block; max-width: 400px; margin-inline: auto; }
+}
+.how-diagram figcaption {
+  max-width: var(--measure);
+  margin: 1.5rem 0 0;
+  color: var(--ink-muted);
+  font-size: var(--step--1);
+  line-height: 1.55;
+}
+@media (max-width: 959px) {
+  .how-diagram figcaption { margin-inline: auto; max-width: 400px; }
+}
+
+.dg-box { fill: var(--paper); stroke: currentColor; stroke-width: 1.5; }
+.dg-box--next { fill: var(--surface-muted); stroke: var(--ink-muted); stroke-dasharray: 6 5; }
+.dg-box--you { fill: var(--tint); stroke: var(--wp-blue); }
+.dg-title { fill: currentColor; font: 400 19px var(--font-display); }
+.dg-title--small { font-size: 17px; }
+.dg-sub { fill: var(--ink-muted); font: 400 12px var(--font-ui); }
+.dg-label { fill: currentColor; font: 600 12px var(--font-ui); }
+.dg-label--write { fill: var(--wp-blue-dark); }
+.dg-detail { fill: var(--ink-muted); font: 400 11.5px var(--font-ui); }
+.dg-line { fill: none; stroke: currentColor; stroke-width: 1.5; }
+.dg-line--next { stroke-dasharray: 6 5; }
+.dg-line--write { stroke: var(--wp-blue); stroke-width: 2; }
+.dg-head { fill: currentColor; }
+.dg-head--write { fill: var(--wp-blue); }
+
+/* Each part and its status */
+.how-parts { margin-top: clamp(2.5rem, 1.5rem + 3vw, 4rem); }
+.how-parts__title { font-size: var(--step-2); margin-bottom: 1rem; }
+.how-parts__list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(min(100%, 22rem), 1fr));
+  column-gap: clamp(1.5rem, 1rem + 2vw, 3rem);
+  border-top: 1px solid var(--rule);
+}
+.how-parts__list li { padding-block: 1.1rem 1.2rem; border-bottom: 1px solid var(--rule); }
+.how-parts__head { display: flex; flex-wrap: wrap; align-items: center; gap: 0.4rem 0.75rem; margin-bottom: 0.4rem; }
+.how-parts__head strong { font-weight: 600; }
+.how-parts__list p { margin: 0; color: var(--ink-muted); line-height: 1.55; }
+.how-parts__list code {
+  padding: 0.08em 0.35em;
+  border-radius: 0.3rem;
+  background: var(--tint);
+  color: var(--charcoal);
+  font: 0.88em / 1.4 var(--font-mono);
+  overflow-wrap: anywhere;
+}
+
+/* The four custody options */
+.custody {
+  list-style: none;
+  margin: clamp(2.5rem, 1.5rem + 3vw, 4rem) 0 0;
+  padding: 0;
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 15rem), 1fr));
+  gap: 1rem;
+}
+.custody__card {
+  display: flex;
+  flex-direction: column;
+  gap: 0.6rem;
+  padding: 1.4rem 1.4rem 1.5rem;
+  border: 1px solid var(--rule-dark);
+  border-radius: 1rem;
+  background: var(--veil-on-dark);
+  color: var(--on-dark);
+}
+.custody__card h3 { font-size: var(--step-2); display: flex; align-items: baseline; gap: 0.6rem; }
+.custody__num { color: var(--wp-blue-light); font-size: var(--step-1); }
+.custody__card p { margin: 0; color: var(--on-dark-muted); line-height: 1.55; }
+.custody__card code { font: var(--step--1) / 1.4 var(--font-mono); color: var(--on-dark); }
+.custody__card .custody__badges { font-weight: 600; color: var(--on-dark); }
+.custody__card .custody__here {
+  margin-top: auto;
+  padding-top: 0.75rem;
+  border-top: 1px solid var(--rule-dark);
+  color: var(--wp-blue-light);
+}
+
+/* One lesson, end to end */
+.how-flow {
+  list-style: none;
+  margin: clamp(2.5rem, 1.5rem + 3vw, 4rem) 0 0;
+  padding: 0;
+  counter-reset: step;
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(min(100%, 22rem), 1fr));
+  column-gap: clamp(1.5rem, 1rem + 2vw, 3rem);
+  border-top: 1px solid var(--rule-dark);
+}
+.how-flow li {
+  counter-increment: step;
+  display: grid;
+  grid-template-columns: 2.5rem minmax(0, 1fr);
+  align-content: start;
+  gap: 0.4rem 1rem;
+  padding-block: 1.4rem;
+  border-bottom: 1px solid var(--rule-dark);
+}
+.how-flow li::before {
+  content: counter(step);
+  grid-row: span 2;
+  font: 500 var(--step-2) / 1 var(--font-display);
+  color: var(--wp-blue-light);
+}
+.how-flow__head { display: flex; flex-wrap: wrap; align-items: center; gap: 0.4rem 0.75rem; }
+.how-flow h3 { font-size: var(--step-2); color: var(--on-dark); }
+.how-flow p { margin: 0; color: var(--on-dark-muted); line-height: 1.55; }
+.how-flow code { font: 0.88em / 1.4 var(--font-mono); color: var(--on-dark); overflow-wrap: anywhere; }
+.how-flow q { font-style: italic; }
