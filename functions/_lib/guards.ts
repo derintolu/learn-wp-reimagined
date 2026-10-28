@@ -39,6 +39,16 @@ export const RATE_WINDOW_MS = 600_000;
 
 /** Reads a JSON body, enforcing the byte cap while streaming (content-length can lie). */
 export async function readJsonCapped<T>(req: Request, maxBytes: number): Promise<T> {
+  const text = await readTextCapped(req, maxBytes);
+  try {
+    return JSON.parse(text) as T;
+  } catch {
+    throw new HttpError(400, 'bad-json', 'The request body was not valid JSON.');
+  }
+}
+
+/** Reads a UTF-8 body, enforcing the byte cap while streaming (content-length can lie). */
+export async function readTextCapped(req: Request, maxBytes: number): Promise<string> {
   const tooBig = () => new HttpError(413, 'too-large', 'That input is too long. Please shorten it and try again.');
   const declared = Number(req.headers.get('content-length'));
   if (Number.isFinite(declared) && declared > maxBytes) throw tooBig();
@@ -63,9 +73,5 @@ export async function readJsonCapped<T>(req: Request, maxBytes: number): Promise
     buf.set(c, off);
     off += c.byteLength;
   }
-  try {
-    return JSON.parse(new TextDecoder().decode(buf)) as T;
-  } catch {
-    throw new HttpError(400, 'bad-json', 'The request body was not valid JSON.');
-  }
+  return new TextDecoder().decode(buf);
 }

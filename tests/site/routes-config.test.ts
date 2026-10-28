@@ -20,11 +20,15 @@ const matches = (source: string, path: string) =>
 describe('sf.jsonc routes', () => {
   it('lists exactly the app routes', () => {
     expect(APP_ROUTES.map((r) => r.pattern)).toEqual([
-      '/', '/path/*', '/learn/*', '/finale', '/finale/*', '/connect', '/how-it-works', '/proposal', '/blog', '/blog/*', '/backend/*',
+      '/', '/path/*', '/learn/*', '/finale', '/finale/*', '/connect', '/how-it-works', '/proposal', '/blog', '/blog/*', '/backend/*', '/consent',
     ]);
   });
   it('every app route has an sf.jsonc rewrite to index.html', () => {
     for (const r of APP_ROUTES) expect(rewrites).toContainEqual(expect.objectContaining({ source: r.pattern, destination: '/index.html' }));
+  });
+  it('sends both OAuth metadata paths to the metadata Function', () => {
+    for (const p of ['/.well-known/oauth-protected-resource', '/.well-known/oauth-authorization-server'])
+      expect(rewrites).toContainEqual({ source: p, destination: '/api/oauth/metadata' });
   });
   it('keeps the crons entry and has no catch-all fallback', () => {
     expect(sf.fallback).toBeUndefined();
@@ -37,7 +41,7 @@ describe('sf.jsonc routes', () => {
     },
   );
   it('matches app paths', () => {
-    for (const p of ['/', '/learn/abc', '/path/x', '/finale', '/finale/x', '/connect', '/how-it-works', '/proposal', '/blog', '/blog/a-post', '/blog/a-post/', '/backend/block-theme', '/backend/block-theme/one'])
+    for (const p of ['/', '/learn/abc', '/path/x', '/finale', '/finale/x', '/connect', '/how-it-works', '/proposal', '/blog', '/blog/a-post', '/blog/a-post/', '/backend/block-theme', '/backend/block-theme/one', '/consent'])
       expect(rewrites.some((r) => matches(r.source, p))).toBe(true);
   });
 });
