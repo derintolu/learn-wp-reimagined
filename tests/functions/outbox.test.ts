@@ -255,6 +255,21 @@ describe('POST /api/events with the LRS in shadow', () => {
     expect((await db.prepare('SELECT COUNT(*) AS n FROM lrs_outbox').first<{ n: number }>())!.n).toBe(0);
   });
 
+  it('after the registration moves (restart_course), a lesson can be completed again in the new one', async () => {
+    SERVER_FLAGS.lrsShadow = true;
+    const cookie = await returningLearner();
+    expect((await post(completed, cookie)).status).toBe(200);
+    // A second event completing the same lesson in the same registration sends no second completed.
+    expect((await post({ ...completed, events: [{ ...completed.events[0], eventId: 'evt-00000002' }] }, cookie)).status).toBe(200);
+    const done = (reg: string) => lrs.statements.filter((s) => s.verb.id === ADL_VERBS.completed && s.context.registration === reg);
+    expect(done(REG)).toHaveLength(1);
+    const REG2 = '9a8b7c6d-5e4f-4a3b-8c2d-1e0f9a8b7c6d';
+    await db.prepare('UPDATE sessions SET registration = ?').bind(REG2).run();
+    expect((await post({ ...completed, events: [{ ...completed.events[0], eventId: 'evt-00000003' }] }, cookie)).status).toBe(200);
+    expect(done(REG)).toHaveLength(1);
+    expect(done(REG2)).toHaveLength(1);
+  });
+
   it('LRS up: the statements are posted after deciding and leave the outbox', async () => {
     SERVER_FLAGS.lrsShadow = true;
     const cookie = await returningLearner();

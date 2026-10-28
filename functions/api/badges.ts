@@ -42,11 +42,12 @@ export const GET: Handler = (req, { env }) =>
     }
     try {
       const content = getContent();
-      const badges = await new LrsClient(env).listBadges(await getRegistration(env, session));
+      const registration = await getRegistration(env, session);
+      const badges = await new LrsClient(env).listBadges(registration);
       await ensureRecordSchema(env.DB);
       const { results } = await env.DB
-        .prepare('SELECT activity_id FROM official_outcomes WHERE actor_name = ? AND verb = ?')
-        .bind(session.actorName, 'waived')
+        .prepare('SELECT activity_id FROM official_outcomes WHERE actor_name = ? AND registration = ? AND verb = ?')
+        .bind(session.actorName, registration, 'waived')
         .all<{ activity_id: string }>();
       const waived = new Set(results.map((r) => r.activity_id));
       const out: BadgeSummary[] = [];

@@ -75,7 +75,7 @@ const recordReady = new WeakSet<D1Like>();
  * The official-record tables (Task 30), kept out of ensureSchema so routes pay for them only with
  * SERVER_FLAGS.lrsShadow on. lrs_outbox is a queue of statements for the LRS (rows are deleted once stored);
  * au_sessions holds each learner's open cmi5 AU session; shadow_facts the learning facts decided per day;
- * official_outcomes the defined completed, passed and waived already sent (at most once per registration);
+ * official_outcomes the defined completed, passed and waived already sent, at most once per registration (keyed by it);
  * lrs_imports the course package ETags already imported. Also adds sessions.registration.
  */
 export async function ensureRecordSchema(db: D1Like): Promise<void> {
@@ -93,7 +93,7 @@ export async function ensureRecordSchema(db: D1Like): Promise<void> {
     .run();
   await db
     .prepare(
-      'CREATE TABLE IF NOT EXISTS official_outcomes (actor_name VARCHAR(64), activity_id VARCHAR(200), verb VARCHAR(12), event_id VARCHAR(64), PRIMARY KEY (actor_name, activity_id, verb))',
+      'CREATE TABLE IF NOT EXISTS official_outcomes (actor_name VARCHAR(64), registration VARCHAR(36), activity_id VARCHAR(200), verb VARCHAR(12), event_id VARCHAR(64), PRIMARY KEY (actor_name, registration, activity_id, verb))',
     )
     .run();
   await db.prepare('CREATE TABLE IF NOT EXISTS carry_overs (actor_name VARCHAR(64) PRIMARY KEY, created BIGINT)').run();

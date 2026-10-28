@@ -88,8 +88,8 @@ export const POST: Handler = (req, ctx) =>
       const statements = [];
       for (const lessonId of lessons) {
         const s = await carriedOverStatement({ actor, registration }, session.actorName, lessonId, now);
-        if (await satisfiedElsewhere(env, session.actorName, activityIds.au(auIdOf(lessonId)), bundle, eventId)) continue;
-        if (!(await claimOnce(env, session.actorName, s, eventId))) continue;
+        if (await satisfiedElsewhere(env, session.actorName, registration, activityIds.au(auIdOf(lessonId)), bundle, eventId)) continue;
+        if (!(await claimOnce(env, session.actorName, registration, s, eventId))) continue;
         statements.push(s);
         waived.push(lessonId);
       }

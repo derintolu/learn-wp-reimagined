@@ -77,15 +77,15 @@ describe('GET /api/badges', () => {
 
   it('lists the learner badges with the tested-out count for the path', async () => {
     const lessons = getContent().paths['block-theme'].lessons;
-    for (const id of [lessons[0], lessons[1]])
-      await env.DB
-        .prepare('INSERT INTO official_outcomes (actor_name, activity_id, verb, event_id) VALUES (?, ?, ?, ?)')
-        .bind(actorName, activityIds.au(auIdOf(id)), 'waived', 'e')
+    const outcome = (id: string, verb: string, registration = REG) =>
+      env.DB
+        .prepare('INSERT INTO official_outcomes (actor_name, registration, activity_id, verb, event_id) VALUES (?, ?, ?, ?, ?)')
+        .bind(actorName, registration, activityIds.au(auIdOf(id)), verb, 'e')
         .run();
-    await env.DB
-      .prepare('INSERT INTO official_outcomes (actor_name, activity_id, verb, event_id) VALUES (?, ?, ?, ?)')
-      .bind(actorName, activityIds.au(auIdOf(lessons[2])), 'completed', 'e')
-      .run();
+    for (const id of [lessons[0], lessons[1]]) await outcome(id, 'waived');
+    await outcome(lessons[2], 'completed');
+    // A lesson waived in an earlier registration (before restart_course) does not count for this one.
+    await outcome(lessons[3], 'waived', '22222222-2222-4222-8222-222222222222');
     const res = await call(list, cookie);
     expect(res.status).toBe(200);
     expect(await res.json()).toEqual([{ id: BADGE, pathId: 'block-theme', name: 'Block themes', status: 'pending', testedOut: 2 }]);

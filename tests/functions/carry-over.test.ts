@@ -85,8 +85,8 @@ describe('POST /api/carry-over', () => {
 
   it('does not waive a lesson the official record already satisfies', async () => {
     await db
-      .prepare('INSERT INTO official_outcomes (actor_name, activity_id, verb, event_id) VALUES (?, ?, ?, ?)')
-      .bind(session.actorName, activityIds.au(auIdOf(FIRST)), 'waived', 'evt-00000001')
+      .prepare('INSERT INTO official_outcomes (actor_name, registration, activity_id, verb, event_id) VALUES (?, ?, ?, ?, ?)')
+      .bind(session.actorName, REG, activityIds.au(auIdOf(FIRST)), 'waived', 'evt-00000001')
       .run();
     const res = await call({ completedLessons: [FIRST, SECOND] });
     expect(await res.json()).toEqual({ waived: [SECOND] });

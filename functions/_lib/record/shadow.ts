@@ -57,21 +57,23 @@ const isDefined = (s: XapiStatement) => (s.context.contextActivities?.category ?
 const ONCE_VERBS = new Set<string>([ADL_VERBS.completed, ADL_VERBS.passed, ADL_VERBS.waived]);
 
 /**
- * Claims a defined completed, passed or waived for this learner and AU: true for the first event to send it,
- * and again for a retry of that same event (so its statement keeps its id); false for any other event.
+ * Claims a defined completed, passed or waived for this learner, registration and AU: true for the first event to
+ * send it, and again for a retry of that same event (so its statement keeps its id); false for any other event.
+ * A new registration (restart_course) starts with nothing claimed.
  */
-export async function claimOnce(env: Env, actorName: string, s: XapiStatement, eventId: string): Promise<boolean> {
+export async function claimOnce(env: Env, actorName: string, registration: string, s: XapiStatement, eventId: string): Promise<boolean> {
+  const verb = s.verb.id.split('/').pop();
   try {
     await env.DB
-      .prepare('INSERT INTO official_outcomes (actor_name, activity_id, verb, event_id) VALUES (?, ?, ?, ?)')
-      .bind(actorName, s.object.id, s.verb.id.split('/').pop(), eventId)
+      .prepare('INSERT INTO official_outcomes (actor_name, registration, activity_id, verb, event_id) VALUES (?, ?, ?, ?, ?)')
+      .bind(actorName, registration, s.object.id, verb, eventId)
       .run();
     return true;
   } catch (e) {
     if (!isDuplicateKey(e)) throw e;
     const row = await env.DB
-      .prepare('SELECT event_id FROM official_outcomes WHERE actor_name = ? AND activity_id = ? AND verb = ?')
-      .bind(actorName, s.object.id, s.verb.id.split('/').pop())
+      .prepare('SELECT event_id FROM official_outcomes WHERE actor_name = ? AND registration = ? AND activity_id = ? AND verb = ?')
+      .bind(actorName, registration, s.object.id, verb)
       .first<{ event_id: string }>();
     return row?.event_id === eventId;
   }
@@ -92,11 +94,18 @@ function lessonsByAu(bundle: ContentBundle): Map<string, string> {
  * it: waived, or completed (moveOn Completed), or completed and passed (CompletedAndPassed). Such a lesson is
  * not waived again (vendored placement.ts and checkpoint.ts filter skips the same way).
  */
-export async function satisfiedElsewhere(env: Env, actorName: string, auActivity: string, bundle: ContentBundle, eventId: string): Promise<boolean> {
+export async function satisfiedElsewhere(
+  env: Env,
+  actorName: string,
+  registration: string,
+  auActivity: string,
+  bundle: ContentBundle,
+  eventId: string,
+): Promise<boolean> {
   const lessonId = lessonsByAu(bundle).get(auActivity);
   const { results } = await env.DB
-    .prepare('SELECT verb FROM official_outcomes WHERE actor_name = ? AND activity_id = ? AND event_id <> ?')
-    .bind(actorName, auActivity, eventId)
+    .prepare('SELECT verb FROM official_outcomes WHERE actor_name = ? AND registration = ? AND activity_id = ? AND event_id <> ?')
+    .bind(actorName, registration, auActivity, eventId)
     .all<{ verb: string }>();
   const done = new Set(results.map((r) => r.verb));
   if (done.has('waived')) return true;
@@ -164,8 +173,8 @@ async function officialFor(
   for (const row of plan.abandon) out.push(await abandonedStatement(ctx, row));
   if (plan.session) {
     for (const s of await buildOfficial({ ...ctx, auSession: plan.session }, e, r)) {
-      if (isDefined(s) && s.verb.id === ADL_VERBS.waived && (await satisfiedElsewhere(env, actorName, s.object.id, ctx.bundle, e.eventId))) continue;
-      if (!isDefined(s) || !ONCE_VERBS.has(s.verb.id) || (await claimOnce(env, actorName, s, e.eventId))) out.push(s);
+      if (isDefined(s) && s.verb.id === ADL_VERBS.waived && (await satisfiedElsewhere(env, actorName, ctx.registration, s.object.id, ctx.bundle, e.eventId))) continue;
+      if (!isDefined(s) || !ONCE_VERBS.has(s.verb.id) || (await claimOnce(env, actorName, ctx.registration, s, e.eventId))) out.push(s);
     }
   }
   // Queue first, then move the session rows: a retry after a failure in between plans the same statements.
