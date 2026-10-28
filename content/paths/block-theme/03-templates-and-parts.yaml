@@ -134,10 +134,10 @@ checkpoint:
       file: templates/index.html
       pattern: '<!--\s*wp:template-part\s+\{(?=[^}]*"slug"\s*:\s*"header")(?=[^}]*"tagName"\s*:\s*"header")[^}]*\}\s*/-->'
       message: Choose the part's wrapping element with the tagName setting in the same block.
-    - type: contains
+    - type: regex
       file: templates/index.html
-      value: '<!-- wp:query '
-      message: Keep the Query Loop that lists your posts.
+      pattern: '<!--\s*wp:template-part\b[\s\S]*<!--\s*wp:query\s'
+      message: Keep the Query Loop that lists your posts, below the header part you add.
     - type: regex
       file: templates/index.html
       pattern: '^\s*<!--\s*wp:template-part\s+\{[^}]*"slug"\s*:\s*"header"[^}]*\}\s*/-->[\s\S]*<main\b[\s\S]*<!--\s*wp:query\s'

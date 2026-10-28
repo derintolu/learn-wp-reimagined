@@ -12,27 +12,6 @@ const bundle = (): ContentBundle => buildContent('content');
 const enc = new TextEncoder();
 const bytes = (f: Record<string, string>) => Object.fromEntries(Object.entries(f).map(([k, v]) => [k, enc.encode(v)]));
 
-/** Errors the standard's validator reports on today's content: checks that already pass on the starter or bug code. */
-const KNOWN_GUARD_CHECKS = [
-  'CXM-PKG-022 cxm/lessons/bt-global-styles.json /checkpoint/checks/0',
-  'CXM-PKG-022 cxm/lessons/bt-global-styles.json /checkpoint/checks/1',
-  'CXM-PKG-022 cxm/lessons/bt-style-css-and-theme-json.json /checkpoint/checks/0',
-  'CXM-PKG-022 cxm/lessons/bt-templates-and-parts.json /checkpoint/checks/2',
-  'CXM-PKG-022 cxm/lessons/ln-blocks.json /checkpoint/checks/4',
-  'CXM-PKG-022 cxm/lessons/vc-enqueueing.json /checkpoint/checks/2',
-  'CXM-PKG-022 cxm/lessons/vc-escaping-and-sanitizing.json /checkpoint/checks/2',
-  'CXM-PKG-022 cxm/lessons/vc-theme-json-from-code.json /checkpoint/checks/4',
-  'CXM-PKG-024 cxm/lessons/bt-patterns.json /bug/fixChecks/1',
-  'CXM-PKG-024 cxm/lessons/bt-what-is-a-block-theme.json /bug/fixChecks/2',
-  'CXM-PKG-024 cxm/lessons/ln-blocks.json /bug/fixChecks/1',
-  'CXM-PKG-024 cxm/lessons/ln-blocks.json /bug/fixChecks/2',
-  'CXM-PKG-024 cxm/lessons/ln-blocks.json /bug/fixChecks/3',
-  'CXM-PKG-024 cxm/lessons/vc-actions-and-filters.json /bug/fixChecks/2',
-  'CXM-PKG-024 cxm/lessons/vc-actions-and-filters.json /bug/fixChecks/3',
-  'CXM-PKG-024 cxm/lessons/vc-escaping-and-sanitizing.json /bug/fixChecks/2',
-  'CXM-PKG-024 cxm/lessons/vc-escaping-and-sanitizing.json /bug/fixChecks/3',
-];
-
 describe('package adapter', () => {
   it('uses the course identity base for its IRIs', () => {
     expect(STUDIO_EXT).toBe(`${XAPI_BASE}/cxm/studio/v1`);
@@ -58,17 +37,16 @@ describe('package adapter', () => {
     const lessons = Object.values(loaded.course.lessons).map((l) => ({ key: l.key, file: `cxm/lessons/${l.key}.json`, base: '', lesson: JSON.parse(new TextDecoder().decode(files[`cxm/lessons/${l.key}.json`]!)) }));
     const course = { file: 'cxm/course.json', base: '', rules: loaded.course.rules };
     const issues = [...behaviourIssues(lessons, 'authoring'), ...lintIssues(course, lessons)];
-    // Guard checks (keep-what-was-there, bug-still-present style) trip the standard's CXM-PKG-022/024 "check proves
-    // nothing" rule on the existing content. They are content findings, pinned here so any new error still fails.
+    // Every check fails on the starter files and every fix check on the bug code (CXM-PKG-022/024).
     const errors = issues.filter((i) => i.severity === 'error').map((i) => `${i.code} ${i.file} ${i.pointer}`).sort();
-    expect(errors).toEqual(KNOWN_GUARD_CHECKS);
+    expect(errors).toEqual([]);
   });
 
   it('compareBundles reports a changed check value by lesson id', () => {
     const a = bundle();
     const b = packageToBundle(bundleToPackage(a));
-    const id = Object.values(b.lessons).find((l) => l.checkpoint?.checks?.some((c) => c.type === 'contains'))!.id;
-    const check = b.lessons[id]!.checkpoint!.checks!.find((c) => c.type === 'contains')! as { value: string };
+    const id = Object.values(b.lessons).find((l) => l.bug?.fixChecks.some((c) => c.type === 'notContains'))!.id;
+    const check = b.lessons[id]!.bug!.fixChecks.find((c) => c.type === 'notContains')! as { value: string };
     check.value += ' changed';
     const diffs = compareBundles(a, b);
     expect(diffs).toHaveLength(1);

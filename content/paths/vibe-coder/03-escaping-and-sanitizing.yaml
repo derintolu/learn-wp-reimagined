@@ -162,12 +162,12 @@ bug:
       message: Every place $reader is used, other than setting it, should be wrapped in esc_html(). Look for a spot where it goes into the HTML as it is.
     - type: regex
       file: my-first-plugin/my-first-plugin.php
-      pattern: '\$_GET\[\s*[''"]reader[''"]\s*\]'
+      pattern: '^(?=[\s\S]*\besc_html\()[\s\S]*?\$_GET\[\s*[''"]reader[''"]\s*\]'
       message: Keep the greeting. Fix how the name is output rather than removing the feature.
     - type: regex
       file: my-first-plugin/my-first-plugin.php
-      pattern: '\breturn\s*\(?\s*(?:\$content\s*\.\s*\$note|\$note\s*\.\s*\$content)\s*\)?\s*;|\$content\s*\.=\s*\$note\s*;[\s\S]*?\breturn\s*\(?\s*\$content\s*\)?\s*;'
-      message: Keep returning the post's content with the note added, as you fixed it in lesson 1.
+      pattern: '^(?=[\s\S]*\besc_html\()[\s\S]*?(?:\breturn\s*\(?\s*(?:\$content\s*\.\s*\$note|\$note\s*\.\s*\$content)\s*\)?\s*;|\$content\s*\.=\s*\$note\s*;[\s\S]*?\breturn\s*\(?\s*\$content\s*\)?\s*;)'
+      message: Keep returning the post's content with the note added, as you fixed it in lesson 1, while you fix how the name is output.
 checkpoint:
   id: cp-sanitize-name-code
   question: >-
@@ -190,8 +190,8 @@ checkpoint:
       message: Keep esc_html() around $reader in the note. Sanitizing the input doesn't replace escaping the output.
     - type: regex
       file: my-first-plugin/my-first-plugin.php
-      pattern: '^(?![\s\S]*(?<!esc_html\(\s*)\$reader\b(?!\s*=(?!=)))'
-      message: Every place $reader is used, other than setting it, should still be wrapped in esc_html().
+      pattern: '^(?=[\s\S]*\$reader\b)(?![\s\S]*(?<!esc_html\(\s*)\$reader\b(?!\s*=(?!=)))'
+      message: Keep the greeting, with every place $reader is used, other than setting it, still wrapped in esc_html().
     - type: regex
       file: my-first-plugin/my-first-plugin.php
       pattern: '\bisset\(\s*\$_GET\[\s*[''"]reader[''"]\s*\]\s*\)'

@@ -142,9 +142,9 @@ bug:
       message: Keep the Contrast colour's hex code exactly as it was. Only the key around it is wrong.
     - type: json
       file: theme.json
-      pointer: /version
-      equals: 3
-      message: The file must still be valid JSON with version 3. Check for a missing comma or quote.
+      pointer: /settings/color/palette/1/color
+      equals: '#1e1e1e'
+      message: The file must still be valid JSON once the Contrast entry is fixed. Check for a missing comma or quote.
 checkpoint:
   id: cp-two-files
   question: In a sentence or two, which two files does every block theme need, and what does each one do?

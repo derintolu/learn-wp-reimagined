@@ -122,9 +122,9 @@ bug:
       message: WordPress reads the header by its field names. Compare each line with the fields the lesson lists.
     - type: regex
       file: patterns/hero.php
-      pattern: '^\s*\*\s*Slug:\s*my-block-theme/hero\s*$'
+      pattern: '(?<![\s\S])(?=[\s\S]*^\s*\*\s*[Tt][Ii][Tt][Ll][Ee]:\s*\S)[\s\S]*^\s*\*\s*Slug:\s*my-block-theme/hero\s*$'
       flags: m
-      message: Keep the namespaced slug as it was.
+      message: Keep the namespaced slug as it was while you fix the header.
 checkpoint:
   id: cp-pattern-vs-part
   question: Your theme now has a template part (the header) and a pattern (the hero). In your own words, how does WordPress treat them differently?

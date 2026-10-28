@@ -153,8 +153,8 @@ checkpoint:
       message: In the array, set styles > elements > heading > color > text to 'var:preset|color|accent-3'.
     - type: regex
       file: my-first-plugin/my-first-plugin.php
-      pattern: '\badd_filter\(\s*[''"]the_content[''"]'
-      message: Keep your the_content filter from lesson 1. It still adds the note.
+      pattern: '^(?=[\s\S]*\bwp_theme_json_data_theme\b)[\s\S]*?\badd_filter\(\s*[''"]the_content[''"]'
+      message: Keep your the_content filter from lesson 1 as you add the new filter. It still adds the note.
   branches:
     - outcome: advance
       to: vc-ship-it

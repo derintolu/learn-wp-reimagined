@@ -121,8 +121,8 @@ checkpoint:
       message: Put the wp_enqueue_style() call inside a function, and hook that function with add_action to wp_enqueue_scripts (not init). Check the function name in add_action matches.
     - type: regex
       file: my-first-plugin/my-first-plugin.php
-      pattern: '\badd_filter\(\s*[''"]the_content[''"]'
-      message: Keep your the_content filter from the last lesson. It adds the note this stylesheet styles.
+      pattern: '^(?=[\s\S]*\bwp_enqueue_style\s*\()[\s\S]*?\badd_filter\(\s*[''"]the_content[''"]'
+      message: Keep your the_content filter from the last lesson as you add the enqueue code. It adds the note this stylesheet styles.
   branches:
     - outcome: advance
       to: vc-escaping-and-sanitizing

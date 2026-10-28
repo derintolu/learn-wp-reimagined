@@ -100,16 +100,16 @@ bug:
       message: Every paragraph's opening wp:paragraph comment needs a closing /wp:paragraph comment before the next block starts. Count the opening and closing comments.
     - type: regex
       file: pages/about.html
-      pattern: '^(?![\s\S]*<!--\s*/wp:paragraph\s*-->(?:(?!<!--\s{0,100}wp:paragraph\b)[\s\S])*<!--\s*/wp:paragraph\s*-->)'
-      message: There should be exactly one closing comment for each paragraph. Look for an extra one.
+      pattern: '^(?=[\s\S]*?<!--\s*/wp:paragraph\s*-->[\s\S]*?<!--\s*/wp:paragraph\s*-->)(?![\s\S]*<!--\s*/wp:paragraph\s*-->(?:(?!<!--\s{0,100}wp:paragraph\b)[\s\S])*<!--\s*/wp:paragraph\s*-->)'
+      message: There should be exactly one closing comment for each paragraph. Look for a missing one or an extra one.
     - type: regex
       file: pages/about.html
-      pattern: '<!--\s*wp:paragraph\s*-->\s*<p>Hi there\.'
-      message: Keep the first paragraph as a paragraph block, with its opening comment and its text.
+      pattern: '<!--\s*wp:paragraph\s*-->\s*<p>Hi there\.(?:(?!<!--)[\s\S])*</p>\s*<!--\s*/wp:paragraph\s*-->'
+      message: Keep the first paragraph as a paragraph block, with its opening comment, its text and its closing comment.
     - type: regex
       file: pages/about.html
-      pattern: '<!--\s*wp:paragraph\s*-->\s*<p>I''m learning as I go'
-      message: Keep the second paragraph as a paragraph block, with its opening comment and its text.
+      pattern: '<!--\s*/wp:paragraph\s*-->\s*<!--\s*wp:paragraph\s*-->\s*<p>I''m learning as I go'
+      message: Keep the second paragraph as a paragraph block of its own, with its opening comment and its text, starting after the first one closes.
 checkpoint:
   id: cp-about-heading-code
   question: >-
@@ -141,8 +141,8 @@ checkpoint:
       message: Straight after the heading, add a paragraph block with some text, with its opening and closing comments.
     - type: regex
       file: pages/about.html
-      pattern: '^(?![\s\S]*<!--\s*wp:paragraph(?:\s+\{[^}]*\})?\s*-->(?:(?!<!--\s{0,100}/?wp:)[\s\S])*(?:<!--\s*wp:|$))'
-      message: Every paragraph needs its closing comment before the next block starts.
+      pattern: '^(?=[\s\S]*<!--\s*wp:heading\b)(?![\s\S]*<!--\s*wp:paragraph(?:\s+\{[^}]*\})?\s*-->(?:(?!<!--\s{0,100}/?wp:)[\s\S])*(?:<!--\s*wp:|$))'
+      message: Every paragraph, including the one under your new heading, needs its closing comment before the next block starts.
     - type: regex
       file: pages/about.html
       pattern: '<!--\s*wp:paragraph\s*-->\s*<p>Hi there\.[\s\S]*<!--\s*wp:paragraph\s*-->\s*<p>I''m learning as I go[\s\S]*<!--\s*wp:heading'

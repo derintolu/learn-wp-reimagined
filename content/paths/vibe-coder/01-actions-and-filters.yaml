@@ -156,12 +156,12 @@ bug:
       message: The callback should give the post's content back to WordPress, with the note added to it. A filter returns the value it was given.
     - type: regex
       file: my-first-plugin/my-first-plugin.php
-      pattern: '\badd_filter\(\s*[''"]the_content[''"]\s*,\s*(?:[''"]my_first_plugin_add_note[''"]|(?:static\s+)?function\b|fn\b)'
-      message: Keep the add_filter line that hooks the callback to the_content.
-    - type: contains
+      pattern: '^(?=[\s\S]*\breturn\b)[\s\S]*?\badd_filter\(\s*[''"]the_content[''"]\s*,\s*(?:[''"]my_first_plugin_add_note[''"]|(?:static\s+)?function\b|fn\b)'
+      message: Keep the add_filter line that hooks the callback to the_content, and fix the callback itself.
+    - type: regex
       file: my-first-plugin/my-first-plugin.php
-      value: class="my-first-plugin-note"
-      message: Keep the note itself, with its my-first-plugin-note class. The next lesson styles it.
+      pattern: '^(?=[\s\S]*\breturn\b)[\s\S]*?class="my-first-plugin-note"'
+      message: Keep the note itself, with its my-first-plugin-note class, in what the callback gives back. The next lesson styles it.
 checkpoint:
   id: cp-filter-returns
   question: >-
