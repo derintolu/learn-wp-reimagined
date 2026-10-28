@@ -24,6 +24,6 @@
   ],
   "crons": [
     { "path": "/api/mcp-sweep", "schedule": "daily" },
-    { "path": "/api/lrs-drain", "schedule": "*/5 * * * *" }
+    { "path": "/api/lrs-drain", "schedule": "hourly" }
   ]
 }
