@@ -1,0 +1,139 @@
+{
+	"$schema": "https://schemas.wp.org/wp/6.6/theme.json",
+	"version": 3,
+	"settings": {
+		"appearanceTools": true,
+		"useRootPaddingAwareAlignments": true,
+		"color": {
+			"defaultPalette": false,
+			"defaultGradients": false,
+			"defaultDuotone": false,
+			"custom": false,
+			"customGradient": false,
+			"palette": [
+				{ "slug": "wp-blue", "name": "WordPress blue", "color": "#3858E9" },
+				{ "slug": "wp-blue-light", "name": "WordPress blue, light", "color": "#9FB1FF" },
+				{ "slug": "wp-blue-dark", "name": "WordPress blue, dark", "color": "#2145E6" },
+				{ "slug": "charcoal", "name": "Charcoal", "color": "#1E1E1E" },
+				{ "slug": "charcoal-2", "name": "Charcoal 2", "color": "#23282D" },
+				{ "slug": "paper", "name": "Paper", "color": "#FFFFFF" },
+				{ "slug": "ink-muted", "name": "Ink, muted", "color": "#50575E" },
+				{ "slug": "on-dark", "name": "On dark", "color": "#F0F0F1" },
+				{ "slug": "on-dark-muted", "name": "On dark, muted", "color": "#C3C4C7" },
+				{ "slug": "rule", "name": "Rule", "color": "#DCDCDE" },
+				{ "slug": "rule-dark", "name": "Rule, dark", "color": "#3C434A" },
+				{ "slug": "tint", "name": "Tint", "color": "#F0F3FF" },
+				{ "slug": "surface-muted", "name": "Surface, muted", "color": "#F6F7F7" }
+			]
+		},
+		"layout": {
+			"contentSize": "40rem",
+			"wideSize": "1280px"
+		},
+		"spacing": {
+			"units": [ "px", "em", "rem", "%", "vw", "ch" ],
+			"spacingSizes": [
+				{ "slug": "20", "name": "XS", "size": "0.5rem" },
+				{ "slug": "30", "name": "S", "size": "1rem" },
+				{ "slug": "40", "name": "M", "size": "1.5rem" },
+				{ "slug": "50", "name": "L", "size": "clamp(2rem, 1rem + 3vw, 3rem)" },
+				{ "slug": "60", "name": "Band", "size": "clamp(3.5rem, 2rem + 6vw, 7.5rem)" }
+			],
+			"defaultSpacingSizes": false
+		},
+		"typography": {
+			"defaultFontSizes": false,
+			"fluid": false,
+			"customFontSize": false,
+			"fontFamilies": [
+				{
+					"slug": "display",
+					"name": "EB Garamond",
+					"fontFamily": "'EB Garamond', 'Iowan Old Style', Georgia, serif",
+					"fontFace": [
+						{ "fontFamily": "EB Garamond", "fontStyle": "normal", "fontWeight": "400", "fontDisplay": "swap", "src": [ "file:./assets/fonts/eb-garamond-latin-400-normal.woff2" ] },
+						{ "fontFamily": "EB Garamond", "fontStyle": "italic", "fontWeight": "400", "fontDisplay": "swap", "src": [ "file:./assets/fonts/eb-garamond-latin-400-italic.woff2" ] },
+						{ "fontFamily": "EB Garamond", "fontStyle": "normal", "fontWeight": "500", "fontDisplay": "swap", "src": [ "file:./assets/fonts/eb-garamond-latin-500-normal.woff2" ] }
+					]
+				},
+				{
+					"slug": "ui",
+					"name": "Inter",
+					"fontFamily": "'Inter', system-ui, -apple-system, 'Segoe UI', sans-serif",
+					"fontFace": [
+						{ "fontFamily": "Inter", "fontStyle": "normal", "fontWeight": "400", "fontDisplay": "swap", "src": [ "file:./assets/fonts/inter-latin-400-normal.woff2" ] },
+						{ "fontFamily": "Inter", "fontStyle": "normal", "fontWeight": "500", "fontDisplay": "swap", "src": [ "file:./assets/fonts/inter-latin-500-normal.woff2" ] },
+						{ "fontFamily": "Inter", "fontStyle": "normal", "fontWeight": "600", "fontDisplay": "swap", "src": [ "file:./assets/fonts/inter-latin-600-normal.woff2" ] }
+					]
+				},
+				{
+					"slug": "mono",
+					"name": "Monospace",
+					"fontFamily": "ui-monospace, 'SF Mono', 'Cascadia Code', Menlo, Consolas, monospace"
+				}
+			],
+			"fontSizes": [
+				{ "slug": "small", "name": "Small", "size": "0.875rem" },
+				{ "slug": "medium", "name": "Medium", "size": "1rem" },
+				{ "slug": "lede", "name": "Lede", "size": "1.333rem" },
+				{ "slug": "large", "name": "Large", "size": "1.777rem" },
+				{ "slug": "x-large", "name": "Extra large", "size": "clamp(1.9rem, 1.4rem + 2vw, 2.369rem)" },
+				{ "slug": "xx-large", "name": "Huge", "size": "clamp(2.3rem, 1.6rem + 3vw, 3.157rem)" }
+			]
+		}
+	},
+	"styles": {
+		"color": { "background": "var:preset|color|paper", "text": "var:preset|color|charcoal" },
+		"spacing": {
+			"padding": { "left": "clamp(1rem, 0.5rem + 2.5vw, 2.5rem)", "right": "clamp(1rem, 0.5rem + 2.5vw, 2.5rem)", "top": "0", "bottom": "0" },
+			"blockGap": "1em"
+		},
+		"typography": {
+			"fontFamily": "var:preset|font-family|ui",
+			"fontSize": "var:preset|font-size|medium",
+			"lineHeight": "1.6"
+		},
+		"elements": {
+			"link": {
+				"color": { "text": "var:preset|color|wp-blue" },
+				"typography": { "textDecoration": "underline" },
+				":hover": { "color": { "text": "var:preset|color|wp-blue-dark" } }
+			},
+			"heading": {
+				"typography": { "fontFamily": "var:preset|font-family|display", "fontWeight": "400", "lineHeight": "1.08", "letterSpacing": "-0.01em" }
+			},
+			"h1": { "typography": { "fontSize": "var:preset|font-size|xx-large" } },
+			"h2": { "typography": { "fontSize": "var:preset|font-size|x-large" }, "spacing": { "margin": { "top": "2em", "bottom": "0.5em" } } },
+			"h3": { "typography": { "fontSize": "var:preset|font-size|large" }, "spacing": { "margin": { "top": "1.8em", "bottom": "0.45em" } } },
+			"button": {
+				"color": { "background": "var:preset|color|wp-blue", "text": "var:preset|color|paper" },
+				"border": { "radius": "2px" },
+				"typography": { "fontWeight": "600" },
+				":hover": { "color": { "background": "var:preset|color|wp-blue-dark", "text": "var:preset|color|paper" } }
+			}
+		},
+		"blocks": {
+			"core/code": {
+				"color": { "background": "var:preset|color|surface-muted", "text": "var:preset|color|charcoal" },
+				"typography": { "fontFamily": "var:preset|font-family|mono", "fontSize": "0.875rem", "lineHeight": "1.5" },
+				"spacing": { "padding": { "top": "1rem", "bottom": "1rem", "left": "1.25rem", "right": "1.25rem" } },
+				"border": { "radius": "0.5rem", "width": "1px", "color": "var:preset|color|rule", "style": "solid" }
+			},
+			"core/quote": {
+				"color": { "background": "var:preset|color|surface-muted" },
+				"border": { "left": { "width": "3px", "style": "solid", "color": "var:preset|color|wp-blue" } },
+				"spacing": { "padding": { "top": "0.75rem", "bottom": "0.75rem", "left": "1rem", "right": "1rem" } }
+			},
+			"core/post-title": {
+				"typography": { "fontFamily": "var:preset|font-family|display" }
+			},
+			"core/separator": {
+				"color": { "text": "var:preset|color|rule" }
+			}
+		}
+	},
+	"templateParts": [
+		{ "name": "header", "title": "Header", "area": "header" },
+		{ "name": "footer", "title": "Footer", "area": "footer" }
+	]
+}

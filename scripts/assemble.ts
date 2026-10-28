@@ -14,6 +14,7 @@ import { join, relative, sep } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { build as esbuild } from 'esbuild';
 import { build as viteBuild } from 'vite';
+import { packTheme } from './pack-theme.ts';
 
 export const BUNDLE_LIMIT = 8 * 1024 * 1024; // Spacefast compiled bundle limit (docs/functions#limits)
 
@@ -99,6 +100,8 @@ export async function assemble(root: string): Promise<void> {
   rmSync(join(dist, 'functions'), { recursive: true, force: true });
   const files = await bundleFunctions(join(root, 'functions/api'), join(dist, 'functions/api'));
   copyFileSync(join(root, 'sf.jsonc'), join(dist, 'sf.jsonc'));
+  // The blog's block theme, served as a file so the space's WordPress can install it by URL.
+  console.log(`theme: ${relative(root, packTheme(join(root, 'wordpress/theme'), join(dist, 'theme')))}`);
   assertNoEnvFiles(dist);
   for (const f of files) console.log(`function: ${relative(root, f)} (${statSync(f).size} bytes)`);
 }

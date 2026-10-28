@@ -1,0 +1,149 @@
+/*
+Theme Name: Learn WordPress, reimagined: Blog
+Theme URI: https://learnwp.sqwrlz.com/blog/
+Author: Derin Tolu
+Author URI: https://github.com/derintolu
+Description: The block theme for the prototype's blog at /blog. Same fonts, colours, header and footer as the app (src/styles/tokens.css).
+Version: 0.1.0
+Requires at least: 6.6
+Tested up to: 7.1
+Requires PHP: 8.1
+License: GPL-2.0-or-later
+License URI: https://www.gnu.org/licenses/old-licenses/gpl-2.0.html
+Text Domain: lwr-blog
+*/
+
+/* Tokens live in theme.json; this file holds what theme.json can't express. */
+
+:where(body) :focus-visible {
+	outline: 2px solid var(--wp--preset--color--wp-blue);
+	outline-offset: 3px;
+	border-radius: 2px;
+}
+.has-charcoal-background-color :focus-visible,
+.has-charcoal-2-background-color :focus-visible {
+	outline-color: var(--wp--preset--color--wp-blue-light);
+}
+
+.has-charcoal-background-color a:not(.wp-element-button),
+.has-charcoal-2-background-color a:not(.wp-element-button) {
+	color: var(--wp--preset--color--wp-blue-light);
+}
+.has-charcoal-background-color a:not(.wp-element-button):hover,
+.has-charcoal-2-background-color a:not(.wp-element-button):hover {
+	color: var(--wp--preset--color--paper);
+}
+:where(h1, h2, h3) { text-wrap: balance; }
+:where(p) { text-wrap: pretty; }
+body { -webkit-font-smoothing: antialiased; overflow-wrap: break-word; }
+
+/* ---------- Header ---------- */
+
+.lwr-header { border-bottom: 1px solid var(--wp--preset--color--rule-dark); }
+.lwr-header__inner { min-height: 4.25rem; }
+.lwr-brand { gap: 0.85rem; min-width: 0; }
+.lwr-wordmark {
+	margin: 0;
+	font-family: var(--wp--preset--font-family--display);
+	font-size: 1.5rem;
+	font-weight: 500;
+	line-height: 1;
+	letter-spacing: -0.005em;
+	white-space: nowrap;
+}
+.lwr-header .lwr-wordmark a { color: var(--wp--preset--color--paper); text-decoration: none; }
+.lwr-header .lwr-wordmark a:hover { color: var(--wp--preset--color--paper); text-decoration: underline; text-decoration-thickness: 1px; }
+
+.lwr-nav { margin: 0; padding: 0; list-style: none; display: flex; gap: clamp(1rem, 0.5rem + 1.5vw, 2rem); }
+.lwr-header .lwr-nav a {
+	color: var(--wp--preset--color--on-dark);
+	font-size: var(--wp--preset--font-size--small);
+	font-weight: 500;
+	text-decoration: none;
+	white-space: nowrap;
+}
+.lwr-header .lwr-nav a:hover { color: var(--wp--preset--color--wp-blue-light); text-decoration: underline; }
+.lwr-header .lwr-nav a[aria-current] { text-decoration: underline; text-decoration-thickness: 2px; text-underline-offset: 0.35em; }
+@media (max-width: 880px) {
+	.lwr-nav .nav-optional { display: none; }
+}
+@media (max-width: 560px) {
+	.lwr-wordmark { font-size: 1.22rem; }
+}
+@media (max-width: 400px) {
+	.lwr-brand { flex-wrap: wrap; row-gap: 0.4rem; }
+}
+
+/* ---------- Sticker (same as the app's) ---------- */
+
+.sticker {
+	display: inline-block;
+	position: relative;
+	flex: none;
+	margin: 0;
+	padding: 0.34rem 0.6rem 0.38rem;
+	background: var(--wp--preset--color--wp-blue-light);
+	color: var(--wp--preset--color--charcoal);
+	font: 600 0.72rem / 1 var(--wp--preset--font-family--ui);
+	letter-spacing: 0.01em;
+	white-space: nowrap;
+	border-radius: 3px 7px 4px 8px / 7px 3px 8px 4px;
+	transform: rotate(-4deg);
+	box-shadow: 1px 2px 0 rgba(0, 0, 0, 0.45);
+}
+.sticker::after {
+	content: '';
+	position: absolute;
+	inset: 2px;
+	border: 1px dashed rgba(30, 30, 30, 0.45);
+	border-radius: inherit;
+	pointer-events: none;
+}
+
+/* ---------- Post list ---------- */
+
+.lwr-post-list > li { padding-block: 2rem; border-top: 1px solid var(--wp--preset--color--rule); }
+.lwr-post-list > li:last-child { border-bottom: 1px solid var(--wp--preset--color--rule); }
+.lwr-post-list .wp-block-post-title a { text-decoration: none; }
+.lwr-post-list .wp-block-post-title a:hover { text-decoration: underline; text-decoration-thickness: 1px; }
+.lwr-meta { color: var(--wp--preset--color--ink-muted); font-size: var(--wp--preset--font-size--small); }
+.has-charcoal-background-color .lwr-meta { color: var(--wp--preset--color--on-dark-muted); }
+
+/* ---------- Prose ---------- */
+
+.lwr-prose li + li { margin-top: 0.55em; }
+.lwr-prose li::marker { color: var(--wp--preset--color--wp-blue); }
+.lwr-prose :where(p, li) code,
+.lwr-prose :where(h2, h3) code {
+	padding: 0.08em 0.35em;
+	border-radius: 0.3rem;
+	background: var(--wp--preset--color--tint);
+	font-size: 0.88em;
+	overflow-wrap: anywhere;
+}
+.lwr-prose pre { overflow-x: auto; max-width: 100%; }
+.lwr-prose pre code { white-space: pre; }
+
+/* ---------- Footer ---------- */
+
+.lwr-footer a { color: var(--wp--preset--color--wp-blue-light); }
+.lwr-footer a:hover { color: var(--wp--preset--color--paper); }
+.lwr-footer__top { border-bottom: 1px solid var(--wp--preset--color--rule-dark); }
+.lwr-footer__brand {
+	margin: 0;
+	font-family: var(--wp--preset--font-family--display);
+	font-size: var(--wp--preset--font-size--large);
+	line-height: 1.1;
+	color: var(--wp--preset--color--paper);
+}
+.lwr-footer__heading { margin: 0 0 0.4rem; font-weight: 600; color: var(--wp--preset--color--on-dark); }
+.lwr-footer__cols p { max-width: 42ch; }
+.lwr-footer__links { margin: 0; padding: 0; list-style: none; display: grid; gap: 0.3rem; }
+.lwr-footer__links li + li { margin-top: 0; }
+
+@media (prefers-reduced-motion: reduce) {
+	*, *::before, *::after { transition: none !important; animation: none !important; }
+}
+
+/* Header, main and footer sit flush, like the app's bands. */
+.wp-site-blocks > * { margin-block: 0; }
