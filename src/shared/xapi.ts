@@ -1,4 +1,16 @@
-export const XAPI_BASE = 'https://learn-wp-reimagined.space.fast';
+/** The course's identity base: actor homePage, activity, verb and extension IRIs, and the connector URL. */
+export const XAPI_BASE = 'https://learnwp.sqwrlz.com';
+/** Earlier identity bases. Statements recorded under them are read as if made under XAPI_BASE, and never rewritten. */
+export const LEGACY_XAPI_BASES: readonly string[] = ['https://learn-wp-reimagined.space.fast'];
+
+/** A legacy-base IRI as its current one; anything else unchanged. */
+export function currentIri<T>(v: T): T {
+  if (typeof v !== 'string') return v;
+  for (const b of LEGACY_XAPI_BASES) {
+    if (v === b || v.startsWith(`${b}/`)) return (XAPI_BASE + v.slice(b.length)) as T;
+  }
+  return v;
+}
 
 // Target: IEEE 9274.1.1-2023 (xAPI 2.0). Statements omit `version`; see docs/record-format.md.
 
@@ -35,6 +47,17 @@ export interface XapiStatement {
   result?: XapiResult;
   context?: { contextActivities?: { parent?: XapiActivityRef[] } };
   timestamp: string;
+}
+
+/** A copy of a statement whose verb, object and extension IRIs are read on the current base. For reading only. */
+export function currentStatement(s: XapiStatement): XapiStatement {
+  const ext = s.result?.extensions;
+  return {
+    ...s,
+    verb: { ...s.verb, id: currentIri(s.verb.id) },
+    object: { ...s.object, id: currentIri(s.object.id) },
+    ...(s.result && ext && { result: { ...s.result, extensions: Object.fromEntries(Object.entries(ext).map(([k, v]) => [currentIri(k), currentIri(v)])) } }),
+  };
 }
 
 export const activityId = (segments: string[]) => `${XAPI_BASE}/activities/${segments.map(encodeURIComponent).join('/')}`;

@@ -11,7 +11,7 @@
     "actor": {
      "objectType": "Agent",
      "account": {
-      "homePage": "https://learn-wp-reimagined.space.fast",
+      "homePage": "https://learnwp.sqwrlz.com",
       "name": "learner-1"
      }
     },
@@ -23,7 +23,7 @@
     },
     "object": {
      "objectType": "Activity",
-     "id": "https://learn-wp-reimagined.space.fast/activities/lessons/theme-json-basics/beats/1",
+     "id": "https://learnwp.sqwrlz.com/activities/lessons/theme-json-basics/beats/1",
      "definition": {
       "name": {
        "en-US": "theme.json basics: palette"
@@ -36,7 +36,7 @@
       "parent": [
        {
         "objectType": "Activity",
-        "id": "https://learn-wp-reimagined.space.fast/activities/paths/block-theme"
+        "id": "https://learnwp.sqwrlz.com/activities/paths/block-theme"
        }
       ]
      }
@@ -56,7 +56,7 @@
     "actor": {
      "objectType": "Agent",
      "account": {
-      "homePage": "https://learn-wp-reimagined.space.fast",
+      "homePage": "https://learnwp.sqwrlz.com",
       "name": "learner-1"
      }
     },
@@ -68,7 +68,7 @@
     },
     "object": {
      "objectType": "Activity",
-     "id": "https://learn-wp-reimagined.space.fast/activities/lessons/theme-json-basics/beats/99",
+     "id": "https://learnwp.sqwrlz.com/activities/lessons/theme-json-basics/beats/99",
      "definition": {
       "name": {
        "en-US": "theme.json basics"
@@ -81,7 +81,7 @@
       "parent": [
        {
         "objectType": "Activity",
-        "id": "https://learn-wp-reimagined.space.fast/activities/paths/block-theme"
+        "id": "https://learnwp.sqwrlz.com/activities/paths/block-theme"
        }
       ]
      }
@@ -101,7 +101,7 @@
     "actor": {
      "objectType": "Agent",
      "account": {
-      "homePage": "https://learn-wp-reimagined.space.fast",
+      "homePage": "https://learnwp.sqwrlz.com",
       "name": "learner-1"
      }
     },
@@ -113,7 +113,7 @@
     },
     "object": {
      "objectType": "Activity",
-     "id": "https://learn-wp-reimagined.space.fast/activities/lessons/nope/beats/0",
+     "id": "https://learnwp.sqwrlz.com/activities/lessons/nope/beats/0",
      "definition": {
       "name": {
        "en-US": "nope"
@@ -138,7 +138,7 @@
     "actor": {
      "objectType": "Agent",
      "account": {
-      "homePage": "https://learn-wp-reimagined.space.fast",
+      "homePage": "https://learnwp.sqwrlz.com",
       "name": "learner-1"
      }
     },
@@ -150,7 +150,7 @@
     },
     "object": {
      "objectType": "Activity",
-     "id": "https://learn-wp-reimagined.space.fast/activities/lessons/theme-json-basics/checkpoint",
+     "id": "https://learnwp.sqwrlz.com/activities/lessons/theme-json-basics/checkpoint",
      "definition": {
       "name": {
        "en-US": "theme.json basics: checkpoint"
@@ -166,7 +166,7 @@
       "parent": [
        {
         "objectType": "Activity",
-        "id": "https://learn-wp-reimagined.space.fast/activities/paths/block-theme"
+        "id": "https://learnwp.sqwrlz.com/activities/paths/block-theme"
        }
       ]
      }
@@ -177,7 +177,7 @@
     "actor": {
      "objectType": "Agent",
      "account": {
-      "homePage": "https://learn-wp-reimagined.space.fast",
+      "homePage": "https://learnwp.sqwrlz.com",
       "name": "learner-1"
      }
     },
@@ -189,7 +189,7 @@
     },
     "object": {
      "objectType": "Activity",
-     "id": "https://learn-wp-reimagined.space.fast/activities/lessons/theme-json-basics/checkpoint",
+     "id": "https://learnwp.sqwrlz.com/activities/lessons/theme-json-basics/checkpoint",
      "definition": {
       "name": {
        "en-US": "theme.json basics: checkpoint"
@@ -205,7 +205,7 @@
       "parent": [
        {
         "objectType": "Activity",
-        "id": "https://learn-wp-reimagined.space.fast/activities/paths/block-theme"
+        "id": "https://learnwp.sqwrlz.com/activities/paths/block-theme"
        }
       ]
      }
@@ -216,19 +216,19 @@
     "actor": {
      "objectType": "Agent",
      "account": {
-      "homePage": "https://learn-wp-reimagined.space.fast",
+      "homePage": "https://learnwp.sqwrlz.com",
       "name": "learner-1"
      }
     },
     "verb": {
-     "id": "https://learn-wp-reimagined.space.fast/xapi/verbs/branched",
+     "id": "https://learnwp.sqwrlz.com/xapi/verbs/branched",
      "display": {
       "en-US": "branched"
      }
     },
     "object": {
      "objectType": "Activity",
-     "id": "https://learn-wp-reimagined.space.fast/activities/lessons/templates-and-parts",
+     "id": "https://learnwp.sqwrlz.com/activities/lessons/templates-and-parts",
      "definition": {
       "name": {
        "en-US": "Templates and template parts"
@@ -238,8 +238,8 @@
     "timestamp": "",
     "result": {
      "extensions": {
-      "https://learn-wp-reimagined.space.fast/xapi/extensions/outcome": "advance",
-      "https://learn-wp-reimagined.space.fast/xapi/extensions/from-lesson": "https://learn-wp-reimagined.space.fast/activities/lessons/theme-json-basics"
+      "https://learnwp.sqwrlz.com/xapi/extensions/outcome": "advance",
+      "https://learnwp.sqwrlz.com/xapi/extensions/from-lesson": "https://learnwp.sqwrlz.com/activities/lessons/theme-json-basics"
      }
     },
     "context": {
@@ -247,7 +247,7 @@
       "parent": [
        {
         "objectType": "Activity",
-        "id": "https://learn-wp-reimagined.space.fast/activities/paths/block-theme"
+        "id": "https://learnwp.sqwrlz.com/activities/paths/block-theme"
        }
       ]
      }
@@ -269,7 +269,7 @@
     "actor": {
      "objectType": "Agent",
      "account": {
-      "homePage": "https://learn-wp-reimagined.space.fast",
+      "homePage": "https://learnwp.sqwrlz.com",
       "name": "learner-1"
      }
     },
@@ -281,7 +281,7 @@
     },
     "object": {
      "objectType": "Activity",
-     "id": "https://learn-wp-reimagined.space.fast/activities/lessons/theme-json-basics/checkpoint",
+     "id": "https://learnwp.sqwrlz.com/activities/lessons/theme-json-basics/checkpoint",
      "definition": {
       "name": {
        "en-US": "theme.json basics: checkpoint"
@@ -297,7 +297,7 @@
       "parent": [
        {
         "objectType": "Activity",
-        "id": "https://learn-wp-reimagined.space.fast/activities/paths/block-theme"
+        "id": "https://learnwp.sqwrlz.com/activities/paths/block-theme"
        }
       ]
      }
@@ -308,7 +308,7 @@
     "actor": {
      "objectType": "Agent",
      "account": {
-      "homePage": "https://learn-wp-reimagined.space.fast",
+      "homePage": "https://learnwp.sqwrlz.com",
       "name": "learner-1"
      }
     },
@@ -320,7 +320,7 @@
     },
     "object": {
      "objectType": "Activity",
-     "id": "https://learn-wp-reimagined.space.fast/activities/lessons/theme-json-basics/checkpoint",
+     "id": "https://learnwp.sqwrlz.com/activities/lessons/theme-json-basics/checkpoint",
      "definition": {
       "name": {
        "en-US": "theme.json basics: checkpoint"
@@ -336,7 +336,7 @@
       "parent": [
        {
         "objectType": "Activity",
-        "id": "https://learn-wp-reimagined.space.fast/activities/paths/block-theme"
+        "id": "https://learnwp.sqwrlz.com/activities/paths/block-theme"
        }
       ]
      }
@@ -347,19 +347,19 @@
     "actor": {
      "objectType": "Agent",
      "account": {
-      "homePage": "https://learn-wp-reimagined.space.fast",
+      "homePage": "https://learnwp.sqwrlz.com",
       "name": "learner-1"
      }
     },
     "verb": {
-     "id": "https://learn-wp-reimagined.space.fast/xapi/verbs/branched",
+     "id": "https://learnwp.sqwrlz.com/xapi/verbs/branched",
      "display": {
       "en-US": "branched"
      }
     },
     "object": {
      "objectType": "Activity",
-     "id": "https://learn-wp-reimagined.space.fast/activities/lessons/templates-and-parts",
+     "id": "https://learnwp.sqwrlz.com/activities/lessons/templates-and-parts",
      "definition": {
       "name": {
        "en-US": "Templates and template parts"
@@ -369,8 +369,8 @@
     "timestamp": "",
     "result": {
      "extensions": {
-      "https://learn-wp-reimagined.space.fast/xapi/extensions/outcome": "skip",
-      "https://learn-wp-reimagined.space.fast/xapi/extensions/from-lesson": "https://learn-wp-reimagined.space.fast/activities/lessons/theme-json-basics"
+      "https://learnwp.sqwrlz.com/xapi/extensions/outcome": "skip",
+      "https://learnwp.sqwrlz.com/xapi/extensions/from-lesson": "https://learnwp.sqwrlz.com/activities/lessons/theme-json-basics"
      }
     },
     "context": {
@@ -378,7 +378,7 @@
       "parent": [
        {
         "objectType": "Activity",
-        "id": "https://learn-wp-reimagined.space.fast/activities/paths/block-theme"
+        "id": "https://learnwp.sqwrlz.com/activities/paths/block-theme"
        }
       ]
      }
@@ -400,7 +400,7 @@
     "actor": {
      "objectType": "Agent",
      "account": {
-      "homePage": "https://learn-wp-reimagined.space.fast",
+      "homePage": "https://learnwp.sqwrlz.com",
       "name": "learner-1"
      }
     },
@@ -412,7 +412,7 @@
     },
     "object": {
      "objectType": "Activity",
-     "id": "https://learn-wp-reimagined.space.fast/activities/lessons/theme-json-basics/checkpoint",
+     "id": "https://learnwp.sqwrlz.com/activities/lessons/theme-json-basics/checkpoint",
      "definition": {
       "name": {
        "en-US": "theme.json basics: checkpoint"
@@ -428,7 +428,7 @@
       "parent": [
        {
         "objectType": "Activity",
-        "id": "https://learn-wp-reimagined.space.fast/activities/paths/block-theme"
+        "id": "https://learnwp.sqwrlz.com/activities/paths/block-theme"
        }
       ]
      }
@@ -439,7 +439,7 @@
     "actor": {
      "objectType": "Agent",
      "account": {
-      "homePage": "https://learn-wp-reimagined.space.fast",
+      "homePage": "https://learnwp.sqwrlz.com",
       "name": "learner-1"
      }
     },
@@ -451,7 +451,7 @@
     },
     "object": {
      "objectType": "Activity",
-     "id": "https://learn-wp-reimagined.space.fast/activities/lessons/theme-json-basics/checkpoint",
+     "id": "https://learnwp.sqwrlz.com/activities/lessons/theme-json-basics/checkpoint",
      "definition": {
       "name": {
        "en-US": "theme.json basics: checkpoint"
@@ -467,7 +467,7 @@
       "parent": [
        {
         "objectType": "Activity",
-        "id": "https://learn-wp-reimagined.space.fast/activities/paths/block-theme"
+        "id": "https://learnwp.sqwrlz.com/activities/paths/block-theme"
        }
       ]
      }
@@ -478,19 +478,19 @@
     "actor": {
      "objectType": "Agent",
      "account": {
-      "homePage": "https://learn-wp-reimagined.space.fast",
+      "homePage": "https://learnwp.sqwrlz.com",
       "name": "learner-1"
      }
     },
     "verb": {
-     "id": "https://learn-wp-reimagined.space.fast/xapi/verbs/branched",
+     "id": "https://learnwp.sqwrlz.com/xapi/verbs/branched",
      "display": {
       "en-US": "branched"
      }
     },
     "object": {
      "objectType": "Activity",
-     "id": "https://learn-wp-reimagined.space.fast/activities/lessons/theme-json-basics",
+     "id": "https://learnwp.sqwrlz.com/activities/lessons/theme-json-basics",
      "definition": {
       "name": {
        "en-US": "theme.json basics"
@@ -500,8 +500,8 @@
     "timestamp": "",
     "result": {
      "extensions": {
-      "https://learn-wp-reimagined.space.fast/xapi/extensions/outcome": "review",
-      "https://learn-wp-reimagined.space.fast/xapi/extensions/from-lesson": "https://learn-wp-reimagined.space.fast/activities/lessons/theme-json-basics"
+      "https://learnwp.sqwrlz.com/xapi/extensions/outcome": "review",
+      "https://learnwp.sqwrlz.com/xapi/extensions/from-lesson": "https://learnwp.sqwrlz.com/activities/lessons/theme-json-basics"
      }
     },
     "context": {
@@ -509,7 +509,7 @@
       "parent": [
        {
         "objectType": "Activity",
-        "id": "https://learn-wp-reimagined.space.fast/activities/paths/block-theme"
+        "id": "https://learnwp.sqwrlz.com/activities/paths/block-theme"
        }
       ]
      }
@@ -531,7 +531,7 @@
     "actor": {
      "objectType": "Agent",
      "account": {
-      "homePage": "https://learn-wp-reimagined.space.fast",
+      "homePage": "https://learnwp.sqwrlz.com",
       "name": "learner-1"
      }
     },
@@ -543,7 +543,7 @@
     },
     "object": {
      "objectType": "Activity",
-     "id": "https://learn-wp-reimagined.space.fast/activities/lessons/nope/checkpoint",
+     "id": "https://learnwp.sqwrlz.com/activities/lessons/nope/checkpoint",
      "definition": {
       "name": {
        "en-US": "nope: checkpoint"
@@ -560,7 +560,7 @@
     "actor": {
      "objectType": "Agent",
      "account": {
-      "homePage": "https://learn-wp-reimagined.space.fast",
+      "homePage": "https://learnwp.sqwrlz.com",
       "name": "learner-1"
      }
     },
@@ -572,7 +572,7 @@
     },
     "object": {
      "objectType": "Activity",
-     "id": "https://learn-wp-reimagined.space.fast/activities/lessons/nope/checkpoint",
+     "id": "https://learnwp.sqwrlz.com/activities/lessons/nope/checkpoint",
      "definition": {
       "name": {
        "en-US": "nope: checkpoint"
@@ -589,19 +589,19 @@
     "actor": {
      "objectType": "Agent",
      "account": {
-      "homePage": "https://learn-wp-reimagined.space.fast",
+      "homePage": "https://learnwp.sqwrlz.com",
       "name": "learner-1"
      }
     },
     "verb": {
-     "id": "https://learn-wp-reimagined.space.fast/xapi/verbs/branched",
+     "id": "https://learnwp.sqwrlz.com/xapi/verbs/branched",
      "display": {
       "en-US": "branched"
      }
     },
     "object": {
      "objectType": "Activity",
-     "id": "https://learn-wp-reimagined.space.fast/activities/lessons/nope2",
+     "id": "https://learnwp.sqwrlz.com/activities/lessons/nope2",
      "definition": {
       "name": {
        "en-US": "nope2"
@@ -611,8 +611,8 @@
     "timestamp": "",
     "result": {
      "extensions": {
-      "https://learn-wp-reimagined.space.fast/xapi/extensions/outcome": "advance",
-      "https://learn-wp-reimagined.space.fast/xapi/extensions/from-lesson": "https://learn-wp-reimagined.space.fast/activities/lessons/nope"
+      "https://learnwp.sqwrlz.com/xapi/extensions/outcome": "advance",
+      "https://learnwp.sqwrlz.com/xapi/extensions/from-lesson": "https://learnwp.sqwrlz.com/activities/lessons/nope"
      }
     }
    }
@@ -631,7 +631,7 @@
     "actor": {
      "objectType": "Agent",
      "account": {
-      "homePage": "https://learn-wp-reimagined.space.fast",
+      "homePage": "https://learnwp.sqwrlz.com",
       "name": "learner-1"
      }
     },
@@ -643,7 +643,7 @@
     },
     "object": {
      "objectType": "Activity",
-     "id": "https://learn-wp-reimagined.space.fast/activities/lessons/theme-json-basics/files/style.css",
+     "id": "https://learnwp.sqwrlz.com/activities/lessons/theme-json-basics/files/style.css",
      "definition": {
       "name": {
        "en-US": "theme.json basics: style.css"
@@ -659,7 +659,7 @@
       "parent": [
        {
         "objectType": "Activity",
-        "id": "https://learn-wp-reimagined.space.fast/activities/paths/block-theme"
+        "id": "https://learnwp.sqwrlz.com/activities/paths/block-theme"
        }
       ]
      }
@@ -680,7 +680,7 @@
     "actor": {
      "objectType": "Agent",
      "account": {
-      "homePage": "https://learn-wp-reimagined.space.fast",
+      "homePage": "https://learnwp.sqwrlz.com",
       "name": "learner-1"
      }
     },
@@ -692,7 +692,7 @@
     },
     "object": {
      "objectType": "Activity",
-     "id": "https://learn-wp-reimagined.space.fast/activities/lessons/theme-json-basics/files/style.css",
+     "id": "https://learnwp.sqwrlz.com/activities/lessons/theme-json-basics/files/style.css",
      "definition": {
       "name": {
        "en-US": "theme.json basics: style.css"
@@ -708,7 +708,7 @@
       "parent": [
        {
         "objectType": "Activity",
-        "id": "https://learn-wp-reimagined.space.fast/activities/paths/block-theme"
+        "id": "https://learnwp.sqwrlz.com/activities/paths/block-theme"
        }
       ]
      }
@@ -729,7 +729,7 @@
     "actor": {
      "objectType": "Agent",
      "account": {
-      "homePage": "https://learn-wp-reimagined.space.fast",
+      "homePage": "https://learnwp.sqwrlz.com",
       "name": "learner-1"
      }
     },
@@ -741,7 +741,7 @@
     },
     "object": {
      "objectType": "Activity",
-     "id": "https://learn-wp-reimagined.space.fast/activities/lessons/nope/files/a%20b.css",
+     "id": "https://learnwp.sqwrlz.com/activities/lessons/nope/files/a%20b.css",
      "definition": {
       "name": {
        "en-US": "nope: a b.css"
@@ -766,7 +766,7 @@
     "actor": {
      "objectType": "Agent",
      "account": {
-      "homePage": "https://learn-wp-reimagined.space.fast",
+      "homePage": "https://learnwp.sqwrlz.com",
       "name": "learner-1"
      }
     },
@@ -778,7 +778,7 @@
     },
     "object": {
      "objectType": "Activity",
-     "id": "https://learn-wp-reimagined.space.fast/activities/lessons/theme-json-basics",
+     "id": "https://learnwp.sqwrlz.com/activities/lessons/theme-json-basics",
      "definition": {
       "name": {
        "en-US": "theme.json basics"
@@ -794,7 +794,7 @@
       "parent": [
        {
         "objectType": "Activity",
-        "id": "https://learn-wp-reimagined.space.fast/activities/paths/block-theme"
+        "id": "https://learnwp.sqwrlz.com/activities/paths/block-theme"
        }
       ]
      }
@@ -813,7 +813,7 @@
     "actor": {
      "objectType": "Agent",
      "account": {
-      "homePage": "https://learn-wp-reimagined.space.fast",
+      "homePage": "https://learnwp.sqwrlz.com",
       "name": "learner-1"
      }
     },
@@ -825,7 +825,7 @@
     },
     "object": {
      "objectType": "Activity",
-     "id": "https://learn-wp-reimagined.space.fast/activities/lessons/nope",
+     "id": "https://learnwp.sqwrlz.com/activities/lessons/nope",
      "definition": {
       "name": {
        "en-US": "nope"

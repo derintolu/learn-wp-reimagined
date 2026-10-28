@@ -159,6 +159,8 @@ describe('/api/mcp HTTP guards', () => {
 
   it('answers a disallowed Origin with 403 and lets the site origin through', async () => {
     expect((await post({ origin: 'https://evil.example' })).status).toBe(403);
+    expect((await post({ origin: 'https://learnwp.sqwrlz.com' })).status).not.toBe(403);
+    // The old address stays attached to the space, so pages served from it still reach the server.
     expect((await post({ origin: 'https://learn-wp-reimagined.space.fast' })).status).not.toBe(403);
   });
 });

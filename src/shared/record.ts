@@ -1,7 +1,7 @@
 import type { Placement } from './engine';
 import type { ContentBundle, Outcome, PathId } from './types';
 import { statementsForEvent } from './statements';
-import { EXT_FROM_LESSON, EXT_OUTCOME, VERBS, activityId, validateStatement, type XapiStatement } from './xapi';
+import { EXT_FROM_LESSON, EXT_OUTCOME, VERBS, activityId, currentStatement, validateStatement, type XapiStatement } from './xapi';
 
 export interface LearningRecord {
   format: 'learn-wp-reimagined/record';
@@ -97,7 +97,8 @@ export function branchSkippedLessons(r: LearningRecord, c: ContentBundle, pathId
   const lessons = c.paths[pathId]?.lessons ?? [];
   const idx = new Map(lessons.map((id, i) => [activityId(['lessons', id]), i] as const));
   const out = new Set<string>();
-  for (const st of r.statements) {
+  for (const raw of r.statements) {
+    const st = currentStatement(raw);
     if (st.verb.id !== VERBS.branched.id) continue;
     const ext = st.result?.extensions;
     if (ext?.[EXT_OUTCOME] !== 'skip') continue;
@@ -125,7 +126,8 @@ const OUTCOMES: readonly Outcome[] = ['advance', 'review', 'skip'];
 /** Every checkpoint branch the learner took, oldest first, read from the `branched` statements. */
 export function branchHistory(r: LearningRecord): { from: string; to: string; outcome: Outcome }[] {
   const out: { from: string; to: string; outcome: Outcome }[] = [];
-  for (const st of r.statements) {
+  for (const raw of r.statements) {
+    const st = currentStatement(raw);
     if (st.verb.id !== VERBS.branched.id) continue;
     const ext = st.result?.extensions;
     const outcome = ext?.[EXT_OUTCOME] as Outcome;

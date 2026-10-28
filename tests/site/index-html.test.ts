@@ -6,7 +6,7 @@ const root = resolve(__dirname, '../..');
 const html = readFileSync(resolve(root, 'index.html'), 'utf8');
 const meta = (attr: 'name' | 'property', key: string) =>
   html.match(new RegExp(`<meta ${attr}="${key.replace(/[.:]/g, '\\$&')}" content="([^"]*)"`))?.[1];
-const SITE = 'https://learn-wp-reimagined.space.fast/';
+const SITE = 'https://learnwp.sqwrlz.com/';
 
 describe('index.html social metadata', () => {
   it('has a description, Open Graph and Twitter card tags', () => {

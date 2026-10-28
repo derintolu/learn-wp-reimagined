@@ -14,7 +14,7 @@ import {
   type LearningRecord as McpRecord,
 } from '../../vendor/learning-mcp/core/index.ts';
 import { applyEvent, newRecord, parseRecord, type LearningRecord } from '../../src/shared/record';
-import { activityId } from '../../src/shared/xapi';
+import { XAPI_BASE, activityId } from '../../src/shared/xapi';
 import { COURSE_ID } from '../../src/shared/course-meta';
 
 const content = buildContent('content');
@@ -72,6 +72,26 @@ describe('planImport and applyImport', () => {
     const branched = out.statements.find((s) => s.verb.id.endsWith('/branched'));
     expect(branched?.object.id).toBe(activityId(['lessons', 'bt-style-css-and-theme-json']));
     expect(out.statements.some((s) => s.object.id === activityId(['lessons', 'bt-what-is-a-block-theme', 'files', 'theme.json']) && s.result?.success === true)).toBe(true);
+  });
+
+  it('imports an agent record made before the identity base moved exactly as a current one', () => {
+    const OLD = 'https://learn-wp-reimagined.space.fast';
+    const run = agentRun();
+    const legacy = JSON.parse(JSON.stringify(run).replaceAll(XAPI_BASE, OLD)) as McpRecord;
+    expect(JSON.stringify(legacy)).toContain(`${OLD}/course/lessons/`);
+    const a = planImport(newRecord(), run, content);
+    const b = planImport(newRecord(), legacy, content);
+    if (!a.ok || !b.ok) throw new Error('plan failed');
+    expect(b.plan.summary).toEqual(a.plan.summary);
+    expect(b.plan.ignored).toEqual(a.plan.ignored);
+    // A site record from before the move still counts as having answered that checkpoint.
+    let site = siteAt('bt-what-is-a-block-theme');
+    site = applyEvent(site, { type: 'checkpointAnswered', lessonId: 'bt-what-is-a-block-theme', response: 'Mine.', outcome: 'advance', to: 'bt-style-css-and-theme-json' }, content);
+    const oldSite = JSON.parse(JSON.stringify(site).replaceAll(XAPI_BASE, OLD)) as LearningRecord;
+    const c1 = planImport(site, run, content);
+    const c2 = planImport(oldSite, run, content);
+    if (!c1.ok || !c2.ok) throw new Error('plan failed');
+    expect(c2.plan.summary).toEqual(c1.plan.summary);
   });
 
   it('does not duplicate a checkpoint already answered on the site', () => {

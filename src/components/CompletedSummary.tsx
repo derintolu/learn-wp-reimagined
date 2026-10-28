@@ -2,7 +2,7 @@ import { content } from '../content';
 import { nextLessonId, resolveBranch } from '../shared/engine';
 import type { LearningRecord } from '../shared/record';
 import type { Lesson, Outcome } from '../shared/types';
-import { activityId, EXT_FROM_LESSON, EXT_OUTCOME, VERBS } from '../shared/xapi';
+import { activityId, currentStatement, EXT_FROM_LESSON, EXT_OUTCOME, VERBS } from '../shared/xapi';
 import { OUTCOME_LABEL } from './BranchMoment';
 
 const OUTCOMES: Outcome[] = ['advance', 'review', 'skip'];
@@ -11,7 +11,7 @@ const OUTCOMES: Outcome[] = ['advance', 'review', 'skip'];
 export function pastOutcome(r: LearningRecord, lessonId: string): Outcome | null {
   const from = activityId(['lessons', lessonId]);
   for (let i = r.statements.length - 1; i >= 0; i--) {
-    const s = r.statements[i];
+    const s = currentStatement(r.statements[i]);
     const ext = s.result?.extensions;
     if (s.verb.id === VERBS.branched.id && ext?.[EXT_FROM_LESSON] === from) {
       const o = ext[EXT_OUTCOME];

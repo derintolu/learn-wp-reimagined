@@ -7,7 +7,7 @@ import { COURSE_ACTIVITY_BASE, COURSE_ID } from '../shared/course-meta';
 import { resolveBranch, validatePlacement } from '../shared/engine';
 import { applyEvent, parseRecord, type LearningRecord, type RecordEvent } from '../shared/record';
 import type { ContentBundle, Outcome } from '../shared/types';
-import { VERBS as SITE_VERBS, activityId } from '../shared/xapi';
+import { VERBS as SITE_VERBS, activityId, currentIri } from '../shared/xapi';
 
 export const INVALID_PASTE = 'Paste a record handle (it starts with lr_) or the exported JSON.';
 export const NO_PROGRESS = 'This record has no progress in this course yet.';
@@ -49,6 +49,7 @@ const OUTCOMES: readonly Outcome[] = ['advance', 'review', 'skip'];
 /** Reads an MCP activity IRI as `{ lessonId, kind, name }` (e.g. lessons/<l>/files/<f>). */
 function readActivity(id: string): { lessonId: string; kind?: string; name?: string } | null {
   const prefix = `${COURSE_ACTIVITY_BASE}/lessons/`;
+  id = currentIri(id);
   if (!id.startsWith(prefix)) return null;
   try {
     const [lessonId, kind, name, ...rest] = id.slice(prefix.length).split('/').map(decodeURIComponent);
@@ -95,7 +96,7 @@ export function planImport(site: LearningRecord, raw: unknown, content: ContentB
   for (const id of Object.keys(rec.courses)) if (id !== COURSE_ID) ignored.add(`other course: ${id}`);
 
   const siteHas = (verbId: string | null, activity: string) =>
-    site.statements.some((s) => s.object.id === activity && (verbId === null || s.verb.id === verbId));
+    site.statements.some((s) => currentIri(s.object.id) === activity && (verbId === null || currentIri(s.verb.id) === verbId));
   const responses = new Map<string, string>();
   const lastFileLesson = new Map<string, string>();
 

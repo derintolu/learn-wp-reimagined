@@ -11,6 +11,7 @@ import { BAD_HANDLE, NO_RECORD } from '../../functions/_lib/mcp/agentApi';
 import { SEED_REASON } from '../../functions/_lib/mcp/seed';
 import { newHandle, parseRecord, type LearningRecord } from '../../vendor/learning-mcp/core/index.ts';
 import { COURSE_ID, MCP_URL, agentPrompt } from '../../src/shared/course-meta';
+import { XAPI_BASE } from '../../src/shared/xapi';
 import { connectMcp, routeFetch } from '../helpers/mcpClient';
 import type { D1Like, Env, Handler } from '../../functions/_lib/env';
 
@@ -120,6 +121,29 @@ describe('POST /api/agent/handoff', () => {
   it('refuses a body over 256 KB', async () => {
     const r = await post(handoff, { lessonId: 'bt-patterns', files: { 'theme.json': 'x'.repeat(300_000) } });
     expect(r.status).toBe(413);
+  });
+});
+
+describe('handles made before the identity base moved', () => {
+  it('still resolve: the agent resumes, keeps the old statements and adds new ones on the current base', async () => {
+    const OLD = 'https://learn-wp-reimagined.space.fast';
+    const r = await post(handoff, { lessonId: 'bt-templates-and-parts', files: { 'theme.json': '{"version":3}' } });
+    const { handle } = r.body;
+    // Rewrite the stored row as it was written under the old base.
+    await db.prepare('UPDATE mcp_records SET body = replace(body, ?, ?)').bind(XAPI_BASE, OLD).run();
+    const before = await post(getRecord, { handle });
+    expect(before.status).toBe(200);
+    expect(JSON.stringify(before.body.record)).toContain(`${OLD}/course`);
+    const { client, call } = await connectMcp(routeFetch(mcpRoute, env), 'modern');
+    open.push(client);
+    expect((await call('start_placement', { handle })).isError).toBe(false);
+    const beat = await call('next_beat', { handle });
+    expect(beat.data).toMatchObject({ step: 'beat', lesson: { id: 'bt-templates-and-parts' }, position: { beat: 1 } });
+    const rec: LearningRecord = (await call('get_record', { handle })).data.record;
+    expect(parseRecord(rec).ok).toBe(true);
+    expect(rec.statements[0].object.id.startsWith(`${OLD}/course`)).toBe(true);
+    expect(rec.statements.at(-1)!.object.id.startsWith(`${XAPI_BASE}/course`)).toBe(true);
+    expect(rec.courses[COURSE_ID].files).toEqual({ 'theme.json': '{"version":3}' });
   });
 });
 
