@@ -220,10 +220,16 @@ describe('/proposal with the anonymous-accounts flag', () => {
 });
 
 describe('/proposal with the official-record flag', () => {
-  const flags = FEATURES as { officialRecord: boolean; senseiLearners: boolean };
+  const flags = FEATURES as { officialRecord: boolean; senseiLearners: boolean; wordpressContent: boolean };
+  const allOn = () => {
+    flags.officialRecord = true;
+    flags.senseiLearners = true;
+    flags.wordpressContent = true;
+  };
   afterEach(() => {
     flags.officialRecord = false;
     flags.senseiLearners = false;
+    flags.wordpressContent = false;
   });
 
   it('ships off', () => {
@@ -242,7 +248,7 @@ describe('/proposal with the official-record flag', () => {
   });
 
   it('on: phases 2 and 3, privacy and the new decision, verbatim, with numbers from course-meta', () => {
-    flags.officialRecord = true;
+    allOn();
     render(<Proposal />);
     const t = text();
     expect(t).toContain('Phase 2: the record in a store, not in the browser');
@@ -264,12 +270,39 @@ describe('/proposal with the official-record flag', () => {
   });
 
   it('on: phase 1 stops saying the record stays in the browser, and the new sources are cited', () => {
-    flags.officialRecord = true;
-    flags.senseiLearners = true;
+    allOn();
     const { container } = render(<Proposal />);
     expect(text()).not.toContain('Your progress record stays in your browser.');
     const hrefs = Array.from(container.querySelectorAll('.prose__sources a')).map((a) => a.getAttribute('href'));
     expect(hrefs).toContain('https://github.com/derintolu/learning-ledger');
     expect(hrefs.some((h) => h!.endsWith('functions/_lib/lrs'))).toBe(true);
+  });
+
+  it('on with every earlier phase on: the browser-only decision and phase 1 line are gone', () => {
+    allOn();
+    render(<Proposal />);
+    const t = text();
+    expect(t).not.toContain('A record the learner keeps, instead of accounts');
+    expect(t).not.toContain("Progress stays in the learner's browser");
+    expect(t).not.toContain("The record lives in the learner's browser");
+    expect(t).toContain('You get an anonymous account on the course server: a random id, no email and no password. If the AI is down');
+  });
+
+  it.each([
+    ['wordpressContent', { officialRecord: true, senseiLearners: true, wordpressContent: false }],
+    ['senseiLearners', { officialRecord: true, senseiLearners: false, wordpressContent: true }],
+    ['both', { officialRecord: true, senseiLearners: false, wordpressContent: false }],
+  ])('on with %s off: renders as the earlier phases say, with no phase 6 copy', (_n, set) => {
+    const base = (() => {
+      Object.assign(flags, { ...set, officialRecord: false });
+      const r = render(<Proposal />);
+      const x = text();
+      r.unmount();
+      return x;
+    })();
+    Object.assign(flags, set);
+    render(<Proposal />);
+    expect(text()).toBe(base);
+    expect(text()).not.toContain(LRS_HOST);
   });
 });

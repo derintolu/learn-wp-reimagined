@@ -370,6 +370,11 @@ describe('/how-it-works with the anonymous-accounts flag', () => {
 describe('/how-it-works with the official-record flag', () => {
   const flags = FEATURES as { officialRecord: boolean; senseiLearners: boolean; wordpressContent: boolean };
   const view = () => render(<HowItWorks />);
+  const allOn = () => {
+    flags.officialRecord = true;
+    flags.senseiLearners = true;
+    flags.wordpressContent = true;
+  };
   afterEach(() => {
     flags.officialRecord = false;
     flags.senseiLearners = false;
@@ -391,7 +396,7 @@ describe('/how-it-works with the official-record flag', () => {
   });
 
   it('on: the approved copy, verbatim, with the numbers read from course-meta', () => {
-    flags.officialRecord = true;
+    allOn();
     view();
     const t = text();
     expect(t).toContain(
@@ -408,16 +413,14 @@ describe('/how-it-works with the official-record flag', () => {
   });
 
   it('on: has its own heading, and the relay copy is still there', () => {
-    flags.officialRecord = true;
+    allOn();
     const { container } = view();
     expect(Array.from(container.querySelectorAll('h2')).map((h) => h.textContent)).toContain('Where your record lives');
     expect(text()).toContain('Record handles');
   });
 
   it('on: Sensei and concept lines follow phase 6', () => {
-    flags.officialRecord = true;
-    flags.wordpressContent = true;
-    flags.senseiLearners = true;
+    allOn();
     view();
     const t = text();
     expect(t).toContain('Your progress in Sensei is shown in the "What Sensei sees" panel in the studio.');
@@ -434,5 +437,30 @@ describe('/how-it-works with the official-record flag', () => {
     expect(t).toContain('Your progress does not appear in Sensei yet.');
     expect(t).not.toContain('What Sensei sees');
     expect(t).not.toContain('Records from before this change');
+  });
+
+  it('on with every earlier phase on: no browser-only or Sensei-not-installed sentence', () => {
+    allOn();
+    view();
+    const t = text();
+    expect(t).not.toContain('There are no accounts yet');
+    expect(t).not.toContain('it stays on your device');
+    expect(t).not.toContain("isn't installed on this site's WordPress yet");
+    expect(t).not.toContain('Nothing here talks to learn.wordpress.org or Sensei');
+    expect(t).toContain('You get an anonymous account.');
+  });
+
+  it.each([
+    ['wordpressContent', { senseiLearners: true, wordpressContent: false }],
+    ['senseiLearners', { senseiLearners: false, wordpressContent: true }],
+    ['both', { senseiLearners: false, wordpressContent: false }],
+  ])('on with %s off: renders exactly as with the flag off', (_n, set) => {
+    Object.assign(flags, { ...set, officialRecord: false });
+    const r = view();
+    const base = text();
+    r.unmount();
+    Object.assign(flags, { ...set, officialRecord: true });
+    view();
+    expect(text()).toBe(base);
   });
 });

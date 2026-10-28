@@ -1,7 +1,7 @@
 import type { ComponentChildren } from 'preact';
 import { Sticker } from '../components/Sticker';
 import { Swipe } from '../components/Swipe';
-import { FEATURES, REPO_URL } from '../config';
+import { FEATURES, phaseOn, REPO_URL } from '../config';
 import { BACKEND_VIEW_PATH, COST_PER_1000_LEARNERS_USD, LRS_HOST, MCP_URL, RETENTION_DAYS, SENSEI_VERSION } from '../shared/course-meta';
 import { usePageTitle } from '../usePageTitle';
 import { BackendDiagram } from './HowItWorksDiagram';
@@ -93,7 +93,7 @@ export function HowItWorks() {
   usePageTitle('How this works');
   const sensei = FEATURES.wordpressContent;
   const anon = FEATURES.senseiLearners;
-  const official = FEATURES.officialRecord;
+  const official = phaseOn('officialRecord');
 
   const parts: { name: ComponentChildren; status: StatusKind; body: ComponentChildren }[] = [
     {

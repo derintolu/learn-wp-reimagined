@@ -23,7 +23,7 @@
  */
 import type { ComponentChildren } from 'preact';
 import { Swipe } from '../components/Swipe';
-import { FEATURES, REPO_URL } from '../config';
+import { FEATURES, phaseOn, REPO_URL } from '../config';
 import { BACKEND_VIEW_PATH, COST_PER_1000_LEARNERS_USD, LRS_HOST, RETENTION_DAYS } from '../shared/course-meta';
 import { usePageTitle } from '../usePageTitle';
 
@@ -67,7 +67,7 @@ const sources = () =>
         return s;
       })
     : [...SOURCES]
-  ).filter((s) => FEATURES.officialRecord || (s.id !== 'src-lrs' && s.id !== 'src-ledger'));
+  ).filter((s) => phaseOn('officialRecord') || (s.id !== 'src-lrs' && s.id !== 'src-ledger'));
 
 const blob = (file: string) => file.startsWith('https://') ? file : `${REPO_URL}/${file.endsWith('/') ? 'tree' : 'blob'}/main/${file.replace(/\/$/, '')}`;
 
@@ -96,7 +96,7 @@ function Band({ id, title, dark, children }: { id: string; title: ComponentChild
 /** /proposal: for the Training Team and leadership, written like a Make/Training post (spec §2, §3). */
 export function Proposal() {
   usePageTitle('The proposal');
-  const official = FEATURES.officialRecord;
+  const official = phaseOn('officialRecord');
   return (
     <div class="proposal-page">
       <section class="band band--light" aria-labelledby="proposal-page-title">
@@ -197,9 +197,7 @@ export function Proposal() {
           suits.
           {FEATURES.senseiLearners
             ? ` You get an anonymous account on the course server: a random id, no email and no password.${official ? '' : ' Your progress record stays in your browser.'}`
-            : official
-              ? ''
-              : " Progress stays in the learner's browser, so no accounts are needed."}{' '}
+            : " Progress stays in the learner's browser, so no accounts are needed."}{' '}
           If the AI is down,
           the lessons read exactly as they do today.
           {FEATURES.wordpressContent &&
