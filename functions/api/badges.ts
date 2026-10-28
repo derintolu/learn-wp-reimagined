@@ -5,6 +5,7 @@ import { error, json } from '../_lib/http';
 import { guarded } from '../_lib/ai';
 import { SERVER_FLAGS } from '../_lib/config';
 import { getContent } from '../_lib/content';
+import { loadCurrentCourse } from '../_lib/course/cache';
 import { ensureRecordSchema } from '../_lib/db';
 import { LrsClient, LrsError, LrsUnavailable } from '../_lib/lrs/client';
 import { auIdOf } from '../_lib/record/official';
@@ -34,6 +35,7 @@ export const BADGES_PER_10_MIN = 30;
 export const GET: Handler = (req, { env }) =>
   guarded(async () => {
     if (!SERVER_FLAGS.badges) return notFound();
+    await loadCurrentCourse(env);
     const now = Date.now();
     const session = await readSession(req, env, now);
     if (!session) return needSession();

@@ -16,3 +16,10 @@ export async function importCourseOnNewVersion(env: Env, zip: Uint8Array, etag: 
     if (!isDuplicateKey(e)) throw e;
   }
 }
+
+/** True while lrsShadow is on and this package version is not yet in the LRS. Off: false, touching nothing. */
+export async function courseImportPending(env: Env, etag: string): Promise<boolean> {
+  if (!SERVER_FLAGS.lrsShadow) return false;
+  await ensureRecordSchema(env.DB);
+  return !(await env.DB.prepare('SELECT etag FROM lrs_imports WHERE etag = ?').bind(etag).first());
+}

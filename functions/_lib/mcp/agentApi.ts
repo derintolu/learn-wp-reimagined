@@ -10,6 +10,7 @@ import { rateLimit } from '../ratelimit';
 import { MCP_GLOBAL_KEY, MCP_LIMITS, mcpHandleKey } from './gate';
 import { isAnyHandle } from './handles';
 import { ensureMcpSchema } from './recordStore';
+import { loadCurrentCourse } from '../course/cache';
 
 export const BAD_HANDLE = "That doesn't look like a record handle. It starts with cxp_ or lr_.";
 export const NO_RECORD = 'No record for that handle. It may have expired after 30 days without use, or been deleted.';
@@ -20,6 +21,7 @@ export async function agentRoute(env: Env, fn: () => Promise<Response>): Promise
   try {
     await ensureSchema(env.DB);
     await ensureMcpSchema(env.DB);
+    await loadCurrentCourse(env);
     return await fn();
   } catch (e) {
     if (e instanceof HttpError) return error(e.status, e.code, e.message);

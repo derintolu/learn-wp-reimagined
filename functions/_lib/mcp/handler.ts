@@ -15,6 +15,7 @@ import { D1RecordStore, ensureMcpSchema } from './recordStore';
 import type { PracticeDeps } from './practiceStore';
 import { handleMcpStandard } from './standardHandler';
 import { handleMcpAgent } from './agentHandler';
+import { loadCurrentCourse } from '../course/cache';
 
 export const MCP_ENDPOINT = '/api/mcp';
 
@@ -26,6 +27,7 @@ export interface McpDeps extends PracticeDeps {
 export async function handleMcp(req: Request, env: Env, deps: McpDeps = {}, handlerCtx?: unknown): Promise<Response> {
   await ensureSchema(env.DB);
   await ensureMcpSchema(env.DB);
+  await loadCurrentCourse(env);
   // Signed in, record option 2 (Task 45b); off, the practice connector below, unchanged.
   if (SERVER_FLAGS.agentOnStandard) return handleMcpAgent(req, env, deps, handlerCtx);
   if (SERVER_FLAGS.mcpOnStandard) return handleMcpStandard(req, env, deps);

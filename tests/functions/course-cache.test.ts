@@ -12,8 +12,18 @@ import { GET as course } from '../../functions/api/course';
 import { signRequest } from '../../functions/_lib/ledger/sign';
 import { POST as ping } from '../../functions/api/content-changed';
 import type { Env } from '../../functions/_lib/env';
+import { ensureRecordSchema } from '../../functions/_lib/db';
+import { handleMcp } from '../../functions/_lib/mcp/handler';
+import { POST as agentRecord } from '../../functions/api/agent/record';
+import { GET as recordGet } from '../../functions/api/record';
+import { GET as badgesGet } from '../../functions/api/badges';
+import { GET as adminShadow } from '../../functions/api/admin/shadow';
+import generated from '../../src/generated/content.json';
 
-vi.mock('../../functions/_lib/lrs/import', () => ({ importCourseOnNewVersion: vi.fn(async () => {}) }));
+vi.mock('../../functions/_lib/lrs/import', async (actual) => ({
+  ...(await actual<typeof import('../../functions/_lib/lrs/import')>()),
+  importCourseOnNewVersion: vi.fn(async () => {}),
+}));
 
 const SEED_HEX = '9d61b19deffd5a60ba844af492ec2cc44449c5697b326919703bac031cae7f60';
 const KEY = Buffer.from('302e020100300506032b657004220420' + SEED_HEX, 'hex').toString('base64');
@@ -22,12 +32,12 @@ const T0 = Date.UTC(2026, 9, 28, 12, 0, 0);
 
 const bundle = buildContent('tests/fixtures/content');
 const enc = new TextEncoder();
-const zipOf = () => zipSync(Object.fromEntries(Object.entries(bundleToPackage(bundle)).map(([k, v]) => [k, enc.encode(v)])));
+const zipOf = (b = bundle) => zipSync(Object.fromEntries(Object.entries(bundleToPackage(b)).map(([k, v]) => [k, enc.encode(v)])));
 
 let env: Env;
 let fetchMock: ReturnType<typeof vi.fn>;
-const send200 = (etag: string, version: number) =>
-  fetchMock.mockImplementationOnce(async () => new Response(zipOf(), { status: 200, headers: { ETag: etag, 'X-Package-Version': String(version) } }));
+const send200 = (etag: string, version: number, b = bundle) =>
+  fetchMock.mockImplementationOnce(async () => new Response(zipOf(b), { status: 200, headers: { ETag: etag, 'X-Package-Version': String(version) } }));
 
 beforeEach(() => {
   SERVER_FLAGS.wordpressContent = true;
@@ -210,6 +220,141 @@ describe('failures and hooks', () => {
     send200('"e2"', 2);
     await refreshContent(env, T0 + 1, { force: true });
     expect(getStandardCourse()).not.toBe(first);
+  });
+});
+
+describe('import into the LRS when lrsShadow flips after wordpressContent (R30 order)', () => {
+  afterEach(() => {
+    SERVER_FLAGS.lrsShadow = false;
+  });
+
+  it('a cache filled with lrsShadow off imports on the first refresh after it flips on', async () => {
+    const imp = vi.mocked(importCourseOnNewVersion);
+    imp.mockClear();
+    send200('"e1"', 1);
+    await refreshContent(env, T0);
+    // The hook ran (and did nothing, the flag being off), so the version counts as done.
+    expect(imp).toHaveBeenCalledTimes(1);
+    SERVER_FLAGS.lrsShadow = true;
+    await ensureRecordSchema(env.DB);
+    // Not yet imported: the full package is fetched again, without If-None-Match, so the hook has the zip.
+    send200('"e1"', 1);
+    await refreshContent(env, T0 + COURSE_REVALIDATE_MS);
+    const init = fetchMock.mock.calls[1]![1] as RequestInit;
+    expect((init.headers as Record<string, string>)['If-None-Match']).toBeUndefined();
+    expect(imp).toHaveBeenCalledTimes(2);
+    expect(imp).toHaveBeenLastCalledWith(env, expect.any(Uint8Array), '"e1"');
+    // Once lrs_imports holds the ETag, revalidation goes back to If-None-Match.
+    await env.DB.prepare('INSERT INTO lrs_imports (etag, imported) VALUES (?, ?)').bind('"e1"', T0).run();
+    fetchMock.mockImplementationOnce(async () => new Response(null, { status: 304 }));
+    await refreshContent(env, T0 + 2 * COURSE_REVALIDATE_MS);
+    expect(((fetchMock.mock.calls[2]![1] as RequestInit).headers as Record<string, string>)['If-None-Match']).toBe('"e1"');
+    expect(imp).toHaveBeenCalledTimes(2);
+  });
+});
+
+describe('a package that loads but does not build the course', () => {
+  const broken = () => {
+    const b = structuredClone(bundle);
+    Object.values(b.lessons)[0]!.title = '';
+    return b;
+  };
+
+  it('keeps the last good copy, and /api/mcp keeps serving it', async () => {
+    send200('"e1"', 1);
+    await refreshContent(env, T0);
+    send200('"e2"', 2, broken());
+    expect(await refreshContent(env, T0 + COURSE_REVALIDATE_MS)).toEqual({ etag: '"e1"', version: 1, changed: false });
+    expect(() => getStandardCourse()).not.toThrow();
+    expect(Object.values(getContent().lessons)[0]!.title).not.toBe('');
+    // Backed off for the window, like a connector failure.
+    await refreshContent(env, T0 + COURSE_REVALIDATE_MS + 1000);
+    expect(fetchMock).toHaveBeenCalledTimes(2);
+  });
+
+  it('with nothing cached, serves the baked bundle and backs off', async () => {
+    send200('"e2"', 2, broken());
+    expect((await refreshContent(env, T0)).etag).toMatch(/^"baked-/);
+    await refreshContent(env, T0 + 1000);
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+  });
+
+  it('any decode error (not only a package: error) keeps the last good copy', async () => {
+    send200('"e1"', 1);
+    await refreshContent(env, T0);
+    fetchMock.mockImplementationOnce(async () => new Response(new Uint8Array([1, 2, 3]), { status: 200, headers: { ETag: '"e3"', 'X-Package-Version': '3' } }));
+    expect(await refreshContent(env, T0 + COURSE_REVALIDATE_MS)).toEqual({ etag: '"e1"', version: 1, changed: false });
+  });
+
+  it('a database failure still propagates', async () => {
+    const db = env.DB;
+    env = { ...env, DB: { prepare: () => { throw new Error('D1 is down'); } } as unknown as Env['DB'] };
+    await expect(refreshContent(env, T0)).rejects.toThrow('D1 is down');
+    env = { ...env, DB: db };
+  });
+});
+
+describe('every route that reads the course loads the current copy first', () => {
+  const lessonsNow = () => Object.keys(getContent().lessons).sort();
+  const wp = Object.keys(bundle.lessons).sort();
+  const coldIsolate = async () => {
+    send200('"e1"', 1);
+    await refreshContent(env, T0);
+    resetCourseCacheForTests();
+    setCurrentContent(null);
+    expect(lessonsNow()).toEqual(Object.keys((generated as any).lessons).sort());
+    // Within the 5 minutes: the route loads the cached copy without asking the connector.
+    vi.useFakeTimers({ now: T0 + 1000, toFake: ['Date'] });
+  };
+  afterEach(() => {
+    vi.useRealTimers();
+    SERVER_FLAGS.badges = false;
+    SERVER_FLAGS.officialRecord = false;
+  });
+
+  it('/api/mcp', async () => {
+    await coldIsolate();
+    await handleMcp(new Request('http://x/api/mcp', { method: 'GET' }), env);
+    expect(lessonsNow()).toEqual(wp);
+  });
+
+  it('/api/agent/*', async () => {
+    await coldIsolate();
+    await agentRecord(new Request('http://x/api/agent/record', { method: 'POST', body: '{}' }), { params: {}, env });
+    expect(lessonsNow()).toEqual(wp);
+  });
+
+  it('/api/record', async () => {
+    SERVER_FLAGS.officialRecord = true;
+    await coldIsolate();
+    await recordGet(new Request('http://x/api/record'), { params: {}, env });
+    expect(lessonsNow()).toEqual(wp);
+  });
+
+  it('/api/badges', async () => {
+    SERVER_FLAGS.badges = true;
+    await coldIsolate();
+    await badgesGet(new Request('http://x/api/badges'), { params: {}, env });
+    expect(lessonsNow()).toEqual(wp);
+  });
+
+  it('/api/admin/shadow', async () => {
+    await coldIsolate();
+    await adminShadow(new Request('http://x/api/admin/shadow?day=2026-10-28', { headers: { authorization: 'Bearer adm' } }), { params: {}, env: { ...env, ADMIN_TOKEN: 'adm' } });
+    expect(lessonsNow()).toEqual(wp);
+  });
+
+  it('with wordpressContent off none of them touches the connector or the database cache', async () => {
+    SERVER_FLAGS.wordpressContent = false;
+    SERVER_FLAGS.badges = true;
+    SERVER_FLAGS.officialRecord = true;
+    await handleMcp(new Request('http://x/api/mcp', { method: 'GET' }), env);
+    await agentRecord(new Request('http://x/api/agent/record', { method: 'POST', body: '{}' }), { params: {}, env });
+    await recordGet(new Request('http://x/api/record'), { params: {}, env });
+    await badgesGet(new Request('http://x/api/badges'), { params: {}, env });
+    await adminShadow(new Request('http://x/api/admin/shadow?day=2026-10-28', { headers: { authorization: 'Bearer adm' } }), { params: {}, env: { ...env, ADMIN_TOKEN: 'adm' } });
+    expect(fetchMock).not.toHaveBeenCalled();
+    expect(await env.DB.prepare("SELECT name FROM sqlite_master WHERE name = 'course_cache'").first()).toBeNull();
   });
 });
 

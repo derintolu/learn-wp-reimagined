@@ -3,12 +3,14 @@ import { error } from '../http';
 import { SERVER_FLAGS } from '../config';
 import { LrsError, LrsUnavailable } from '../lrs/client';
 import { readSession, type Session } from '../session/session';
+import { loadCurrentCourse } from '../course/cache';
 
 type Ctx = Parameters<Handler>[1];
 
-/** Flag off: 404 before anything else. No session: 401. LRS trouble: 503 or 502. */
+/** Flag off: 404 before anything else. Then the current course is loaded. No session: 401. LRS trouble: 503 or 502. */
 export async function recordRoute(req: Request, ctx: Ctx, run: (s: Session) => Promise<Response>): Promise<Response> {
   if (!SERVER_FLAGS.officialRecord) return error(404, 'not-found', 'Not found.');
+  await loadCurrentCourse(ctx.env);
   const session = await readSession(req, ctx.env, Date.now());
   if (!session) return error(401, 'no-session', 'Start a session first.');
   try {

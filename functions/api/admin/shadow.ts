@@ -3,6 +3,7 @@
 import type { Handler } from '../../_lib/env';
 import { error, json } from '../../_lib/http';
 import { getContent } from '../../_lib/content';
+import { loadCurrentCourse } from '../../_lib/course/cache';
 import { LrsClient, LrsError, LrsUnavailable, type Actor } from '../../_lib/lrs/client';
 import { officialActor } from '../../_lib/record/official';
 import { factsOf, listShadowFacts, type LearningFact } from '../../_lib/record/shadow';
@@ -45,6 +46,7 @@ export const GET: Handler = async (req, { env }) => {
   const since = new Date(start).toISOString();
   const until = new Date(start + 86_400_000).toISOString();
 
+  await loadCurrentCourse(env);
   const lrs = new LrsClient(env);
   const recorded = await listShadowFacts(env, day);
   const diffs: { actor: string; missingInLrs: LearningFact[]; extraInLrs: LearningFact[] }[] = [];

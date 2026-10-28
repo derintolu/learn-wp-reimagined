@@ -6,7 +6,9 @@ import { PROGRAM_KEY, SERVER_FLAGS } from '../config';
 import { ensureCourseCacheSchema } from '../db';
 import { getContent, setCurrentContent } from '../content';
 import { ConnectorClient, ConnectorError, ConnectorUnavailable } from '../ledger/connector';
-import { importCourseOnNewVersion } from '../lrs/import';
+import { courseImportPending, importCourseOnNewVersion } from '../lrs/import';
+import { buildAgentCourse } from '../mcp/agentCourse';
+import { buildStandardCourse } from '../mcp/standardCourse';
 import { packageToBundle } from '../../../src/shared/package';
 import { readZip } from '../../../vendor/course-xapi-mcp/core/package/index.ts';
 import type { ContentBundle } from '../../../src/shared/types';
@@ -51,11 +53,30 @@ async function use(env: Env, row: Row): Promise<void> {
   loadedEtag = row.etag;
 }
 
+/** A package that cannot be served: it does not decode, or the course it holds does not build. */
+class PackageError extends Error {
+  constructor(cause: unknown) {
+    super(`package: ${(cause as Error)?.message ?? String(cause)}`);
+    this.name = 'PackageError';
+  }
+}
+
+/**
+ * The bundle in a package, checked to build both MCP course models (the practice connector's and the agent's), so
+ * a package that loads but does not convert never replaces the last good copy. Every failure is a PackageError.
+ */
 function decodePackage(zip: Uint8Array): ContentBundle {
-  const files = readZip(zip);
-  if ('code' in files && typeof files.code === 'string') throw new Error(`package: ${files.code}`);
-  const dec = new TextDecoder();
-  return packageToBundle(Object.fromEntries(Object.entries(files as Record<string, Uint8Array>).map(([k, v]) => [k, dec.decode(v)])));
+  try {
+    const files = readZip(zip);
+    if ('code' in files && typeof files.code === 'string') throw new Error(files.code);
+    const dec = new TextDecoder();
+    const bundle = packageToBundle(Object.fromEntries(Object.entries(files as Record<string, Uint8Array>).map(([k, v]) => [k, dec.decode(v)])));
+    buildStandardCourse(bundle);
+    buildAgentCourse(bundle);
+    return bundle;
+  } catch (e) {
+    throw new PackageError(e);
+  }
 }
 
 /** Runs every hook; true only if all succeeded. */
@@ -91,7 +112,9 @@ export async function refreshContent(
   }
   // No cached copy and the last attempt failed: do not try again until the window passes (one 3 s try per window).
   if (!row && !opts.force && failedAt && now - failedAt < COURSE_REVALIDATE_MS) return { etag: bakedEtag(), version: 0, changed: false };
-  const hooksPending = !!row && Number(row.hooks_done) === 0;
+  // Hooks are pending for a version whose hooks failed, and for one cached while lrsShadow was off and never
+  // imported into the LRS (the flag flipped after wordpressContent, ruling R30).
+  const hooksPending = !!row && (Number(row.hooks_done) === 0 || (await courseImportPending(env, row.etag)));
   try {
     // A version whose hooks failed is fetched in full again so the hooks can be retried with its zip.
     const res = await new ConnectorClient(env).getPackage(PROGRAM_KEY, hooksPending ? undefined : row?.etag);
@@ -123,7 +146,8 @@ export async function refreshContent(
     }
     return { etag: res.etag, version: res.version, changed };
   } catch (e) {
-    if (!(e instanceof ConnectorUnavailable) && !(e instanceof ConnectorError) && !/^package:/.test((e as Error)?.message ?? '')) throw e;
+    // Only a database failure propagates; a connector or package failure keeps the last good copy.
+    if (!(e instanceof ConnectorUnavailable) && !(e instanceof ConnectorError) && !(e instanceof PackageError)) throw e;
     console.error('course refresh failed', (e as Error)?.message);
     // Back off: record the attempt so a down connector costs one try per window, not one per request.
     failedAt = now;
@@ -134,6 +158,15 @@ export async function refreshContent(
     }
     return { etag: bakedEtag(), version: 0, changed: false };
   }
+}
+
+/**
+ * For routes that read the course: loads the current copy into this isolate (refreshContent) so every route sees
+ * the same course. With SERVER_FLAGS.wordpressContent off it returns at once, touching nothing.
+ */
+export async function loadCurrentCourse(env: Env): Promise<void> {
+  if (!SERVER_FLAGS.wordpressContent) return;
+  await refreshContent(env);
 }
 
 /** Test-only: forget what this isolate has loaded and any failure back-off. */
