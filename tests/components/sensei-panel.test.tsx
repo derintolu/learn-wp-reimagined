@@ -14,7 +14,7 @@ vi.mock('../../src/content', () => ({
 }));
 
 import { LocationProvider } from 'preact-iso';
-import { SenseiPanel } from '../../src/components/SenseiPanel';
+import { NO_SENSEI_ACCOUNT, SenseiPanel } from '../../src/components/SenseiPanel';
 import { BACKEND_VIEW_PATH } from '../../src/shared/course-meta';
 
 const DATA = {
@@ -53,6 +53,16 @@ describe('SenseiPanel', () => {
     expect(container.textContent).toContain('Build a block theme');
     expect(container.querySelector(`a[href="${BACKEND_VIEW_PATH}"]`)).toBeTruthy();
     expect(container.querySelector('[data-slot="certificate"]')).toBeTruthy();
+  });
+
+  it('no Sensei learner for this session (401) says so, instead of "isn\'t answering"', async () => {
+    vi.stubGlobal(
+      'fetch',
+      vi.fn(async () => new Response(JSON.stringify({ error: { code: 'no-session', message: 'x' } }), { status: 401 })),
+    );
+    render(<SenseiPanel />);
+    await waitFor(() => expect(screen.getByRole('status').textContent).toBe(NO_SENSEI_ACCOUNT));
+    expect(NO_SENSEI_ACCOUNT).toBe('No Sensei account yet.');
   });
 
   it('connector down shows "Sensei isn\'t answering right now."', async () => {

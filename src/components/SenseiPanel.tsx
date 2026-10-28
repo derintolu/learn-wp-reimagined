@@ -9,7 +9,11 @@ interface Seen {
   completedCourses: string[];
   certificateDownload: boolean;
 }
-type State = { kind: 'loading' } | { kind: 'down' } | { kind: 'ok'; seen: Seen };
+type State = { kind: 'loading' } | { kind: 'down' } | { kind: 'none' } | { kind: 'ok'; seen: Seen };
+
+/** GET /api/sensei answers 401 when this session has no Sensei learner (for example one made before senseiLearners). */
+export const NO_SENSEI_ACCOUNT = 'No Sensei account yet.';
+class NoAccount extends Error {}
 
 const has = (o: object, k: string) => Object.prototype.hasOwnProperty.call(o, k);
 const lessonTitle = (id: string) => (has(content.lessons, id) ? content.lessons[id].title : id);
@@ -23,6 +27,7 @@ export function SenseiPanel() {
     let live = true;
     fetch('/api/sensei', { credentials: 'same-origin' })
       .then(async (res) => {
+        if (res.status === 401) throw new NoAccount();
         if (!res.ok) throw new Error(String(res.status));
         const j = (await res.json()) as Record<string, unknown>;
         return { enrolled: list(j.enrolled), completedLessons: list(j.completedLessons), testedOutLessons: list(j.testedOutLessons),
@@ -32,7 +37,7 @@ export function SenseiPanel() {
       })
       .then(
         (seen) => live && setState({ kind: 'ok', seen }),
-        () => live && setState({ kind: 'down' }),
+        (e) => live && setState({ kind: e instanceof NoAccount ? 'none' : 'down' }),
       );
     return () => {
       live = false;
@@ -44,6 +49,7 @@ export function SenseiPanel() {
       <h2 id="sensei-panel-h">What Sensei sees</h2>
       {state.kind === 'loading' && <p role="status">Asking Sensei...</p>}
       {state.kind === 'down' && <p role="status">Sensei isn't answering right now.</p>}
+      {state.kind === 'none' && <p role="status">{NO_SENSEI_ACCOUNT}</p>}
       {state.kind === 'ok' && (
         <>
           <h3>Enrolled in</h3>
