@@ -1,6 +1,6 @@
 // Files and resume sync to State documents on the LRS, through the course server (/api/state/:kind).
 // Behind phaseOn('officialRecord'). Local editing never waits on this: every failure is quiet except "too big".
-import { clientId } from '../ai/client';
+import { clientId } from '../clientId';
 import { phaseOn } from '../config';
 import type { LearningRecord } from '../shared/record';
 import {

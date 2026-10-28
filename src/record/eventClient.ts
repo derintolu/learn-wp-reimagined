@@ -1,4 +1,4 @@
-import { clientId } from '../ai/client';
+import { clientId } from '../clientId';
 import { FEATURES } from '../config';
 import { ensureSession, forgetSession } from './session';
 import { EVENTS_MAX, type EventResult, type ServerEvent } from '../shared/events';

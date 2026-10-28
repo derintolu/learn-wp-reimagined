@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from 'preact/hooks';
 import { usePageTitle } from '../usePageTitle';
-import { clientId } from '../ai/client';
+import { clientId } from '../clientId';
 import '../styles/consent.css';
 
 export const EXPIRED = 'This sign-in request has expired. Start again from your agent.';

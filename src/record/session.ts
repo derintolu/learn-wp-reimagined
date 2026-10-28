@@ -1,4 +1,4 @@
-import { clientId } from '../ai/client';
+import { clientId } from '../clientId';
 import { clearOfficial } from './official';
 import { FEATURES } from '../config';
 import { getEventClient } from './eventClient';
