@@ -3,7 +3,7 @@
 import type { Handler } from '../../_lib/env';
 import { error, json } from '../../_lib/http';
 import { getContent } from '../../_lib/content';
-import { LrsClient, LrsError, LrsUnavailable } from '../../_lib/lrs/client';
+import { LrsClient, LrsError, LrsUnavailable, type Actor } from '../../_lib/lrs/client';
 import { officialActor } from '../../_lib/record/official';
 import { factsOf, listShadowFacts, type LearningFact } from '../../_lib/record/shadow';
 import type { XapiStatement } from '../../../vendor/learning-mcp/core/index.ts';
@@ -51,7 +51,7 @@ export const GET: Handler = async (req, { env }) => {
   let truncated = false;
   try {
     for (const { actor, facts } of recorded) {
-      const page = await lrs.getStatements({ agent: officialActor(actor), since, limit: PAGE_LIMIT });
+      const page = await lrs.getStatements({ agent: officialActor(actor) as Actor, since, limit: PAGE_LIMIT });
       if (page.more) truncated = true;
       const inDay = page.statements.filter((s) => !s.timestamp || (s.timestamp >= since && s.timestamp < until));
       const held = unique(factsFromStatements(inDay));
