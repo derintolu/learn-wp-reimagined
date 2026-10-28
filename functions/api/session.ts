@@ -4,11 +4,11 @@ import { clientKey } from '../_lib/guards';
 import { guarded } from '../_lib/ai';
 import { ensureSchema } from '../_lib/db';
 import { rateLimit } from '../_lib/ratelimit';
-import { SERVER_FLAGS } from '../_lib/config';
 import { ConnectorClient, ConnectorError, ConnectorUnavailable } from '../_lib/ledger/connector';
-import { deleteEnrolments } from '../_lib/session/enrol';
+import { LrsError, LrsUnavailable } from '../_lib/lrs/client';
+import { eraseLearner } from '../_lib/session/lifecycle';
 import { XAPI_BASE } from '../../src/shared/xapi';
-import { clearCookie, cookieValue, createSession, deleteSession, readSession } from '../_lib/session/session';
+import { clearCookie, cookieValue, createSession, readSession } from '../_lib/session/session';
 
 const reply = (data: unknown, cookie?: string, status = 200) => {
   const headers = new Headers({ 'content-type': 'application/json; charset=utf-8' });
@@ -51,16 +51,17 @@ export const DELETE: Handler = (req, { env }) =>
   guarded(async () => {
     if (!env.SESSION_KEY) return disabled();
     const session = await readSession(req, env, Date.now());
-    if (session && SERVER_FLAGS.senseiLearners && session.wpUserId != null) {
-      // The learner goes first; if WordPress cannot be reached the session stays so the delete can be retried.
+    if (session) {
+      // Every step runs before the session row goes; if one fails the row stays so "Delete my data" can be retried.
       try {
-        await new ConnectorClient(env).deleteLearner(session.wpUserId);
+        await eraseLearner(env, session, { revokeBadges: true });
       } catch (e) {
-        if (e instanceof ConnectorUnavailable) return connectorDown();
-        if (!(e instanceof ConnectorError && e.status === 404)) throw e;
+        if (e instanceof ConnectorUnavailable || e instanceof LrsUnavailable) return connectorDown();
+        if (e instanceof ConnectorError || e instanceof LrsError) {
+          return error(502, 'delete-failed', 'Your data could not be deleted yet. Nothing was lost; please try Delete my data again shortly.');
+        }
+        throw e;
       }
-      await deleteEnrolments(env, session.wpUserId);
     }
-    if (session) await deleteSession(env, session);
     return reply({ deleted: true }, clearCookie());
   });

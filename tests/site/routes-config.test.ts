@@ -35,6 +35,7 @@ describe('sf.jsonc routes', () => {
     expect(sf.crons).toEqual([
       { path: '/api/mcp-sweep', schedule: 'daily' },
       { path: '/api/lrs-drain', schedule: 'hourly' },
+      { path: '/api/sweep', schedule: 'daily' },
     ]);
   });
   it.each(['/wp-json/*', '/wp-admin/*', '/wp-login.php', '/course/*', '/lesson/*', '/xapi/*', '/courses/', '/api/events', '/theme/lwr-blog-0.1.0.zip', '/plugin/lwr-blog-cli-0.2.1.zip', '/blogroll'])(
