@@ -15,8 +15,7 @@ export function Header() {
           <ul>
             <li><a href="/#paths">Paths</a></li>
             <li class="nav-optional"><a href="/how-it-works">How this works</a></li>
-            {/* The blog is WordPress, not an app route: target="_top" keeps preact-iso from routing it. */}
-            <li class="nav-optional"><a href="/blog/" target="_top">Blog</a></li>
+            <li class="nav-optional"><a href="/blog">Blog</a></li>
             <li class="nav-optional"><a href={REPO_URL}>GitHub</a></li>
           </ul>
           <RecordPanel />

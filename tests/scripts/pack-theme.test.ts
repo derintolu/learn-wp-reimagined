@@ -4,9 +4,10 @@ import { join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { afterEach, describe, expect, it } from 'vitest';
 import { unzipSync } from 'fflate';
-import { THEME_SLUG, packTheme, themeVersion } from '../../scripts/pack-theme';
+import { CLI_PLUGIN_SLUG, THEME_SLUG, packCliPlugin, packTheme, pluginVersion, themeVersion } from '../../scripts/pack-theme';
 
 const THEME = fileURLToPath(new URL('../../wordpress/theme', import.meta.url));
+const CLI_PLUGIN = fileURLToPath(new URL('../../wordpress/mu-plugins/lwr-blog-cli.php', import.meta.url));
 const dirs: string[] = [];
 afterEach(() => {
   for (const d of dirs.splice(0)) rmSync(d, { recursive: true, force: true });
@@ -61,5 +62,21 @@ describe('the theme', () => {
     expect(header).toContain('<nav class="lwr-nav-wrap" aria-label="Main">');
     for (const href of ['/#paths', '/how-it-works', '/blog/']) expect(header).toContain(`href="${href}"`);
     expect(header).toContain('unofficial concept');
+  });
+});
+
+describe('packCliPlugin', () => {
+  it('zips the lwr-blog put command as a one-file plugin, named by version', () => {
+    const out = mkdtempSync(join(tmpdir(), 'plugin-'));
+    dirs.push(out);
+    const version = pluginVersion(CLI_PLUGIN);
+    expect(version).toMatch(/^\d+\.\d+\.\d+$/);
+    const zip = packCliPlugin(CLI_PLUGIN, out);
+    expect(zip).toBe(join(out, `${CLI_PLUGIN_SLUG}-${version}.zip`));
+    const files = unzipSync(readFileSync(zip));
+    expect(Object.keys(files)).toEqual([`${CLI_PLUGIN_SLUG}/${CLI_PLUGIN_SLUG}.php`]);
+    const php = new TextDecoder().decode(files[`${CLI_PLUGIN_SLUG}/${CLI_PLUGIN_SLUG}.php`]);
+    expect(php).toContain("WP_CLI::add_command( 'lwr-blog put'");
+    expect(php).toContain('base64_decode( $chunk, true )');
   });
 });

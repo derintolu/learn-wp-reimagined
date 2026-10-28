@@ -11,6 +11,7 @@ import { Finale } from './pages/Finale';
 import { Connect } from './pages/Connect';
 import { HowItWorks } from './pages/HowItWorks';
 import { Proposal } from './pages/Proposal';
+import { BlogIndex, BlogPostPage } from './pages/Blog';
 import { NotFound } from './pages/routes';
 import { APP_ROUTES } from './pages/appRoutes';
 import { content } from './content';
@@ -79,6 +80,8 @@ const PAGES: Record<string, FunctionComponent<any>> = {
   '/connect': Connect,
   '/how-it-works': HowItWorks,
   '/proposal': Proposal,
+  '/blog': BlogIndex,
+  '/blog/:slug': BlogPostPage,
 };
 
 function Frame() {

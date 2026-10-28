@@ -14,7 +14,7 @@ import { join, relative, sep } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { build as esbuild } from 'esbuild';
 import { build as viteBuild } from 'vite';
-import { packTheme } from './pack-theme.ts';
+import { packCliPlugin, packTheme } from './pack-theme.ts';
 
 export const BUNDLE_LIMIT = 8 * 1024 * 1024; // Spacefast compiled bundle limit (docs/functions#limits)
 
@@ -102,6 +102,8 @@ export async function assemble(root: string): Promise<void> {
   copyFileSync(join(root, 'sf.jsonc'), join(dist, 'sf.jsonc'));
   // The blog's block theme, served as a file so the space's WordPress can install it by URL.
   console.log(`theme: ${relative(root, packTheme(join(root, 'wordpress/theme'), join(dist, 'theme')))}`);
+  // `wp lwr-blog put`, installed by URL the same way, so posts longer than one WP-CLI argument fit.
+  console.log(`plugin: ${relative(root, packCliPlugin(join(root, 'wordpress/mu-plugins/lwr-blog-cli.php'), join(dist, 'plugin')))}`);
   assertNoEnvFiles(dist);
   for (const f of files) console.log(`function: ${relative(root, f)} (${statSync(f).size} bytes)`);
 }

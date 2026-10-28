@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { inline, originalLine, parsePost, toBlocks } from '../../scripts/blog/markdown';
-import { draftArgs } from '../../scripts/blog/draft-learnwp';
+import { MAX_ARG, draftArgs } from '../../scripts/blog/draft-learnwp';
+import { CHUNK, base64Chunks, putArgs } from '../../scripts/blog/put-learnwp';
 import { DERINTOLU_SITE_ID, WPCOM_API, crossPostBody, readToken, seoPlugins } from '../../scripts/blog/cross-post';
 
 const POST = `---
@@ -94,5 +95,34 @@ describe('cross-post', () => {
   it('names a supported SEO plugin from REST namespaces', () => {
     expect(seoPlugins(['wp/v2', 'yoast/v1'])).toEqual(['Yoast SEO']);
     expect(seoPlugins(['wp/v2', 'jetpack/v4'])).toEqual([]);
+  });
+});
+
+describe('putArgs', () => {
+  const blocks = '<!-- wp:paragraph -->\n<p>Caf\u00e9 \u2014 ' + 'x'.repeat(9000) + '</p>\n<!-- /wp:paragraph -->';
+
+  it('sends slug, title, excerpt and status, then the body as base64 chunks that rejoin exactly', () => {
+    const args = putArgs(POST, blocks, 'publish', 2);
+    expect(args.slice(0, 6)).toEqual(['lwr-blog', 'put', 'a-post', 'A post: with a colon', 'Short.', 'publish']);
+    expect(args.at(-1)).toBe('--author=2');
+    const chunks = args.slice(6, -1);
+    expect(chunks.length).toBeGreaterThan(1);
+    for (const c of chunks) {
+      expect(c.length).toBeLessThanOrEqual(CHUNK);
+      expect(c.length % 4 === 0 || c === chunks.at(-1)).toBe(true);
+    }
+    // The command decodes each chunk on its own and joins the bytes.
+    const joined = Buffer.concat(chunks.map((c) => Buffer.from(c, 'base64'))).toString('utf8');
+    expect(joined).toBe(blocks);
+    expect(args.every((a) => a.length <= MAX_ARG)).toBe(true);
+  });
+
+  it('chunks are a multiple of 4 long, so each decodes alone', () => {
+    expect(CHUNK % 4).toBe(0);
+    expect(base64Chunks('')).toEqual([]);
+  });
+
+  it('refuses a body that is not block markup', () => {
+    expect(() => putArgs(POST, '<p>raw</p>', 'publish', 2)).toThrow(/block markup/);
   });
 });

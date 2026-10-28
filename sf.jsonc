@@ -4,6 +4,7 @@
   "meta": { "title": "Learn WordPress, reimagined" },
   "index": "index.html",
   // No "fallback": unmatched paths (/wp-json, /wp-admin, /courses/, ...) must reach WordPress.
+  // /blog is the app's: it reads posts from /wp-json, since Spacefast never serves the WordPress front end.
   // Keep in step with APP_ROUTES in src/pages/appRoutes.ts.
   "rewrites": [
     { "source": "/", "destination": "/index.html" },
@@ -13,7 +14,9 @@
     { "source": "/finale/*", "destination": "/index.html" },
     { "source": "/connect", "destination": "/index.html" },
     { "source": "/how-it-works", "destination": "/index.html" },
-    { "source": "/proposal", "destination": "/index.html" }
+    { "source": "/proposal", "destination": "/index.html" },
+    { "source": "/blog", "destination": "/index.html" },
+    { "source": "/blog/*", "destination": "/index.html" }
   ],
   "crons": [{ "path": "/api/mcp-sweep", "schedule": "daily" }]
 }

@@ -20,7 +20,7 @@ const matches = (source: string, path: string) =>
 describe('sf.jsonc routes', () => {
   it('lists exactly the app routes', () => {
     expect(APP_ROUTES.map((r) => r.pattern)).toEqual([
-      '/', '/path/*', '/learn/*', '/finale', '/finale/*', '/connect', '/how-it-works', '/proposal',
+      '/', '/path/*', '/learn/*', '/finale', '/finale/*', '/connect', '/how-it-works', '/proposal', '/blog', '/blog/*',
     ]);
   });
   it('every app route has an sf.jsonc rewrite to index.html', () => {
@@ -30,14 +30,14 @@ describe('sf.jsonc routes', () => {
     expect(sf.fallback).toBeUndefined();
     expect(sf.crons).toEqual([{ path: '/api/mcp-sweep', schedule: 'daily' }]);
   });
-  it.each(['/wp-json/*', '/wp-admin/*', '/wp-login.php', '/course/*', '/lesson/*', '/xapi/*', '/courses/', '/api/events', '/blog/', '/blog/*', '/theme/lwr-blog-0.1.0.zip'])(
+  it.each(['/wp-json/*', '/wp-admin/*', '/wp-login.php', '/course/*', '/lesson/*', '/xapi/*', '/courses/', '/api/events', '/theme/lwr-blog-0.1.0.zip', '/plugin/lwr-blog-cli-0.1.0.zip', '/blogroll'])(
     'leaves %s to WordPress or Functions',
     (p) => {
       expect(rewrites.some((r) => matches(r.source, p.replace('*', 'x')))).toBe(false);
     },
   );
   it('matches app paths', () => {
-    for (const p of ['/', '/learn/abc', '/path/x', '/finale', '/finale/x', '/connect', '/how-it-works', '/proposal'])
+    for (const p of ['/', '/learn/abc', '/path/x', '/finale', '/finale/x', '/connect', '/how-it-works', '/proposal', '/blog', '/blog/a-post', '/blog/a-post/'])
       expect(rewrites.some((r) => matches(r.source, p))).toBe(true);
   });
 });

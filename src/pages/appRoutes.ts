@@ -11,4 +11,6 @@ export const APP_ROUTES: readonly { pattern: string; rewrite: string }[] = [
   { pattern: '/connect', rewrite: '/connect' },
   { pattern: '/how-it-works', rewrite: '/how-it-works' },
   { pattern: '/proposal', rewrite: '/proposal' },
+  { pattern: '/blog', rewrite: '/blog' },
+  { pattern: '/blog/*', rewrite: '/blog/:slug' },
 ];

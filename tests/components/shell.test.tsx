@@ -36,13 +36,13 @@ describe('Header', () => {
     expect(within(nav).getByRole('link', { name: 'How this works' }).getAttribute('href')).toBe('/how-it-works');
   });
 
-  it('links to the WordPress blog in the main nav, outside the client router', () => {
+  it('links to the blog in the main nav, as an app route', () => {
     render(<Header />);
     const nav = screen.getByRole('navigation', { name: 'Main' });
     const blog = within(nav).getByRole('link', { name: 'Blog' });
-    expect(blog.getAttribute('href')).toBe('/blog/');
-    // preact-iso intercepts same-origin links unless target is set; /blog/ must reach WordPress.
-    expect(blog.getAttribute('target')).toBe('_top');
+    expect(blog.getAttribute('href')).toBe('/blog');
+    // /blog is an app route now, so the client router should handle it.
+    expect(blog.hasAttribute('target')).toBe(false);
   });
 });
 
