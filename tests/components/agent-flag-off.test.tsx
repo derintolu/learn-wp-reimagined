@@ -3,7 +3,7 @@
 import { describe, expect, it, vi } from 'vitest';
 import { fireEvent, render, screen } from '@testing-library/preact';
 
-vi.mock('../../src/config', () => ({ FEATURES: { agent: false, agentOnStandard: true }, REPO_URL: 'https://github.com/derintolu/learn-wp-reimagined' }));
+vi.mock('../../src/config', () => ({ FEATURES: { agent: false, agentOnStandard: true }, phaseOn: () => false, REPO_URL: 'https://github.com/derintolu/learn-wp-reimagined' }));
 
 import { RecordPanel } from '../../src/components/RecordPanel';
 import { CapNotice } from '../../src/components/CapNotice';

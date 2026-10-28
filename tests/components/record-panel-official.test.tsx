@@ -1,0 +1,99 @@
+// @vitest-environment happy-dom
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+import { cleanup, fireEvent, render, screen, waitFor } from '@testing-library/preact';
+import { LocationProvider } from 'preact-iso';
+import { FEATURES } from '../../src/config';
+import { content } from '../../src/content';
+import { RecordPanel } from '../../src/components/RecordPanel';
+import { setRecordManager } from '../../src/record/useRecord';
+import { memoryManager } from './helpers';
+
+const flags = FEATURES as { officialRecord: boolean; senseiLearners: boolean; wordpressContent: boolean };
+const ids = Object.keys(content.lessons);
+const official = { completed: [ids[0], ids[1]], testedOut: [ids[2]], carriedOver: [], branches: [], badges: [], asOf: '2026-01-01T00:00:00.000Z' };
+
+let recordCalls = 0;
+let viewUrl = 'https://lrs.sqwrlz.com/view/abc';
+function stub() {
+  recordCalls = 0;
+  vi.stubGlobal(
+    'fetch',
+    vi.fn(async (url: string, init: RequestInit = {}) => {
+      if (url === '/api/record') {
+        recordCalls++;
+        return new Response(JSON.stringify(official), { status: 200 });
+      }
+      if (url === '/api/record/view-link' && init.method === 'POST') return new Response(JSON.stringify({ url: viewUrl }), { status: 200 });
+      if (url === '/api/sensei') return new Response(JSON.stringify({}), { status: 200 });
+      return new Response(JSON.stringify({ actor: null }), { status: 200 });
+    }),
+  );
+}
+
+async function openPanel() {
+  render(
+    <LocationProvider>
+      <RecordPanel />
+    </LocationProvider>,
+  );
+  fireEvent.click(screen.getByRole('button', { name: /Your record/ }));
+  return screen.findByRole('dialog', { name: /Your record/ });
+}
+
+beforeEach(() => {
+  flags.officialRecord = flags.senseiLearners = flags.wordpressContent = true;
+  setRecordManager(memoryManager(content));
+  stub();
+});
+afterEach(() => {
+  cleanup();
+  flags.officialRecord = flags.senseiLearners = flags.wordpressContent = false;
+  setRecordManager(null);
+  vi.unstubAllGlobals();
+});
+
+describe('the official record in the record panel', () => {
+  it('panel shows completed and tested-out counts from the server', async () => {
+    const panel = await openPanel();
+    expect(await screen.findByText('2 lessons completed, 1 lesson tested out.')).toBeTruthy();
+    expect(panel.querySelector('a[href="/api/record/export"]')?.textContent).toBe('Download my record');
+    expect(await screen.findByRole('heading', { name: 'What Sensei sees' })).toBeTruthy();
+  });
+
+  it('View in the LRS opens the minted URL in the same tab', async () => {
+    const assign = vi.fn();
+    vi.stubGlobal('location', { assign, pathname: '/', href: 'http://localhost/', origin: 'http://localhost' });
+    await openPanel();
+    fireEvent.click(await screen.findByRole('button', { name: 'View in the LRS' }));
+    await waitFor(() => expect(assign).toHaveBeenCalledWith('https://lrs.sqwrlz.com/view/abc'));
+  });
+
+  it('View in the LRS refuses a URL off the LRS origin', async () => {
+    viewUrl = 'https://evil.example/view';
+    const assign = vi.fn();
+    vi.stubGlobal('location', { assign, pathname: '/', href: 'http://localhost/', origin: 'http://localhost' });
+    await openPanel();
+    fireEvent.click(await screen.findByRole('button', { name: 'View in the LRS' }));
+    expect(await screen.findByText(/couldn't open the LRS/)).toBeTruthy();
+    expect(assign).not.toHaveBeenCalled();
+    viewUrl = 'https://lrs.sqwrlz.com/view/abc';
+  });
+
+  it('refresh on window focus, and by the Refresh button', async () => {
+    await openPanel();
+    await screen.findByText('2 lessons completed, 1 lesson tested out.');
+    const before = recordCalls;
+    fireEvent(window, new Event('focus'));
+    await waitFor(() => expect(recordCalls).toBe(before + 1));
+    await waitFor(() => expect((screen.getByRole('button', { name: 'Refresh' }) as HTMLButtonElement).disabled).toBe(false));
+    fireEvent.click(screen.getByRole('button', { name: 'Refresh' }));
+    await waitFor(() => expect(recordCalls).toBe(before + 2));
+  });
+
+  it('is unchanged with the phase off', async () => {
+    flags.officialRecord = false;
+    const panel = await openPanel();
+    expect(panel.textContent).not.toMatch(/Download my record|View in the LRS|What Sensei sees/);
+    expect(recordCalls).toBe(0);
+  });
+});

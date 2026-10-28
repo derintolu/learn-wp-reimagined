@@ -7,7 +7,7 @@ import { EditorView } from '@codemirror/view';
 
 vi.mock('../../src/content', async () => {
   const { buildContent } = await import('../../scripts/build-content');
-  return { content: buildContent('tests/fixtures/content') };
+  return { content: buildContent('tests/fixtures/content'), adoptPending: () => false, prefetchLatest: () => {} };
 });
 vi.mock('../../src/ai/client', () => ({
   getStatus: vi.fn(),
@@ -18,6 +18,7 @@ vi.mock('../../src/ai/client', () => ({
 }));
 
 import { App } from '../../src/app';
+import { FEATURES } from '../../src/config';
 import { getStatus, codeFeedback, tutorStream } from '../../src/ai/client';
 import { content } from '../../src/content';
 import { setRecordManager } from '../../src/record/useRecord';
@@ -457,5 +458,29 @@ describe('Smooth scrolling', () => {
     await screen.findByRole('region', { name: /Checkpoint/ });
     await waitFor(() => expect(scroll.mock.calls.length).toBeGreaterThan(1));
     for (const call of scroll.mock.calls) expect(call[0]).toMatchObject({ behavior: 'auto' });
+  });
+});
+
+describe('Studio outline, official record', () => {
+  it('outline marks tested-out lessons with visible text, not colour alone', async () => {
+    const flags = FEATURES as { officialRecord: boolean; senseiLearners: boolean; wordpressContent: boolean };
+    flags.officialRecord = flags.senseiLearners = flags.wordpressContent = true;
+    try {
+      vi.stubGlobal(
+        'fetch',
+        vi.fn(async (url: string) =>
+          url === '/api/record'
+            ? new Response(JSON.stringify({ completed: [], testedOut: ['theme-json-basics'], carriedOver: [], branches: [], badges: [], asOf: 'x' }), { status: 200 })
+            : new Response('{}', { status: 200 }),
+        ),
+      );
+      use(at('templates-and-parts', 0));
+      open('/learn/templates-and-parts');
+      const nav = await outline();
+      await waitFor(() => expect(within(nav).getByText('Tested out')).toBeTruthy());
+      expect(within(nav).getByText('Tested out').closest('li')?.textContent).toContain(content.lessons['theme-json-basics'].title);
+    } finally {
+      flags.officialRecord = flags.senseiLearners = flags.wordpressContent = false;
+    }
   });
 });

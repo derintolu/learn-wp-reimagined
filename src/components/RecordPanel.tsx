@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from 'preact/hooks';
 import { useLocation } from 'preact-iso';
 import { testedOutInWords, useBadges } from '../badges/badges';
-import { FEATURES } from '../config';
+import { FEATURES, phaseOn } from '../config';
 import { content } from '../content';
 import { downloadRecord, readRecordFile } from '../record/fileTransfer';
 import { supportsFolder } from '../record/folderStore';
@@ -9,11 +9,13 @@ import { deleteMyDataDetailed } from '../record/session';
 import { stateSyncMessage, subscribeStateSync } from '../record/stateSync';
 import type { AttachResult } from '../record/store';
 import { cancelPendingEdits, flushPendingEdits } from '../record/useFileEdits';
+import { mintViewUrl, useOfficialRecord } from '../record/official';
 import { useRecord } from '../record/useRecord';
 import type { LearningRecord } from '../shared/record';
 import { revokeAllAgents } from '../agent/client';
 import { AgentHandoff } from './AgentHandoff';
 import { ImportAgentProgress } from './ImportAgentProgress';
+import { SenseiPanel } from './SenseiPanel';
 
 /** Fired after a restore so an open lesson can pick up the restored place. */
 export const RESTORED_EVENT = 'learn:record-restored';
@@ -34,6 +36,10 @@ export const DELETE_FAILED = "We couldn't delete your data. Nothing was changed.
 
 export const BROWSER_NOT_CLEARED =
   "Your data was deleted on this site, but this browser's copy couldn't be cleared. Close this tab's site data to finish.";
+
+export const LRS_FAILED = "We couldn't open the LRS right now. Try again later.";
+
+const countOf = (n: number, what: string) => `${n} ${n === 1 ? 'lesson' : 'lessons'} ${what}`;
 
 const titleOf = (id: string) => (Object.prototype.hasOwnProperty.call(content.lessons, id) ? content.lessons[id].title : id);
 
@@ -143,6 +149,8 @@ export function RecordPanel() {
   const panelRef = useRef<HTMLDivElement>(null);
   const fileRef = useRef<HTMLInputElement>(null);
   const badges = useBadges(open);
+  const officialOn = phaseOn('officialRecord');
+  const { official, loading: officialLoading, refresh: refreshOfficial } = useOfficialRecord(open);
   const folderOk = supportsFolder();
   const loc = useLocation() as ReturnType<typeof useLocation> | undefined;
 
@@ -205,6 +213,17 @@ export function RecordPanel() {
     try {
       const r = await revokeAllAgents();
       setMsg(r.ok ? { tone: 'ok', text: AGENTS_DISCONNECTED } : { tone: 'error', text: DISCONNECT_FAILED });
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  async function viewInLrs() {
+    setBusy(true);
+    try {
+      const url = await mintViewUrl();
+      if (url) location.assign(url);
+      else setMsg({ tone: 'error', text: LRS_FAILED });
     } finally {
       setBusy(false);
     }
@@ -324,6 +343,32 @@ export function RecordPanel() {
                 : "Your progress stays on this device. Your answers and tutor messages go to the course server to be checked or answered, and aren't stored."}
           </p>
           <p class="record__summary">{summary(record)}</p>
+          {officialOn && (
+            <div class="record__official">
+              <p class="record__agent-title">Your official record</p>
+              {official ? (
+                <p class="record__summary">
+                  {countOf(official.completed.length, 'completed')}, {countOf(official.testedOut.length, 'tested out')}.
+                </p>
+              ) : (
+                <p class="record__summary" role="status">
+                  {officialLoading ? 'Reading your official record...' : "We couldn't read your official record right now."}
+                </p>
+              )}
+              <div class="record__actions record__actions--stack">
+                <a class="button button--quiet" href="/api/record/export" download>
+                  Download my record
+                </a>
+                <button type="button" class="button button--quiet" onClick={viewInLrs} disabled={busy}>
+                  View in the LRS
+                </button>
+                <button type="button" class="button button--quiet" onClick={refreshOfficial} disabled={officialLoading}>
+                  Refresh
+                </button>
+              </div>
+              <SenseiPanel />
+            </div>
+          )}
           {badges && badges.length > 0 && (
             <div class="record__badges">
               <p class="record__agent-title">Your badges</p>

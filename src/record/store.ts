@@ -13,8 +13,7 @@ export interface RecordNotice {
 }
 
 export interface RecordStore {
-  /** 'wordpress-org' is reserved for a future account adapter and is not implemented. */
-  kind: 'opfs' | 'indexeddb' | 'memory' | 'folder' | 'wordpress-org';
+  kind: 'opfs' | 'indexeddb' | 'memory' | 'folder';
   load(): Promise<LearningRecord | null>;
   save(r: LearningRecord): Promise<void>;
   /** Set by load() when a stored record was unreadable and was kept aside. */

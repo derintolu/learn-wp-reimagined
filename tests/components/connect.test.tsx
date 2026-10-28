@@ -10,7 +10,7 @@ const h = vi.hoisted(() => ({
   revokeAllAgents: vi.fn(),
   flags: { agent: true, serverEvents: true, sessions: true, wordpressContent: false, senseiLearners: false, agentOnStandard: false },
 }));
-vi.mock('../../src/config', () => ({ FEATURES: h.flags, REPO_URL: 'https://github.com/derintolu/learn-wp-reimagined' }));
+vi.mock('../../src/config', () => ({ FEATURES: h.flags, phaseOn: () => false, REPO_URL: 'https://github.com/derintolu/learn-wp-reimagined' }));
 vi.mock('../../src/agent/client', () => ({ ...h, NO_ANSWER: "The connector didn't answer. Try again in a moment." }));
 vi.mock('../../src/ai/client', () => ({ getStatus: vi.fn(async () => ({ ai: 'off' })), placement: vi.fn() }));
 

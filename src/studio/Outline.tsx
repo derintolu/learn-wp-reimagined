@@ -1,4 +1,6 @@
+import { phaseOn } from '../config';
 import { content } from '../content';
+import { useOfficialRecord } from '../record/official';
 import { useRecord } from '../record/useRecord';
 import { branchHistory, branchSkippedLessons } from '../shared/record';
 import type { Lesson } from '../shared/types';
@@ -28,6 +30,8 @@ function Section({ state, label, tag }: { state: State; label: string; tag?: str
  */
 export function Outline({ lesson, step, bugSolved }: { lesson: Lesson; step: number; bugSolved: boolean }) {
   const { record } = useRecord();
+  const { official } = useOfficialRecord();
+  const testedOut = new Set(phaseOn('officialRecord') ? (official?.testedOut ?? []) : []);
   const path = content.paths[lesson.pathId];
   const lessons = path.lessons.filter((id) => has(content.lessons, id)).map((id) => content.lessons[id]);
   const minutes = lessons.reduce((s, l) => s + l.minutes, 0);
@@ -68,6 +72,7 @@ export function Outline({ lesson, step, bugSolved }: { lesson: Lesson; step: num
                   {state === 'done' && <span class="visually-hidden"> (done)</span>}
                 </span>
                 {state === 'skipped' && <span class="outline__skipped">Skipped</span>}
+                {testedOut.has(l.id) && state !== 'done' && <span class="outline__skipped">Tested out</span>}
               </a>
               {current && (
                 <ul class="outline__sections" aria-label="Sections in this lesson">
