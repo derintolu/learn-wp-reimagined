@@ -8,6 +8,7 @@ import type { Env } from '../../functions/_lib/env';
 import { createSession, type Session } from '../../functions/_lib/session/session';
 import { EXT_CARRIED_OVER, OFFICIAL_COURSE_ID, auIdOf, officialActor } from '../../functions/_lib/record/official';
 import { POST } from '../../functions/api/carry-over';
+import { GET as getState } from '../../functions/api/state';
 import { ADL_VERBS, CMI5 } from '../../vendor/course-xapi-mcp/core/constants';
 import { checkProfile } from '../../vendor/course-xapi-mcp/core/xapi/profile-check';
 import { activityIds } from '../../vendor/course-xapi-mcp/core/constants';
@@ -25,7 +26,10 @@ let lrs: ReturnType<typeof fakeLrs>;
 let session: Session;
 let cookie: string;
 
-const stateKey = (stateId: string) => [OFFICIAL_COURSE_ID, JSON.stringify(officialActor(session.actorName)), '', stateId].join('|');
+const stateKey = (stateId: string, registration = '') => [OFFICIAL_COURSE_ID, JSON.stringify(officialActor(session.actorName)), registration, stateId].join('|');
+/** What the studio reads back: GET /api/state/:kind for this session. */
+const studioState = async (kind: 'files' | 'resume') =>
+  ((await (await getState(new Request(`http://x/api/state/${kind}`, { headers: { cookie } }), { params: { kind }, env })).json()) as { doc: any }).doc;
 const call = (body: unknown, withCookie = true) =>
   POST(
     new Request('http://x/api/carry-over', {
@@ -79,8 +83,34 @@ describe('POST /api/carry-over', () => {
       expect(s.context.registration).toBe(REG);
       expect(checkProfile(s, { lmsActor: true })).toEqual([]);
     }
-    expect(lrs.state.get(stateKey('lwr-files'))).toEqual({ 'theme.json': '{"version":3}' });
-    expect(lrs.state.get(stateKey('lwr-resume'))).toEqual({ pathId: 'block-theme', lessonId: SECOND, beatIndex: 2 });
+    // The studio's own documents, under the learner's registration, in the shapes it reads.
+    expect(lrs.state.has(stateKey('lwr-files'))).toBe(false);
+    expect(lrs.state.has(stateKey('lwr-resume'))).toBe(false);
+    expect(await studioState('files')).toEqual({ files: { 'theme.json': '{"version":3}' } });
+    expect(await studioState('resume')).toEqual({ current: { pathId: 'block-theme', lessonId: SECOND, beatIndex: 2 }, updatedAt: expect.any(String) });
+  });
+
+  it('merges carried files into the studio document: a file edited there keeps its edit, the rest are added', async () => {
+    lrs.state.set(stateKey('lwr-files', REG), {
+      files: { 'theme.json': '{"version":3,"edited":true}' },
+      fileLessons: { 'theme.json': FIRST },
+      times: { 'theme.json': '2026-10-28T11:00:00.000Z' },
+    });
+    const here = { pathId: 'block-theme', lessonId: FIRST, beatIndex: 0 };
+    lrs.state.set(stateKey('lwr-resume', REG), { current: here, updatedAt: '2026-10-28T11:00:00.000Z' });
+    const res = await call({
+      completedLessons: [],
+      files: { 'theme.json': '{"version":3}', 'style.css': 'body{}' },
+      current: { pathId: 'block-theme', lessonId: SECOND, beatIndex: 2 },
+    });
+    expect(res.status).toBe(200);
+    expect(await studioState('files')).toEqual({
+      files: { 'theme.json': '{"version":3,"edited":true}', 'style.css': 'body{}' },
+      fileLessons: { 'theme.json': FIRST },
+      times: { 'theme.json': '2026-10-28T11:00:00.000Z' },
+    });
+    // The place the studio already keeps is newer than the old record's.
+    expect((await studioState('resume')).current).toEqual(here);
   });
 
   it('does not waive a lesson the official record already satisfies', async () => {

@@ -1,7 +1,7 @@
 // Carry over progress from the old local record into the official record (Task 37), behind
 // SERVER_FLAGS.officialRecord. Each known completed lesson not already satisfied is waived (reason
-// Administrative, result extension carried-over); the learner's files and resume position go to the LRS State
-// documents. Old statements are never read from the body, let alone posted. Once per actor: the claim is a D1 row.
+// Administrative, result extension carried-over); the learner's files and resume position are merged into the
+// studio's own State documents (/api/state: lwr-files and lwr-resume under the registration). Old statements are never read from the body, let alone posted. Once per actor: the claim is a D1 row.
 import type { Handler } from '../_lib/env';
 import { error, json } from '../_lib/http';
 import { readJsonCapped } from '../_lib/guards';
@@ -17,24 +17,30 @@ import { getRegistration } from '../_lib/record/registration';
 import { OFFICIAL_COURSE_ID, auIdOf, carriedOverStatement, officialActor } from '../_lib/record/official';
 import { claimOnce, satisfiedElsewhere } from '../_lib/record/shadow';
 import { activityIds } from '../../vendor/course-xapi-mcp/core/constants';
+import { STATE_ID, mergeFilesDocs, parseFilesDoc, parseResumeDoc, type FilesDoc, type ResumeDoc, type StateKind } from '../../src/shared/stateDoc';
 
 export const CARRY_OVER_MAX_BYTES = 512 * 1024;
 const MAX_LESSONS = 200;
 const MAX_FILES = 200;
 const MAX_FILE_NAME = 200;
-export const STATE_FILES = 'lwr-files';
-export const STATE_RESUME = 'lwr-resume';
+const WRITE_TRIES = 3;
 
 const has = (o: object, k: string) => Object.prototype.hasOwnProperty.call(o, k);
 const bad = (msg: string) => error(400, 'bad-request', msg);
 
-/** Writes a learner-wide State document, replacing one that is there (the LRS PUT is create-only without an ETag). */
-async function putStateDoc(client: LrsClient, key: StateKey, body: unknown): Promise<void> {
-  const put = await client.putState(key, body);
-  if (!('conflict' in put)) return;
-  const existing = await client.getState(key);
-  const again = await client.putState(key, body, existing?.etag ?? '*');
-  if ('conflict' in again) throw new LrsError(412, 'the LRS state document changed while it was being written');
+/**
+ * Writes one of the studio's State documents (the ones GET /api/state reads) by merging into what is there, with
+ * If-Match and a fresh read on 412. `merge` gets the parsed document there, or null when there is none.
+ */
+async function mergeStateDoc<T>(client: LrsClient, key: StateKey, parse: (v: unknown) => T | null, merge: (there: T | null) => T | null): Promise<void> {
+  for (let i = 0; i < WRITE_TRIES; i++) {
+    const got = await client.getState(key);
+    const body = merge(got ? parse(got.body) : null);
+    if (body === null) return;
+    const put = await client.putState(key, body, got ? got.etag : undefined);
+    if (!('conflict' in put)) return;
+  }
+  throw new LrsError(412, 'the LRS state document changed while it was being written');
 }
 
 export const POST: Handler = (req, ctx) =>
@@ -94,9 +100,18 @@ export const POST: Handler = (req, ctx) =>
         waived.push(lessonId);
       }
       const client = new LrsClient(env);
-      const key = (stateId: string): StateKey => ({ activityId: OFFICIAL_COURSE_ID, agent: actor as StateKey['agent'], stateId });
-      if (Object.keys(files).length > 0) await putStateDoc(client, key(STATE_FILES), files);
-      if (resume) await putStateDoc(client, key(STATE_RESUME), resume);
+      // The studio's documents under the learner's registration, as /api/state keeps them. The old record's files
+      // carry no edit time, so a file the studio already synced keeps its (newer) edit; a resume position the
+      // studio already keeps is newer than the old record's too.
+      const key = (kind: StateKind): StateKey => ({ activityId: OFFICIAL_COURSE_ID, agent: actor as StateKey['agent'], registration, stateId: STATE_ID[kind] });
+      if (Object.keys(files).length > 0) {
+        const carried: FilesDoc = { files: files as Record<string, string> };
+        await mergeStateDoc(client, key('files'), parseFilesDoc, (there) => (there ? mergeFilesDocs(there, carried) : carried));
+      }
+      if (resume) {
+        const carried: ResumeDoc = { current: resume as ResumeDoc['current'], updatedAt: new Date(now).toISOString() };
+        await mergeStateDoc(client, key('resume'), parseResumeDoc, (there) => (there ? null : carried));
+      }
       await enqueue(env, statements, now);
       await drainAfterDecide(ctx, env, now, deadline);
       return json({ waived });
