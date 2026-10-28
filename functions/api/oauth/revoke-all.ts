@@ -8,6 +8,10 @@ import { revokeAllForActor } from '../../_lib/oauth/store';
 export const POST: Handler = (req, { env }) =>
   guarded(async () => {
     if (!env.SESSION_KEY) return error(503, 'disabled', 'Sessions are not configured.');
+    // JSON only, as consent: a form post from a same-site page cannot disconnect the learner's agents.
+    if (!(req.headers.get('content-type') ?? '').toLowerCase().startsWith('application/json')) {
+      return error(415, 'bad-request', 'Send the request as JSON.');
+    }
     const session = await readSession(req, env, Date.now());
     if (!session) return error(401, 'no-session', 'There is no learner in this browser.');
     return json({ revoked: await revokeAllForActor(env, session.actorName) });

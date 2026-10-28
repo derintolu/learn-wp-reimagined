@@ -6,7 +6,7 @@
 // other SSO or OAuth configuration.
 import type { Env } from '../env';
 import { ensureOAuthSchema, ensureSchema } from '../db';
-import { HttpError, readTextCapped } from '../guards';
+import { HttpError, clientKey, readTextCapped } from '../guards';
 import { LEGACY_XAPI_BASES, XAPI_BASE } from '../../../src/shared/xapi';
 import { b64url, safeEqual } from './pkce';
 
@@ -17,10 +17,32 @@ export const REFRESH_IDLE_MS = 30 * 24 * 60 * 60 * 1000;
 export const CODE_TTL_MS = 60_000;
 /** A pending authorization request, from authorize to the consent decision, lives this long. */
 export const REQUEST_TTL_MS = 600_000;
-export const ISSUER = XAPI_BASE;
-export const RESOURCE = `${XAPI_BASE}/api/mcp`;
 /** Resource values a client may send: the canonical one and the legacy host's. Tokens are the same. */
-export const RESOURCES: readonly string[] = [RESOURCE, ...LEGACY_XAPI_BASES.map((b) => `${b}/api/mcp`)];
+export const RESOURCES: readonly string[] = [XAPI_BASE, ...LEGACY_XAPI_BASES].map((b) => `${b}/api/mcp`);
+
+/**
+ * The origin a request is answered as (ruling R19): the legacy host names itself, so its metadata, issuer
+ * and resource match the URLs the agent used (RFC 9728 3.3, RFC 8414 3.3, RFC 9207). Every other host
+ * gets the canonical one.
+ */
+export function issuerFor(req: Request): string {
+  const origin = new URL(req.url).origin;
+  return LEGACY_XAPI_BASES.includes(origin) ? origin : XAPI_BASE;
+}
+export const resourceFor = (req: Request): string => `${issuerFor(req)}/api/mcp`;
+
+/** Unauthenticated writes: a per-key bucket under a global ceiling, as POST /api/session limits sessions. */
+export const REGISTER_LIMIT = { perKey: 20, global: 200, windowMs: 600_000 } as const;
+export const AUTHORIZE_LIMIT = { perClient: 30, global: 600, windowMs: 600_000 } as const;
+
+/**
+ * clientKey without its client-supplied id: a rotating x-client-id must not buy a fresh registration
+ * bucket. Without a visitor address (Spacefast passes none), every agent shares 'anon'.
+ */
+export function addressKey(req: Request, env: Pick<Env, 'TRUSTED_IP_HEADER'>): string {
+  const k = clientKey(req, env);
+  return k.startsWith('c:') ? 'anon' : k;
+}
 /** Binds a pending request to the browser that opened it, so a leaked request id cannot be approved elsewhere. */
 export const BROWSER_COOKIE = 'lwr_oauth_req';
 
@@ -213,8 +235,29 @@ export interface AuthRequest {
   state: string | null;
 }
 
+const CLEAR_BATCH = 50;
+
+/**
+ * Deletes up to 50 requests and codes that expired more than REQUEST_TTL_MS ago. Runs on every insert into
+ * oauth_codes, so it clears faster than rows arrive. The grace keeps a spent code long enough that a late
+ * replay still ends its tokens. Select then delete by key: portable where DELETE ... LIMIT is not.
+ */
+async function clearExpired(env: Env, now: number): Promise<void> {
+  const before = now - REQUEST_TTL_MS;
+  const { results } = await env.DB
+    .prepare(`SELECT code_hash FROM oauth_codes WHERE expires < ? LIMIT ${CLEAR_BATCH}`)
+    .bind(before)
+    .all<{ code_hash: string }>();
+  if (!results.length) return;
+  await env.DB
+    .prepare(`DELETE FROM oauth_codes WHERE code_hash IN (${results.map(() => '?').join(', ')}) AND expires < ?`)
+    .bind(...results.map((r) => r.code_hash), before)
+    .run();
+}
+
 /** Stores a validated request bound to `browser` (the binding cookie's value); returns its id. */
 export async function putRequest(env: Env, r: AuthRequest, browser: string, now: number): Promise<string> {
+  await clearExpired(env, now);
   const id = newSecret();
   await env.DB
     .prepare(
@@ -262,6 +305,7 @@ export async function takeRequest(env: Env, id: unknown, browser: unknown, now: 
 
 /** Mints a single-use code for an approved request. Its grant family is fixed now, so a replay can end it. */
 export async function putCode(env: Env, r: AuthRequest, g: Grant, now: number): Promise<string> {
+  await clearExpired(env, now);
   const code = newSecret();
   await env.DB
     .prepare(

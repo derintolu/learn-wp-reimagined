@@ -9,9 +9,9 @@ import { rateLimit } from '../../_lib/ratelimit';
 import { createSession, readSession, type Session } from '../../_lib/session/session';
 import {
   BROWSER_COOKIE,
-  ISSUER,
   cookieNamed,
   getClient,
+  issuerFor,
   peekRequest,
   putCode,
   ready,
@@ -28,11 +28,11 @@ const ended = () =>
   error(400, 'request-ended', 'This sign-in request has ended or expired. Start connecting again from your agent.');
 
 /** The agent's redirect URI with the result, its state and our issuer (RFC 9207). */
-function back(r: AuthRequest, result: Record<string, string>): string {
+function back(r: AuthRequest, result: Record<string, string>, issuer: string): string {
   const loc = new URL(r.redirectUri);
   for (const [k, v] of Object.entries(result)) loc.searchParams.set(k, v);
   if (r.state !== null) loc.searchParams.set('state', r.state);
-  loc.searchParams.set('iss', ISSUER);
+  loc.searchParams.set('iss', issuer);
   return loc.href;
 }
 
@@ -44,7 +44,8 @@ export const GET: Handler = (req, { env }) =>
     if (!r) return ended();
     const client = await getClient(env, r.clientId);
     const session = env.SESSION_KEY ? await readSession(req, env, now) : null;
-    return reply({ clientName: client?.clientName ?? null, hasSession: session !== null });
+    // The client names itself; the host its codes go to is what the page can vouch for.
+    return reply({ clientName: client?.clientName ?? null, redirectHost: new URL(r.redirectUri).host, hasSession: session !== null });
   });
 
 export const POST: Handler = (req, { env }) =>
@@ -63,7 +64,7 @@ export const POST: Handler = (req, { env }) =>
 
     if (decision === 'cancel') {
       const r = await takeRequest(env, body?.request, browser, now);
-      return r ? reply({ redirect: back(r, { error: 'access_denied' }) }) : ended();
+      return r ? reply({ redirect: back(r, { error: 'access_denied' }, issuerFor(req)) }) : ended();
     }
 
     if (!(await peekRequest(env, body?.request, browser, now))) return ended();
@@ -81,5 +82,5 @@ export const POST: Handler = (req, { env }) =>
     if (!r) return ended();
     if (!session) ({ session, cookie } = await createSession(env, now));
     const code = await putCode(env, r, { actorName: session.actorName, wpUserId: session.wpUserId ?? 0, registration: '' }, now);
-    return reply({ redirect: back(r, { code }) }, cookie);
+    return reply({ redirect: back(r, { code }, issuerFor(req)) }, cookie);
   });

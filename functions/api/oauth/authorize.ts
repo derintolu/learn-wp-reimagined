@@ -2,10 +2,12 @@
 // stores it bound to this browser, and sends the browser to the consent page.
 import type { Handler } from '../../_lib/env';
 import { isS256Challenge } from '../../_lib/oauth/pkce';
+import { rateLimit } from '../../_lib/ratelimit';
 import {
+  AUTHORIZE_LIMIT,
   BROWSER_COOKIE,
-  ISSUER,
   cookieNamed,
+  issuerFor,
   REQUEST_TTL_MS,
   RESOURCES,
   SCOPE,
@@ -21,9 +23,9 @@ import {
 const MAX_STATE = 1024;
 
 /** Before the redirect URI is trusted, errors go to the browser, never to the agent's address. */
-const page = (message: string) =>
+const page = (message: string, status = 400) =>
   new Response(message, {
-    status: 400,
+    status,
     headers: { 'content-type': 'text/plain; charset=utf-8', 'cache-control': 'no-store', 'x-content-type-options': 'nosniff' },
   });
 
@@ -44,7 +46,7 @@ export const GET: Handler = (req, { env }) =>
       loc.searchParams.set('error', error);
       loc.searchParams.set('error_description', description);
       if (state !== undefined && state.length <= MAX_STATE) loc.searchParams.set('state', state);
-      loc.searchParams.set('iss', ISSUER);
+      loc.searchParams.set('iss', issuerFor(req));
       return new Response(null, { status: 302, headers: { location: loc.href, 'cache-control': 'no-store' } });
     };
     if (p.duplicated) return fail('invalid_request', 'A parameter was sent more than once.');
@@ -59,6 +61,15 @@ export const GET: Handler = (req, { env }) =>
     const scope = p.get('scope');
     if (scope !== undefined && scope.split(' ').some((s) => s !== '' && s !== SCOPE)) {
       return fail('invalid_scope', `The only scope is ${SCOPE}.`);
+    }
+
+    // Every pending request is a row: limited per client, then globally, before it is written.
+    const { perClient, global, windowMs } = AUTHORIZE_LIMIT;
+    if (
+      !(await rateLimit(env.DB, `oauth:az:${client.clientId}`, now, perClient, windowMs)) ||
+      !(await rateLimit(env.DB, 'oauth:az:g', now, global, windowMs))
+    ) {
+      return page('Too many sign-in attempts right now. Wait a few minutes and try again.', 429);
     }
 
     const known = cookieNamed(req, BROWSER_COOKIE);

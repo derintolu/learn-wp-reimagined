@@ -1,16 +1,19 @@
 // POST /api/oauth/register: RFC 7591 dynamic client registration, open to any agent, public clients only.
 import type { Handler } from '../../_lib/env';
-import { clientKey, readJsonCapped } from '../../_lib/guards';
+import { readJsonCapped } from '../../_lib/guards';
 import { rateLimit } from '../../_lib/ratelimit';
-import { OAuthError, oauthGuarded, oauthJson, ready, registerClient } from '../../_lib/oauth/store';
-
-export const REGISTER_LIMIT = { limit: 20, windowMs: 600_000 } as const;
+import { OAuthError, REGISTER_LIMIT, addressKey, oauthGuarded, oauthJson, ready, registerClient } from '../../_lib/oauth/store';
 
 export const POST: Handler = (req, { env }) =>
   oauthGuarded(async () => {
     await ready(env);
     const now = Date.now();
-    if (!(await rateLimit(env.DB, `oauth:reg:${clientKey(req, env)}`, now, REGISTER_LIMIT.limit, REGISTER_LIMIT.windowMs))) {
+    const { perKey, global, windowMs } = REGISTER_LIMIT;
+    // Per key first, so a key that is already blocked never uses up the global ceiling.
+    if (
+      !(await rateLimit(env.DB, `oauth:reg:${addressKey(req, env)}`, now, perKey, windowMs)) ||
+      !(await rateLimit(env.DB, 'oauth:reg:g', now, global, windowMs))
+    ) {
       throw new OAuthError('temporarily_unavailable', 'Too many registrations. Wait a few minutes and try again.', 429);
     }
     let meta: unknown;

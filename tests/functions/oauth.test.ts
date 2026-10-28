@@ -9,6 +9,9 @@ import {
   ACCESS_TTL_S,
   CODE_TTL_MS,
   REFRESH_IDLE_MS,
+  AUTHORIZE_LIMIT,
+  REGISTER_LIMIT,
+  REQUEST_TTL_MS,
   SCOPE,
   resolveToken,
   revokeAllForActor,
@@ -27,6 +30,7 @@ const REDIRECT = 'http://127.0.0.1:33418/callback';
 const VERIFIER = 'v'.repeat(20) + '-._~' + 'abcdefghijklmnopqrstu';
 const CHALLENGE = createHash('sha256').update(VERIFIER).digest('base64url');
 const BASE = 'https://learnwp.sqwrlz.com';
+const LEGACY = 'https://learn-wp-reimagined.space.fast';
 
 let db: ReturnType<typeof createSqliteD1>;
 let env: Env;
@@ -56,7 +60,7 @@ async function clientId(): Promise<string> {
   return ((await res.json()) as { client_id: string }).client_id;
 }
 
-function authorizeUrl(id: string, extra: Record<string, string> = {}): string {
+function authorizeUrl(id: string, extra: Record<string, string> = {}, host = BASE): string {
   const p = new URLSearchParams({
     response_type: 'code',
     client_id: id,
@@ -67,12 +71,12 @@ function authorizeUrl(id: string, extra: Record<string, string> = {}): string {
     scope: SCOPE,
     ...extra,
   });
-  return `${BASE}/api/oauth/authorize?${p}`;
+  return `${host}/api/oauth/authorize?${p}`;
 }
 
 /** Runs authorize and returns the request id and the browser binding cookie. */
-async function startRequest(id: string): Promise<{ request: string; browser: string }> {
-  const res = await authorize(new Request(authorizeUrl(id)), ctx());
+async function startRequest(id: string, host = BASE): Promise<{ request: string; browser: string }> {
+  const res = await authorize(new Request(authorizeUrl(id, {}, host)), ctx());
   expect(res.status).toBe(302);
   const loc = res.headers.get('location')!;
   expect(loc).toMatch(/^\/consent\?request=/);
@@ -80,8 +84,8 @@ async function startRequest(id: string): Promise<{ request: string; browser: str
   return { request, browser: cookiePair(res, 'lwr_oauth_req')! };
 }
 
-function consentReq(body: unknown, cookies: string[]): Request {
-  return new Request(`${BASE}/api/oauth/consent`, {
+function consentReq(body: unknown, cookies: string[], host = BASE): Request {
+  return new Request(`${host}/api/oauth/consent`, {
     method: 'POST',
     headers: { 'content-type': 'application/json', cookie: cookies.join('; '), 'x-client-id': 'client-id-for-tests-0001' },
     body: JSON.stringify(body),
@@ -110,6 +114,13 @@ const exchange = (id: string, code: string, extra: Record<string, string> = {}) 
 
 const refreshWith = (id: string, refresh_token: string) =>
   token(tokenReq({ grant_type: 'refresh_token', client_id: id, refresh_token }), ctx());
+
+const revokeAllReq = (cookie?: string, contentType = 'application/json') =>
+  new Request(`${BASE}/api/oauth/revoke-all`, {
+    method: 'POST',
+    headers: { 'content-type': contentType, ...(cookie ? { cookie } : {}) },
+    body: contentType === 'application/json' ? '{}' : 'x=1',
+  });
 
 const bearer = (t: string) => new Request(`${BASE}/api/mcp`, { headers: { authorization: `Bearer ${t}` } });
 
@@ -181,6 +192,14 @@ describe('MCP authorization server', () => {
     now = T0 + CODE_TTL_MS;
     expect((await exchange(id, late.code)).status).toBe(400);
     expect((await exchange(id, second.code)).status).toBe(200);
+
+    // a late replay, after a write has cleared old rows, still ends the tokens its first use issued
+    const fresh = await getCode(id);
+    const ft = (await (await exchange(id, fresh.code)).json()) as Tokens;
+    now += CODE_TTL_MS + 1;
+    await startRequest(id);
+    expect((await exchange(id, fresh.code)).status).toBe(400);
+    expect(await resolveToken(env, bearer(ft.access_token), now)).toBeNull();
   });
 
   it('redirect URI must match exactly', async () => {
@@ -255,7 +274,7 @@ describe('MCP authorization server', () => {
       new Request(`${BASE}/api/oauth/consent?request=${encodeURIComponent(request)}`, { headers: { cookie: browser } }),
       ctx(),
     );
-    expect(await info.json()).toEqual({ clientName: 'Test Agent', hasSession: false });
+    expect(await info.json()).toEqual({ clientName: 'Test Agent', redirectHost: '127.0.0.1:33418', hasSession: false });
 
     // the request is bound to the browser that opened it
     const otherBrowser = (await startRequest(id)).browser;
@@ -303,10 +322,11 @@ describe('MCP authorization server', () => {
     const t2 = (await (await exchange(id, second.code)).json()) as Tokens;
     const someoneElse = await signIn();
 
-    const res = await revokeAll(
-      new Request(`${BASE}/api/oauth/revoke-all`, { method: 'POST', headers: { cookie: session } }),
-      ctx(),
-    );
+    // a cross-site form post cannot do it: JSON only
+    expect((await revokeAll(revokeAllReq(session, 'application/x-www-form-urlencoded'), ctx())).status).toBe(415);
+    expect(await resolveToken(env, bearer(tokens.access_token), now)).not.toBeNull();
+
+    const res = await revokeAll(revokeAllReq(session), ctx());
     expect(res.status).toBe(200);
     expect(await res.json()).toEqual({ revoked: 4 });
     for (const t of [tokens.access_token, t2.access_token]) expect(await resolveToken(env, bearer(t), now)).toBeNull();
@@ -315,7 +335,7 @@ describe('MCP authorization server', () => {
     expect(await resolveToken(env, bearer(someoneElse.tokens.access_token), now)).not.toBeNull();
 
     // no session, nothing to revoke
-    expect((await revokeAll(new Request(`${BASE}/api/oauth/revoke-all`, { method: 'POST' }), ctx())).status).toBe(401);
+    expect((await revokeAll(revokeAllReq(), ctx())).status).toBe(401);
 
     // the helper Task 39 calls
     const who = (await resolveToken(env, bearer(someoneElse.tokens.access_token), now))!;
@@ -338,20 +358,22 @@ describe('MCP authorization server', () => {
 
   it('metadata documents point at each other', async () => {
     const get = async (url: string) => (await (await metadata(new Request(url), ctx())).json()) as Record<string, any>;
-    for (const host of [BASE, 'https://learn-wp-reimagined.space.fast']) {
+    // Each host names itself (ruling R19): the resource is the URL the agent used (RFC 9728 3.3) and the
+    // issuer is the URL its metadata came from (RFC 8414 3.3). Any other host gets the canonical ones.
+    for (const [host, named] of [[BASE, BASE], [LEGACY, LEGACY], ['http://localhost:5173', BASE]]) {
       const pr = await get(`${host}/.well-known/oauth-protected-resource`);
-      expect(pr.resource).toBe(`${BASE}/api/mcp`);
-      expect(pr.authorization_servers).toEqual([BASE]);
+      expect(pr.resource).toBe(`${named}/api/mcp`);
+      expect(pr.authorization_servers).toEqual([named]);
       expect(pr.scopes_supported).toEqual(['course']);
       expect(pr.bearer_methods_supported).toEqual(['header']);
 
-      const as = await get(`${host}/.well-known/oauth-authorization-server`);
+      const as = await get(`${pr.authorization_servers[0]}/.well-known/oauth-authorization-server`);
       expect(as.issuer).toBe(pr.authorization_servers[0]);
       expect(as.protected_resources).toEqual([pr.resource]);
-      expect(as.authorization_endpoint).toBe(`${BASE}/api/oauth/authorize`);
-      expect(as.token_endpoint).toBe(`${BASE}/api/oauth/token`);
-      expect(as.registration_endpoint).toBe(`${BASE}/api/oauth/register`);
-      expect(as.revocation_endpoint).toBe(`${BASE}/api/oauth/revoke`);
+      expect(as.authorization_endpoint).toBe(`${named}/api/oauth/authorize`);
+      expect(as.token_endpoint).toBe(`${named}/api/oauth/token`);
+      expect(as.registration_endpoint).toBe(`${named}/api/oauth/register`);
+      expect(as.revocation_endpoint).toBe(`${named}/api/oauth/revoke`);
       expect(as.code_challenge_methods_supported).toEqual(['S256']);
       expect(as.grant_types_supported).toEqual(['authorization_code', 'refresh_token']);
       expect(as.response_types_supported).toEqual(['code']);
@@ -361,6 +383,23 @@ describe('MCP authorization server', () => {
       const both = await get(`${host}/api/oauth/metadata`);
       expect(both).toEqual({ ...pr, ...as });
     }
+  });
+
+  it('a sign-in on the legacy host is issued by the legacy host and its tokens work', async () => {
+    const id = await clientId();
+    const refused = await authorize(new Request(authorizeUrl(id, { code_challenge_method: 'plain' }, LEGACY)), ctx());
+    expect(new URL(refused.headers.get('location')!).searchParams.get('iss')).toBe(LEGACY);
+
+    const { request, browser } = await startRequest(id, LEGACY);
+    const res = await consent(consentReq({ request, decision: 'allow' }, [browser], LEGACY), ctx());
+    const redirect = new URL(((await res.json()) as any).redirect);
+    expect(redirect.searchParams.get('iss')).toBe(LEGACY);
+    const ok = await exchange(id, redirect.searchParams.get('code')!, { resource: `${LEGACY}/api/mcp` });
+    expect(ok.status).toBe(200);
+    expect(await resolveToken(env, bearer(((await ok.json()) as Tokens).access_token), now)).not.toBeNull();
+    // tokens are accepted for either resource
+    const { code } = await getCode(id);
+    expect((await exchange(id, code, { resource: `${BASE}/api/mcp` })).status).toBe(200);
   });
 
   it('stores only SHA-256 of codes and tokens, and limits registration', async () => {
@@ -378,11 +417,39 @@ describe('MCP authorization server', () => {
     expect(dump).toContain(sha(code));
     expect(dump).toContain(sha(t.access_token));
 
-    // 20 registrations per key per 10 minutes
-    const h = { 'x-client-id': 'registering-client-0001' };
-    for (let i = 0; i < 20; i++) expect((await newClient([REDIRECT], h)).status).toBe(201);
-    expect((await newClient([REDIRECT], h)).status).toBe(429);
-    now += 600_000;
-    expect((await newClient([REDIRECT], h)).status).toBe(201);
+  });
+
+  it('registration and authorize are limited per client and globally, and expired requests are cleared', async () => {
+    const ip = (n: number) => ({ 'cf-connecting-ip': `10.0.0.${n}` });
+    const hitsAtLimit = (k: string, n: number) => db.prepare('UPDATE hits SET n = ? WHERE k = ?').bind(n, k).run();
+
+    // a rotating x-client-id does not buy a fresh bucket
+    for (let i = 0; i < REGISTER_LIMIT.perKey; i++) {
+      expect((await newClient([REDIRECT], { 'x-client-id': `rotating-client-${String(i).padStart(4, '0')}` })).status).toBe(201);
+    }
+    expect((await newClient([REDIRECT], { 'x-client-id': 'rotating-client-9999' })).status).toBe(429);
+    // a known visitor address has its own bucket, under the global ceiling
+    const res = await newClient([REDIRECT], ip(9));
+    expect(res.status).toBe(201);
+    const id = ((await res.json()) as { client_id: string }).client_id;
+    await hitsAtLimit('oauth:reg:g', REGISTER_LIMIT.global);
+    expect((await newClient([REDIRECT], ip(10))).status).toBe(429);
+
+    // authorize: per client, then the global ceiling
+    for (let i = 0; i < AUTHORIZE_LIMIT.perClient; i++) expect((await authorize(new Request(authorizeUrl(id)), ctx())).status).toBe(302);
+    const blocked = await authorize(new Request(authorizeUrl(id)), ctx());
+    expect(blocked.status).toBe(429);
+    expect(blocked.headers.get('location')).toBeNull();
+    const pending = async () =>
+      (await db.prepare("SELECT COUNT(*) AS c FROM oauth_codes WHERE kind = 'request'").first<{ c: number }>())!.c;
+    expect(await pending()).toBe(AUTHORIZE_LIMIT.perClient);
+
+    now += REQUEST_TTL_MS * 2 + 1;
+    const other = ((await (await newClient([REDIRECT], ip(11))).json()) as { client_id: string }).client_id;
+    expect((await authorize(new Request(authorizeUrl(other)), ctx())).status).toBe(302);
+    // the expired requests went with that write
+    expect(await pending()).toBe(1);
+    await hitsAtLimit('oauth:az:g', AUTHORIZE_LIMIT.global);
+    expect((await authorize(new Request(authorizeUrl(other)), ctx())).status).toBe(429);
   });
 });
