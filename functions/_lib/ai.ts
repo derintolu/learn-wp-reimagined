@@ -7,6 +7,7 @@ import { reserve, settle } from './budget';
 import { routeFor } from './providers';
 import { ProviderHttpError, type ChatMessage, type Task, type Usage } from './providers/types';
 import { getContent } from './content';
+import { refreshContent } from './course/cache';
 import type { Lesson } from '../../src/shared/types';
 
 export type Route = NonNullable<ReturnType<typeof routeFor>>;
@@ -32,6 +33,7 @@ export async function guarded(fn: () => Promise<Response>): Promise<Response> {
 /** ensureSchema, then rate limit, then route lookup. Returns a Response when the request must stop. */
 export async function preflight(req: Request, env: Env, task: Task): Promise<{ db: D1Like; route: Route } | Response> {
   await ensureSchema(env.DB);
+  await refreshContent(env);
   const key = clientKey(req, env);
   const now = Date.now();
   // Per client first, so a client that is already blocked never uses up the global ceiling.

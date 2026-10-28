@@ -6,6 +6,7 @@ import { ensureSchema } from '../_lib/db';
 import { rateLimit } from '../_lib/ratelimit';
 import { SERVER_FLAGS } from '../_lib/config';
 import { readSession } from '../_lib/session/session';
+import { refreshContent } from '../_lib/course/cache';
 import { decideEvents } from '../_lib/events/decide';
 import { EVENTS_MAX_BYTES, parseEvents } from '../../src/shared/events';
 
@@ -14,6 +15,7 @@ export const POST: Handler = (req, ctx) =>
     const { env } = ctx;
     if (!SERVER_FLAGS.serverEvents) return error(503, 'disabled', 'Server events are switched off.');
     await ensureSchema(env.DB);
+    await refreshContent(env);
     const now = Date.now();
     if (!(await rateLimit(env.DB, `events:${clientKey(req, env)}`, now, 120, 600_000))) {
       return error(429, 'rate-limited', 'You are going a little fast. Please wait a few minutes and try again.');

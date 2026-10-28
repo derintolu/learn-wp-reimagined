@@ -55,6 +55,19 @@ export async function ensureEnrolmentSchema(db: D1Like): Promise<void> {
     .run();
 }
 
+const courseCacheReady = new WeakSet<D1Like>();
+
+/** The last good course package from the Learning Ledger (Task 19), one row per course; body is the bundle as JSON. */
+export async function ensureCourseCacheSchema(db: D1Like): Promise<void> {
+  if (courseCacheReady.has(db)) return;
+  await db
+    .prepare(
+      'CREATE TABLE IF NOT EXISTS course_cache (course_id VARCHAR(64) PRIMARY KEY, etag VARCHAR(80), version INT, body MEDIUMTEXT, fetched BIGINT)',
+    )
+    .run();
+  courseCacheReady.add(db);
+}
+
 const recordReady = new WeakSet<D1Like>();
 
 /**
