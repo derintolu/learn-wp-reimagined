@@ -63,6 +63,7 @@ describe('GET /api/sensei', () => {
       testedOutLessons: ['three'],
       completedCourses: [],
       certificates: [],
+      certificateDownload: false,
     });
     expect(urls.at(-1)).toContain('/learners/77/progress?program=5');
   });

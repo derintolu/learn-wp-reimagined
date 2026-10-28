@@ -44,13 +44,14 @@ export const PRICES: Record<string, { inPerM: number; outPerM: number }> = {
  * Server-side behaviour switches. Rollback = set to false and republish.
  * mcpOnStandard: /api/mcp and /api/agent/* on the course-xapi-mcp reference server with practice custody
  * (Task 45a); off serves today's learning-mcp server. Handles issued by either keep resolving on the standard.
+ * senseiCertificates: offers the Sensei certificate PDF download (Task 50); off because G0 probe 4b never reached a rendered certificate.
  * senseiLearners: each session is a headless Sensei learner made through the Learning Ledger connector (Task 25).
  * lrsShadow: the course server also builds the official cmi5 statements and queues them for the LRS (Task 30);
  * off writes no outbox rows and makes no LRS calls.
  * wordpressContent: the course comes from the Learning Ledger package (Task 19), cached and revalidated every 5 minutes;
  * off serves the baked bundle and never calls the connector.
  */
-export const SERVER_FLAGS = { serverEvents: true, sessions: true, mcpOnStandard: true, senseiLearners: false, lrsShadow: false, wordpressContent: false };
+export const SERVER_FLAGS = { serverEvents: true, sessions: true, mcpOnStandard: true, senseiLearners: false, lrsShadow: false, wordpressContent: false, senseiCertificates: false };
 
 /** Learning Ledger REST base (the plugin's learning-ledger/v1 namespace on the WordPress site). */
 export const LEDGER_BASE = 'https://learnwp.sqwrlz.com/wp-json/learning-ledger/v1';

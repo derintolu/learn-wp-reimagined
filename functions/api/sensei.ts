@@ -17,7 +17,12 @@ export const GET: Handler = (req, { env }) =>
       const p = await new ConnectorClient(env).progress(session.wpUserId, env.LEDGER_PROGRAM_ID);
       const names = lessonKeyBySenseiId(env);
       const studio = (ids: string[]) => ids.flatMap((id) => (names[id] ? [names[id]] : []));
-      return json({ ...p, completedLessons: studio(p.completedLessons), testedOutLessons: studio(p.testedOutLessons) });
+      return json({
+        ...p,
+        completedLessons: studio(p.completedLessons),
+        testedOutLessons: studio(p.testedOutLessons),
+        certificateDownload: SERVER_FLAGS.senseiCertificates,
+      });
     } catch (e) {
       if (e instanceof ConnectorUnavailable || e instanceof ConnectorError)
         return error(503, 'connector-unavailable', 'Sensei is not answering right now.');

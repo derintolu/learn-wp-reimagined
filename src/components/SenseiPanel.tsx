@@ -6,6 +6,8 @@ interface Seen {
   enrolled: string[];
   completedLessons: string[];
   testedOutLessons: string[];
+  completedCourses: string[];
+  certificateDownload: boolean;
 }
 type State = { kind: 'loading' } | { kind: 'down' } | { kind: 'ok'; seen: Seen };
 
@@ -23,7 +25,10 @@ export function SenseiPanel() {
       .then(async (res) => {
         if (!res.ok) throw new Error(String(res.status));
         const j = (await res.json()) as Record<string, unknown>;
-        return { enrolled: list(j.enrolled), completedLessons: list(j.completedLessons), testedOutLessons: list(j.testedOutLessons) };
+        return { enrolled: list(j.enrolled), completedLessons: list(j.completedLessons), testedOutLessons: list(j.testedOutLessons),
+          completedCourses: list(j.completedCourses),
+          certificateDownload: j.certificateDownload === true,
+        };
       })
       .then(
         (seen) => live && setState({ kind: 'ok', seen }),
@@ -76,8 +81,20 @@ export function SenseiPanel() {
       <p>
         <a href={BACKEND_VIEW_PATH}>See the backend view</a>
       </p>
-      {/* Certificate download: filled by Task 50. */}
-      <div data-slot="certificate" />
+      <div data-slot="certificate">
+        {state.kind === 'ok' &&
+          state.seen.completedCourses.map((id) =>
+            state.seen.certificateDownload ? (
+              <p key={id}>
+                <a href={`/api/sensei/certificate?path=${encodeURIComponent(id)}`} download>
+                  Download your certificate: {pathTitle(id)}
+                </a>
+              </p>
+            ) : (
+              <p key={id}>Sensei has issued your certificate.</p>
+            ),
+          )}
+      </div>
     </section>
   );
 }

@@ -147,6 +147,11 @@ export class ConnectorClient {
     return out;
   }
 
+  /** GET learners/{id}/certificates/{course}: the ledger's certificate PDF as a response (404 surfaces as ConnectorError). */
+  async certificate(userId: number, courseKey: PathId): Promise<Response> {
+    return this.send("GET", `/course-server/learners/${userId}/certificates/${this.courseId(courseKey)}`);
+  }
+
   /** DELETE learners/{id}: removes the WordPress user, its connector rows and (queued if need be) its LRS actors. */
   async deleteLearner(userId: number): Promise<void> {
     await this.send("DELETE", `/course-server/learners/${userId}`);

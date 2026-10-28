@@ -63,4 +63,28 @@ describe('SenseiPanel', () => {
     mount();
     await waitFor(() => expect(screen.getByRole('status').textContent).toBe("Sensei isn't answering right now."));
   });
+
+  const withFetch = (body: object) => vi.stubGlobal('fetch', vi.fn(async () => new Response(JSON.stringify(body), { status: 200 })));
+
+  it('offers a certificate download for a completed path when downloads are on', async () => {
+    withFetch({ ...DATA, completedCourses: ['block-theme'], certificates: ['block-theme'], certificateDownload: true });
+    const { container } = mount();
+    await waitFor(() => expect(container.querySelector('[data-slot="certificate"] a')).toBeTruthy());
+    const a = container.querySelector('[data-slot="certificate"] a') as HTMLAnchorElement;
+    expect(a.getAttribute('href')).toBe('/api/sensei/certificate?path=block-theme');
+    expect(a.textContent).toContain('Build a block theme');
+  });
+
+  it('says Sensei issued the certificate, with no link, when downloads are off', async () => {
+    withFetch({ ...DATA, completedCourses: ['block-theme'], certificates: ['block-theme'], certificateDownload: false });
+    const { container } = mount();
+    await waitFor(() => expect(container.querySelector('[data-slot="certificate"]')!.textContent).toContain('Sensei has issued your certificate.'));
+    expect(container.querySelector('[data-slot="certificate"] a')).toBeNull();
+  });
+
+  it('shows nothing in the certificate slot before a course is complete', async () => {
+    const { container } = mount();
+    await waitFor(() => expect(screen.getByText('Lesson One')).toBeTruthy());
+    expect(container.querySelector('[data-slot="certificate"]')!.textContent).toBe('');
+  });
 });
