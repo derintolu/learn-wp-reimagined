@@ -8,6 +8,7 @@ export const BEAT_FLUSH_MS = 30_000;
 export const SEND_TIMEOUT_MS = 8000;
 
 type NewEvent = ServerEvent extends infer E ? (E extends { eventId: string } ? Omit<E, 'eventId'> : never) : never;
+type LeftEvent = Extract<ServerEvent, { type: 'lessonLeft' }>;
 type BeatEvent = Extract<ServerEvent, { type: 'beatViewed' }>;
 
 const newEventId = () => crypto.randomUUID();
@@ -20,6 +21,8 @@ const newEventId = () => crypto.randomUUID();
 export class EventClient {
   private beats: BeatEvent[] = [];
   private timer: ReturnType<typeof setTimeout> | undefined;
+  /** The lesson the studio has open, so leaving (or closing the tab) can say which one ended. */
+  private open: { lessonId: string; left: LeftEvent } | null = null;
 
   constructor(private learnerId: () => string) {
     if (typeof window !== 'undefined') window.addEventListener('pagehide', () => this.beacon());
@@ -30,6 +33,20 @@ export class EventClient {
     this.arm();
   }
 
+  /** The learner opened a lesson. Sent in the background; nothing waits for it. */
+  lessonOpened(lessonId: string): void {
+    this.lessonLeft();
+    this.open = { lessonId, left: { eventId: newEventId(), type: 'lessonLeft', lessonId } };
+    void this.send({ type: 'lessonOpened', lessonId });
+  }
+
+  /** The learner left the open lesson (if any). Sent in the background, after any queued beats. */
+  lessonLeft(): void {
+    const open = this.open;
+    this.open = null;
+    if (open) void this.send(open.left);
+  }
+
   private arm(): void {
     this.timer ??= setTimeout(() => {
       this.timer = undefined;
@@ -37,8 +54,8 @@ export class EventClient {
     }, BEAT_FLUSH_MS);
   }
 
-  async send(e: NewEvent): Promise<EventResult | null> {
-    const event = { ...e, eventId: newEventId() } as ServerEvent;
+  async send(e: NewEvent | LeftEvent): Promise<EventResult | null> {
+    const event = { eventId: newEventId(), ...e } as ServerEvent;
     // Queued beats go first, so the server sees events in the order they happened.
     const results = await this.post([...this.drain(), event]);
     return results.get(event.eventId) ?? null;
@@ -107,9 +124,13 @@ export class EventClient {
     }
   }
 
-  /** On pagehide: hand the queued beats to the browser and don't wait for an answer. */
+  /** On pagehide: hand the queued beats, and the end of the open lesson, to the browser and don't wait for an answer. */
   private beacon(): void {
-    const beats = this.drain();
+    const beats: ServerEvent[] = this.drain();
+    if (this.open) {
+      beats.push(this.open.left);
+      this.open = null;
+    }
     if (!beats.length || typeof navigator === 'undefined' || typeof navigator.sendBeacon !== 'function') return;
     for (let i = 0; i < beats.length; i += EVENTS_MAX) {
       const body = JSON.stringify({ learnerId: this.learnerId(), events: beats.slice(i, i + EVENTS_MAX) });

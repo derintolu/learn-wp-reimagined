@@ -72,6 +72,43 @@ describe('EventClient', () => {
     expect(fetchMock).not.toHaveBeenCalled();
   });
 
+  it('opening a lesson sends lessonOpened without awaiting it', async () => {
+    const eventFetch = fetchMock.getMockImplementation()!;
+    fetchMock.mockImplementation((url: string, init: RequestInit) => (url === '/api/events' ? new Promise<Response>(() => {}) : eventFetch(url, init)));
+    const c = new EventClient(() => LEARNER);
+    // Returns nothing to wait for, even though the server never answers.
+    expect(c.lessonOpened('l1')).toBeUndefined();
+    await vi.advanceTimersByTimeAsync(0);
+    expect(eventCalls()).toHaveLength(1);
+    expect(bodyOf(0).events).toMatchObject([{ type: 'lessonOpened', lessonId: 'l1' }]);
+    c.lessonLeft(); // this client's pagehide listener outlives the test
+  });
+
+  it('leaving sends lessonLeft once for the open lesson, after the queued beats', async () => {
+    const c = new EventClient(() => LEARNER);
+    c.lessonOpened('l1');
+    await vi.advanceTimersByTimeAsync(0);
+    c.queueBeat('l1', 1);
+    c.lessonLeft();
+    c.lessonLeft();
+    await vi.advanceTimersByTimeAsync(0);
+    const types = eventCalls().flatMap((_, i) => bodyOf(i).events.map((e: { type: string }) => e.type));
+    expect(types).toEqual(['lessonOpened', 'beatViewed', 'lessonLeft']);
+  });
+
+  it('pagehide beacons lessonLeft for the open lesson, once', () => {
+    const beacon = vi.fn(() => true);
+    vi.stubGlobal('navigator', { sendBeacon: beacon });
+    const c = new EventClient(() => LEARNER);
+    c.lessonOpened('l1');
+    window.dispatchEvent(new Event('pagehide'));
+    expect(beacon).toHaveBeenCalledTimes(1);
+    window.dispatchEvent(new Event('pagehide'));
+    expect(beacon).toHaveBeenCalledTimes(1);
+    c.lessonLeft();
+    expect(eventCalls().every((_, i) => bodyOf(i).events.every((e: { type: string }) => e.type !== 'lessonLeft'))).toBe(true);
+  });
+
   it('splits batches larger than 50 into several requests', async () => {
     const c = new EventClient(() => LEARNER);
     for (let i = 0; i < 120; i++) c.queueBeat('l1', i);

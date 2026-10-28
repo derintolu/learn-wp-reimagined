@@ -6,6 +6,7 @@ import { Checkpoint, type Resolution } from '../components/Checkpoint';
 import { preloadCodeEditor } from '../components/LazyCodeEditor';
 import { CompletedSummary } from '../components/CompletedSummary';
 import { RESTORED_EVENT, SaveWarning } from '../components/RecordPanel';
+import { FEATURES } from '../config';
 import { content } from '../content';
 import { getEventClient } from '../record/eventClient';
 import { useRecord } from '../record/useRecord';
@@ -75,6 +76,8 @@ function LessonView({ lesson, onRestart }: { lesson: LessonT; onRestart: () => v
         setStep(0);
         manager.dispatch({ type: 'beatViewed', lessonId: lesson.id, beatIndex: 0 }).catch(() => {});
       }
+      // AU session start for the course server; it never waits on the network.
+      if (FEATURES.serverEvents) getEventClient().lessonOpened(lesson.id);
     };
     manager.init().then(begin, begin);
     return () => {
@@ -82,8 +85,15 @@ function LessonView({ lesson, onRestart }: { lesson: LessonT; onRestart: () => v
     };
   }, []);
 
-  // Leaving the lesson sends any beats still waiting.
-  useEffect(() => () => void getEventClient().flush(), []);
+  // Leaving the lesson sends any beats still waiting, then the end of the session.
+  useEffect(
+    () => () => {
+      const client = getEventClient();
+      client.lessonLeft();
+      void client.flush();
+    },
+    [],
+  );
 
   // Keyboard and screen-reader users land on the cards after the last section (the feed handles sections).
   useEffect(() => {

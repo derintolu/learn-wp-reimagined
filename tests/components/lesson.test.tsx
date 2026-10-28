@@ -28,6 +28,7 @@ import { getStatus, judge, codeFeedback, tutorStream } from '../../src/ai/client
 import { content } from '../../src/content';
 import { setRecordManager } from '../../src/record/useRecord';
 import { setPlaygroundImporter } from '../../src/studio/previewClient';
+import { resetSession } from '../../src/record/session';
 import { resetSaveWarning } from '../../src/components/RecordPanel';
 import { RecordManager, type RecordStore } from '../../src/record/store';
 import { applyEvent, newRecord, type LearningRecord } from '../../src/shared/record';
@@ -172,6 +173,55 @@ async function toCheckpoint() {
   fireEvent.click(next);
   return screen.findByRole('region', { name: /Checkpoint/ });
 }
+
+describe('AU session events', () => {
+  const sent = () =>
+    vi.mocked(fetch).mock.calls
+      .filter((c) => c[0] === '/api/events')
+      .flatMap((c) => JSON.parse((c[1] as RequestInit).body as string).events as { type: string; lessonId: string }[])
+      .filter((e) => e.lessonId === 'templates-and-parts' && (e.type === 'lessonOpened' || e.type === 'lessonLeft'));
+  beforeEach(() => {
+    resetSession();
+    // The session answers; the course server never does.
+    vi.stubGlobal(
+      'fetch',
+      vi.fn((url: string) =>
+        url === '/api/session'
+          ? Promise.resolve({ ok: true, json: async () => ({ actor: { homePage: 'https://learnwp.sqwrlz.com/', name: 'Learner' } }) })
+          : new Promise(() => {}),
+      ),
+    );
+  });
+  afterEach(() => {
+    vi.unstubAllGlobals();
+    resetSession();
+  });
+
+  it('opening a lesson sends lessonOpened without awaiting it', async () => {
+    use(managerWith(null));
+    open('/learn/templates-and-parts');
+    // The lesson shows although the server never answers.
+    await screen.findByRole('heading', { level: 1 });
+    await waitFor(() => expect(sent()).toEqual([expect.objectContaining({ type: 'lessonOpened', lessonId: 'templates-and-parts' })]));
+    // Let this test's own lessonLeft go out before the next test starts.
+    cleanup();
+    await waitFor(() => expect(sent()).toHaveLength(2));
+  });
+
+  it('changing lesson sends lessonLeft for the previous one', async () => {
+    use(managerWith(null));
+    open('/learn/templates-and-parts');
+    await screen.findByRole('heading', { level: 1 });
+    await waitFor(() => expect(sent()).toHaveLength(1));
+    cleanup();
+    await waitFor(() =>
+      expect(sent().map((e) => [e.type, e.lessonId])).toEqual([
+        ['lessonOpened', 'templates-and-parts'],
+        ['lessonLeft', 'templates-and-parts'],
+      ]),
+    );
+  });
+});
 
 describe('Free-text checkpoint', () => {
   it('shows the branch moment for a judged answer, records it and continues to the branch', async () => {
