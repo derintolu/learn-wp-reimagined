@@ -33,6 +33,19 @@ export function houseRules(b: ContentBundle): string[] {
       if (other && other !== p.id) out.push(`file "${f}" is owned by both "${other}" and "${p.id}"; live paths may not share file names`);
       else owner.set(f, p.id);
     }
+    const pf = p.previewFiles ?? {};
+    if (p.preview?.kind === 'theme') {
+      for (const required of ['style.css', 'templates/index.html']) {
+        if (!Object.hasOwn(pf, required)) out.push(`path "${p.id}" previewFiles must include ${required}`);
+      }
+    } else if (p.preview?.kind === 'plugin') {
+      const main = `${p.preview.slug}/${p.preview.slug}.php`;
+      if (!Object.hasOwn(pf, main)) out.push(`path "${p.id}" previewFiles must include ${main}`);
+      else if (!/^\s*\*\s*Plugin Name:\s*\S/m.test(pf[main]!)) out.push(`path "${p.id}" ${main} needs a Plugin Name header`);
+      for (const f of owned) if (!f.startsWith(`${p.preview.slug}/`)) out.push(`path "${p.id}" plugin file "${f}" must live under ${p.preview.slug}/`);
+    } else if (p.preview?.kind === 'site') {
+      for (const f of owned) if (!/^pages\/[a-z0-9-]+\.html$/.test(f)) out.push(`path "${p.id}" site file "${f}" must be named pages/<slug>.html`);
+    }
     const finalFiles = p.finalFiles ?? {};
     for (const l of lessons) {
       const checks = [...(l.checkpoint?.checks ?? []), ...(l.bug?.fixChecks ?? [])].filter((c) => Object.hasOwn(finalFiles, c.file));

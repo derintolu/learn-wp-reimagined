@@ -48,6 +48,32 @@ describe('houseRules', () => {
     expect(houseRules(b).join('\n')).toMatch(/finalFiles patterns\/hero\.php fails a check in lesson "patterns"/);
   });
 
+  it('a theme preview needs style.css and templates/index.html', () => {
+    for (const f of ['style.css', 'templates/index.html']) {
+      const b = fixture();
+      delete b.paths['block-theme'].previewFiles![f];
+      expect(houseRules(b).join('\n')).toContain(`path "block-theme" previewFiles must include ${f}`);
+    }
+  });
+
+  it('a plugin preview needs <slug>/<slug>.php with a Plugin Name header, and every file under <slug>/', () => {
+    const b = fixture();
+    const pf = b.paths['vibe-coder'].previewFiles!;
+    pf['my-first-plugin/my-first-plugin.php'] = '<?php\n';
+    expect(houseRules(b).join('\n')).toContain('my-first-plugin/my-first-plugin.php needs a Plugin Name header');
+    delete pf['my-first-plugin/my-first-plugin.php'];
+    expect(houseRules(b).join('\n')).toContain('previewFiles must include my-first-plugin/my-first-plugin.php');
+    const c = fixture();
+    c.paths['vibe-coder'].previewFiles!['stray.php'] = '<?php\n';
+    expect(houseRules(c).join('\n')).toContain('plugin file "stray.php" must live under my-first-plugin/');
+  });
+
+  it('a site preview names its files pages/<slug>.html', () => {
+    const b = fixture();
+    b.paths.learner.previewFiles!['about.html'] = '<p>x</p>';
+    expect(houseRules(b).join('\n')).toContain('site file "about.html" must be named pages/<slug>.html');
+  });
+
   it('every lesson needs at least one source', () => {
     const b = fixture();
     b.lessons['patterns']!.sources = [];
