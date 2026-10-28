@@ -25,7 +25,7 @@ export const agentHandlePrompt = (handle: string): string =>
 
 /** What the learner pastes into their agent when the agent signs them in itself (no handle). */
 export const agentPrompt = (lessonTitle: string): string =>
-  `Continue my "Learn WordPress, reimagined" course with the learn-wp-reimagined tools. I'm on the lesson "${lessonTitle}". Sign me in when you're asked, then pick up at that lesson.`;
+  `Continue my "Learn WordPress, reimagined" course with the learn-wp-reimagined tools. I'm on the lesson "${lessonTitle}". I'll sign in when you ask. Then pick up at that lesson.`;
 
 /** Estimated AI cost per 1000 learners at the chosen model mix (docs/model-eval.md, October 2026). */
 export const COST_PER_1000_LEARNERS_USD = 4.97;

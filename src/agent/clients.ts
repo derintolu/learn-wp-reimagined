@@ -16,7 +16,7 @@ export const CLAUDE_CODE_COMMAND = `claude mcp add --transport http learn-wp-rei
 
 export const CURSOR_SNIPPET = JSON.stringify({ mcpServers: { 'learn-wp-reimagined': { url: MCP_URL } } }, null, 2);
 
-// Steps written from each vendor's documented flow, checked 2026-10-20. Re-check on launch day
+// Steps written from each vendor's documented flow, checked 2026-10-20. The flag-on steps in standardClientSetups are NOT yet checked: re-check before agentOnStandard flips. Re-check on launch day
 // (plan B readiness checklist): connector menus move often.
 //  - Claude: https://support.claude.com/en/articles/11175166-getting-started-with-custom-connectors-using-remote-mcp
 //  - ChatGPT: https://help.openai.com/en/articles/12584461-developer-mode-apps-and-full-mcp-connectors-in-chatgpt-beta

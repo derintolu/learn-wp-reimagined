@@ -4,6 +4,7 @@ import { PlacementChat } from '../components/PlacementChat';
 import { SketchIcon } from '../components/SketchIcon';
 import { Sticker } from '../components/Sticker';
 import { Swipe } from '../components/Swipe';
+import { FEATURES } from '../config';
 import { MCP_URL } from '../shared/course-meta';
 import { usePageTitle } from '../usePageTitle';
 import '../components/agent.css';
@@ -41,7 +42,7 @@ export function Home() {
               </li>
               <li>
                 <p>
-                  Add it to your AI as a custom connector, with no sign-in. In Claude that's Customize, then Connectors.
+                  Add it to your AI as a custom connector{FEATURES.agentOnStandard ? ' and sign in when your agent asks' : ', with no sign-in'}. In Claude that's Customize, then Connectors.
                   ChatGPT needs developer mode, which depends on your plan. Claude Code takes one command.
                 </p>
               </li>
@@ -82,8 +83,10 @@ export function Home() {
               <li>
                 <h3>It keeps your record</h3>
                 <p>
-                  Every step is saved as an xAPI statement, the standard format for learning records. Paste your record
-                  handle on the Connect page to bring that progress back to this site.
+                  Every step is saved as an xAPI statement, the standard format for learning records.{' '}
+                  {FEATURES.agentOnStandard
+                    ? 'Sign in when your agent asks and your progress in your AI stays in your learner record.'
+                    : 'Paste your record handle on the Connect page to bring that progress back to this site.'}
                 </p>
               </li>
             </ul>
@@ -91,11 +94,19 @@ export function Home() {
               Already started here? On any lesson, open <b>Your record</b> and choose <b>Continue in your AI</b>. Your AI
               picks up at that lesson, with your files.
             </p>
-            <p class="home-note">
-              When you take the course into an agent, the server keeps your progress under a random record handle that only
-              you hold. It stores no personal data, expires after {RELAY_DAYS} days without use, and you can delete it at any
-              time from <a href="/connect#import">Connect your AI</a>.
-            </p>
+            {FEATURES.agentOnStandard ? (
+              <p class="home-note">
+                When you take the course into an agent, you sign in when your agent asks, and the server keeps your progress in
+                your learner record. You can end every agent sign-in with <b>Disconnect agents</b> in <b>Your record</b>. See{' '}
+                <a href="/connect">Connect your AI</a>.
+              </p>
+            ) : (
+              <p class="home-note">
+                When you take the course into an agent, the server keeps your progress under a random record handle that only
+                you hold. It stores no personal data, expires after {RELAY_DAYS} days without use, and you can delete it at any
+                time from <a href="/connect#import">Connect your AI</a>.
+              </p>
+            )}
             <ul class="agent-list" aria-label="Set up for">
               {AGENTS.map((a) => (
                 <li key={a}>{a}</li>

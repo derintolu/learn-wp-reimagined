@@ -225,7 +225,7 @@ describe('agent on the standard (flag on)', () => {
   it('/connect says to sign in when the agent asks, with no handle or import anywhere', () => {
     const { container } = render(<Connect />);
     expect(container.textContent).toMatch(/sign in when your agent asks/i);
-    expect(container.textContent).not.toMatch(/handle|No sign in|no authentication/i);
+    expect(container.textContent).not.toMatch(/handle|no sign.?in|no authentication/i);
     expect(screen.queryByLabelText('Record handle or exported JSON')).toBeNull();
     expect(screen.getByText(CLAUDE_CODE_COMMAND)).toBeTruthy();
   });

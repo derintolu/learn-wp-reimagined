@@ -5,7 +5,7 @@ export type AgentResult<T> = { ok: true; data: T } | { ok: false; message: strin
 export const NO_ANSWER = "The connector didn't answer. Try again in a moment.";
 const GENERIC = 'Something went wrong. Try again in a moment.';
 
-/** POSTs JSON to /api/agent/*; the handle travels in the body, never in a URL. */
+/** POSTs JSON to /api/agent/* and /api/oauth/revoke-all; any handle travels in the body, never in a URL. */
 async function post<T>(path: string, body: unknown): Promise<AgentResult<T>> {
   const ctl = new AbortController();
   let timedOut = false;

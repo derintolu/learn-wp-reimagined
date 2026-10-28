@@ -223,8 +223,10 @@ export function HowItWorks() {
       body: (
         <>
           You add <code>{MCP_URL}</code> to your AI and sign in once through MCP authorization. Your AI calls{' '}
-          <code>get_status</code> and tells you where your record is kept and whether it's official. Today there's no
-          sign-in, and you give your AI a record handle instead.
+          <code>get_status</code> and tells you where your record is kept and whether it's official.{' '}
+          {FEATURES.agentOnStandard
+            ? 'You sign in when your agent asks.'
+            : "Today there's no sign-in, and you give your AI a record handle instead."}
         </>
       ),
     },
