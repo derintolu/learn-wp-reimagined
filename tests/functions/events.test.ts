@@ -1,4 +1,4 @@
-import { describe, it, expect, beforeEach } from 'vitest';
+import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
 import { SERVER_FLAGS } from '../../functions/_lib/config';
 import { getContent } from '../../functions/_lib/content';
 import { createSqliteD1 } from '../../dev/sqliteD1';
@@ -255,5 +255,59 @@ describe('POST /api/events', () => {
     const req = () => post({ learnerId: LEARNER, events: [] });
     for (let i = 0; i < 120; i++) expect((await req()).status).toBe(200);
     expect((await req()).status).toBe(429);
+  });
+});
+
+describe('Sensei enrolment on events', () => {
+  const placed = (pathId: string) => ({
+    eventId: eid(),
+    type: 'placed',
+    placement: { pathId, startLessonId: Object.values(getContent().paths).find((p) => p.id === pathId)!.lessons[0], skip: [], reason: 'r' },
+  });
+  const run = (evs: unknown[], enrol: (u: number, k: string) => Promise<void>, wpUserId: number | null = 9) => {
+    const p = parseEvents({ learnerId: LEARNER, events: evs });
+    if (!p.ok) throw new Error(p.error);
+    return decideEvents(env, p.learnerId, p.events, NOW, { wpUserId, connector: { enrol } as any });
+  };
+  afterEach(() => {
+    SERVER_FLAGS.senseiLearners = false;
+  });
+  const rows = async () => (await db.prepare('SELECT wp_user_id, course_key FROM enrolments').all<any>()).results;
+
+  it('enrols once per path', async () => {
+    SERVER_FLAGS.senseiLearners = true;
+    const enrol = vi.fn(async () => {});
+    await run([placed('block-theme'), placed('block-theme')], enrol);
+    expect(enrol).toHaveBeenCalledTimes(1);
+    expect(enrol).toHaveBeenCalledWith(9, 'block-theme');
+    expect((await rows()).map((r) => r.course_key)).toEqual(['block-theme']);
+  });
+
+  it('enrols on the first event in a path, by the lesson path', async () => {
+    SERVER_FLAGS.senseiLearners = true;
+    const enrol = vi.fn(async () => {});
+    await run([{ eventId: eid(), type: 'beatViewed', lessonId: CODE, beatIndex: 0 }], enrol);
+    expect(enrol).toHaveBeenCalledWith(9, getContent().lessons[CODE].pathId);
+  });
+
+  it('enrol failure does not fail the event and is retried on the next event in that path', async () => {
+    SERVER_FLAGS.senseiLearners = true;
+    const enrol = vi.fn().mockRejectedValueOnce(new Error('down')).mockResolvedValue(undefined);
+    const [r1] = (await run([placed('block-theme')], enrol)) as any[];
+    expect(r1.ok).toBe(true);
+    expect(await rows()).toEqual([]);
+    const [r2] = (await run([placed('block-theme')], enrol)) as any[];
+    expect(r2.ok).toBe(true);
+    expect(enrol).toHaveBeenCalledTimes(2);
+    expect(await rows()).toHaveLength(1);
+  });
+
+  it('does nothing with the flag off or without a learner', async () => {
+    const enrol = vi.fn(async () => {});
+    await run([placed('block-theme')], enrol);
+    SERVER_FLAGS.senseiLearners = true;
+    await run([placed('block-theme')], enrol, null);
+    expect(enrol).not.toHaveBeenCalled();
+    SERVER_FLAGS.senseiLearners = false;
   });
 });

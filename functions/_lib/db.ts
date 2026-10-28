@@ -46,6 +46,15 @@ export async function ensureOAuthSchema(db: D1Like): Promise<void> {
     .run();
 }
 
+/** Sensei enrolments made for session learners (Task 25); one row per learner and path. */
+export async function ensureEnrolmentSchema(db: D1Like): Promise<void> {
+  await db
+    .prepare(
+      'CREATE TABLE IF NOT EXISTS enrolments (wp_user_id BIGINT, course_key VARCHAR(64), created BIGINT, PRIMARY KEY (wp_user_id, course_key))',
+    )
+    .run();
+}
+
 /** True only for duplicate-key errors (SQLite UNIQUE constraint, MySQL 1062 / ER_DUP_ENTRY). */
 export function isDuplicateKey(e: unknown): boolean {
   const err = e as { message?: unknown; code?: unknown; errno?: unknown } | null;

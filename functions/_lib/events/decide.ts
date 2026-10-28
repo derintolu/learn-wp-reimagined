@@ -6,7 +6,10 @@ import { resolveBranch, validatePlacement } from '../../../src/shared/engine';
 import { statementsForEvent } from '../../../src/shared/statements';
 import type { RecordEvent } from '../../../src/shared/record';
 import type { EventResult, ServerEvent } from '../../../src/shared/events';
-import type { Lesson } from '../../../src/shared/types';
+import { SERVER_FLAGS } from '../config';
+import { ensureEnrolled } from '../session/enrol';
+import type { ConnectorClient } from '../ledger/connector';
+import type { Lesson, PathId } from '../../../src/shared/types';
 import type { XapiStatement } from '../../../src/shared/xapi';
 
 export const DECISION_TTL_MS = 30 * 60_000;
@@ -97,12 +100,29 @@ async function decideOne(env: Env, actor: string, e: ServerEvent, now: number): 
   }
 }
 
+/** The path an event belongs to: the placement's path, or the lesson's. */
+function pathOf(e: ServerEvent): PathId | null {
+  if (e.type === 'placed') return e.placement.pathId;
+  const c = getContent();
+  return Object.prototype.hasOwnProperty.call(c.lessons, e.lessonId) ? c.lessons[e.lessonId].pathId : null;
+}
+
+export interface SenseiLearner {
+  wpUserId: number | null;
+  connector?: Pick<ConnectorClient, 'enrol'>;
+}
+
 /** Decides every event independently; one bad event never sinks the batch. */
-export async function decideEvents(env: Env, actorName: string, events: ServerEvent[], now: number): Promise<EventResult[]> {
+export async function decideEvents(env: Env, actorName: string, events: ServerEvent[], now: number, learner?: SenseiLearner): Promise<EventResult[]> {
   const out: EventResult[] = [];
   for (const e of events) {
     // Validation failures are returned as results above; infrastructure errors propagate so the client retries.
-    out.push(await decideOne(env, actorName, e, now));
+    const r = await decideOne(env, actorName, e, now);
+    out.push(r);
+    if (r.ok && SERVER_FLAGS.senseiLearners && learner?.wpUserId != null) {
+      const path = pathOf(e);
+      if (path) await ensureEnrolled(env, learner.wpUserId, path, learner.connector, now);
+    }
   }
   return out;
 }

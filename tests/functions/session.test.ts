@@ -1,4 +1,4 @@
-import { describe, it, expect, beforeEach, afterEach } from 'vitest';
+import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
 import { SERVER_FLAGS } from '../../functions/_lib/config';
 import { createSqliteD1 } from '../../dev/sqliteD1';
 import { buildContent } from '../../scripts/build-content';
@@ -144,5 +144,75 @@ describe('sessions', () => {
     expect((await db.prepare('SELECT touched FROM sessions').first<any>())!.touched).toBe(t0);
     await readSession(withCookie(value), env, t0 + TOUCH_EVERY_MS);
     expect((await db.prepare('SELECT touched FROM sessions').first<any>())!.touched).toBe(t0 + TOUCH_EVERY_MS);
+  });
+});
+
+describe('sessions bound to Sensei learners', () => {
+  const SEED_HEX = '9d61b19deffd5a60ba844af492ec2cc44449c5697b326919703bac031cae7f60';
+  const SIGNING = Buffer.from('302e020100300506032b657004220420' + SEED_HEX, 'hex').toString('base64');
+  const learner = (name = 'ledger-actor-1', id = 77) =>
+    new Response(JSON.stringify({ user_id: id, actor: { objectType: 'Agent', account: { homePage: 'https://ledger.example', name } } }), { status: 201 });
+  let calls: Array<{ method: string; url: string }>;
+  const stub = (handler: (method: string, url: string) => Response) => {
+    calls = [];
+    vi.stubGlobal('fetch', async (url: string, init: RequestInit) => {
+      calls.push({ method: init.method!, url });
+      return handler(init.method!, url);
+    });
+  };
+
+  beforeEach(() => {
+    SERVER_FLAGS.senseiLearners = true;
+    env = { DB: db, SESSION_KEY: KEY, CONNECTOR_SIGNING_KEY: SIGNING, CONNECTOR_KEY_ID: 'kid1' };
+  });
+  afterEach(() => {
+    SERVER_FLAGS.senseiLearners = false;
+    vi.unstubAllGlobals();
+  });
+
+  it('session actor comes from the connector', async () => {
+    stub(() => learner());
+    const res = await post();
+    expect(res.status).toBe(200);
+    expect(((await res.json()) as any).actor).toEqual({ homePage: 'https://ledger.example', name: 'ledger-actor-1' });
+    const row = await db.prepare('SELECT actor_name, wp_user_id FROM sessions').first<any>();
+    expect(row.actor_name).toBe('ledger-actor-1');
+    expect(Number(row.wp_user_id)).toBe(77);
+    expect(calls).toHaveLength(1);
+  });
+
+  it('connector down gives 503 and no session row', async () => {
+    stub(() => new Response('x', { status: 503 }));
+    const res = await post();
+    expect(res.status).toBe(503);
+    expect(((await res.json()) as any).error.code).toBe('connector-unavailable');
+    expect(res.headers.get('set-cookie')).toBeNull();
+    expect(await count()).toBe(0);
+  });
+
+  it('flag off never calls the connector', async () => {
+    SERVER_FLAGS.senseiLearners = false;
+    stub(() => learner());
+    expect((await post()).status).toBe(200);
+    expect(calls).toHaveLength(0);
+    expect(await db.prepare('SELECT wp_user_id FROM sessions').first<any>()).toEqual({ wp_user_id: null });
+  });
+
+  it('DELETE session deletes the WordPress learner', async () => {
+    stub((m) => (m === 'POST' ? learner() : new Response('{}', { status: 200 })));
+    const created = await post();
+    const res = await del(withCookie(cookieOf(created), { method: 'DELETE' }), ctx());
+    expect(await res.json()).toEqual({ deleted: true });
+    expect(calls.map((c) => c.method)).toEqual(['POST', 'DELETE']);
+    expect(calls[1].url).toMatch(/learners\/77$/);
+    expect(await count()).toBe(0);
+  });
+
+  it('DELETE keeps the session when the learner cannot be deleted yet', async () => {
+    stub((m) => (m === 'POST' ? learner() : new Response('x', { status: 503 })));
+    const created = await post();
+    const res = await del(withCookie(cookieOf(created), { method: 'DELETE' }), ctx());
+    expect(res.status).toBe(503);
+    expect(await count()).toBe(1);
   });
 });

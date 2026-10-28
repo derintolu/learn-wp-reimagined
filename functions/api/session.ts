@@ -4,6 +4,9 @@ import { clientKey } from '../_lib/guards';
 import { guarded } from '../_lib/ai';
 import { ensureSchema } from '../_lib/db';
 import { rateLimit } from '../_lib/ratelimit';
+import { SERVER_FLAGS } from '../_lib/config';
+import { ConnectorClient, ConnectorError, ConnectorUnavailable } from '../_lib/ledger/connector';
+import { deleteEnrolments } from '../_lib/session/enrol';
 import { XAPI_BASE } from '../../src/shared/xapi';
 import { clearCookie, cookieValue, createSession, deleteSession, readSession } from '../_lib/session/session';
 
@@ -13,6 +16,7 @@ const reply = (data: unknown, cookie?: string, status = 200) => {
   return new Response(JSON.stringify(data), { status, headers });
 };
 const actorOf = (name: string) => ({ homePage: XAPI_BASE, name });
+const connectorDown = () => error(503, 'connector-unavailable', 'The learning record is unavailable right now. Please try again shortly.');
 const disabled = () => error(503, 'disabled', 'Sessions are not configured.');
 
 export const POST: Handler = (req, { env }) =>
@@ -26,8 +30,13 @@ export const POST: Handler = (req, { env }) =>
     ) {
       return error(429, 'limited', 'Too many new sessions. Please wait a few minutes and try again.');
     }
-    const { session, cookie } = await createSession(env, now);
-    return reply({ actor: actorOf(session.actorName) }, cookie);
+    try {
+      const { session, cookie, actor } = await createSession(env, now);
+      return reply({ actor: actor ?? actorOf(session.actorName) }, cookie);
+    } catch (e) {
+      if (e instanceof ConnectorUnavailable || e instanceof ConnectorError) return connectorDown();
+      throw e;
+    }
   });
 
 export const GET: Handler = (req, { env }) =>
@@ -42,6 +51,16 @@ export const DELETE: Handler = (req, { env }) =>
   guarded(async () => {
     if (!env.SESSION_KEY) return disabled();
     const session = await readSession(req, env, Date.now());
+    if (session && SERVER_FLAGS.senseiLearners && session.wpUserId != null) {
+      // The learner goes first; if WordPress cannot be reached the session stays so the delete can be retried.
+      try {
+        await new ConnectorClient(env).deleteLearner(session.wpUserId);
+      } catch (e) {
+        if (e instanceof ConnectorUnavailable) return connectorDown();
+        if (!(e instanceof ConnectorError && e.status === 404)) throw e;
+      }
+      await deleteEnrolments(env, session.wpUserId);
+    }
     if (session) await deleteSession(env, session);
     return reply({ deleted: true }, clearCookie());
   });

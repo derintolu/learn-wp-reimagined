@@ -1,6 +1,7 @@
 import type { Env } from "../env";
 import { LEDGER_BASE } from "../config";
 import { signRequest } from "./sign";
+import type { PathId } from "../../../src/shared/types";
 
 const TIMEOUT_MS = 3000;
 
@@ -36,6 +37,15 @@ export interface LedgerStatus {
   sodium: "native" | "compat" | null;
   trustedKeys: string[];
   connectorSecretSha256?: string;
+}
+
+/** Progress of one learner, keyed by path id (courses) and by Sensei post id as a string (lessons). */
+export interface SenseiProgress {
+  enrolled: string[];
+  completedLessons: string[];
+  testedOutLessons: string[];
+  completedCourses: string[];
+  certificates: string[];
 }
 
 export type PackageResult =
@@ -95,6 +105,66 @@ export class ConnectorClient {
       version: Number(res.headers.get("X-Package-Version") ?? 0),
       zip: new Uint8Array(await res.arrayBuffer()),
     };
+  }
+
+  /** POST course-server/learners: a new anonymous learner and its actor (the ledger nests it as account). */
+  async createLearner(): Promise<{ userId: number; actor: { homePage: string; name: string } }> {
+    const res = await this.send("POST", "/course-server/learners");
+    const j = (await res.json()) as { user_id?: unknown; actor?: { account?: { homePage?: unknown; name?: unknown } } };
+    const account = j.actor?.account;
+    if (typeof j.user_id !== "number" || typeof account?.homePage !== "string" || typeof account.name !== "string")
+      throw new ConnectorUnavailable("ledger returned an unusable learner");
+    return { userId: j.user_id, actor: { homePage: account.homePage, name: account.name } };
+  }
+
+  /** POST learners/{id}/enrolments {course}: the ledger takes the Sensei course post id, taken from SENSEI_COURSE_IDS. */
+  async enrol(userId: number, courseKey: PathId): Promise<void> {
+    await this.send(
+      "POST",
+      `/course-server/learners/${userId}/enrolments`,
+      { "Content-Type": "application/json" },
+      new TextEncoder().encode(JSON.stringify({ course: this.courseId(courseKey) })),
+    );
+  }
+
+  /** GET learners/{id}/progress?program=<ledger program post id>. */
+  async progress(userId: number, program: string): Promise<SenseiProgress> {
+    const res = await this.send(
+      "GET",
+      `/course-server/learners/${userId}/progress?program=${encodeURIComponent(program)}`,
+    );
+    const j = (await res.json()) as { courses?: Array<Record<string, unknown>> };
+    const byId = new Map(Object.entries(this.courseIds()).map(([k, v]) => [v, k]));
+    const out: SenseiProgress = { enrolled: [], completedLessons: [], testedOutLessons: [], completedCourses: [], certificates: [] };
+    for (const c of j.courses ?? []) {
+      const key = byId.get(Number(c.course)) ?? String(c.course);
+      out.enrolled.push(key);
+      for (const l of Array.isArray(c.completed) ? c.completed : []) out.completedLessons.push(String(l));
+      for (const l of Array.isArray(c.tested_out) ? c.tested_out : []) out.testedOutLessons.push(String(l));
+      if (c.course_completed === true) out.completedCourses.push(key);
+      if (c.certificate) out.certificates.push(key);
+    }
+    return out;
+  }
+
+  /** DELETE learners/{id}: removes the WordPress user, its connector rows and (queued if need be) its LRS actors. */
+  async deleteLearner(userId: number): Promise<void> {
+    await this.send("DELETE", `/course-server/learners/${userId}`);
+  }
+
+  private courseIds(): Record<string, number> {
+    try {
+      const v = JSON.parse(this.env.SENSEI_COURSE_IDS ?? "{}") as Record<string, unknown>;
+      return Object.fromEntries(Object.entries(v).filter((e): e is [string, number] => Number.isInteger(e[1])));
+    } catch {
+      return {};
+    }
+  }
+
+  private courseId(key: PathId): number {
+    const id = this.courseIds()[key];
+    if (id === undefined) throw new ConnectorError(0, `no Sensei course id configured for ${key}`);
+    return id;
   }
 
   /** Signed request with a 3 s timeout. Resolves for 2xx and 304; throws otherwise. */

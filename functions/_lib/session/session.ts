@@ -1,5 +1,7 @@
 import type { Env } from '../env';
 import { ensureSchema } from '../db';
+import { SERVER_FLAGS } from '../config';
+import { ConnectorClient } from '../ledger/connector';
 
 export const SESSION_COOKIE = 'lwr_sid';
 export const SESSION_IDLE_MS = 180 * 24 * 60 * 60 * 1000;
@@ -82,23 +84,32 @@ export async function createSession(
   env: Env,
   now: number,
   actorName?: string,
-): Promise<{ session: Session; cookie: string }> {
+  connector: Pick<ConnectorClient, 'createLearner' | 'deleteLearner'> = new ConnectorClient(env),
+): Promise<{ session: Session; cookie: string; actor?: { homePage: string; name: string } }> {
   if (!env.SESSION_KEY) throw new Error('SESSION_KEY is not set');
   await ensureSchema(env.DB);
   const value = b64url(crypto.getRandomValues(new Uint8Array(32)));
   const sidHash = await hashSid(env.SESSION_KEY, value);
+  // With senseiLearners on, nothing is recorded until a WordPress learner exists: ConnectorUnavailable
+  // propagates before any row is written.
+  const learner = SERVER_FLAGS.senseiLearners ? await connector.createLearner() : null;
   const session: Session = {
     sidHash,
-    actorName: actorName ?? crypto.randomUUID(),
-    wpUserId: null,
+    actorName: learner ? learner.actor.name : (actorName ?? crypto.randomUUID()),
+    wpUserId: learner ? learner.userId : null,
     createdAt: now,
     touchedAt: now,
   };
-  await env.DB
-    .prepare('INSERT INTO sessions (sid_hash, actor_name, wp_user_id, created, touched) VALUES (?, ?, NULL, ?, ?)')
-    .bind(sidHash, session.actorName, now, now)
-    .run();
-  return { session, cookie: `${SESSION_COOKIE}=${value}; HttpOnly; Secure; SameSite=Lax; Path=/; Max-Age=${MAX_AGE_S}` };
+  try {
+    await env.DB
+      .prepare('INSERT INTO sessions (sid_hash, actor_name, wp_user_id, created, touched) VALUES (?, ?, ?, ?, ?)')
+      .bind(sidHash, session.actorName, session.wpUserId, now, now)
+      .run();
+  } catch (e) {
+    if (learner) await connector.deleteLearner(learner.userId).catch(() => {});
+    throw e;
+  }
+  return { session, actor: learner?.actor, cookie: `${SESSION_COOKIE}=${value}; HttpOnly; Secure; SameSite=Lax; Path=/; Max-Age=${MAX_AGE_S}` };
 }
 
 export async function deleteSession(env: Env, s: Session): Promise<void> {

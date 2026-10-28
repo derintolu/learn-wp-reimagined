@@ -29,7 +29,7 @@ export const POST: Handler = (req, { env }) =>
     if (!parsed.ok) return error(400, 'bad-request', parsed.error);
     const actor = session ? session.actorName : parsed.learnerId;
     try {
-      return json({ results: await decideEvents(env, actor, parsed.events, now) });
+      return json({ results: await decideEvents(env, actor, parsed.events, now, { wpUserId: session?.wpUserId ?? null }) });
     } catch (e) {
       console.error('events failed', (e as Error)?.message);
       throw e;

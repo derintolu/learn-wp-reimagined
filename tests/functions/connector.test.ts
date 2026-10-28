@@ -139,3 +139,67 @@ describe("request path", () => {
     );
   });
 });
+
+describe("learner routes", () => {
+  const env2 = { ...env, SENSEI_COURSE_IDS: '{"learner":12,"block-theme":13}' } as Env;
+  const client = (fetchFn: unknown) => new ConnectorClient(env2, fetchFn as typeof fetch);
+  const call = (f: ReturnType<typeof vi.fn>) =>
+    f.mock.calls[0] as unknown as [string, RequestInit];
+  const base = "https://learnwp.sqwrlz.com/wp-json/learning-ledger/v1/course-server/learners";
+
+  it("createLearner POSTs and flattens the nested actor", async () => {
+    const f = vi.fn(async () =>
+      new Response(
+        JSON.stringify({ user_id: 41, actor: { objectType: "Agent", account: { homePage: "https://h", name: "n-1" } } }),
+        { status: 201 },
+      ),
+    );
+    expect(await client(f).createLearner()).toEqual({ userId: 41, actor: { homePage: "https://h", name: "n-1" } });
+    expect(call(f)[0]).toBe(base);
+    expect(call(f)[1].method).toBe("POST");
+  });
+
+  it("enrol sends the configured Sensei course id", async () => {
+    const f = vi.fn(async () => new Response("{}", { status: 200 }));
+    await client(f).enrol(41, "block-theme");
+    expect(call(f)[0]).toBe(`${base}/41/enrolments`);
+    expect(new TextDecoder().decode(call(f)[1].body as Uint8Array)).toBe('{"course":13}');
+    expect((call(f)[1].headers as Record<string, string>)["Content-Type"]).toBe("application/json");
+  });
+
+  it("enrol without a configured course id is a ConnectorError and sends nothing", async () => {
+    const f = vi.fn();
+    await expect(client(f).enrol(41, "vibe-coder")).rejects.toBeInstanceOf(ConnectorError);
+    expect(f).not.toHaveBeenCalled();
+  });
+
+  it("progress maps the ledger courses to SenseiProgress", async () => {
+    const f = vi.fn(async () =>
+      new Response(
+        JSON.stringify({
+          courses: [
+            { course: 12, completed: [7, 8], tested_out: [9], course_completed: true, certificate: "https://c" },
+            { course: 13, completed: [], tested_out: [], course_completed: false, certificate: null },
+          ],
+          program_satisfied: false,
+        }),
+        { status: 200 },
+      ),
+    );
+    expect(await client(f).progress(41, "5")).toEqual({
+      enrolled: ["learner", "block-theme"],
+      completedLessons: ["7", "8"],
+      testedOutLessons: ["9"],
+      completedCourses: ["learner"],
+      certificates: ["learner"],
+    });
+    expect(call(f)[0]).toBe(`${base}/41/progress?program=5`);
+  });
+
+  it("deleteLearner DELETEs the learner", async () => {
+    const f = vi.fn(async () => new Response("{}", { status: 200 }));
+    await client(f).deleteLearner(41);
+    expect(call(f)[0]).toBe(`${base}/41`);
+    expect(call(f)[1].method).toBe("DELETE");
+  });
+});

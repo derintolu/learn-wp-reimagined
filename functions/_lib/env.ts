@@ -28,6 +28,8 @@ export interface Env {
   CONNECTOR_KEY_ID?: string;
   /** Ledger's ping public key (raw 32 bytes, base64). */
   CONNECTOR_PING_PUBLIC_KEY?: string;
+  /** JSON map of path id to the Sensei course post id the ledger enrols into, e.g. {"learner":12,"block-theme":13,"vibe-coder":14}. */
+  SENSEI_COURSE_IDS?: string;
   /** Learning Ledger LRS client key and secret (HTTP Basic); the LRS client is unavailable without both. */
   LRS_KEY?: string;
   LRS_SECRET?: string;
