@@ -1,0 +1,117 @@
+import { describe, expect, it } from 'vitest';
+import { buildContent } from '../../scripts/build-content';
+import { COURSE_IRI, STUDIO_EXT, bundleToPackage, compareBundles, packageToBundle } from '../../src/shared/package';
+import { XAPI_BASE } from '../../src/shared/xapi';
+import { loadPackage } from '../../vendor/course-xapi-mcp/core/package/index.ts';
+import { behaviourIssues } from '../../vendor/course-xapi-mcp/validator/behaviour.ts';
+import { lintIssues } from '../../vendor/course-xapi-mcp/validator/lint.ts';
+import type { ContentBundle } from '../../src/shared/types';
+
+const bundle = (): ContentBundle => buildContent('content');
+const enc = new TextEncoder();
+const bytes = (f: Record<string, string>) => Object.fromEntries(Object.entries(f).map(([k, v]) => [k, enc.encode(v)]));
+
+/** Errors the standard's validator reports on today's content: checks that already pass on the starter or bug code. */
+const KNOWN_GUARD_CHECKS = [
+  'CXM-PKG-022 cxm/lessons/bt-global-styles.json /checkpoint/checks/0',
+  'CXM-PKG-022 cxm/lessons/bt-global-styles.json /checkpoint/checks/1',
+  'CXM-PKG-022 cxm/lessons/bt-style-css-and-theme-json.json /checkpoint/checks/0',
+  'CXM-PKG-022 cxm/lessons/bt-templates-and-parts.json /checkpoint/checks/2',
+  'CXM-PKG-022 cxm/lessons/ln-blocks.json /checkpoint/checks/4',
+  'CXM-PKG-022 cxm/lessons/vc-enqueueing.json /checkpoint/checks/2',
+  'CXM-PKG-022 cxm/lessons/vc-escaping-and-sanitizing.json /checkpoint/checks/2',
+  'CXM-PKG-022 cxm/lessons/vc-theme-json-from-code.json /checkpoint/checks/4',
+  'CXM-PKG-024 cxm/lessons/bt-patterns.json /bug/fixChecks/1',
+  'CXM-PKG-024 cxm/lessons/bt-what-is-a-block-theme.json /bug/fixChecks/2',
+  'CXM-PKG-024 cxm/lessons/ln-blocks.json /bug/fixChecks/1',
+  'CXM-PKG-024 cxm/lessons/ln-blocks.json /bug/fixChecks/2',
+  'CXM-PKG-024 cxm/lessons/ln-blocks.json /bug/fixChecks/3',
+  'CXM-PKG-024 cxm/lessons/vc-actions-and-filters.json /bug/fixChecks/2',
+  'CXM-PKG-024 cxm/lessons/vc-actions-and-filters.json /bug/fixChecks/3',
+  'CXM-PKG-024 cxm/lessons/vc-escaping-and-sanitizing.json /bug/fixChecks/2',
+  'CXM-PKG-024 cxm/lessons/vc-escaping-and-sanitizing.json /bug/fixChecks/3',
+];
+
+describe('package adapter', () => {
+  it('uses the course identity base for its IRIs', () => {
+    expect(STUDIO_EXT).toBe(`${XAPI_BASE}/cxm/studio/v1`);
+    expect(COURSE_IRI).toBe(`${XAPI_BASE}/activities/course`);
+    const f = bundleToPackage(bundle());
+    expect(f['cmi5.xml']).toContain(`id="${XAPI_BASE}/activities/paths/block-theme"`);
+    expect(f['cmi5.xml']).toContain(`id="${XAPI_BASE}/activities/lessons/bt-patterns"`);
+  });
+
+  it('the 18 live lessons round-trip with no differences', () => {
+    const b = bundle();
+    expect(Object.keys(b.lessons)).toHaveLength(18);
+    expect(compareBundles(b, packageToBundle(bundleToPackage(b)))).toEqual([]);
+  });
+
+  it('the package passes the standard\'s validator with no errors', () => {
+    // XSD checks (CXM-PKG-002/003) read schema files that are not vendored; every other check runs here.
+    const files = bytes(bundleToPackage(bundle()));
+    const loaded = loadPackage(files);
+    expect(loaded.issues.filter((i) => i.severity === 'error')).toEqual([]);
+    expect(loaded.ok).toBe(true);
+    if (!loaded.ok) return;
+    const lessons = Object.values(loaded.course.lessons).map((l) => ({ key: l.key, file: `cxm/lessons/${l.key}.json`, base: '', lesson: JSON.parse(new TextDecoder().decode(files[`cxm/lessons/${l.key}.json`]!)) }));
+    const course = { file: 'cxm/course.json', base: '', rules: loaded.course.rules };
+    const issues = [...behaviourIssues(lessons, 'authoring'), ...lintIssues(course, lessons)];
+    // Guard checks (keep-what-was-there, bug-still-present style) trip the standard's CXM-PKG-022/024 "check proves
+    // nothing" rule on the existing content. They are content findings, pinned here so any new error still fails.
+    const errors = issues.filter((i) => i.severity === 'error').map((i) => `${i.code} ${i.file} ${i.pointer}`).sort();
+    expect(errors).toEqual(KNOWN_GUARD_CHECKS);
+  });
+
+  it('compareBundles reports a changed check value by lesson id', () => {
+    const a = bundle();
+    const b = packageToBundle(bundleToPackage(a));
+    const id = Object.values(b.lessons).find((l) => l.checkpoint?.checks?.some((c) => c.type === 'contains'))!.id;
+    const check = b.lessons[id]!.checkpoint!.checks!.find((c) => c.type === 'contains')! as { value: string };
+    check.value += ' changed';
+    const diffs = compareBundles(a, b);
+    expect(diffs).toHaveLength(1);
+    expect(diffs[0]).toContain(id);
+    expect(diffs[0]).toContain('value');
+  });
+
+  it('compareBundles ignores whitespace in prose but not in files', () => {
+    const a = bundle();
+    const b = structuredClone(a);
+    const l = Object.values(b.lessons)[0]!;
+    l.beats[0]!.content = `  ${l.beats[0]!.content.replace(/ /g, '  ')}\n`;
+    expect(compareBundles(a, b)).toEqual([]);
+    const withFiles = Object.values(b.lessons).find((x) => x.starterFiles)!;
+    const file = Object.keys(withFiles.starterFiles!)[0]!;
+    withFiles.starterFiles![file] += ' ';
+    expect(compareBundles(a, b)).toHaveLength(1);
+  });
+
+  it('studio fields live only under STUDIO_EXT', () => {
+    const b = bundle();
+    const f = bundleToPackage(b);
+    const course = JSON.parse(f['cxm/course.json']!);
+    expect(Object.keys(course.extensions)).toEqual([STUDIO_EXT]);
+    const studio = course.extensions[STUDIO_EXT];
+    expect(studio.paths['block-theme'].preview).toEqual(b.paths['block-theme'].preview);
+    expect(studio.paths['block-theme'].previewFiles).toEqual(b.paths['block-theme'].previewFiles);
+    expect(studio.paths['block-theme'].finalFiles).toEqual(b.paths['block-theme'].finalFiles);
+    const landing = Object.values(b.lessons).find((l) => l.landing)!;
+    expect(studio.lessons[landing.id].landing).toBe(landing.landing);
+    const outside = JSON.stringify({ ...course, extensions: undefined }) + Object.entries(f).filter(([k]) => k.startsWith('cxm/lessons/')).map(([, v]) => v).join('');
+    for (const word of ['previewFiles', 'finalFiles', '"landing"', '"preview"']) expect(outside).not.toContain(word);
+    for (const p of Object.values(course.paths) as object[]) expect(Object.keys(p)).not.toContain('extensions');
+  });
+
+  it('one badge declaration per live path with countWaived true', () => {
+    const b = bundle();
+    const course = JSON.parse(bundleToPackage(b)['cxm/course.json']!);
+    const live = Object.values(b.paths).filter((p) => p.status === 'live').map((p) => p.id);
+    expect(course.badges.map((x: { for: string }) => x.for).sort()).toEqual([...live].sort());
+    for (const x of course.badges) {
+      expect(x.awardOn).toBe('block-satisfied');
+      expect(x.countWaived).toBe(true);
+    }
+    expect(course.badges).toHaveLength(live.length);
+  });
+});
