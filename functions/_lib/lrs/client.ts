@@ -183,8 +183,9 @@ export class LrsClient {
   }
 
   /**
-   * Erase an actor. Learning Ledger (c9b5915) takes no revocation option: badge rows and revocation
-   * are handled by its own listeners. `revokeBadges` is sent for when it does; today it is ignored.
+   * Erase an actor. Learning Ledger (c9b5915) takes no revocation option and leaves badge rows and revocation to
+   * `learning_ledger/actor_erased` listeners, of which it registers none, so badges survive an erase unrevoked.
+   * `revokeBadges` is sent for when it does; today it is ignored.
    */
   async eraseActor(actor: Actor, opts: { revokeBadges: boolean }): Promise<void> {
     await this.postJson('/actors/erase', { actor, revokeBadges: opts.revokeBadges }, [200]);

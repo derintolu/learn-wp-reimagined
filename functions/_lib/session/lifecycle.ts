@@ -51,8 +51,10 @@ async function registrationIfAny(env: Env, s: Session): Promise<string | null> {
  * registration (no statement or State document reaches the LRS without one), the Sensei step whenever the session
  * names a WordPress user. With the flags off and neither recorded, only the OAuth rows and the session row go.
  *
- * Learning Ledger (c9b5915) ignores `revokeBadges` on POST /actors/erase: badge revocation runs in its own
- * listeners. The option is sent anyway, for when the LRS honours it.
+ * Learning Ledger (c9b5915) ignores `revokeBadges` on POST /actors/erase and leaves badge rows to listeners of
+ * `learning_ledger/actor_erased`, of which it registers none: an erase neither revokes nor deletes a badge. So the
+ * retention sweep cannot revoke a claimed badge, and "Delete my data" does not revoke one either (an owner item
+ * before SERVER_FLAGS.badges flips). The option is sent anyway, for when the LRS honours it.
  */
 export async function eraseLearner(env: Env, s: Session, opts: { revokeBadges: boolean }): Promise<void> {
   if (SERVER_FLAGS.lrsShadow || (await registrationIfAny(env, s)) !== null) {
