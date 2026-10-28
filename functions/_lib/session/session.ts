@@ -149,6 +149,11 @@ export async function ensureLearner(
     enrolHealth.downUntil = now + ENROL_RETRY_MS;
     return null;
   }
+  try {
+    await ensureOAuthSchema(env.DB);
+  } catch (e) {
+    console.error('oauth schema for an older session failed', (e as Error)?.message);
+  }
   const r = await env.DB
     .prepare('UPDATE sessions SET wp_user_id = ?, actor_name = ? WHERE sid_hash = ? AND wp_user_id IS NULL')
     .bind(learner.userId, learner.actor.name, s.sidHash)
@@ -156,15 +161,22 @@ export async function ensureLearner(
   if (r.meta.changes === 1) {
     // OAuth grants made for this session carry the old actor name and no learner; rename them with it.
     // (Other actor-keyed tables only fill once lrsShadow is on, which ships after senseiLearners.)
-    await ensureOAuthSchema(env.DB);
+    // Best effort and never fails the event; the schema was ensured before the guarded UPDATE.
     for (const t of ['oauth_codes', 'oauth_tokens']) {
-      await env.DB.prepare(`UPDATE ${t} SET actor_name = ?, wp_user_id = ? WHERE actor_name = ?`).bind(learner.actor.name, learner.userId, s.actorName).run();
+      for (let attempt = 0; attempt < 2; attempt++) {
+        try {
+          await env.DB.prepare(`UPDATE ${t} SET actor_name = ?, wp_user_id = ? WHERE actor_name = ?`).bind(learner.actor.name, learner.userId, s.actorName).run();
+          break;
+        } catch (e) {
+          if (attempt) console.error('oauth rename for an older session failed', t, (e as Error)?.message);
+        }
+      }
     }
     s.wpUserId = learner.userId;
     s.actorName = learner.actor.name;
     return learner.userId;
   }
-  await c.deleteLearner(learner.userId).catch(() => {});
+  await c.deleteLearner(learner.userId).catch((e) => console.error('orphan sensei learner', learner.userId, (e as Error)?.message));
   const row = await env.DB
     .prepare('SELECT wp_user_id, actor_name FROM sessions WHERE sid_hash = ?')
     .bind(s.sidHash)

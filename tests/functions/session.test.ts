@@ -9,7 +9,7 @@ import { POST as create, GET as read, DELETE as del } from '../../functions/api/
 import { POST as events } from '../../functions/api/events';
 import { SESSION_COOKIE, SESSION_IDLE_MS, TOUCH_EVERY_MS, readSession } from '../../functions/_lib/session/session';
 import { XAPI_BASE } from '../../src/shared/xapi';
-import { ENROL_RETRY_MS, enrolHealth } from '../../functions/_lib/session/enrol';
+import { enrolHealth } from '../../functions/_lib/session/enrol';
 import { GET as senseiGet } from '../../functions/api/sensei';
 
 const KEY = 'test-session-key-not-a-secret';
@@ -286,6 +286,9 @@ describe('a Sensei learner for sessions made before learners were on', () => {
       .prepare("INSERT INTO oauth_tokens (token_hash, kind, family_id, client_id, actor_name, wp_user_id, registration, created, expires, used) VALUES ('t', 'refresh', 'f', 'c', ?, 0, '', 1, 2, 0)")
       .bind(legacy.actor)
       .run();
+    await db
+      .prepare("INSERT INTO oauth_tokens (token_hash, kind, family_id, client_id, actor_name, wp_user_id, registration, created, expires, used) VALUES ('other', 'refresh', 'f2', 'c', 'someone-else', 0, '', 1, 2, 0)")
+      .run();
     calls = [];
     SERVER_FLAGS.senseiLearners = true;
   });
@@ -300,7 +303,8 @@ describe('a Sensei learner for sessions made before learners were on', () => {
     expect(await learnerRow()).toBe(100);
     expect((await db.prepare('SELECT actor_name FROM sessions').first<any>())!.actor_name).toBe('ledger-100');
     expect(((await (await read(withCookie(legacy.cookie), ctx())).json()) as any).actor).toEqual({ homePage: XAPI_BASE, name: 'ledger-100' });
-    expect((await db.prepare('SELECT actor_name, wp_user_id FROM oauth_tokens').first<any>())).toEqual({ actor_name: 'ledger-100', wp_user_id: 100 });
+    expect(await db.prepare("SELECT actor_name, wp_user_id FROM oauth_tokens WHERE token_hash = 't'").first<any>()).toEqual({ actor_name: 'ledger-100', wp_user_id: 100 });
+    expect(await db.prepare("SELECT actor_name, wp_user_id FROM oauth_tokens WHERE token_hash = 'other'").first<any>()).toEqual({ actor_name: 'someone-else', wp_user_id: 0 });
     expect(created()).toHaveLength(1);
     expect(calls.some((c) => /\/learners\/100\/enrolments$/.test(c.url))).toBe(true);
     // The next event makes no second learner.
@@ -339,7 +343,6 @@ describe('a Sensei learner for sessions made before learners were on', () => {
     await send(legacy.cookie);
     expect(await learnerRow()).toBe(100);
     log.mockRestore();
-    void ENROL_RETRY_MS;
   });
 
   it('flag off makes no connector call', async () => {
