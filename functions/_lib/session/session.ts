@@ -1,5 +1,5 @@
 import type { Env } from '../env';
-import { ensureSchema } from '../db';
+import { ensureOAuthSchema, ensureSchema } from '../db';
 import { SERVER_FLAGS } from '../config';
 import { ConnectorClient, ConnectorUnavailable } from '../ledger/connector';
 import { XAPI_BASE } from '../../../src/shared/xapi';
@@ -122,8 +122,7 @@ export async function createSession(
 
 /**
  * A session made before senseiLearners was on has no WordPress learner. With the flag on, make one on its first
- * event and store it on the row. The session keeps its own actor name: our records keep one identity, and the
- * ledger's actor name for this learner is not used. The conditional UPDATE lets only one of two concurrent
+ * event and store it on the row together with the ledger's actor name for it (R38), as new sessions have. The conditional UPDATE lets only one of two concurrent
  * requests keep its learner: the loser deletes the one it made and reads the winner's. A connector failure
  * leaves the session without a learner (the event still succeeds) and backs off like enrolment does.
  */
@@ -151,16 +150,27 @@ export async function ensureLearner(
     return null;
   }
   const r = await env.DB
-    .prepare('UPDATE sessions SET wp_user_id = ? WHERE sid_hash = ? AND wp_user_id IS NULL')
-    .bind(learner.userId, s.sidHash)
+    .prepare('UPDATE sessions SET wp_user_id = ?, actor_name = ? WHERE sid_hash = ? AND wp_user_id IS NULL')
+    .bind(learner.userId, learner.actor.name, s.sidHash)
     .run();
   if (r.meta.changes === 1) {
+    // OAuth grants made for this session carry the old actor name and no learner; rename them with it.
+    // (Other actor-keyed tables only fill once lrsShadow is on, which ships after senseiLearners.)
+    await ensureOAuthSchema(env.DB);
+    for (const t of ['oauth_codes', 'oauth_tokens']) {
+      await env.DB.prepare(`UPDATE ${t} SET actor_name = ?, wp_user_id = ? WHERE actor_name = ?`).bind(learner.actor.name, learner.userId, s.actorName).run();
+    }
     s.wpUserId = learner.userId;
+    s.actorName = learner.actor.name;
     return learner.userId;
   }
   await c.deleteLearner(learner.userId).catch(() => {});
-  const row = await env.DB.prepare('SELECT wp_user_id FROM sessions WHERE sid_hash = ?').bind(s.sidHash).first<{ wp_user_id: number | string | null }>();
+  const row = await env.DB
+    .prepare('SELECT wp_user_id, actor_name FROM sessions WHERE sid_hash = ?')
+    .bind(s.sidHash)
+    .first<{ wp_user_id: number | string | null; actor_name: string }>();
   s.wpUserId = row?.wp_user_id == null ? null : Number(row.wp_user_id);
+  if (row) s.actorName = row.actor_name;
   return s.wpUserId;
 }
 

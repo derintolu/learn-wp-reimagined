@@ -3,7 +3,7 @@ import { SERVER_FLAGS } from '../../functions/_lib/config';
 import { createSqliteD1 } from '../../dev/sqliteD1';
 import { buildContent } from '../../scripts/build-content';
 import { setContentForTests } from '../../functions/_lib/content';
-import { ensureSchema } from '../../functions/_lib/db';
+import { ensureOAuthSchema, ensureSchema } from '../../functions/_lib/db';
 import type { Env } from '../../functions/_lib/env';
 import { POST as create, GET as read, DELETE as del } from '../../functions/api/session';
 import { POST as events } from '../../functions/api/events';
@@ -281,6 +281,11 @@ describe('a Sensei learner for sessions made before learners were on', () => {
     // A session minted before the flag existed: no wp_user_id.
     const res = await post();
     legacy = { cookie: cookieOf(res), actor: ((await res.json()) as any).actor.name };
+    await ensureOAuthSchema(db);
+    await db
+      .prepare("INSERT INTO oauth_tokens (token_hash, kind, family_id, client_id, actor_name, wp_user_id, registration, created, expires, used) VALUES ('t', 'refresh', 'f', 'c', ?, 0, '', 1, 2, 0)")
+      .bind(legacy.actor)
+      .run();
     calls = [];
     SERVER_FLAGS.senseiLearners = true;
   });
@@ -290,10 +295,12 @@ describe('a Sensei learner for sessions made before learners were on', () => {
     vi.unstubAllGlobals();
   });
 
-  it('gets a learner on its first event, keeps its actor name, and is enrolled on that event', async () => {
+  it('gets a learner on its first event, adopts the ledger actor, and is enrolled on that event', async () => {
     expect((await send(legacy.cookie)).status).toBe(200);
     expect(await learnerRow()).toBe(100);
-    expect((await db.prepare('SELECT actor_name FROM sessions').first<any>())!.actor_name).toBe(legacy.actor);
+    expect((await db.prepare('SELECT actor_name FROM sessions').first<any>())!.actor_name).toBe('ledger-100');
+    expect(((await (await read(withCookie(legacy.cookie), ctx())).json()) as any).actor).toEqual({ homePage: XAPI_BASE, name: 'ledger-100' });
+    expect((await db.prepare('SELECT actor_name, wp_user_id FROM oauth_tokens').first<any>())).toEqual({ actor_name: 'ledger-100', wp_user_id: 100 });
     expect(created()).toHaveLength(1);
     expect(calls.some((c) => /\/learners\/100\/enrolments$/.test(c.url))).toBe(true);
     // The next event makes no second learner.
@@ -311,6 +318,7 @@ describe('a Sensei learner for sessions made before learners were on', () => {
     const deleted = calls.filter((c) => c.method === 'DELETE').map((c) => Number(c.url.split('/').pop()));
     expect(deleted).toHaveLength(1);
     expect(deleted[0]).not.toBe(kept);
+    expect((await db.prepare('SELECT actor_name FROM sessions').first<any>())!.actor_name).toBe(`ledger-${kept}`);
   });
 
   it('connector down: the event succeeds, no learner, backs off, then retries', async () => {

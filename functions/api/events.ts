@@ -30,8 +30,8 @@ export const POST: Handler = (req, ctx) =>
       session && body && typeof body === 'object' ? { ...(body as object), learnerId: crypto.randomUUID() } : body,
     );
     if (!parsed.ok) return error(400, 'bad-request', parsed.error);
-    const actor = session ? session.actorName : parsed.learnerId;
     if (session) await ensureLearner(env, session, now);
+    const actor = session ? session.actorName : parsed.learnerId;
     try {
       const results = await decideEvents(env, actor, parsed.events, now, { wpUserId: session?.wpUserId ?? null, session, handlerCtx: ctx });
       return json({ results });
