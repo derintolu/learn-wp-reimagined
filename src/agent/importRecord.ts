@@ -12,7 +12,7 @@ import { applyEvent, parseRecord, type LearningRecord, type RecordEvent } from '
 import type { ContentBundle, Outcome } from '../shared/types';
 import { VERBS as SITE_VERBS, activityId, currentIri } from '../shared/xapi';
 
-export const INVALID_PASTE = 'Paste a record handle (it starts with lr_) or the exported JSON.';
+export const INVALID_PASTE = 'Paste a record handle (it starts with cxp_ or lr_) or the exported JSON.';
 export const NO_PROGRESS = 'This record has no progress in this course yet.';
 
 export type Paste = { kind: 'handle'; handle: string } | { kind: 'json'; value: unknown } | { kind: 'invalid'; message: string };

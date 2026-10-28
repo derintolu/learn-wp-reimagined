@@ -73,3 +73,29 @@ export const CLIENT_SETUPS: ClientSetup[] = [
     docsUrl: 'https://modelcontextprotocol.io/docs/learn/client-concepts',
   },
 ];
+
+/** The same setups for the standard server, which asks the agent to sign in: no "no authentication" step. */
+export function standardClientSetups(): ClientSetup[] {
+  return CLIENT_SETUPS.map((c) => {
+    switch (c.id) {
+      case 'claude':
+        return { ...c, steps: [...c.steps.slice(0, 3), 'Leave the advanced settings as they are, then Add.', 'In a new chat, turn the connector on and ask Claude to teach you the course. Sign in when Claude asks.'] };
+      case 'chatgpt':
+        return {
+          ...c,
+          steps: [
+            c.steps[0],
+            c.steps[1],
+            'Choose OAuth for authentication, confirm you trust it, and save.',
+            'In a new chat, pick the connector from the developer mode menu and ask ChatGPT to teach you the course. Sign in when it asks.',
+          ],
+        };
+      case 'claude-code':
+        return { ...c, steps: ['Run this command once.', 'Start Claude Code, run /mcp, choose the server and sign in when it asks. Then ask it to teach you the course.'] };
+      case 'cursor':
+        return { ...c, steps: [c.steps[0], 'Open the chat, sign in when Cursor asks, and ask it to teach you the course.'] };
+      default:
+        return { ...c, steps: ['Add the connector URL as a remote (Streamable HTTP) server. Sign in when your agent asks.'] };
+    }
+  });
+}

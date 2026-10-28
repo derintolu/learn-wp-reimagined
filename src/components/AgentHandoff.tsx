@@ -1,5 +1,7 @@
 import { useEffect, useState } from 'preact/hooks';
 import { startHandoff } from '../agent/client';
+import { FEATURES } from '../config';
+import { MCP_URL, agentPrompt } from '../shared/course-meta';
 import { flushPendingEdits } from '../record/useFileEdits';
 import { getRecordManager } from '../record/useRecord';
 import { CopyField } from './CopyField';
@@ -28,6 +30,32 @@ type State = { kind: 'loading' } | { kind: 'ready'; handle: string; mcpUrl: stri
  * learner's files, and shows what to paste into the agent. The handle is shown once and never stored.
  */
 export function AgentHandoff({ lessonId, lessonTitle }: { lessonId: string; lessonTitle: string }) {
+  if (FEATURES.agentOnStandard) return <SignInHandoff lessonTitle={lessonTitle} />;
+  return <HandleHandoff lessonId={lessonId} lessonTitle={lessonTitle} />;
+}
+
+/** On the standard the agent signs the learner in itself: the hand-off is the URL and a prompt naming the lesson. */
+function SignInHandoff({ lessonTitle }: { lessonTitle: string }) {
+  return (
+    <div class="agent-handoff">
+      <p class="record__confirm-q">Continue “{lessonTitle}” in your AI</p>
+      <ol class="agent-handoff__steps">
+        <li>
+          <CopyField label="Connector URL" value={MCP_URL} />
+        </li>
+        <li>
+          <CopyField label="Message for your AI" value={agentPrompt(lessonTitle)} multiline />
+          <p class="agent-handoff__note">Sign in when your agent asks.</p>
+        </li>
+      </ol>
+      <p class="agent-handoff__link">
+        <a href="/connect">Set up your AI</a>
+      </p>
+    </div>
+  );
+}
+
+function HandleHandoff({ lessonId, lessonTitle }: { lessonId: string; lessonTitle: string }) {
   const [state, setState] = useState<State>(() => {
     const m = made.get(lessonId);
     return m ? { kind: 'ready', ...m } : { kind: 'loading' };

@@ -11,7 +11,7 @@ import { MCP_GLOBAL_KEY, MCP_LIMITS, mcpHandleKey } from './gate';
 import { isAnyHandle } from './handles';
 import { ensureMcpSchema } from './recordStore';
 
-export const BAD_HANDLE = "That doesn't look like a record handle. It starts with lr_.";
+export const BAD_HANDLE = "That doesn't look like a record handle. It starts with cxp_ or lr_.";
 export const NO_RECORD = 'No record for that handle. It may have expired after 30 days without use, or been deleted.';
 export const LIMITED = 'Too many requests right now. Wait a few minutes and try again.';
 

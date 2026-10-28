@@ -16,7 +16,7 @@ import { SEED_REASON } from '../../functions/_lib/mcp/seed';
 import { getStandardCourse } from '../../functions/_lib/mcp/standardCourse';
 import { newHandle, parseRecord } from '../../vendor/learning-mcp/core/index.ts';
 import { parsePracticeRecord, type PracticeRecord } from '../../vendor/course-xapi-mcp/core/practice-record.ts';
-import { MCP_URL, agentPrompt } from '../../src/shared/course-meta';
+import { MCP_URL, agentHandlePrompt } from '../../src/shared/course-meta';
 import { connectMcp, routeFetch } from '../helpers/mcpClient';
 import type { D1Like, Env, Handler } from '../../functions/_lib/env';
 
@@ -64,7 +64,7 @@ describe('POST /api/agent/handoff on the standard', () => {
     const { handle, mcpUrl, prompt } = r.body;
     expect(handle).toMatch(/^cxp_[A-Za-z0-9_-]{32}$/);
     expect(mcpUrl).toBe(MCP_URL);
-    expect(prompt).toBe(agentPrompt(handle));
+    expect(prompt).toBe(agentHandlePrompt(handle));
     const { call } = await agent();
     // What the prompt tells the agent to do.
     expect((await call('start_placement', { handle })).isError).toBe(false);

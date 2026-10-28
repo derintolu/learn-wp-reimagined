@@ -20,8 +20,12 @@ export const BRANCH_WHEN: Record<Outcome, string> = {
 };
 
 /** What the learner pastes into their agent after "Continue in your agent". */
-export const agentPrompt = (handle: string): string =>
+export const agentHandlePrompt = (handle: string): string =>
   `Continue my "Learn WordPress, reimagined" course with the learn-wp-reimagined tools. My record handle is ${handle}. Call start_placement with that handle, then next_beat. Keep the handle private.`;
+
+/** What the learner pastes into their agent when the agent signs them in itself (no handle). */
+export const agentPrompt = (lessonTitle: string): string =>
+  `Continue my "Learn WordPress, reimagined" course with the learn-wp-reimagined tools. I'm on the lesson "${lessonTitle}". Sign me in when you're asked, then pick up at that lesson.`;
 
 /** Estimated AI cost per 1000 learners at the chosen model mix (docs/model-eval.md, October 2026). */
 export const COST_PER_1000_LEARNERS_USD = 4.97;

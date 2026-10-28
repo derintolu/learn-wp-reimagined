@@ -7,7 +7,7 @@ import { HttpError, readJsonCapped } from '../../_lib/guards';
 import { SERVER_FLAGS } from '../../_lib/config';
 import { defaultCtx, newHandle } from '../../../vendor/learning-mcp/core/index.ts';
 import { newPracticeHandle } from '../../../vendor/course-xapi-mcp/core/practice-record.ts';
-import { agentPrompt, MCP_URL } from '../../../src/shared/course-meta';
+import { agentHandlePrompt, MCP_URL } from '../../../src/shared/course-meta';
 import { agentRoute, limit } from '../../_lib/mcp/agentApi';
 import { getCourse } from '../../_lib/mcp/course';
 import { MCP_CREATE_KEY, MCP_GLOBAL_KEY, MCP_LIMITS } from '../../_lib/mcp/gate';
@@ -43,5 +43,5 @@ export const POST: Handler = (req, { env }) =>
       handle = newHandle();
       await new D1RecordStore(env.DB).put(handle, seeded.record);
     }
-    return json({ handle, mcpUrl: MCP_URL, prompt: agentPrompt(handle) });
+    return json({ handle, mcpUrl: MCP_URL, prompt: agentHandlePrompt(handle) });
   });

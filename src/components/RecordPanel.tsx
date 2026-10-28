@@ -9,6 +9,7 @@ import type { AttachResult } from '../record/store';
 import { cancelPendingEdits, flushPendingEdits } from '../record/useFileEdits';
 import { useRecord } from '../record/useRecord';
 import type { LearningRecord } from '../shared/record';
+import { revokeAllAgents } from '../agent/client';
 import { AgentHandoff } from './AgentHandoff';
 import { ImportAgentProgress } from './ImportAgentProgress';
 
@@ -23,6 +24,9 @@ const ATTACH_COPY: Record<AttachResult, string> = {
   'kept-current-with-backup': "Kept this browser's newer progress and saved a backup in the folder",
   'recovered-corrupt': 'The record in that folder was damaged, so we set it aside and saved your progress there',
 };
+
+export const AGENTS_DISCONNECTED = 'Your agents are disconnected. They will ask you to sign in again.';
+export const DISCONNECT_FAILED = "We couldn't disconnect your agents. Nothing was changed. Try again later.";
 
 export const DELETE_FAILED = "We couldn't delete your data. Nothing was changed. Try again later.";
 
@@ -184,6 +188,16 @@ export function RecordPanel() {
     confirmRef.current = false;
     setConfirmDelete(false);
     deleteBtnRef.current?.focus();
+  }
+
+  async function disconnectAgents() {
+    setBusy(true);
+    try {
+      const r = await revokeAllAgents();
+      setMsg(r.ok ? { tone: 'ok', text: AGENTS_DISCONNECTED } : { tone: 'error', text: DISCONNECT_FAILED });
+    } finally {
+      setBusy(false);
+    }
   }
 
   async function confirmDeleteNow() {
@@ -372,9 +386,15 @@ export function RecordPanel() {
                       Continue in your AI
                     </button>
                   )}
-                  <button type="button" class="button button--quiet" onClick={() => setView('import')}>
-                    Bring back your AI's progress
-                  </button>
+                  {FEATURES.agentOnStandard ? (
+                    <button type="button" class="button button--quiet" onClick={disconnectAgents} disabled={busy}>
+                      Disconnect agents
+                    </button>
+                  ) : (
+                    <button type="button" class="button button--quiet" onClick={() => setView('import')}>
+                      Bring back your AI's progress
+                    </button>
+                  )}
                 </div>
               )}
             </div>

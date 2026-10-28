@@ -44,3 +44,6 @@ export const startHandoff = (lessonId: string, files: Record<string, string>) =>
 export const fetchAgentRecord = (handle: string) => post<{ record: unknown }>('/api/agent/record', { handle });
 
 export const deleteAgentRecord = (handle: string) => post<{ deleted: boolean }>('/api/agent/delete', { handle });
+
+/** "Disconnect agents": ends every agent sign-in of this learner. JSON only, with the session cookie. */
+export const revokeAllAgents = () => post<{ revoked: number }>('/api/oauth/revoke-all', {});

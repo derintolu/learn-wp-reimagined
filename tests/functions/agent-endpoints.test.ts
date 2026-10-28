@@ -11,7 +11,7 @@ import { MCP_LIMITS } from '../../functions/_lib/mcp/gate';
 import { BAD_HANDLE, NO_RECORD } from '../../functions/_lib/mcp/agentApi';
 import { SEED_REASON } from '../../functions/_lib/mcp/seed';
 import { newHandle, parseRecord, type LearningRecord } from '../../vendor/learning-mcp/core/index.ts';
-import { COURSE_ID, MCP_URL, agentPrompt } from '../../src/shared/course-meta';
+import { COURSE_ID, MCP_URL, agentHandlePrompt } from '../../src/shared/course-meta';
 import { XAPI_BASE } from '../../src/shared/xapi';
 import { connectMcp, routeFetch } from '../helpers/mcpClient';
 import type { D1Like, Env, Handler } from '../../functions/_lib/env';
@@ -54,7 +54,7 @@ describe('POST /api/agent/handoff', () => {
     expect(r.status).toBe(200);
     const { handle, mcpUrl, prompt } = r.body;
     expect(mcpUrl).toBe(MCP_URL);
-    expect(prompt).toBe(agentPrompt(handle));
+    expect(prompt).toBe(agentHandlePrompt(handle));
     const { client, call } = await connectMcp(routeFetch(mcpRoute, env), 'legacy');
     open.push(client);
     const resumed = await call('start_placement', { handle });
