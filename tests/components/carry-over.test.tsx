@@ -7,6 +7,7 @@ import { CarryOverOffer } from '../../src/components/CarryOverOffer';
 import { resetSession } from '../../src/record/session';
 import { setRecordManager } from '../../src/record/useRecord';
 import { memoryManager } from './helpers';
+import { phasesUpTo, restoreFlags } from '../helpers/flags';
 
 const flags = FEATURES as { sessions: boolean; officialRecord: boolean };
 const lessonId = Object.keys(content.lessons)[0];
@@ -32,15 +33,14 @@ async function mount(withProgress: boolean) {
 }
 
 beforeEach(() => {
-  flags.officialRecord = true;
+  phasesUpTo('officialRecord');
   flags.sessions = false;
   localStorage.clear();
   resetSession();
 });
 afterEach(() => {
   cleanup();
-  flags.officialRecord = false;
-  flags.sessions = false;
+  restoreFlags();
   setRecordManager(null);
   vi.unstubAllGlobals();
 });
@@ -52,7 +52,7 @@ describe('CarryOverOffer', () => {
   });
 
   it('offer hidden with the flag off', async () => {
-    flags.officialRecord = false;
+    restoreFlags();
     await mount(true);
     expect(screen.queryByRole('button', { name: 'Bring your progress over' })).toBeNull();
   });

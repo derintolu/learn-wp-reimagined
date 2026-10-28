@@ -7,6 +7,7 @@ import { content } from '../../src/content';
 import { RecordPanel } from '../../src/components/RecordPanel';
 import { setRecordManager } from '../../src/record/useRecord';
 import { memoryManager } from './helpers';
+import { phasesUpTo, restoreFlags } from '../helpers/flags';
 
 const flags = FEATURES as { officialRecord: boolean; senseiLearners: boolean; wordpressContent: boolean };
 const ids = Object.keys(content.lessons);
@@ -48,13 +49,13 @@ async function openPanel() {
 }
 
 beforeEach(() => {
-  flags.officialRecord = flags.senseiLearners = flags.wordpressContent = true;
+  phasesUpTo('officialRecord');
   setRecordManager(memoryManager(content));
   stub();
 });
 afterEach(() => {
   cleanup();
-  flags.officialRecord = flags.senseiLearners = flags.wordpressContent = false;
+  restoreFlags();
   setRecordManager(null);
   vi.unstubAllGlobals();
 });

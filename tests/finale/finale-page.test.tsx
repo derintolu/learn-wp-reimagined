@@ -15,6 +15,7 @@ import { makeLive } from './livePaths';
 import { FEATURES } from '../../src/config';
 import { recordWithStateFiles } from '../../src/finale/playground';
 import { newRecord } from '../../src/shared/record';
+import { phasesUpTo, restoreFlags } from '../helpers/flags';
 
 afterEach(() => {
   cleanup();
@@ -37,7 +38,7 @@ const STYLE = '/*\nTheme Name: Ada Theme\nText Domain: my-block-theme\n*/\n';
 describe('Finale with the State document', () => {
   const flags = FEATURES as { officialRecord: boolean };
   afterEach(() => {
-    flags.officialRecord = false;
+    restoreFlags();
     vi.unstubAllGlobals();
   });
   const stub = (files: Record<string, string>) =>
@@ -50,7 +51,7 @@ describe('Finale with the State document', () => {
     );
 
   it('finale uses the State document when local files are empty', async () => {
-    flags.officialRecord = true;
+    phasesUpTo('officialRecord');
     stub({ 'style.css': STYLE });
     await withLessons(['bt-what-is-a-block-theme']);
     render(<Finale />);

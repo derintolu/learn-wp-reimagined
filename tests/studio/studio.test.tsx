@@ -29,6 +29,7 @@ import { resetSaveWarning } from '../../src/components/RecordPanel';
 import { resetAiStatusForTests } from '../../src/ai/useAiStatus';
 import { RecordManager, type RecordStore } from '../../src/record/store';
 import { applyEvent, branchHistory, newRecord, type LearningRecord } from '../../src/shared/record';
+import { phasesUpTo, restoreFlags } from '../helpers/flags';
 
 const PLACED = { pathId: 'block-theme' as const, startLessonId: 'theme-json-basics', skip: [], reason: 'Picked.' };
 
@@ -465,7 +466,7 @@ describe('Smooth scrolling', () => {
 describe('Studio outline, official record', () => {
   it('outline marks tested-out lessons with visible text, not colour alone', async () => {
     const flags = FEATURES as { officialRecord: boolean; senseiLearners: boolean; wordpressContent: boolean };
-    flags.officialRecord = flags.senseiLearners = flags.wordpressContent = true;
+    phasesUpTo('officialRecord');
     try {
       vi.stubGlobal(
         'fetch',
@@ -483,7 +484,7 @@ describe('Studio outline, official record', () => {
       act(() => clearOfficial());
       await waitFor(() => expect(within(nav).queryByText('Tested out')).toBeNull());
     } finally {
-      flags.officialRecord = flags.senseiLearners = flags.wordpressContent = false;
+      restoreFlags();
     }
   });
 });

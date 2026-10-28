@@ -11,8 +11,12 @@ import { ROUTES } from '../../functions/_lib/config';
 import { DAY_CAP_MICROS, MONTH_CAP_MICROS } from '../../functions/_lib/budget';
 import { MCP_LIMITS } from '../../functions/_lib/mcp/gate';
 import { MCP_TTL_MS } from '../../functions/_lib/mcp/recordStore';
+import { restoreFlags, setFlags } from '../helpers/flags';
 
-afterEach(cleanup);
+afterEach(() => {
+  cleanup();
+  restoreFlags();
+});
 
 const text = () => (document.querySelector('.how-page')?.textContent ?? '').replace(/\s+/g, ' ');
 
@@ -372,6 +376,7 @@ describe('/how-it-works with the official-record flag', () => {
   const view = () => render(<HowItWorks />);
   const allOn = () => {
     flags.officialRecord = true;
+    setFlags({ lrsShadow: true });
     flags.senseiLearners = true;
     flags.wordpressContent = true;
   };
@@ -469,6 +474,7 @@ describe('/how-it-works final rewrite (phase 8)', () => {
   const flags = FEATURES as { officialRecord: boolean; senseiLearners: boolean; wordpressContent: boolean; badges: boolean };
   const allOn = () => {
     flags.officialRecord = true;
+    setFlags({ lrsShadow: true });
     flags.senseiLearners = true;
     flags.wordpressContent = true;
     flags.badges = true;
@@ -492,6 +498,7 @@ describe('/how-it-works final rewrite (phase 8)', () => {
 
   it('off: no badge, certificate or revocation copy', () => {
     flags.officialRecord = true;
+    setFlags({ lrsShadow: true });
     render(<HowItWorks />);
     const t = text();
     for (const s of ['Badges you can verify', 'A Sensei certificate', 'revokes any badges', 'not an official WordPress credential', 'Sensei LMS and the open Learning Ledger plugin']) expect(t).not.toContain(s);
@@ -528,6 +535,7 @@ describe('/how-it-works final rewrite (phase 8)', () => {
     flags.wordpressContent = true;
     flags.senseiLearners = true;
     flags.officialRecord = true;
+    setFlags({ lrsShadow: true });
     const r = render(<HowItWorks />);
     const base = text();
     r.unmount();
@@ -545,7 +553,7 @@ describe('/how-it-works LRS and Ledger parts per flag state', () => {
     Object.assign(flags, { officialRecord: false, senseiLearners: false, wordpressContent: false, badges: false, agentOnStandard: false });
   });
   const part = (c: HTMLElement, name: string) => Array.from(c.querySelectorAll('.how-parts__list li')).find((x) => x.querySelector('strong')!.textContent!.startsWith(name))!.textContent!;
-  const on = (o: Partial<typeof flags>) => Object.assign(flags, { officialRecord: true, senseiLearners: true, wordpressContent: true }, o);
+  const on = (o: Partial<typeof flags>) => Object.assign(flags, { officialRecord: true, senseiLearners: true, wordpressContent: true, lrsShadow: true }, o);
 
   it('officialRecord only: no badge signing claim, agents keep practice records', () => {
     on({});

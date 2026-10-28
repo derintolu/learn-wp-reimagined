@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from 'preact/hooks';
-import { FEATURES } from '../config';
+import { phaseOn } from '../config';
 import { fetchBadges, mintClaimUrl, type BadgeSummary } from '../badges/badges';
 import { usePageTitle } from '../usePageTitle';
 import { NotFound } from './routes';
@@ -13,7 +13,7 @@ const badgeId = () => new URLSearchParams(window.location.search).get('badge');
 
 /** /badges/claim?badge=<id>: what the badge is, then a top-level hop to the LRS's claim page. */
 export function BadgeClaim() {
-  if (!FEATURES.badges) return <NotFound />;
+  if (!phaseOn('badges')) return <NotFound />;
   return <Claim />;
 }
 

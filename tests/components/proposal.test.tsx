@@ -8,8 +8,12 @@ import { BACKEND_VIEW_PATH, COST_PER_1000_LEARNERS_USD, LRS_HOST, RETENTION_DAYS
 import { REVIEW_DISCLAIMER } from '../../src/studio/Feed';
 import { DAY_CAP_MICROS, MONTH_CAP_MICROS } from '../../functions/_lib/budget';
 import { MCP_TTL_MS } from '../../functions/_lib/mcp/recordStore';
+import { restoreFlags, setFlags } from '../helpers/flags';
 
-afterEach(cleanup);
+afterEach(() => {
+  cleanup();
+  restoreFlags();
+});
 
 const SOURCE = readFileSync('src/pages/Proposal.tsx', 'utf8');
 const text = () => (document.querySelector('.proposal-page')?.textContent ?? '').replace(/\s+/g, ' ');
@@ -223,6 +227,7 @@ describe('/proposal with the official-record flag', () => {
   const flags = FEATURES as { officialRecord: boolean; senseiLearners: boolean; wordpressContent: boolean };
   const allOn = () => {
     flags.officialRecord = true;
+    setFlags({ lrsShadow: true });
     flags.senseiLearners = true;
     flags.wordpressContent = true;
   };
@@ -311,6 +316,7 @@ describe('/proposal final rewrite (phase 8)', () => {
   const flags = FEATURES as { officialRecord: boolean; senseiLearners: boolean; wordpressContent: boolean; badges: boolean; agentOnStandard: boolean };
   const allOn = () => {
     flags.officialRecord = true;
+    setFlags({ lrsShadow: true });
     flags.senseiLearners = true;
     flags.wordpressContent = true;
     flags.badges = true;
@@ -345,6 +351,7 @@ describe('/proposal final rewrite (phase 8)', () => {
 
   it('off: none of the phase 8 copy renders', () => {
     flags.officialRecord = true;
+    setFlags({ lrsShadow: true });
     render(<Proposal />);
     const t = text();
     for (const s of ['no longer only proposed', 'A standard, so the course', 'A plugin, so Sensei', 'Why the record store is separate', 'revokes any badges', 'plain hosting']) expect(t).not.toContain(s);

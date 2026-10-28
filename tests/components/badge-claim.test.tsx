@@ -9,6 +9,7 @@ import { RecordPanel } from '../../src/components/RecordPanel';
 import { CompletedSummary } from '../../src/components/CompletedSummary';
 import { setRecordManager } from '../../src/record/useRecord';
 import { memoryManager } from './helpers';
+import { phasesUpTo, restoreFlags } from '../helpers/flags';
 
 const flags = FEATURES as { badges: boolean };
 const ID = '33333333-3333-4333-8333-333333333333';
@@ -22,6 +23,7 @@ let fetchMock: ReturnType<typeof vi.fn>;
 let assign: ReturnType<typeof vi.fn>;
 
 beforeEach(() => {
+  phasesUpTo('officialRecord');
   flags.badges = true;
   list = [badge()];
   mintUrl = 'https://lrs.sqwrlz.com/claim/abc';
@@ -39,7 +41,7 @@ beforeEach(() => {
 });
 afterEach(() => {
   cleanup();
-  flags.badges = false;
+  restoreFlags();
   setRecordManager(null);
   vi.unstubAllGlobals();
   vi.restoreAllMocks();

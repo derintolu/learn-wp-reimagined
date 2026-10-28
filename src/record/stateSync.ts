@@ -1,6 +1,6 @@
 // Files and resume sync to State documents on the LRS, through the course server (/api/state/:kind).
-// Behind FEATURES.officialRecord. Local editing never waits on this: every failure is quiet except "too big".
-import { FEATURES } from '../config';
+// Behind phaseOn('officialRecord'). Local editing never waits on this: every failure is quiet except "too big".
+import { phaseOn } from '../config';
 import type { LearningRecord } from '../shared/record';
 import {
   STATE_MAX_BYTES,
@@ -63,7 +63,7 @@ async function read<T>(kind: StateKind, parse: (v: unknown) => T | null): Promis
 
 /** The learner's files from the State document, or null (flag off, no session, none stored, unreadable). */
 export async function fetchFilesState(): Promise<FilesDoc | null> {
-  if (!FEATURES.officialRecord) return null;
+  if (!phaseOn('officialRecord')) return null;
   return (await read('files', parseFilesDoc))?.doc ?? null;
 }
 
@@ -203,7 +203,7 @@ let active: StateSync | null = null;
 
 /** Start syncing the manager's record to State documents. Does nothing with the flag off. Returns the stop function. */
 export function startStateSync(manager: RecordManager): () => void {
-  if (!FEATURES.officialRecord) return () => {};
+  if (!phaseOn('officialRecord')) return () => {};
   active?.stop();
   const s = new StateSync(manager);
   active = s;

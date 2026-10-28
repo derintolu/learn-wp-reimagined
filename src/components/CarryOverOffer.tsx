@@ -1,5 +1,5 @@
 import { useState } from 'preact/hooks';
-import { FEATURES } from '../config';
+import { phaseOn } from '../config';
 import { ensureSession } from '../record/session';
 import { useRecord } from '../record/useRecord';
 import type { LearningRecord } from '../shared/record';
@@ -31,7 +31,7 @@ export const hasProgress = (r: LearningRecord): boolean =>
 
 /** Offers, once, to carry the old local record's progress into the official record. Nothing is sent until the learner agrees. */
 export function CarryOverOffer() {
-  return FEATURES.officialRecord ? <Offer /> : null;
+  return phaseOn('officialRecord') ? <Offer /> : null;
 }
 
 function Offer() {

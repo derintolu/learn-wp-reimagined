@@ -9,19 +9,20 @@ import { setRecordManager } from '../../src/record/useRecord';
 import { STATE_DEBOUNCE_MS, notifyFileEdited, startStateSync } from '../../src/record/stateSync';
 import { STATE_MAX_BYTES } from '../../src/shared/stateDoc';
 import { memoryManager } from './helpers';
+import { phasesUpTo, restoreFlags } from '../helpers/flags';
 
 vi.mock('../../src/record/session', async (orig) => ({ ...(await orig<object>()), ensureSession: async () => ({ homePage: 'h', name: 'n' }) }));
 
 const flags = FEATURES as { officialRecord: boolean };
 let stop = () => {};
 beforeEach(() => {
-  flags.officialRecord = true;
+  phasesUpTo('officialRecord');
 });
 afterEach(() => {
   stop();
   cleanup();
   setRecordManager(null);
-  flags.officialRecord = false;
+  restoreFlags();
   vi.useRealTimers();
   vi.unstubAllGlobals();
 });

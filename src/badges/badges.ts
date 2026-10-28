@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'preact/hooks';
-import { FEATURES } from '../config';
+import { phaseOn } from '../config';
 import type { PathId } from '../shared/types';
 
 export interface BadgeSummary {
@@ -55,7 +55,7 @@ export async function mintClaimUrl(badge: string): Promise<string | null> {
 export function useBadges(active = true): BadgeSummary[] | null {
   const [badges, setBadges] = useState<BadgeSummary[] | null>(null);
   useEffect(() => {
-    if (!FEATURES.badges || !active) return;
+    if (!phaseOn('badges') || !active) return;
     let live = true;
     fetchBadges().then((b) => live && setBadges(b));
     return () => {
