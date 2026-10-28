@@ -150,7 +150,7 @@ export function RecordPanel() {
   const fileRef = useRef<HTMLInputElement>(null);
   const badges = useBadges(open);
   const officialOn = phaseOn('officialRecord');
-  const { official, loading: officialLoading, refresh: refreshOfficial } = useOfficialRecord(open);
+  const { official, version: officialVersion, loading: officialLoading, refresh: refreshOfficial } = useOfficialRecord(open);
   const folderOk = supportsFolder();
   const loc = useLocation() as ReturnType<typeof useLocation> | undefined;
 
@@ -362,11 +362,19 @@ export function RecordPanel() {
                 <button type="button" class="button button--quiet" onClick={viewInLrs} disabled={busy}>
                   View in the LRS
                 </button>
-                <button type="button" class="button button--quiet" onClick={refreshOfficial} disabled={officialLoading}>
+                <button
+                  type="button"
+                  class="button button--quiet"
+                  onClick={() => !officialLoading && refreshOfficial()}
+                  aria-disabled={officialLoading || undefined}
+                >
                   Refresh
                 </button>
               </div>
-              <SenseiPanel />
+              <p class="visually-hidden" role="status" aria-live="polite">
+                {officialLoading ? 'Refreshing your official record.' : official ? 'Your official record is up to date.' : ''}
+              </p>
+              {official && <SenseiPanel key={officialVersion} />}
             </div>
           )}
           {badges && badges.length > 0 && (

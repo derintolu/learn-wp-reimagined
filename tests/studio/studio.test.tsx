@@ -19,6 +19,7 @@ vi.mock('../../src/ai/client', () => ({
 
 import { App } from '../../src/app';
 import { FEATURES } from '../../src/config';
+import { clearOfficial } from '../../src/record/official';
 import { getStatus, codeFeedback, tutorStream } from '../../src/ai/client';
 import { content } from '../../src/content';
 import { setRecordManager } from '../../src/record/useRecord';
@@ -479,6 +480,8 @@ describe('Studio outline, official record', () => {
       const nav = await outline();
       await waitFor(() => expect(within(nav).getByText('Tested out')).toBeTruthy());
       expect(within(nav).getByText('Tested out').closest('li')?.textContent).toContain(content.lessons['theme-json-basics'].title);
+      act(() => clearOfficial());
+      await waitFor(() => expect(within(nav).queryByText('Tested out')).toBeNull());
     } finally {
       flags.officialRecord = flags.senseiLearners = flags.wordpressContent = false;
     }

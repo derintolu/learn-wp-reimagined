@@ -1,6 +1,6 @@
 // @vitest-environment happy-dom
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import { cleanup, fireEvent, render, screen, waitFor } from '@testing-library/preact';
+import { cleanup, fireEvent, render, screen, waitFor, within } from '@testing-library/preact';
 import { LocationProvider } from 'preact-iso';
 import { FEATURES } from '../../src/config';
 import { content } from '../../src/content';
@@ -13,12 +13,19 @@ const ids = Object.keys(content.lessons);
 const official = { completed: [ids[0], ids[1]], testedOut: [ids[2]], carriedOver: [], branches: [], badges: [], asOf: '2026-01-01T00:00:00.000Z' };
 
 let recordCalls = 0;
+let gone = false;
 let viewUrl = 'https://lrs.sqwrlz.com/view/abc';
 function stub() {
   recordCalls = 0;
+  gone = false;
   vi.stubGlobal(
     'fetch',
     vi.fn(async (url: string, init: RequestInit = {}) => {
+      if (url === '/api/session' && init.method === 'DELETE') {
+        gone = true;
+        return new Response(JSON.stringify({ deleted: true }), { status: 200 });
+      }
+      if (url === '/api/record' && gone) return new Response('{}', { status: 401 });
       if (url === '/api/record') {
         recordCalls++;
         return new Response(JSON.stringify(official), { status: 200 });
@@ -88,6 +95,34 @@ describe('the official record in the record panel', () => {
     await waitFor(() => expect((screen.getByRole('button', { name: 'Refresh' }) as HTMLButtonElement).disabled).toBe(false));
     fireEvent.click(screen.getByRole('button', { name: 'Refresh' }));
     await waitFor(() => expect(recordCalls).toBe(before + 2));
+  });
+
+  it('after Delete my data the official record and the Sensei panel are gone', async () => {
+    (FEATURES as { sessions: boolean }).sessions = true;
+    try {
+      const panel = await openPanel();
+      await screen.findByText('2 lessons completed, 1 lesson tested out.');
+      await screen.findByRole('heading', { name: 'What Sensei sees' });
+      fireEvent.click(within(panel).getByRole('button', { name: 'Delete my data' }));
+      const dialog = await screen.findByRole('alertdialog');
+      fireEvent.click(within(dialog).getByRole('button', { name: 'Delete' }));
+      await waitFor(() => expect(screen.queryByText('2 lessons completed, 1 lesson tested out.')).toBeNull());
+      expect(screen.queryByRole('heading', { name: 'What Sensei sees' })).toBeNull();
+      fireEvent(window, new Event('focus'));
+      await screen.findByText(/couldn't read your official record/);
+      expect(screen.queryByText('2 lessons completed, 1 lesson tested out.')).toBeNull();
+    } finally {
+      (FEATURES as { sessions: boolean }).sessions = false;
+    }
+  });
+
+  it('a failed refresh does not keep the old record as current', async () => {
+    await openPanel();
+    await screen.findByText('2 lessons completed, 1 lesson tested out.');
+    gone = true;
+    fireEvent(window, new Event('focus'));
+    await screen.findByText(/couldn't read your official record/);
+    expect(screen.queryByText('2 lessons completed, 1 lesson tested out.')).toBeNull();
   });
 
   it('is unchanged with the phase off', async () => {

@@ -1,3 +1,4 @@
+import { clearOfficial } from './official';
 import { FEATURES } from '../config';
 import { getEventClient } from './eventClient';
 import { cancelPendingEdits } from './useFileEdits';
@@ -98,6 +99,7 @@ export async function deleteMyDataDetailed(): Promise<DeleteResult> {
   const res = await call('DELETE');
   if (!res || !res.ok) return 'failed';
   forgetSession();
+  clearOfficial();
   getEventClient().discard();
   // Only now, so a failed delete leaves edits that were waiting to be saved alone.
   cancelPendingEdits();

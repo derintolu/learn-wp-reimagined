@@ -30,30 +30,48 @@ export async function mintViewUrl(): Promise<string | null> {
   }
 }
 
-/** The official record, re-read when the window regains focus. Does nothing with the phase off. */
-export function useOfficialRecord(active = true): { official: OfficialRecord | null; loading: boolean; refresh: () => void } {
-  const [official, setOfficial] = useState<OfficialRecord | null>(null);
+let shared: { official: OfficialRecord | null; version: number } = { official: null, version: 0 };
+const listeners = new Set<() => void>();
+function publish(official: OfficialRecord | null) {
+  shared = { official, version: shared.version + 1 };
+  listeners.forEach((fn) => fn());
+}
+/** Forget the official record held here, e.g. after the learner's data is deleted. */
+let seq = 0;
+export const clearOfficial = (): void => {
+  seq++;
+  publish(null);
+};
+
+/**
+ * The official record, re-read when the window regains focus. A read that fails clears what was held,
+ * so an old record is never shown as current. Does nothing with the phase off.
+ */
+export function useOfficialRecord(active = true): { official: OfficialRecord | null; version: number; loading: boolean; refresh: () => void } {
+  const [, force] = useState(0);
   const [loading, setLoading] = useState(false);
   const [tick, setTick] = useState(0);
   const refresh = useCallback(() => setTick((t) => t + 1), []);
   const on = phaseOn('officialRecord') && active;
   useEffect(() => {
+    const fn = () => force((n) => n + 1);
+    listeners.add(fn);
+    return () => void listeners.delete(fn);
+  }, []);
+  useEffect(() => {
     if (!on) return;
-    let live = true;
+    const mine = ++seq;
     setLoading(true);
     fetchOfficial().then((r) => {
-      if (!live) return;
+      if (mine !== seq) return; // a newer read, or a delete, has overtaken this one
       setLoading(false);
-      if (r) setOfficial(r);
+      publish(r);
     });
-    return () => {
-      live = false;
-    };
   }, [on, tick]);
   useEffect(() => {
     if (!on) return;
     window.addEventListener('focus', refresh);
     return () => window.removeEventListener('focus', refresh);
   }, [on, refresh]);
-  return { official, loading, refresh };
+  return { official: on ? shared.official : null, version: shared.version, loading, refresh };
 }
