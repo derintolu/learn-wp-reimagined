@@ -448,7 +448,7 @@ describe('Home', () => {
   it('keeps the approved privacy sentence for the agent record', () => {
     render(<App />);
     expect(main().textContent).toContain(
-      'When you take the course into an agent, the server keeps your progress under a random record handle that only you hold. It stores no personal data, expires after 30 days without use, and you can delete it at any time from Connect your agent.',
+      'When you take the course into an agent, the server keeps your progress under a random record handle that only you hold. It stores no personal data, expires after 30 days without use, and you can delete it at any time from Connect your AI.',
     );
   });
 

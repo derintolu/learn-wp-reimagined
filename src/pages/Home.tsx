@@ -94,7 +94,7 @@ export function Home() {
             <p class="home-note">
               When you take the course into an agent, the server keeps your progress under a random record handle that only
               you hold. It stores no personal data, expires after {RELAY_DAYS} days without use, and you can delete it at any
-              time from <a href="/connect#import">Connect your agent</a>.
+              time from <a href="/connect#import">Connect your AI</a>.
             </p>
             <ul class="agent-list" aria-label="Set up for">
               {AGENTS.map((a) => (

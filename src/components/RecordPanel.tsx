@@ -297,7 +297,7 @@ export function RecordPanel() {
               ? NOT_SAVED
               : state === 'folder'
                 ? 'Your record and lesson files are written to the folder you picked, and kept in this browser too.'
-                : 'Your progress stays on this device. Nothing about you is sent to us.'}
+                : "Your progress stays on this device. Your answers and tutor messages go to the course server to be checked or answered, and aren't stored."}
           </p>
           <p class="record__summary">{summary(record)}</p>
           {notice && <p class="record__alert">{notice.message}</p>}
