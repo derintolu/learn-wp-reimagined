@@ -3,27 +3,33 @@ import DOMPurify from 'dompurify';
 /**
  * The blog is headless: posts live in the space's WordPress, and Spacefast serves only its
  * /wp-json, /wp-admin and /wp-content, never its front end. So /blog and /blog/:slug are app
- * routes that read published posts from the REST API.
+ * routes that read published posts over REST. Spacefast hides wp/v2 content from anonymous
+ * callers, so the read-only route comes from the lwr-blog-cli plugin
+ * (wordpress/mu-plugins/lwr-blog-cli.php).
  */
-export const POSTS_ENDPOINT = '/wp-json/wp/v2/posts';
+export const POSTS_ENDPOINT = '/wp-json/lwr-blog/v1/posts';
 
 /** A post as the pages use it: titles and excerpts as plain text, the body as sanitized HTML. */
 export interface BlogPost {
   slug: string;
   title: string;
   excerpt: string;
+  /** ISO 8601 with offset. */
   date: string;
   author: string | null;
   html: string;
 }
 
+/** What GET /wp-json/lwr-blog/v1/posts returns for each published post. */
 interface RestPost {
+  id: number;
   slug: string;
-  date_gmt: string;
-  title: { rendered: string };
-  excerpt: { rendered: string };
-  content: { rendered: string };
-  _embedded?: { author?: { name?: string }[] };
+  title: string;
+  date: string;
+  modified: string;
+  excerpt: string;
+  content: string;
+  author: string;
 }
 
 /** Rendered WordPress text (entities, inline tags) as plain text. Never parsed as live HTML. */
@@ -48,26 +54,26 @@ export function sanitizePostHtml(html: string): string {
 function toPost(p: RestPost): BlogPost {
   return {
     slug: p.slug,
-    title: plainText(p.title.rendered),
-    excerpt: plainText(p.excerpt.rendered),
-    date: p.date_gmt,
-    author: p._embedded?.author?.[0]?.name ?? null,
-    html: sanitizePostHtml(p.content.rendered),
+    title: plainText(p.title),
+    excerpt: plainText(p.excerpt),
+    date: p.date,
+    author: p.author || null,
+    html: sanitizePostHtml(p.content),
   };
 }
 
-async function getPosts(query: Record<string, string>): Promise<BlogPost[]> {
-  const params = new URLSearchParams({ status: 'publish', _embed: 'author', ...query });
-  const res = await fetch(`${POSTS_ENDPOINT}?${params}`, { credentials: 'omit', headers: { accept: 'application/json' } });
+async function getPosts(query: Record<string, string> = {}): Promise<BlogPost[]> {
+  const params = new URLSearchParams(query).toString();
+  const res = await fetch(params ? `${POSTS_ENDPOINT}?${params}` : POSTS_ENDPOINT, { credentials: 'omit', headers: { accept: 'application/json' } });
   if (!res.ok) throw new Error(`posts request failed: ${res.status}`);
   const body: unknown = await res.json();
   if (!Array.isArray(body)) throw new Error('posts response is not a list');
   return (body as RestPost[]).map(toPost);
 }
 
-/** Published posts, newest first. */
+/** Published posts, newest first (the route orders them). */
 export function listPosts(): Promise<BlogPost[]> {
-  return getPosts({ per_page: '100', orderby: 'date', order: 'desc' });
+  return getPosts();
 }
 
 /** The published post with this slug, or null. */
@@ -76,9 +82,9 @@ export async function getPost(slug: string): Promise<BlogPost | null> {
   return post ?? null;
 }
 
-/** "27 October 2026", from WordPress's GMT date. */
-export function formatDate(dateGmt: string): string {
-  const d = new Date(/[zZ]|[+-]\d\d:?\d\d$/.test(dateGmt) ? dateGmt : `${dateGmt}Z`);
+/** "27 October 2026", in UTC, from an ISO date (one without an offset is read as UTC). */
+export function formatDate(date: string): string {
+  const d = new Date(/[zZ]|[+-]\d\d:?\d\d$/.test(date) ? date : `${date}Z`);
   if (Number.isNaN(d.getTime())) return '';
   return d.toLocaleDateString('en-GB', { day: 'numeric', month: 'long', year: 'numeric', timeZone: 'UTC' });
 }

@@ -78,5 +78,11 @@ describe('packCliPlugin', () => {
     const php = new TextDecoder().decode(files[`${CLI_PLUGIN_SLUG}/${CLI_PLUGIN_SLUG}.php`]);
     expect(php).toContain("WP_CLI::add_command( 'lwr-blog put'");
     expect(php).toContain('base64_decode( $chunk, true )');
+    // The blog's read route: anonymous, read-only, published posts only.
+    expect(php).toContain("register_rest_route(\n\t\t\t'lwr-blog/v1',\n\t\t\t'/posts',");
+    expect(php).toContain("'permission_callback' => '__return_true'");
+    expect(php).toContain("'methods'             => WP_REST_Server::READABLE");
+    expect(php.match(/register_rest_route\(/g)).toHaveLength(1);
+    expect(php).toContain("'post_status'      => 'publish'");
   });
 });

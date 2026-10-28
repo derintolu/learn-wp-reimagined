@@ -24,16 +24,15 @@ const DEFAULT_DESCRIPTION = 'The site description.';
 const restPost = (slug: string, title: string, over: Record<string, unknown> = {}) => ({
   id: slug.length,
   slug,
-  date_gmt: '2026-10-27T18:30:00',
-  title: { rendered: title },
-  excerpt: { rendered: `<p>Excerpt of ${slug} &amp; more.</p>\n` },
-  content: {
-    rendered:
-      '<h2 class="wp-block-heading">A heading</h2>\n<ul class="wp-block-list"><li>one</li><li>two</li></ul>\n' +
-      '<pre class="wp-block-code"><code>wp lwr-blog put --events--&gt;</code></pre>\n' +
-      '<p>Safe <a href="/blog/other">link</a><img src="x" onerror="window.__pwned=1"></p><script>window.__pwned=1</script>',
-  },
-  _embedded: { author: [{ id: 2, name: 'Derin Tolu' }] },
+  title,
+  date: '2026-10-27T18:30:00+00:00',
+  modified: '2026-10-27T18:30:00+00:00',
+  excerpt: `Excerpt of ${slug} &amp; more.`,
+  content:
+    '<h2 class="wp-block-heading">A heading</h2>\n<ul class="wp-block-list"><li>one</li><li>two</li></ul>\n' +
+    '<pre class="wp-block-code"><code>wp lwr-blog put --events--&gt;</code></pre>\n' +
+    '<p>Safe <a href="/blog/other">link</a><img src="x" onerror="window.__pwned=1"></p><script>window.__pwned=1</script>',
+  author: 'Derin Tolu',
   ...over,
 });
 
@@ -47,7 +46,7 @@ function stubPosts(answer: (url: URL) => Response | Promise<Response>) {
     vi.fn(async (input: RequestInfo | URL) => {
       const raw = typeof input === 'string' ? input : input instanceof URL ? input.href : input.url;
       const url = new URL(raw, 'https://learnwp.sqwrlz.com');
-      if (url.pathname !== '/wp-json/wp/v2/posts') return json({ results: [] });
+      if (url.pathname !== '/wp-json/lwr-blog/v1/posts') return json({ results: [] });
       calls.push(raw);
       return answer(url);
     }),
@@ -85,7 +84,7 @@ describe('blog routes', () => {
 });
 
 describe('/blog', () => {
-  it('lists published posts with title, date, author and excerpt, read from the REST API', async () => {
+  it('lists published posts with title, date, author and excerpt, read from the lwr-blog route', async () => {
     stubPosts(() => json([restPost('second-post', 'Second &#8220;post&#8221;'), restPost('first-post', 'First post')]));
     visit('/blog');
     expect(screen.getByRole('status').textContent).toMatch(/Loading posts/);
@@ -98,11 +97,9 @@ describe('/blog', () => {
     expect(items[0].textContent).toContain('27 October 2026');
     expect(items[0].textContent).toContain('Derin Tolu');
     expect(items[0].textContent).toContain('Excerpt of second-post & more.');
-    expect(items[0].querySelector('time')?.getAttribute('datetime')).toBe('2026-10-27T18:30:00Z');
-
-    const url = new URL(calls[0], 'https://x');
-    expect(url.searchParams.get('status')).toBe('publish');
-    expect(url.searchParams.has('_embed')).toBe(true);
+    expect(items[0].querySelector('time')?.getAttribute('datetime')).toBe('2026-10-27T18:30:00+00:00');
+    // Spacefast hides wp/v2 content from anonymous callers, so the app reads the plugin's route.
+    expect(calls[0]).toBe('/wp-json/lwr-blog/v1/posts');
     expect(screen.getByRole('heading', { level: 1 }).textContent).toBe('The blog');
     await waitFor(() => expect(document.title).toBe(`Blog · ${SITE}`));
     expect(description()).toBe(BLOG_DESCRIPTION);
@@ -191,7 +188,8 @@ describe('post helpers', () => {
     expect(out).toContain('<h2>H</h2>');
     expect(out).toContain('<pre tabindex="0"><code>c</code></pre>');
   });
-  it('formatDate reads WordPress GMT dates', () => {
+  it('formatDate reads ISO dates in UTC', () => {
+    expect(formatDate('2026-10-27T23:30:00+00:00')).toBe('27 October 2026');
     expect(formatDate('2026-10-27T23:30:00')).toBe('27 October 2026');
     expect(formatDate('nope')).toBe('');
   });

@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { inline, originalLine, parsePost, toBlocks } from '../../scripts/blog/markdown';
 import { MAX_ARG, draftArgs } from '../../scripts/blog/draft-learnwp';
-import { CHUNK, base64Chunks, putArgs } from '../../scripts/blog/put-learnwp';
+import { CHUNK, base64Chunks, putArgs, putProblem } from '../../scripts/blog/put-learnwp';
 import { DERINTOLU_SITE_ID, WPCOM_API, crossPostBody, readToken, seoPlugins } from '../../scripts/blog/cross-post';
 
 const POST = `---
@@ -124,5 +124,19 @@ describe('putArgs', () => {
 
   it('refuses a body that is not block markup', () => {
     expect(() => putArgs(POST, '<p>raw</p>', 'publish', 2)).toThrow(/block markup/);
+  });
+});
+
+describe('putProblem', () => {
+  const started = Date.parse('2026-10-28T15:00:00Z');
+  const post = { slug: 'a-post', title: 'A post: with a colon', modified: '2026-10-28T15:00:30+00:00' };
+  it('accepts the post, published and modified after the run started', () => {
+    expect(putProblem([post], 'a-post', 'A post: with a colon', started)).toBeNull();
+  });
+  it('reports a missing, stale or mistitled post, so a failed sf wp run is caught', () => {
+    expect(putProblem([], 'a-post', 'A post: with a colon', started)).toMatch(/no published post/);
+    expect(putProblem([{ ...post, modified: '2026-10-27T10:00:00+00:00' }], 'a-post', 'A post: with a colon', started)).toMatch(/before this run/);
+    expect(putProblem([{ ...post, title: 'Other' }], 'a-post', 'A post: with a colon', started)).toMatch(/has title/);
+    expect(putProblem({ code: 'x' }, 'a-post', 'A post', started)).toMatch(/not return a list/);
   });
 });

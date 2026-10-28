@@ -36,7 +36,7 @@ function Byline({ post }: { post: BlogPost }) {
   const date = formatDate(post.date);
   return (
     <p class="blog-meta">
-      {date && <time dateTime={`${post.date}Z`}>{date}</time>}
+      {date && <time dateTime={post.date}>{date}</time>}
       {date && post.author && <span aria-hidden="true"> · </span>}
       {post.author && <span>{post.author}</span>}
     </p>
