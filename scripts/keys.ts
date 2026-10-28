@@ -1,5 +1,5 @@
 // Generates the course server's Ed25519 connector key into an env file. Never prints a secret.
-import { createPrivateKey, createPublicKey, generateKeyPairSync } from 'node:crypto';
+import { createHash, createPrivateKey, createPublicKey, generateKeyPairSync, randomBytes } from 'node:crypto';
 import { chmodSync, existsSync, readFileSync, writeFileSync } from 'node:fs';
 
 const KEY = 'CONNECTOR_SIGNING_KEY';
@@ -49,7 +49,37 @@ export function generateKeys(envFile = '.env.server'): { publicKeyB64: string } 
   return { publicKeyB64: rawPublicKeyB64(priv) };
 }
 
+/** Writes LRS_KEY=course-server and a random LRS_SECRET only when absent. Returns the hex SHA-256 of the secret. */
+export function generateLrsKey(envFile = '.env.server'): { secretSha256: string } {
+  let text = existsSync(envFile) ? readFileSync(envFile, 'utf8') : '';
+  let changed = false;
+  if (!readValue(text, 'LRS_KEY')) {
+    text = setValue(text, 'LRS_KEY', 'course-server');
+    changed = true;
+  }
+  if (!readValue(text, 'LRS_SECRET')) {
+    text = setValue(text, 'LRS_SECRET', randomBytes(32).toString('hex'));
+    changed = true;
+  }
+  if (changed) {
+    writeFileSync(envFile, text, { mode: 0o600 });
+    chmodSync(envFile, 0o600);
+  }
+  return { secretSha256: readLrsSecretSha256(envFile) };
+}
+
+/** Hex SHA-256 of LRS_SECRET in an env file; throws if it is absent. The secret is never returned. */
+export function readLrsSecretSha256(envFile: string): string {
+  const secret = readValue(existsSync(envFile) ? readFileSync(envFile, 'utf8') : '', 'LRS_SECRET');
+  if (!secret) throw new Error(`LRS_SECRET is not set in ${envFile}; run: npx tsx scripts/keys.ts lrs`);
+  return createHash('sha256').update(secret).digest('hex');
+}
+
 if (process.argv[1]?.endsWith('keys.ts')) {
-  const { publicKeyB64 } = generateKeys(process.argv[2] ?? '.env.server');
-  console.log(`Public key (safe to share): ${publicKeyB64}`);
+  if (process.argv[2] === 'lrs') {
+    console.log(`LRS secret SHA-256 (safe to share): ${generateLrsKey(process.argv[3] ?? '.env.server').secretSha256}`);
+  } else {
+    const { publicKeyB64 } = generateKeys(process.argv[2] ?? '.env.server');
+    console.log(`Public key (safe to share): ${publicKeyB64}`);
+  }
 }

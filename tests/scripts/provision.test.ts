@@ -3,8 +3,9 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { chmodSync } from 'node:fs';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
-import { generateKeys, readConnectorEnv } from '../../scripts/keys';
-import { provisionSpaceA } from '../../scripts/provision';
+import { createHash } from 'node:crypto';
+import { generateKeys, generateLrsKey, readConnectorEnv } from '../../scripts/keys';
+import { LRS_STATUS_URL, lrsStatus, provisionSpaceA, provisionSpaceB } from '../../scripts/provision';
 import { httpSpacefastApi, type SpacefastApi } from '../../scripts/lib/spacefast';
 import { ConnectorError, ConnectorUnavailable, type LedgerStatus } from '../../functions/_lib/ledger/connector';
 
@@ -118,6 +119,115 @@ describe('provisionSpaceA', () => {
     } finally {
       rmSync(dir, { recursive: true, force: true });
     }
+  });
+});
+
+const HASH = createHash('sha256').update('lrs-secret-value-123456').digest('hex');
+const cfgB = { spaceId: 'spc_lrs', ledgerZipUrl: 'https://example.test/learning-ledger.zip', lrsSecretSha256: HASH };
+const SCOPES = '--scopes=all,void,courses/write,badges/claim-links,records/view-links,actors/erase';
+
+describe('provisionSpaceB', () => {
+  it('issues the exact arg arrays in order', async () => {
+    const f = fake({ active: ['lwr-spike'] });
+    const report = await provisionSpaceB(f.api, async () => EMPTY, cfgB);
+    expect(f.installs()).toEqual([
+      ['plugin', 'deactivate', 'lwr-spike'],
+      ['plugin', 'install', cfgB.ledgerZipUrl, '--activate', '--force'],
+      ['learning-ledger', 'role', 'enable', 'lrs'],
+      ['learning-ledger', 'client', 'create', '--id=course-server', '--secret-sha256=' + HASH, SCOPES],
+    ]);
+    expect(report.every((s) => s.state === 'done')).toBe(true);
+  });
+
+  it('skips steps the status already reports', async () => {
+    const f = fake();
+    const status: LedgerStatus = { ...EMPTY, versions: { plugin: '1.0.0' }, roles: ['lrs'] };
+    const report = await provisionSpaceB(f.api, async () => status, cfgB);
+    // spike inactive, ledger and role reported, client exists (the update probe succeeds)
+    expect(f.installs()).toEqual([['learning-ledger', 'client', 'update', 'course-server', SCOPES]]);
+    expect(report.map((s) => s.state)).toEqual(['skipped', 'skipped', 'skipped', 'skipped']);
+  });
+
+  it('creates the client when the role is on but the client is missing', async () => {
+    const f = fake({ failOn: 'learning-ledger client update course-server ' + SCOPES });
+    const status: LedgerStatus = { ...EMPTY, versions: { plugin: '1.0.0' }, roles: ['lrs'] };
+    const report = await provisionSpaceB(f.api, async () => status, cfgB);
+    expect(report.at(-1)).toMatchObject({ name: 'client', state: 'done' });
+    expect(f.installs().at(-1)![2]).toBe('create');
+  });
+
+  it('stops on the first failed step', async () => {
+    const f = fake({ failOn: 'learning-ledger role enable lrs' });
+    const report = await provisionSpaceB(f.api, async () => EMPTY, cfgB);
+    expect(report.map((s) => [s.name, s.state])).toEqual([['deactivate-spike', 'skipped'], ['ledger', 'done'], ['role', 'failed']]);
+    expect(f.installs().some((a) => a[1] === 'client')).toBe(false);
+  });
+
+  it('treats a 404 status as nothing installed; any other status error runs nothing', async () => {
+    const ok = await provisionSpaceB(fake().api, async () => { throw new ConnectorError(404, 'x'); }, cfgB);
+    expect(ok.find((s) => s.name === 'ledger')!.state).toBe('done');
+    const f = fake();
+    const bad = await provisionSpaceB(f.api, async () => { throw new ConnectorError(500, 'x'); }, cfgB);
+    expect(bad).toEqual([{ name: 'status', state: 'failed' }]);
+    expect(f.calls).toEqual([]);
+  });
+
+  it('puts no secret in any argument, only the SHA-256 of LRS_SECRET', async () => {
+    const dir = mkdtempSync(join(tmpdir(), 'prov-b-'));
+    try {
+      const envFile = join(dir, '.env.server');
+      writeFileSync(envFile, 'ADMIN_TOKEN=adm-secret-123456\n');
+      const { secretSha256 } = generateLrsKey(envFile);
+      const secret = /^LRS_SECRET=(.+)$/m.exec(readFileSync(envFile, 'utf8'))![1];
+      const f = fake({ active: ['lwr-spike'] });
+      await provisionSpaceB(f.api, async () => EMPTY, { ...cfgB, lrsSecretSha256: secretSha256 });
+      const all = f.calls.flat().join('\n');
+      expect(all).not.toContain(secret);
+      expect(all).not.toContain('adm-secret-123456');
+      expect(all).toContain('--secret-sha256=' + secretSha256);
+    } finally {
+      rmSync(dir, { recursive: true, force: true });
+    }
+  });
+});
+
+describe('lrsStatus', () => {
+  const mk = (status: number, body: unknown) =>
+    (async (url: string) => { expect(url).toBe(LRS_STATUS_URL); return new Response(JSON.stringify(body), { status }); }) as unknown as typeof fetch;
+  it('maps the public status route and throws ConnectorError on non-2xx', async () => {
+    const s = await lrsStatus(mk(200, { plugin_version: '1.2.3', roles: ['lrs'], sodium: 'native' }));
+    expect(s.versions).toEqual({ plugin: '1.2.3' });
+    expect(s.roles).toEqual(['lrs']);
+    await expect(lrsStatus(mk(404, {}))).rejects.toMatchObject({ status: 404 });
+  });
+});
+
+describe('generateLrsKey', () => {
+  let dir: string;
+  beforeEach(() => { dir = mkdtempSync(join(tmpdir(), 'lrs-')); });
+  afterEach(() => rmSync(dir, { recursive: true, force: true }));
+
+  it('writes LRS_KEY and a random LRS_SECRET once, 0600, returns only the hash, stable on re-run', () => {
+    const f = join(dir, '.env.server');
+    writeFileSync(f, 'ADMIN_TOKEN=x\n');
+    chmodSync(f, 0o644);
+    const a = generateLrsKey(f);
+    const text = readFileSync(f, 'utf8');
+    const secret = /^LRS_SECRET=([0-9a-f]{64})$/m.exec(text)![1];
+    expect(text).toContain('LRS_KEY=course-server');
+    expect(text).toContain('ADMIN_TOKEN=x');
+    expect(a).toEqual({ secretSha256: createHash('sha256').update(secret).digest('hex') });
+    expect(JSON.stringify(a)).not.toContain(secret);
+    expect(statSync(f).mode & 0o777).toBe(0o600);
+    expect(generateLrsKey(f)).toEqual(a);
+    expect(readFileSync(f, 'utf8')).toBe(text);
+  });
+
+  it('keeps an existing secret and fills only what is missing', () => {
+    const f = join(dir, '.env.server');
+    writeFileSync(f, 'LRS_SECRET=mine\n');
+    expect(generateLrsKey(f).secretSha256).toBe(createHash('sha256').update('mine').digest('hex'));
+    expect(readFileSync(f, 'utf8')).toContain('LRS_KEY=course-server');
   });
 });
 
