@@ -3,8 +3,8 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { cleanup, render } from '@testing-library/preact';
 
-const flags = vi.hoisted(() => ({ agent: true, serverEvents: true, sessions: true, wordpressContent: false, senseiLearners: false, agentOnStandard: false }));
-vi.mock('../../src/config', () => ({ FEATURES: flags, REPO_URL: 'https://github.com/derintolu/learn-wp-reimagined' }));
+const flags = vi.hoisted(() => ({ agent: true, serverEvents: true, sessions: true, wordpressContent: false, senseiLearners: false, agentOnStandard: false, officialRecord: false }));
+vi.mock('../../src/config', () => ({ FEATURES: flags, phaseOn: () => false, REPO_URL: 'https://github.com/derintolu/learn-wp-reimagined' }));
 
 import { Home } from '../../src/pages/Home';
 import { HowItWorks } from '../../src/pages/HowItWorks';
