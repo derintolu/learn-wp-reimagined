@@ -180,6 +180,13 @@ describe('LrsClient', () => {
     }
   });
 
+  it('throws LrsUnavailable on 429 and 408, so callers back off instead of giving up', async () => {
+    for (const status of [429, 408]) {
+      const f = fake(new Response(null, { status, headers: { 'Retry-After': '1' } }));
+      await expect(new LrsClient(env, f.fn).putStatement(stmt)).rejects.toBeInstanceOf(LrsUnavailable);
+    }
+  });
+
   it('sets a 3 s timeout signal and refuses redirects', async () => {
     const spy = vi.spyOn(AbortSignal, 'timeout');
     const f = fake(new Response(null, { status: 204 }));

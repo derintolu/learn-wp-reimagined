@@ -3,12 +3,13 @@ import { LRS_API, LRS_XAPI } from '../../functions/_lib/config';
 /**
  * An in-memory stand-in for Learning Ledger's LRS, installed as the global fetch. `down` answers every call 503;
  * `hang` never answers (the call ends only when the client's timeout aborts it); `rejectIds` answers 400 to a
- * POST holding one of those statement ids and to a PUT of one. A statements GET returns the stored ones, by agent.
+ * POST holding one of those statement ids and to a PUT of one; `limited` answers every call 429 (rate limited). A statements GET returns the stored ones, by agent.
  */
 export function fakeLrs() {
   const lrs = {
     down: false,
     hang: false,
+    limited: false,
     rejectIds: new Set<string>(),
     statements: [] as any[],
     state: new Map<string, unknown>(),
@@ -22,6 +23,7 @@ export function fakeLrs() {
       const method = init?.method ?? 'GET';
       lrs.calls.push({ method, url });
       if (lrs.down) return new Response(null, { status: 503 });
+      if (lrs.limited) return new Response(null, { status: 429, headers: { 'Retry-After': '1' } });
       if (lrs.hang) {
         return new Promise<Response>((_, reject) => init?.signal?.addEventListener('abort', () => reject(new DOMException('aborted', 'AbortError'))));
       }

@@ -125,6 +125,8 @@ describe('provisionSpaceA', () => {
 const HASH = createHash('sha256').update('lrs-secret-value-123456').digest('hex');
 const cfgB = { spaceId: 'spc_lrs', ledgerZipUrl: 'https://example.test/learning-ledger.zip', lrsSecretSha256: HASH };
 const SCOPES = '--scopes=all,void,courses/write,badges/claim-links,records/view-links,actors/erase';
+// Every learner shares the one course-server client, so it is in Learning Ledger's bulk class, not the default 20/s.
+const RATE = '--rate-class=bulk';
 
 describe('provisionSpaceB', () => {
   it('issues the exact arg arrays in order', async () => {
@@ -134,7 +136,7 @@ describe('provisionSpaceB', () => {
       ['plugin', 'deactivate', 'lwr-spike'],
       ['plugin', 'install', cfgB.ledgerZipUrl, '--activate', '--force'],
       ['learning-ledger', 'role', 'enable', 'lrs'],
-      ['learning-ledger', 'client', 'create', '--id=course-server', '--secret-sha256=' + HASH, SCOPES],
+      ['learning-ledger', 'client', 'create', '--id=course-server', '--secret-sha256=' + HASH, SCOPES, RATE],
     ]);
     expect(report.every((s) => s.state === 'done')).toBe(true);
   });
@@ -144,12 +146,12 @@ describe('provisionSpaceB', () => {
     const status: LedgerStatus = { ...EMPTY, versions: { plugin: '1.0.0' }, roles: ['lrs'] };
     const report = await provisionSpaceB(f.api, async () => status, cfgB);
     // spike inactive, ledger and role reported, client exists (the update probe succeeds)
-    expect(f.installs()).toEqual([['learning-ledger', 'client', 'update', 'course-server', SCOPES]]);
+    expect(f.installs()).toEqual([['learning-ledger', 'client', 'update', 'course-server', SCOPES, RATE]]);
     expect(report.map((s) => s.state)).toEqual(['skipped', 'skipped', 'skipped', 'skipped']);
   });
 
   it('creates the client when the role is on but the client is missing', async () => {
-    const f = fake({ failOn: 'learning-ledger client update course-server ' + SCOPES });
+    const f = fake({ failOn: `learning-ledger client update course-server ${SCOPES} ${RATE}` });
     const status: LedgerStatus = { ...EMPTY, versions: { plugin: '1.0.0' }, roles: ['lrs'] };
     const report = await provisionSpaceB(f.api, async () => status, cfgB);
     expect(report.at(-1)).toMatchObject({ name: 'client', state: 'done' });

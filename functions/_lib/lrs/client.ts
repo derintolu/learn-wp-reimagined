@@ -20,7 +20,10 @@ export interface BadgeSummary {
   created_at: string;
 }
 
-/** The LRS did not answer in time, answered 5xx, or has no credentials here. Callers queue and retry. */
+/**
+ * The LRS did not answer in time, answered 5xx, 429 (rate limited) or 408, or has no credentials here.
+ * Callers queue and retry; nothing is given up on.
+ */
 export class LrsUnavailable extends Error {
   constructor(message = 'the LRS is unavailable') {
     super(message);
@@ -71,7 +74,7 @@ export class LrsClient {
     } catch {
       throw new LrsUnavailable('the LRS did not answer');
     }
-    if (res.status >= 500) throw new LrsUnavailable(`the LRS failed (HTTP ${res.status})`);
+    if (res.status >= 500 || res.status === 429 || res.status === 408) throw new LrsUnavailable(`the LRS failed (HTTP ${res.status})`);
     return res;
   }
 

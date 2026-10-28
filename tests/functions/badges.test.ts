@@ -99,6 +99,15 @@ describe('GET /api/badges', () => {
     expect(await (await call(list, cookie)).json()).toEqual([]);
   });
 
+  it('is rate limited per learner, before the LRS is asked', async () => {
+    for (let i = 0; i < 30; i++) expect((await call(list, cookie)).status).toBe(200);
+    const asked = vi.mocked(fetch).mock.calls.length;
+    const res = await call(list, cookie);
+    expect(res.status).toBe(429);
+    expect(((await res.json()) as any).error.code).toBe('rate-limited');
+    expect(vi.mocked(fetch).mock.calls.length).toBe(asked);
+  });
+
   it('is 503 when the LRS is down', async () => {
     vi.stubGlobal('fetch', vi.fn(async () => new Response(null, { status: 503 })));
     expect((await call(list, cookie)).status).toBe(503);

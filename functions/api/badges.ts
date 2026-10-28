@@ -9,6 +9,7 @@ import { ensureRecordSchema } from '../_lib/db';
 import { LrsClient, LrsError, LrsUnavailable } from '../_lib/lrs/client';
 import { auIdOf } from '../_lib/record/official';
 import { getRegistration } from '../_lib/record/registration';
+import { rateLimit } from '../_lib/ratelimit';
 import { readSession } from '../_lib/session/session';
 import { activityIds } from '../../vendor/course-xapi-mcp/core/constants';
 import { XAPI_BASE } from '../../src/shared/xapi';
@@ -27,6 +28,8 @@ export const needSession = () => error(401, 'no-session', 'Start a session first
 export const lrsDown = () => error(503, 'lrs-unavailable', 'Badges are unavailable right now. Please try again shortly.');
 
 const BADGE_PREFIX = `${XAPI_BASE}/badges/`;
+/** GET /api/badges reads the LRS, whose rate bucket every learner shares; keyed per learner, not per address. */
+export const BADGES_PER_10_MIN = 30;
 
 export const GET: Handler = (req, { env }) =>
   guarded(async () => {
@@ -34,6 +37,9 @@ export const GET: Handler = (req, { env }) =>
     const now = Date.now();
     const session = await readSession(req, env, now);
     if (!session) return needSession();
+    if (!(await rateLimit(env.DB, `badges:${session.actorName}`, now, BADGES_PER_10_MIN, 600_000))) {
+      return error(429, 'rate-limited', 'You are going a little fast. Please wait a few minutes and try again.');
+    }
     try {
       const content = getContent();
       const badges = await new LrsClient(env).listBadges(await getRegistration(env, session));

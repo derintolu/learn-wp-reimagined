@@ -120,6 +120,22 @@ describe('outbox', () => {
     expect(lrs.posts.length).toBe(posts);
   });
 
+  it('a rate-limited LRS (429) backs the rows off and never dead-letters them', async () => {
+    const log = vi.spyOn(console, 'error').mockImplementation(() => {});
+    await enqueue(env, [stmt(1), stmt(2)], NOW);
+    lrs.limited = true;
+    let t = NOW;
+    for (let i = 0; i < DEAD_LETTER_AFTER + 2; i++) {
+      expect(await drain(env, t, 800)).toEqual({ sent: 0, left: 2 });
+      t = (await rows())[0].next_at;
+    }
+    expect(log).not.toHaveBeenCalled();
+    // Backed off as a batch: one POST per drain, no fallback to one PUT per statement.
+    expect(lrs.calls.every((c) => c.method === 'POST')).toBe(true);
+    lrs.limited = false;
+    expect(await drain(env, t, 800)).toEqual({ sent: 2, left: 0 });
+  });
+
   it('a rejected statement does not hold back the rest of its batch', async () => {
     await enqueue(env, [stmt(1), stmt(2), stmt(3)], NOW);
     lrs.rejectIds.add(stmt(2).id);

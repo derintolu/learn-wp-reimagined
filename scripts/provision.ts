@@ -114,6 +114,11 @@ export interface SpaceBConfig {
 
 export const LRS_STATUS_URL = 'https://lrs.sqwrlz.com/wp-json/learning-ledger/v1/status';
 export const LRS_SCOPES = 'all,void,courses/write,badges/claim-links,records/view-links,actors/erase';
+/**
+ * Learning Ledger rate-limits each client (class-authenticator.php; default 20 per second, burst 100). Every
+ * learner's drains, State syncs and record reads share the one course-server client, so it is in the bulk class.
+ */
+export const LRS_RATE_CLASS = 'bulk';
 
 /** Reads the LRS Space's public Learning Ledger status route (no auth). A non-2xx response is a ConnectorError. */
 export async function lrsStatus(fetchFn: typeof fetch = fetch, url = LRS_STATUS_URL): Promise<LedgerStatus> {
@@ -134,17 +139,18 @@ export async function provisionSpaceB(
   const id = cfg.clientId ?? KEY_ID;
   const run = (args: string[]) => api.wpCli(cfg.spaceId, args).then((r) => r.ok);
   const scopes = `--scopes=${LRS_SCOPES}`;
+  const rate = `--rate-class=${LRS_RATE_CLASS}`;
   const steps: Step[] = [
     // Space B is a copy of the spike space; the spike plugin must not run beside the ledger.
     { name: 'deactivate-spike', args: ['plugin', 'deactivate', 'lwr-spike'], skip: async () => !(await run(['plugin', 'is-active', 'lwr-spike'])) },
     { name: 'ledger', args: ['plugin', 'install', cfg.ledgerZipUrl, '--activate', '--force'], skip: (s) => 'plugin' in s.versions },
     { name: 'role', args: ['learning-ledger', 'role', 'enable', 'lrs'], skip: (s) => s.roles.includes('lrs') },
-    // The status route does not list clients, and `client create` fails on a duplicate. A scopes-only
-    // update succeeds only when the client exists (and re-applies the same scopes), so it is the probe.
+    // The status route does not list clients, and `client create` fails on a duplicate. An update of the
+    // scopes and rate class succeeds only when the client exists (and re-applies them), so it is the probe.
     {
       name: 'client',
-      args: ['learning-ledger', 'client', 'create', `--id=${id}`, `--secret-sha256=${cfg.lrsSecretSha256}`, scopes],
-      skip: (s) => s.roles.includes('lrs') && run(['learning-ledger', 'client', 'update', id, scopes]),
+      args: ['learning-ledger', 'client', 'create', `--id=${id}`, `--secret-sha256=${cfg.lrsSecretSha256}`, scopes, rate],
+      skip: (s) => s.roles.includes('lrs') && run(['learning-ledger', 'client', 'update', id, scopes, rate]),
     },
   ];
   return runSteps(steps, statusOr404(status), run);
