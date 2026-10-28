@@ -14,6 +14,7 @@ import { PathCards } from '../../src/components/PathCards';
 import { tidy } from '../../src/components/PlacementChat';
 import { getStatus, placement } from '../../src/ai/client';
 import { content } from '../../src/content';
+import { MCP_URL } from '../../src/shared/course-meta';
 import { setRecordManager } from '../../src/record/useRecord';
 import { setPlaygroundImporter } from '../../src/studio/previewClient';
 import type { RecordManager } from '../../src/record/store';
@@ -397,37 +398,102 @@ describe('PathCards', () => {
 });
 
 describe('Home', () => {
-  it('renders the spec bands in order', async () => {
+  const HEADLINE = 'Learn WordPress in the AI you already use.';
+  const main = () => document.querySelector('main')!;
+
+  it('leads with the connect offer, then the paths, the studio, what is being built and the concept', () => {
     render(<App />);
-    const titles = Array.from(document.querySelectorAll('main > section h1, main > section .split__title')).map(
+    const titles = Array.from(main().querySelectorAll(':scope > section h1, :scope > section > .wrap h2, :scope > section > .wrap > div > h2')).map(
       (h) => h.textContent,
     );
-    expect(titles[0]).toBe('Learn WordPress, your way.');
-    expect(titles.slice(1)).toEqual([
-      'Three ways in',
-      'Continue in the agent you already use',
-      'How this works',
+    expect(titles).toEqual([
+      HEADLINE,
+      'Three steps to start',
+      'Your AI becomes the tutor',
+      'Three paths',
+      'Or learn here, in your browser',
+      "What's being built",
+      'An unofficial concept',
     ]);
-    const how = document.getElementById('how-title')!.closest('section')!;
-    expect(within(how).getByRole('link', { name: 'More on how this works' }).getAttribute('href')).toBe('/how-it-works');
   });
 
-  it('does not claim features that are not live yet', () => {
+  it('makes connecting the primary action and the studio a secondary link', () => {
     render(<App />);
-    const text = document.querySelector('main')!.textContent!;
-    expect(text).toContain('is also a remote MCP server');
-    expect(text).not.toContain('will also be a remote MCP server');
-    expect(screen.getByRole('link', { name: 'Connect your agent' }).getAttribute('href')).toBe('/connect');
-    expect(text).toContain('Every path has a moment');
-    expect(text).not.toContain('The block theme path has a moment');
+    const hero = document.getElementById('hero-title')!.closest('section')!;
+    const primary = within(hero).getByRole('link', { name: 'Connect your AI' });
+    expect(primary.getAttribute('href')).toBe('/connect');
+    expect(primary.classList.contains('button')).toBe(true);
+    const studio = within(hero).getByRole('link', { name: 'Or try a lesson in your browser' });
+    expect(studio.getAttribute('href')).toBe('#studio');
+    expect(studio.classList.contains('button')).toBe(false);
+    expect(document.getElementById('studio')).toBeTruthy();
   });
 
-  it('never skips a heading level inside the hero card', async () => {
+  it('shows the real connect steps with a copyable connector URL', async () => {
+    const writeText = vi.fn().mockResolvedValue(undefined);
+    Object.defineProperty(navigator, 'clipboard', { value: { writeText }, configurable: true });
+    render(<App />);
+    const steps = screen.getByRole('region', { name: 'Three steps to start' });
+    const items = within(steps).getAllByRole('listitem');
+    expect(items).toHaveLength(3);
+    expect(items[0].textContent).toContain('Copy the connector URL.');
+    expect(items[1].textContent).toContain('custom connector, with no sign-in');
+    expect(items[2].textContent).toContain('ask it to teach you the course');
+    expect(within(steps).getByText(MCP_URL)).toBeTruthy();
+    fireEvent.click(within(steps).getByRole('button', { name: 'Copy connector url' }));
+    await waitFor(() => expect(writeText).toHaveBeenCalledWith(MCP_URL));
+    expect(within(steps).getByRole('link', { name: /Setup for Claude, ChatGPT/ }).getAttribute('href')).toBe('/connect');
+  });
+
+  it('keeps the approved privacy sentence for the agent record', () => {
+    render(<App />);
+    expect(main().textContent).toContain(
+      'When you take the course into an agent, the server keeps your progress under a random record handle that only you hold. It stores no personal data, expires after 30 days without use, and you can delete it at any time from Connect your agent.',
+    );
+  });
+
+  it('labels what is not live yet and does not claim it as running', () => {
+    render(<App />);
+    const next = document.getElementById('next-title')!.closest('section')!;
+    expect(next.textContent).toContain('not live yet');
+    expect(next.textContent).toContain('None of this runs on the site today.');
+    for (const planned of ['course-xapi-mcp', 'Learning Ledger', 'Open Badges 3.0', 'Sensei']) {
+      expect(next.textContent).toContain(planned);
+    }
+    // Outside the "being built" band the page names none of the planned pieces.
+    const rest = Array.from(main().querySelectorAll(':scope > section'))
+      .filter((s) => s !== next)
+      .map((s) => s.textContent)
+      .join(' ');
+    for (const planned of ['course-xapi-mcp', 'Learning Ledger', 'Badge', 'Sensei', 'cmi5', 'LRS']) {
+      expect(rest).not.toContain(planned);
+    }
+    expect(rest).toContain("hasn't been tried inside each of these apps yet");
+  });
+
+  it('links the paths, How this works and the proposal lower down', () => {
+    render(<App />);
+    const paths = document.getElementById('paths')!;
+    expect(paths.querySelectorAll('.path-card')).toHaveLength(3);
+    expect(paths.textContent).toContain('Every path has at least one moment');
+    const concept = document.getElementById('how-title')!.closest('section')!;
+    expect(within(concept).getByRole('link', { name: 'How this works' }).getAttribute('href')).toBe('/how-it-works');
+    expect(within(concept).getByRole('link', { name: 'The proposal' }).getAttribute('href')).toBe('/proposal');
+  });
+
+  it('never skips a heading level', () => {
+    render(<App />);
+    const levels = Array.from(main().querySelectorAll('h1, h2, h3, h4')).map((h) => Number(h.tagName[1]));
+    expect(levels[0]).toBe(1);
+    levels.forEach((l, i) => i > 0 && expect(l - levels[i - 1]).toBeLessThanOrEqual(1));
+  });
+
+  it('never skips a heading level inside the studio chat card', async () => {
     place.mockResolvedValue({ ok: true, data: { reply: 'Got it.', placement: PLACED } });
     render(<App />);
     await send('I build sites with CSS');
     await screen.findByRole('button', { name: 'Start here' });
-    expect(document.querySelector('.hero h3')).toBeNull();
+    expect(document.querySelector('.home-studio .hero__chat h3')).toBeNull();
     expect(document.querySelector('.placement-card h2')).toBeTruthy();
     await waitFor(() => expect(status).toHaveBeenCalled());
   });

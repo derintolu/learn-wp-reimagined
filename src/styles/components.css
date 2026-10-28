@@ -348,8 +348,46 @@
 @media (max-width: 1100px) { .hero__doodle { display: none; } }
 @media (max-width: 860px) {
   .hero__grid { grid-template-columns: minmax(0, 1fr); }
-  /* on one column the chat comes straight after the intro, so the jump link only gets in its way */
-  .hero__actions { display: none; }
+}
+.hero__actions { align-items: center; gap: 0.75rem 1.5rem; }
+.hero__alt { font-weight: 500; }
+
+/* ---------- Home: the three connect steps ---------- */
+
+.connect-steps {
+  padding: clamp(1.25rem, 0.8rem + 1.5vw, 2rem);
+  background: var(--charcoal-2);
+  border: 1px solid var(--rule-dark);
+  border-radius: 1.5rem;
+}
+.connect-steps__title {
+  font-size: var(--step-2);
+  color: var(--on-dark);
+  padding-bottom: 1rem;
+  border-bottom: 1px solid var(--rule-dark);
+}
+.connect-steps__list { list-style: none; margin: 0; padding: 0; counter-reset: step; }
+.connect-steps__list li {
+  counter-increment: step;
+  display: grid;
+  grid-template-columns: 2rem minmax(0, 1fr);
+  gap: 0.75rem 0.9rem;
+  padding-block: 1.25rem;
+  border-bottom: 1px solid var(--rule-dark);
+}
+.connect-steps__list li::before {
+  content: counter(step);
+  font: 500 var(--step-2) / 1 var(--font-display);
+  color: var(--wp-blue-light);
+}
+.connect-steps__list p { margin: 0; color: var(--on-dark); }
+.connect-steps__list .copy-field { grid-column: 2; }
+.connect-steps .copy-field__label { color: var(--on-dark-muted); }
+.connect-steps .copy-field__value { color: var(--ink); border-color: var(--rule-dark); }
+.connect-steps__more { margin: 1.25rem 0 0; font-weight: 500; }
+@media (max-width: 520px) {
+  /* the URL gets the card's full width instead of wrapping over three lines */
+  .connect-steps__list .copy-field { grid-column: 1 / -1; }
 }
 
 /* ---------- Home: placement chat ---------- */
@@ -662,7 +700,7 @@
   .path-card__icon { width: 2.5rem; height: 2.5rem; }
 }
 
-/* ---------- Home: agent and how-it-works bands ---------- */
+/* ---------- Home: agent, studio, next and concept bands ---------- */
 
 .band--dark-2 .lede { color: var(--on-dark-muted); max-width: 46ch; }
 .band--dark-2 .swipe { --swipe: var(--wp-blue); color: #fff; }
@@ -683,25 +721,25 @@
   color: var(--on-dark);
 }
 .agent-soon { display: flex; align-items: center; flex-wrap: wrap; gap: 0.6rem 1rem; color: var(--on-dark-muted); }
+.band--light .agent-list li { color: var(--ink); border-color: var(--rule); }
 
-.how-list { list-style: none; margin: 0; padding: 0; counter-reset: how; border-top: 1px solid var(--rule); }
-.how-list li {
-  counter-increment: how;
-  display: grid;
-  grid-template-columns: 2.5rem minmax(0, 1fr);
-  gap: 0.3rem 1rem;
-  padding-block: 1.5rem;
-  border-bottom: 1px solid var(--rule);
-}
-.how-list li::before {
-  content: counter(how, decimal-leading-zero);
-  grid-row: span 2;
-  font: 500 var(--step-1) / 1.2 var(--font-display);
-  color: var(--wp-blue);
-}
-.how-list h3 { font-size: var(--step-2); }
-.how-list p { margin: 0; color: var(--ink-muted); }
-.how-more { margin-top: 1.5rem; font-weight: 500; }
+.feature-list { list-style: none; margin: 0 0 2rem; padding: 0; border-top: 1px solid var(--rule); }
+.feature-list li { padding-block: 1.4rem; border-bottom: 1px solid var(--rule); }
+.feature-list h3 { font-size: var(--step-2); margin-bottom: 0.4rem; }
+.feature-list p { margin: 0; color: var(--ink-muted); }
+.feature-list--dark { margin-top: 1.75rem; margin-bottom: 0; border-color: var(--rule-dark); }
+.feature-list--dark li { border-color: var(--rule-dark); }
+.feature-list--dark p { color: var(--on-dark-muted); }
+.home-note { color: var(--ink-muted); }
+.home-note--small { font-size: var(--step--1); }
+.split__aside { margin: 1.25rem 0 0; color: var(--ink-muted); max-width: 34ch; }
+.home-studio__fallback { margin-top: 1.25rem; color: var(--on-dark-muted); max-width: 46ch; }
+.home-studio .split__title { margin-bottom: 1.5rem; }
+.read-more { list-style: none; margin: 1.75rem 0 0; padding: 0; display: grid; gap: 1rem; }
+.read-more li { display: grid; gap: 0.2rem; }
+.read-more a { font-weight: 600; font-size: var(--step-1); }
+.read-more span { color: var(--ink-muted); }
+
 
 /* ---------- Placeholder pages ---------- */
 

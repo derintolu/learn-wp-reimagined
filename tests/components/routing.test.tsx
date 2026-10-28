@@ -35,7 +35,7 @@ afterEach(() => {
 describe('routing', () => {
   const SITE = 'Learn WordPress, reimagined';
   it.each([
-    ['/', 'Learn WordPress, your way.', SITE],
+    ['/', 'Learn WordPress in the AI you already use.', SITE],
     ['/path/x', 'Nothing here', `Page not found · ${SITE}`],
     ['/path/block-theme', 'Block theme developer', `Block theme developer · ${SITE}`],
     ['/learn/x', 'Nothing here', `Page not found · ${SITE}`],
@@ -74,7 +74,7 @@ describe('routing', () => {
     render(<App />);
     await screen.findByRole('heading', { level: 1, name: 'theme.json basics' });
     fireEvent.click(screen.getByRole('link', { name: /Learn WordPress, reimagined/ }));
-    expect((await screen.findByRole('heading', { level: 1 })).textContent).toBe('Learn WordPress, your way.');
+    expect((await screen.findByRole('heading', { level: 1 })).textContent).toBe('Learn WordPress in the AI you already use.');
     expect(document.querySelector('.site-header')).toBeTruthy();
     expect(document.querySelector('footer')).toBeTruthy();
   });
@@ -105,7 +105,7 @@ describe('hash links', () => {
     render(<App />);
     await nextFrame();
     await nextFrame();
-    expect((await screen.findByRole('heading', { level: 1 })).textContent).toBe('Learn WordPress, your way.');
+    expect((await screen.findByRole('heading', { level: 1 })).textContent).toBe('Learn WordPress in the AI you already use.');
   });
 });
 
