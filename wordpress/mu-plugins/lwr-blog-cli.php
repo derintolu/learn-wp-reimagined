@@ -2,7 +2,7 @@
 /**
  * Plugin Name: LWR Blog CLI
  * Description: `wp lwr-blog put` creates or updates a blog post by slug from base64 chunks, because a remote WP-CLI argument holds at most 4,096 characters. `GET /wp-json/lwr-blog/v1/posts` serves published posts read-only, because Spacefast hides wp/v2 content from anonymous callers.
- * Version: 0.2.0
+ * Version: 0.2.1
  * Requires PHP: 8.1
  * License: GPL-2.0-or-later
  *
@@ -44,22 +44,24 @@ function lwr_blog_rest_shape( WP_Post $post ): array {
  * @param WP_REST_Request $request The request.
  */
 function lwr_blog_rest_posts( WP_REST_Request $request ): WP_REST_Response {
-	$query = array(
-		'post_type'        => 'post',
-		'post_status'      => 'publish',
-		'has_password'     => false,
-		'posts_per_page'   => 100,
-		'orderby'          => 'date',
-		'order'            => 'DESC',
-		'no_found_rows'    => true,
-		'suppress_filters' => true,
-	);
+	global $wpdb;
+	// Spacefast's runtime filters anonymous post queries to nothing (wp/v2 answers
+	// spacefast_content_not_found), and pre_get_posts runs even with suppress_filters,
+	// so published IDs come straight from the posts table.
+	$sql  = "SELECT ID FROM {$wpdb->posts} WHERE post_type = 'post' AND post_status = 'publish' AND post_password = ''";
 	$slug = (string) $request->get_param( 'slug' );
 	if ( '' !== $slug ) {
-		$query['name']           = $slug;
-		$query['posts_per_page'] = 1;
+		$sql .= $wpdb->prepare( ' AND post_name = %s', $slug );
 	}
-	$posts    = array_map( 'lwr_blog_rest_shape', get_posts( $query ) );
+	$sql  .= ' ORDER BY post_date_gmt DESC, ID DESC LIMIT 100';
+	$ids   = $wpdb->get_col( $sql ); // phpcs:ignore WordPress.DB.PreparedSQL.NotPrepared,WordPress.DB.DirectDatabaseQuery -- fixed SQL, slug prepared above.
+	$posts = array();
+	foreach ( $ids as $id ) {
+		$post = get_post( (int) $id );
+		if ( $post instanceof WP_Post && 'publish' === $post->post_status ) {
+			$posts[] = lwr_blog_rest_shape( $post );
+		}
+	}
 	$response = new WP_REST_Response( $posts, 200 );
 	$response->header( 'Cache-Control', 'public, max-age=60, stale-while-revalidate=600' );
 	$response->header( 'Vary', 'Accept-Encoding' );

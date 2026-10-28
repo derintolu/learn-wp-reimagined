@@ -83,6 +83,7 @@ describe('packCliPlugin', () => {
     expect(php).toContain("'permission_callback' => '__return_true'");
     expect(php).toContain("'methods'             => WP_REST_Server::READABLE");
     expect(php.match(/register_rest_route\(/g)).toHaveLength(1);
-    expect(php).toContain("'post_status'      => 'publish'");
+    expect(php).toContain("post_status = 'publish' AND post_password = ''");
+    expect(php).toContain("$wpdb->prepare( ' AND post_name = %s', $slug )");
   });
 });
