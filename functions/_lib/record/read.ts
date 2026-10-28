@@ -8,6 +8,7 @@ import { getRegistration } from './registration';
 import { OFFICIAL_COURSE_ID, officialActor } from './official';
 import { STATE_IDS } from '../../../vendor/course-xapi-mcp/core/constants';
 import type { XapiStatement } from '../../../vendor/course-xapi-mcp/core/xapi/types';
+import { STATE_ID, mergeFilesDocs, parseFilesDoc } from '../../../src/shared/stateDoc';
 
 /** A cached record older than this is read again from the LRS: a backstop for statements stored after the cache filled. */
 export const RECORD_CACHE_TTL_MS = 60_000;
@@ -51,10 +52,17 @@ export async function loadStatements(env: Env, s: Session, client = new LrsClien
   return { actor, registration, statements, complete: !page.more };
 }
 
-/** The `files` of the learner's State document, or {} when there is none. */
+/**
+ * The learner's files: the studio's files document (lwr-files, where the studio and the agent both write), merged
+ * with the files in the agent's engine document (cxm-learner-state); for a file in both, the studio document's
+ * copy wins, since every agent edit is written there too. {} when there is neither.
+ */
 export async function loadFiles(client: LrsClient, actor: Actor, registration: string): Promise<Record<string, string>> {
-  const doc = await client.getState({ activityId: OFFICIAL_COURSE_ID, agent: actor, registration, stateId: STATE_IDS.learner });
-  const files = (doc?.body as { files?: unknown } | undefined)?.files;
-  if (!files || typeof files !== 'object' || Array.isArray(files)) return {};
-  return Object.fromEntries(Object.entries(files).filter((e): e is [string, string] => typeof e[1] === 'string'));
+  const key = (stateId: string) => ({ activityId: OFFICIAL_COURSE_ID, agent: actor, registration, stateId });
+  const studio = parseFilesDoc((await client.getState(key(STATE_ID.files)))?.body) ?? { files: {} };
+  const files = ((await client.getState(key(STATE_IDS.learner)))?.body as { files?: unknown } | undefined)?.files;
+  const engine = files && typeof files === 'object' && !Array.isArray(files)
+    ? Object.fromEntries(Object.entries(files).filter((e): e is [string, string] => typeof e[1] === 'string'))
+    : {};
+  return mergeFilesDocs(studio, { files: engine }).files;
 }

@@ -13,6 +13,8 @@ import { EXT_CHOSEN_BY } from '../../src/shared/xapi';
 import { issueTokens, sha256Hex } from '../../functions/_lib/oauth/store';
 import { OFFICIAL_COURSE_ID, OFFICIAL_ID_OFFSET, auIdOf, officialActor } from '../../functions/_lib/record/official';
 import { createSession, type Session } from '../../functions/_lib/session/session';
+import { getRegistration } from '../../functions/_lib/record/registration';
+import { ensureRecordSchema } from '../../functions/_lib/db';
 import { ADL_VERBS, CXM_EXT, CXM_VERBS, EXTENSION_ID, STATE_IDS, TOOL_NAMES, activityIds } from '../../vendor/course-xapi-mcp/core/constants.ts';
 import { connectMcp, routeFetch, type Era } from '../helpers/mcpClient';
 import { fakeLrs } from '../helpers/fakeLrs';
@@ -297,6 +299,63 @@ describe.each(['legacy', 'modern'] as const)('/api/mcp option 2 (%s era)', (era)
     expect(r.data.claimPage).toBe(`${CANONICAL}/badges/claim`);
     expect(JSON.stringify(r.raw)).not.toMatch(/claim-links|lrs\.sqwrlz\.com/);
     expect(lrs.calls.filter((c) => c.url.includes('claim-links'))).toEqual([]);
+  });
+});
+
+describe('/api/mcp option 2: the agent and the studio share the learner\'s files and place', () => {
+  const T = '2026-10-28T10:00:00.000Z';
+  async function studioLearner() {
+    const { session, token } = await signIn();
+    const reg = await getRegistration(env, session);
+    const key = (stateId: string) => [OFFICIAL_COURSE_ID, JSON.stringify(officialActor(session.actorName)), reg, stateId].join('|');
+    return { session, token, reg, key };
+  }
+
+  it('a learner who used the studio starts the agent at the studio\'s beat, with its files and completed lessons', async () => {
+    const { session, token, reg, key } = await studioLearner();
+    lrs.state.set(key('lwr-files'), { files: { 'theme.json': '{"studio":true}' }, times: { 'theme.json': T } });
+    lrs.state.set(key('lwr-resume'), { current: { pathId: 'block-theme', lessonId: NEXT, beatIndex: 1 }, updatedAt: T });
+    await ensureRecordSchema(db);
+    for (const verb of ['completed', 'passed'])
+      await db
+        .prepare('INSERT INTO official_outcomes (actor_name, registration, activity_id, verb, event_id) VALUES (?, ?, ?, ?, ?)')
+        .bind(session.actorName, reg, activityIds.au(auIdOf(LESSON)), verb, 'evt-studio')
+        .run();
+    const { call } = await agent('modern', token);
+    const r = await call('next_beat');
+    expect(r.isError).toBe(false);
+    expect(r.data).toMatchObject({ step: 'beat', lesson: { key: NEXT }, position: { beat: 2 } });
+    const engine = lrs.state.get(key(STATE_IDS.learner)) as any;
+    expect(engine.files).toEqual({ 'theme.json': '{"studio":true}' });
+    expect(engine.au[LESSON]).toMatchObject({ completed: true, passed: true });
+    expect(engine.registration).toBe(reg);
+  });
+
+  it('an agent edit reaches the studio document, newest per file; a later studio edit reaches the agent', async () => {
+    const { token, key } = await studioLearner();
+    lrs.state.set(key('lwr-files'), { files: { 'style.css': 'a{}' }, fileLessons: { 'style.css': LESSON }, times: { 'style.css': T } });
+    const { call } = await agent('modern', token);
+    await toBug(call);
+    expect((await call('check_code', { file: 'theme.json', content: fixedThemeJson() })).isError).toBe(false);
+    const studio = lrs.state.get(key('lwr-files')) as any;
+    expect(studio.files).toEqual({ 'style.css': 'a{}', 'theme.json': fixedThemeJson() });
+    expect(studio.fileLessons).toEqual({ 'style.css': LESSON, 'theme.json': LESSON });
+    expect(studio.times['style.css']).toBe(T);
+    expect(Date.parse(studio.times['theme.json'])).toBeGreaterThan(Date.parse(T));
+
+    // The studio edits style.css afterwards; the agent's next call works on that copy.
+    lrs.state.set(key('lwr-files'), { ...studio, files: { ...studio.files, 'style.css': 'b{}' }, times: { ...studio.times, 'style.css': new Date().toISOString() } });
+    await call('next_beat');
+    expect((lrs.state.get(key(STATE_IDS.learner)) as any).files).toEqual({ 'style.css': 'b{}', 'theme.json': fixedThemeJson() });
+    expect((lrs.state.get(key('lwr-files')) as any).files['style.css']).toBe('b{}');
+  });
+
+  it('a learner new to both still starts at placement with no files', async () => {
+    const { token, key } = await studioLearner();
+    const { call } = await agent('modern', token);
+    expect((await call('next_beat')).isError).toBe(true);
+    expect((await call('start_placement')).isError).toBe(false);
+    expect(lrs.state.has(key('lwr-files'))).toBe(false);
   });
 });
 

@@ -144,6 +144,17 @@ describe('official record routes', () => {
     expect(body.files).toEqual({ 'style.css': 'a{}' });
   });
 
+  it("export includes the studio's files (lwr-files), merged with the agent's, the studio's edit winning", async () => {
+    held = [];
+    const key = (stateId: string) => [OFFICIAL_COURSE_ID, JSON.stringify(officialActor(actorName)), REG, stateId].join('|');
+    lrs.state.set(key('lwr-files'), { files: { 'style.css': 'a{color:red}', 'theme.json': '{}' }, times: { 'style.css': '2026-10-28T10:00:00.000Z' } });
+    const body = await (await call(getExport)).json();
+    expect(body.files).toEqual({ 'style.css': 'a{color:red}', 'theme.json': '{}' });
+    // A learner who only used the studio has no engine document: their files are still exported.
+    lrs.state.delete(key(STATE_IDS.learner));
+    expect((await (await call(getExport)).json()).files).toEqual({ 'style.css': 'a{color:red}', 'theme.json': '{}' });
+  });
+
   it('view-link returns the LRS url', async () => {
     const res = await call(postViewLink, 'POST');
     expect(await res.json()).toEqual({ url: 'https://lrs.sqwrlz.com/view/abc' });
