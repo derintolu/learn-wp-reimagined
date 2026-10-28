@@ -4,7 +4,8 @@ import { LEDGER_BASE, LRS_API, LRS_XAPI } from '../../functions/_lib/config';
 import { createSqliteD1 } from '../../dev/sqliteD1';
 import { ensureSchema, ensureRecordSchema, ensureOAuthSchema } from '../../functions/_lib/db';
 import type { Env } from '../../functions/_lib/env';
-import { eraseLearner, sweep, latestDrift } from '../../functions/_lib/session/lifecycle';
+import { ERASE_AFTER_LRS, ERASE_BEFORE_LRS, eraseLearner, sweep, latestDrift } from '../../functions/_lib/session/lifecycle';
+import { readFileSync } from 'node:fs';
 import { SESSION_IDLE_MS, type Session } from '../../functions/_lib/session/session';
 import { DELETE as del } from '../../functions/api/session';
 import { SESSION_COOKIE } from '../../functions/_lib/session/session';
@@ -102,6 +103,54 @@ describe('eraseLearner', () => {
     await eraseLearner(env, s, { revokeBadges: true });
     expect(calls).toEqual([]);
     expect(await count()).toBe(0);
+  });
+
+  it('removes the cached official record', async () => {
+    const s = await addSession('abc', null, NOW);
+    await db.prepare('INSERT INTO record_cache (actor_name, body, at) VALUES (?, ?, ?)').bind('abc', '{}', NOW).run();
+    await db.prepare('INSERT INTO record_cache (actor_name, body, at) VALUES (?, ?, ?)').bind('other', '{}', NOW).run();
+    await eraseLearner(env, s, { revokeBadges: true });
+    expect((await db.prepare('SELECT actor_name FROM record_cache').all<{ actor_name: string }>()).results).toEqual([{ actor_name: 'other' }]);
+  });
+
+  it('after an LRS flag rollback, still erases a learner the LRS has seen (a cached registration)', async () => {
+    Object.assign(SERVER_FLAGS, { senseiLearners: false, lrsShadow: false });
+    const s = await addSession('abc', null, NOW);
+    await db.prepare('UPDATE sessions SET registration = ? WHERE sid_hash = ?').bind('7d3c1a2b-4e5f-4a6b-8c7d-9e0f1a2b3c4d', s.sidHash).run();
+    await recordShadowFact(env, 'abc', { lessonId: 'x', kind: 'completed' }, NOW);
+    await eraseLearner(env, s, { revokeBadges: true });
+    expect(eraseCalls()).toHaveLength(1);
+    expect((await db.prepare('SELECT COUNT(*) AS c FROM shadow_facts').first<{ c: number }>())!.c).toBe(0);
+    expect(await count()).toBe(0);
+  });
+
+  it('after a Sensei flag rollback, still deletes a learner made in WordPress', async () => {
+    Object.assign(SERVER_FLAGS, { senseiLearners: false, lrsShadow: false });
+    const s = await addSession('abc', 77, NOW);
+    await eraseLearner(env, s, { revokeBadges: true });
+    expect(calls.map((c) => c.method + ' ' + c.url.replace(LEDGER_BASE, ''))).toEqual(['DELETE /course-server/learners/77']);
+    expect(await count()).toBe(0);
+  });
+
+  it('with the flags off and the record tables never made (today), touches only the session row', async () => {
+    Object.assign(SERVER_FLAGS, { senseiLearners: false, lrsShadow: false });
+    db = createSqliteD1();
+    env = { ...env, DB: db };
+    await ensureSchema(db);
+    const s = await addSession('abc', null, NOW);
+    await eraseLearner(env, s, { revokeBadges: true });
+    expect(calls).toEqual([]);
+    expect(await count()).toBe(0);
+    expect(await db.prepare("SELECT name FROM sqlite_master WHERE name = 'lrs_outbox'").first()).toBeNull();
+  });
+
+  it('every table keyed by actor_name is erased', () => {
+    const src = readFileSync('functions/_lib/db.ts', 'utf8');
+    const tables = [...src.matchAll(/CREATE TABLE IF NOT EXISTS (\w+) \(([^']*)\)/g)].filter((m) => /\bactor_name\b/.test(m[2])).map((m) => m[1]);
+    // sessions is removed last by deleteSession; oauth_codes and oauth_tokens by revokeAllForActor.
+    const handled = new Set([...ERASE_BEFORE_LRS, ...ERASE_AFTER_LRS, 'sessions', 'oauth_codes', 'oauth_tokens']);
+    expect(tables.length).toBeGreaterThan(5);
+    expect(tables.filter((t) => !handled.has(t))).toEqual([]);
   });
 
   it('keeps the session when a step fails, so the delete can be retried', async () => {

@@ -9,7 +9,7 @@ import { revokeAllForActor } from '../oauth/store';
 import { officialActor } from '../record/official';
 import { listShadowFacts } from '../record/shadow';
 import { deleteEnrolments } from './enrol';
-import { SESSION_IDLE_MS, deleteSession, type Session } from './session';
+import { SESSION_IDLE_MS, cachedRegistration, deleteSession, type Session } from './session';
 import { activityId } from '../../../src/shared/xapi';
 
 export interface DriftReport {
@@ -22,20 +22,42 @@ export interface DriftReport {
 /** Leaves headroom under the function time limit; learners left over wait for the next run. */
 export const SWEEP_BUDGET_MS = 20_000;
 
+/** Actor-keyed rows removed before the LRS erase, so a drain cannot re-create the actor after it. */
+export const ERASE_BEFORE_LRS = ['lrs_outbox', 'au_sessions'] as const;
+/** Actor-keyed rows removed after the LRS erase. A new actor_name table must be listed here (lifecycle test). */
+export const ERASE_AFTER_LRS = ['shadow_facts', 'official_outcomes', 'carry_overs', 'record_cache'] as const;
+
+/**
+ * The learner's cached cmi5 registration, or null. The column exists only once ensureRecordSchema has run (an
+ * LRS phase was on), so a missing column means the LRS has never been asked about this learner.
+ */
+async function registrationIfAny(env: Env, s: Session): Promise<string | null> {
+  try {
+    return await cachedRegistration(env, s);
+  } catch (e) {
+    // SQLite "no such column", MySQL 1054 "Unknown column".
+    const err = e as { message?: unknown; code?: unknown; errno?: unknown } | null;
+    if (/no such column|unknown column|ER_BAD_FIELD_ERROR/i.test(`${String(err?.message ?? e)} ${String(err?.code ?? '')}`) || err?.errno === 1054) return null;
+    throw e;
+  }
+}
+
 /**
  * Erases one learner everywhere, in order: the LRS (actor and, in the LRS's listeners, badges), the Sensei learner,
  * the learner's OAuth codes and tokens, then the session row. The row goes last, so any step that throws leaves it
- * in place and the delete (or the next sweep) runs every step again. A step with its flag off is skipped; a
- * learner already gone (404) counts as done.
+ * in place and the delete (or the next sweep) runs every step again. A learner already gone (404) counts as done.
+ *
+ * Each step runs while its flag is on and also after a rollback: the LRS step whenever the session holds a cmi5
+ * registration (no statement or State document reaches the LRS without one), the Sensei step whenever the session
+ * names a WordPress user. With the flags off and neither recorded, only the OAuth rows and the session row go.
  *
  * Learning Ledger (c9b5915) ignores `revokeBadges` on POST /actors/erase: badge revocation runs in its own
  * listeners. The option is sent anyway, for when the LRS honours it.
  */
 export async function eraseLearner(env: Env, s: Session, opts: { revokeBadges: boolean }): Promise<void> {
-  if (SERVER_FLAGS.lrsShadow) {
-    // Queued statements and open AU sessions go first, so a drain cannot re-create the actor after the erase.
+  if (SERVER_FLAGS.lrsShadow || (await registrationIfAny(env, s)) !== null) {
     await ensureRecordSchema(env.DB);
-    for (const table of ['lrs_outbox', 'au_sessions']) {
+    for (const table of ERASE_BEFORE_LRS) {
       await env.DB.prepare(`DELETE FROM ${table} WHERE actor_name = ?`).bind(s.actorName).run();
     }
     try {
@@ -43,11 +65,11 @@ export async function eraseLearner(env: Env, s: Session, opts: { revokeBadges: b
     } catch (e) {
       if (!(e instanceof LrsError && e.status === 404)) throw e;
     }
-    for (const table of ['shadow_facts', 'official_outcomes', 'carry_overs']) {
+    for (const table of ERASE_AFTER_LRS) {
       await env.DB.prepare(`DELETE FROM ${table} WHERE actor_name = ?`).bind(s.actorName).run();
     }
   }
-  if (SERVER_FLAGS.senseiLearners && s.wpUserId != null) {
+  if (s.wpUserId != null) {
     try {
       await new ConnectorClient(env).deleteLearner(s.wpUserId);
     } catch (e) {
