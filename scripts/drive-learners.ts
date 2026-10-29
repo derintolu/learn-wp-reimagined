@@ -9,8 +9,10 @@
 // batched ahead of the next event. Together the default three cover placement with a waived lesson, opening,
 // beats and leaving, checkpoints answered with the authored fallback options (learner-chosen, no decisionId; the
 // skip no fallback offers is refused, which is intended), planted bugs caught with the snapshot's reference fix,
-// a code checkpoint and completions. No AI endpoint is called. The last learner deletes itself
-// (DELETE /api/session) before the report; the others are deleted after it, unless --keep.
+// a code checkpoint and completions. No AI endpoint is called. The report is read while every learner is still
+// there (a delete erases a learner's shadow facts), so each one is compared; then every learner is deleted
+// (DELETE /api/session), unless --keep. The admin route reports by UTC day only, so the comparison covers every
+// actor recorded that day, not just this run's learners.
 // Exit 1 on an unexpected event result, a shadow diff, an unreadable report or a failed delete.
 import { existsSync, readFileSync } from 'node:fs';
 import { resolve } from 'node:path';
@@ -275,9 +277,8 @@ export async function drive(baseUrl: string, opts: DriveOptions): Promise<{ exit
       const l = await start(i);
       learners.push(l);
       await run(l, learnerScript(i, course));
-      if (i === n - 1 && !opts.keep) await remove(l);
     }
-    const kept = learners.filter((l) => !l.deleted && l.ok > 0).length;
+    const driven = learners.filter((l) => l.ok > 0).length;
     let fatal = false;
     try {
       await waitForComplete(
@@ -285,7 +286,7 @@ export async function drive(baseUrl: string, opts: DriveOptions): Promise<{ exit
           const r = await readReport();
           if (r === 'fatal') return (fatal = true);
           if (r) report = r;
-          return !!r && r.diffs.length === 0 && r.actors >= kept;
+          return !!r && r.diffs.length === 0 && r.actors >= driven;
         },
         'the shadow report',
         { pollMs: opts.pollMs ?? POLL_MS, timeoutMs: opts.timeoutMs ?? DRAIN_MS, now, sleep: opts.sleep },
@@ -296,7 +297,7 @@ export async function drive(baseUrl: string, opts: DriveOptions): Promise<{ exit
     }
     if (fatal) report = null;
     else if (!report) problems.push(`shadow report could not be read`);
-    else if ((report as ShadowReport).actors < kept) problems.push(`shadow report names ${(report as ShadowReport).actors} actor(s), fewer than the ${kept} learner(s) kept`);
+    else if ((report as ShadowReport).actors < driven) problems.push(`shadow report names ${(report as ShadowReport).actors} actor(s), fewer than the ${driven} learner(s) driven`);
   } catch (e) {
     problems.push(e instanceof Error ? e.message : String(e));
   } finally {

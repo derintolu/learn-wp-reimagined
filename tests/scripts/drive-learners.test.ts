@@ -164,13 +164,20 @@ describe('drive', () => {
     expect(r.learners.every((l) => l.failed === 0 && l.ok + l.refusedAsIntended === l.sent)).toBe(true);
   });
 
-  it('deletes the last learner in its script before the report, and the others after it', async () => {
+  it('reads the report while every learner is still there, then deletes them all', async () => {
     const site = fakeSite();
-    await drive('https://site.test', { fetch: site.fetch, adminToken: TOKEN, log: quiet().log, ...clock() });
-    const firstShadow = site.calls.indexOf('GET /api/admin/shadow');
+    const seen: number[] = [];
+    const f = (async (u: string | URL | Request, i?: RequestInit) => {
+      if (new URL(String(u)).pathname === '/api/admin/shadow') seen.push(site.live.size);
+      return site.fetch(u, i);
+    }) as typeof fetch;
+    await drive('https://site.test', { fetch: f, adminToken: TOKEN, log: quiet().log, ...clock() });
+    expect(seen.length).toBeGreaterThan(0);
+    expect(seen.every((n) => n === 3)).toBe(true);
+    const lastShadow = site.calls.lastIndexOf('GET /api/admin/shadow');
     const deletes = site.calls.flatMap((c, i) => (c === 'DELETE /api/session' ? [i] : []));
     expect(deletes).toHaveLength(3);
-    expect(deletes.filter((i) => i < firstShadow)).toHaveLength(1);
+    expect(deletes.every((i) => i > lastShadow)).toBe(true);
     expect(site.live.size).toBe(0);
   });
 

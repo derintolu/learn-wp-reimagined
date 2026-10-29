@@ -206,7 +206,16 @@ describe("learner routes", () => {
       completedCourses: ["learner"],
       certificates: ["learner"],
     });
-    expect(call(f)[0]).toBe(`${base}/41/progress?program=5`);
+    expect(call(f)[0]).toMatch(new RegExp(`^${base.replace(/[.?]/g, '\\$&')}/41/progress\\?program=5&nc=[0-9a-f-]{36}$`));
+  });
+
+  it("progress sends a fresh nc on every read, so a page cache in front of WordPress never answers it", async () => {
+    const f = vi.fn(async () => new Response(JSON.stringify({ courses: [] }), { status: 200 }));
+    await client(f).progress(41, "5");
+    await client(f).progress(41, "5");
+    const nc = (f.mock.calls as unknown as [string][]).map(([u]) => new URL(u).searchParams.get("nc"));
+    expect(nc[0]).toBeTruthy();
+    expect(nc[0]).not.toBe(nc[1]);
   });
 
   it("deleteLearner DELETEs the learner", async () => {

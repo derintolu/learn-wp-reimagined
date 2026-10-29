@@ -4,7 +4,10 @@
 //
 // Each run creates a session (POST /api/session, cookie lwr_sid), completes a short lesson through
 // /api/events, polls /api/sensei every 2 s until that lesson shows complete, then deletes the learner
-// (DELETE /api/session), also on failure. Pass: p95 <= 90 000 ms. Defaults to https://learnwp.sqwrlz.com.
+// (DELETE /api/session), also on failure. /api/sensei reads the learner's Sensei progress through the signed
+// connector (GET learners/{id}/progress, a fresh nc on every read past Batcache); the probe adds its own nc too.
+// So a run measures how long a course-server statement takes to show in Sensei. Pass: p95 <= 90 000 ms.
+// Defaults to https://learnwp.sqwrlz.com.
 import { fileURLToPath } from 'node:url';
 import { resolve } from 'node:path';
 
@@ -12,7 +15,8 @@ export const DEFAULT_BASE = 'https://learnwp.sqwrlz.com';
 export const PASS_MS = 90_000;
 const POLL_MS = 2000;
 const TIMEOUT_MS = 180_000;
-const LESSON_ID = 'intro';
+/** A real lesson with no checkpoint, so a completion alone satisfies it (moveOn Completed) and Sensei marks it complete. */
+export const LESSON_ID = 'ln-publish';
 
 /** Nearest-rank 95th percentile; 0 for no samples. */
 export function p95(ms: number[]): number {
@@ -55,11 +59,10 @@ export async function waitForComplete(
   }
 }
 
-// The /api/sensei shape is not final: accept a `completed` id list or a `lessons` map with `complete`.
+/** /api/sensei names completed lessons by studio lesson id. */
 function showsComplete(body: unknown, lessonId: string): boolean {
-  const b = body as { completed?: unknown; lessons?: Record<string, { complete?: boolean }> } | null;
-  if (Array.isArray(b?.completed) && b.completed.includes(lessonId)) return true;
-  return b?.lessons?.[lessonId]?.complete === true;
+  const b = body as { completedLessons?: unknown } | null;
+  return Array.isArray(b?.completedLessons) && b.completedLessons.includes(lessonId);
 }
 
 const REQUEST_TIMEOUT_MS = 30_000;
@@ -77,15 +80,19 @@ async function once(base: string, opts: ProbeOptions, state: { leaked: number })
   }
   const headers = { cookie: sid, 'content-type': 'application/json' };
   try {
+    const eventId = crypto.randomUUID();
     const sent = await f(`${base}/api/events`, {
       method: 'POST',
       headers,
-      body: JSON.stringify({ events: [{ eventId: crypto.randomUUID(), type: 'lessonCompleted', lessonId }] }),
+      body: JSON.stringify({ learnerId: crypto.randomUUID(), events: [{ eventId, type: 'lessonCompleted', lessonId }] }),
     });
     if (!sent.ok) throw new Error(`events failed: ${sent.status}`);
+    const results = ((await sent.json().catch(() => null)) as { results?: { eventId?: string; ok?: boolean; error?: string }[] } | null)?.results;
+    const result = Array.isArray(results) ? results.find((r) => r.eventId === eventId) : undefined;
+    if (!result?.ok) throw new Error(`the server refused the completion of ${lessonId}: ${result?.error ?? 'no result'}`);
     return await waitForComplete(
       async () => {
-        const r = await f(`${base}/api/sensei`, { headers });
+        const r = await f(`${base}/api/sensei?nc=${crypto.randomUUID()}`, { headers });
         return r.ok && showsComplete(await r.json().catch(() => null), lessonId);
       },
       lessonId,

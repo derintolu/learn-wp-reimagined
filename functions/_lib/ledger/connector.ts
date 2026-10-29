@@ -131,11 +131,14 @@ export class ConnectorClient {
     );
   }
 
-  /** GET learners/{id}/progress?program=<ledger program post id>. */
+  /**
+   * GET learners/{id}/progress?program=<ledger program post id>. A fresh `nc` on every read: Batcache in front of
+   * WordPress keys on the URL, so without it a progress answer (or a 404) is served again from the cache.
+   */
   async progress(userId: number, program: string): Promise<SenseiProgress> {
     const res = await this.send(
       "GET",
-      `/course-server/learners/${userId}/progress?program=${encodeURIComponent(program)}`,
+      `/course-server/learners/${userId}/progress?program=${encodeURIComponent(program)}&nc=${crypto.randomUUID()}`,
     );
     const j = (await res.json()) as { courses?: Array<Record<string, unknown>> };
     const byId = new Map(Object.entries(this.courseIds()).map(([k, v]) => [v, k]));
