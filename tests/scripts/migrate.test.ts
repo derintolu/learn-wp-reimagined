@@ -59,7 +59,7 @@ describe('migrate', () => {
     const { connector, programs } = fakeConnector(pkgZip(yaml));
     const r = await migrate({ api, connector, spaceId: 'sp1', packageUrl: 'https://example.test/p.zip', yaml });
     expect(calls).toEqual([{ spaceId: 'sp1', args: ['learning-ledger', 'package', 'import', 'https://example.test/p.zip'] }]);
-    expect(programs).toEqual(['learn-wp-reimagined']);
+    expect(programs).toEqual(['course']);
     expect(r).toEqual({ imported: true, diffs: [] });
   });
 

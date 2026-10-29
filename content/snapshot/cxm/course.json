@@ -1,7 +1,7 @@
 {
   "allowPractice": false,
   "badgeIssuer": {
-    "claimPage": "https://learnwp.sqwrlz.com/claim",
+    "claimPage": "https://learnwp.sqwrlz.com/badges/claim",
     "signer": "course-server"
   },
   "badges": [
