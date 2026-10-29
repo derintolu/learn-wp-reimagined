@@ -52,7 +52,7 @@ const XAPI_VERSION = '2.0.0';
 export class LrsClient {
   constructor(
     private readonly env: Env,
-    private readonly fetchFn: typeof fetch = fetch,
+    private readonly fetchFn: typeof fetch = (input, init) => fetch(input, init),
   ) {}
 
   private async send(url: string, init: { method: string; headers?: Record<string, string>; body?: BodyInit | Uint8Array }): Promise<Response> {

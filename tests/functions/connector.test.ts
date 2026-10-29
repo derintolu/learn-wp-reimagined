@@ -215,4 +215,21 @@ describe("learner routes", () => {
     expect(call(f)[0]).toBe(`${base}/41`);
     expect(call(f)[1].method).toBe("DELETE");
   });
+
+  it("built without a fetchFn, calls the global fetch with no receiver (Workers)", async () => {
+    const original = globalThis.fetch;
+    globalThis.fetch = function (this: unknown) {
+      if (this !== undefined && this !== globalThis)
+        throw new TypeError("Illegal invocation");
+      return Promise.resolve(
+        new Response(JSON.stringify({ roles: [] }), { status: 200 }),
+      );
+    } as unknown as typeof fetch;
+    try {
+      const st = await new ConnectorClient(env).status();
+      expect(st.roles).toEqual([]);
+    } finally {
+      globalThis.fetch = original;
+    }
+  });
 });

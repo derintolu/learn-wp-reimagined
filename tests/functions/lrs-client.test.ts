@@ -216,4 +216,17 @@ describe('LrsClient', () => {
     }
     expect(errs[0]).toMatchObject({ name: 'LrsError', status: 401 });
   });
+
+  it('built without a fetchFn, calls the global fetch with no receiver (Workers)', async () => {
+    const original = globalThis.fetch;
+    globalThis.fetch = function (this: unknown) {
+      if (this !== undefined && this !== globalThis) throw new TypeError('Illegal invocation');
+      return Promise.resolve(new Response(null, { status: 204 }));
+    } as unknown as typeof fetch;
+    try {
+      await expect(new LrsClient(env).putStatement(stmt)).resolves.toBeUndefined();
+    } finally {
+      globalThis.fetch = original;
+    }
+  });
 });

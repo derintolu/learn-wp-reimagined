@@ -64,7 +64,7 @@ function nonce(): string {
 export class ConnectorClient {
   constructor(
     private env: Env,
-    private fetchFn: typeof fetch = fetch,
+    private fetchFn: typeof fetch = (input, init) => fetch(input, init),
   ) {}
 
   async status(): Promise<LedgerStatus> {
