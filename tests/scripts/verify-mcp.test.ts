@@ -7,6 +7,8 @@ import * as authorize from '../../functions/api/oauth/authorize';
 import * as consent from '../../functions/api/oauth/consent';
 import * as token from '../../functions/api/oauth/token';
 import * as revoke from '../../functions/api/oauth/revoke';
+import { spawn } from 'node:child_process';
+import { createServer } from 'node:http';
 import { mkdtempSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
@@ -127,7 +129,7 @@ describe('verifyMcpOAuth: the sign-in an agent does', () => {
 
   it('CLI: --complete-lesson with no value fails with the usage text and a non-zero exit, before signing in', async () => {
     const base = ['https://learn-wp-reimagined.space.fast/api/mcp', 'modern', '--oauth', '--cookie-file', '<file>'];
-    for (const argv of [[...base, '--complete-lesson'], [...base, '--complete-lesson', '--oauth']]) {
+    for (const argv of [[...base, '--complete-lesson'], [...base, '--complete-lesson', '--oauth'], [...base, '--complete-lesson', '']]) {
       const r = await cli(argv, 'x');
       expect(r.code).toBe(2);
       expect(r.printed).toContain('usage: verify-mcp.ts');
@@ -149,4 +151,51 @@ describe('verifyMcpOAuth: the sign-in an agent does', () => {
     expect(r.printed).not.toContain(sid.slice('lwr_sid='.length));
     expect(r.printed).not.toMatch(/access_token|refresh_token|code_verifier|Bearer|lwr_sid/);
   });
+
+  it('the script as a process: its real stdout and stderr carry no cookie, token, code or verifier', async () => {
+    const { cookie } = await createSession(env, Date.now());
+    const sid = cookie.split(';')[0]!;
+    // A local http server in front of the in-process routes, so the spawned script talks to a real socket.
+    // The routes know the space by its public origin; the proxy swaps it for the local one in both directions.
+    const PUBLIC = 'https://learn-wp-reimagined.space.fast';
+    let local = '';
+    const toPublic = (t: string) => t.split(local).join(PUBLIC).split(encodeURIComponent(local)).join(encodeURIComponent(PUBLIC));
+    const toLocal = (t: string) => t.split(PUBLIC).join(local).split(encodeURIComponent(PUBLIC)).join(encodeURIComponent(local));
+    const server = createServer(async (rq, rs) => {
+      const chunks: Buffer[] = [];
+      for await (const c of rq) chunks.push(c as Buffer);
+      const body = toPublic(Buffer.concat(chunks).toString('utf8'));
+      const headers = new Headers();
+      for (const [k, v] of Object.entries(rq.headers)) if (v !== undefined && k !== 'content-length') headers.set(k, toPublic(Array.isArray(v) ? v.join(', ') : v));
+      const res = await site(new URL(toPublic(rq.url!), PUBLIC), { method: rq.method, headers, ...(body.length > 0 ? { body } : {}), redirect: 'manual' });
+      const out: Record<string, string | string[]> = {};
+      res.headers.forEach((v, k) => (out[k] = toLocal(v)));
+      delete out['content-length'];
+      const cookies = res.headers.getSetCookie();
+      if (cookies.length > 0) out['set-cookie'] = cookies;
+      rs.writeHead(res.status, out);
+      rs.end(toLocal(await res.text()));
+    });
+    await new Promise<void>((ok) => server.listen(0, '127.0.0.1', ok));
+    try {
+      const port = (server.address() as { port: number }).port;
+      local = `http://127.0.0.1:${port}`;
+      const file = join(mkdtempSync(join(tmpdir(), 'vmcp-')), 'session');
+      writeFileSync(file, sid);
+      const child = spawn(join(process.cwd(), 'node_modules/.bin/tsx'), ['scripts/verify-mcp.ts', `http://127.0.0.1:${port}/api/mcp`, 'modern', '--oauth', '--cookie-file', file, '--complete-lesson', 'ln-publish'], { cwd: process.cwd() });
+      let stdout = '';
+      let stderr = '';
+      child.stdout.on('data', (d) => (stdout += d));
+      child.stderr.on('data', (d) => (stderr += d));
+      const code = await new Promise<number | null>((done) => child.on('close', done));
+      expect(stderr).toBe('');
+      expect(stdout).toContain('lesson ln-publish: 4 beats, completed in the official record');
+      expect(code).toBe(0);
+      const all = stdout + stderr;
+      expect(all).not.toContain(sid.slice('lwr_sid='.length));
+      expect(all).not.toMatch(/access_token|refresh_token|code_verifier|Bearer|lwr_sid|code=/);
+    } finally {
+      server.close();
+    }
+  }, 30_000);
 });

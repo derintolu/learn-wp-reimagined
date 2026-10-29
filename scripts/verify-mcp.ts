@@ -189,7 +189,7 @@ export async function runCli(argv: string[], out: (line: string) => void, err: (
     const i = args.indexOf(name);
     if (i < 0) return undefined;
     const v = args[i + 1];
-    if (v === undefined || v.startsWith('--')) return null;
+    if (v === undefined || v === '' || v.startsWith('--')) return null;
     args.splice(i, 2);
     return v;
   };
