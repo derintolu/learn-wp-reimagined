@@ -6,12 +6,13 @@ import { ensureRecordSchema, isDuplicateKey } from '../db';
 import { getContent } from '../content';
 import { INLINE_DRAIN_BUDGET_MS, drain, drainAfterDecide, enqueue, waitUntilOf } from '../lrs/outbox';
 import { readParts, writeParts, type PartsTable } from '../blobParts';
-import type { Session } from '../session/session';
+import { cachedRegistration, type Session } from '../session/session';
 import type { EventResult, ServerEvent } from '../../../src/shared/events';
 import type { ContentBundle } from '../../../src/shared/types';
 import { ADL_VERBS, CMI5, CXM_EXT, CXM_VERBS, activityIds } from '../../../vendor/course-xapi-mcp/core/constants';
 import type { XapiStatement } from '../../../vendor/course-xapi-mcp/core/xapi/types';
-import { lrsHealth, registrationWithin } from './registration';
+import { getRegistration, lrsHealth, registrationWithin } from './registration';
+import { LrsError, LrsUnavailable } from '../lrs/client';
 import {
   AU_IDLE_MS,
   PLACEMENT_AU_KEY,
@@ -278,12 +279,68 @@ export async function replayPending(env: Env, session: Session, registration: st
       if (body !== null) {
         const { e, r } = JSON.parse(body) as { e: ServerEvent; r: Ok };
         if (stillBuildable(ctx.bundle, e)) queued += await recordOne(env, ctx, actorName, e, r, now, queued);
-        else console.error('official record dropped a held event the course no longer has', e.type);
+        else console.error('official record dropped a held event the course no longer has', e.type, e.eventId);
       }
       await env.DB.prepare('DELETE FROM official_pending WHERE actor_name = ? AND item = ?').bind(actorName, p.item).run();
       await env.DB.prepare('DELETE FROM official_pending_parts WHERE actor_name = ? AND item = ?').bind(actorName, p.item).run();
     }
   }
+}
+
+/** Learners with held events the cron replays per run. */
+export const HELD_ACTORS_PER_RUN = 100;
+
+/**
+ * The cron's replay of held events, for learners who send no further event (ruling R52): at most
+ * HELD_ACTORS_PER_RUN learners, none started once `until` has passed. Each one's registration is the one cached
+ * on their session, else read or minted at the LRS. A learner with no session left (their data was deleted) has
+ * nothing to record into, so their held rows go. Once the LRS is unavailable, a learner it would have to be asked
+ * about waits for the next run. The number of learners replayed.
+ */
+export async function replayHeld(env: Env, until: number): Promise<number> {
+  await ensureRecordSchema(env.DB);
+  const { results: actors } = await env.DB
+    .prepare(`SELECT DISTINCT actor_name FROM official_pending ORDER BY actor_name LIMIT ${HELD_ACTORS_PER_RUN}`)
+    .all<{ actor_name: string }>();
+  let replayed = 0;
+  // Once the LRS is unavailable, only learners whose registration is cached are replayed.
+  let lrsDown = false;
+  for (const { actor_name: actorName } of actors) {
+    if (Date.now() >= until) break;
+    const row = await env.DB
+      .prepare(
+        'SELECT sid_hash, actor_name, wp_user_id, created, touched FROM sessions WHERE actor_name = ? ORDER BY CASE WHEN registration IS NULL THEN 1 ELSE 0 END, created LIMIT 1',
+      )
+      .bind(actorName)
+      .first<{ sid_hash: string; actor_name: string; wp_user_id: number | string | null; created: number | string; touched: number | string }>();
+    if (!row) {
+      await env.DB.prepare('DELETE FROM official_pending WHERE actor_name = ?').bind(actorName).run();
+      await env.DB.prepare('DELETE FROM official_pending_parts WHERE actor_name = ?').bind(actorName).run();
+      continue;
+    }
+    const session: Session = {
+      sidHash: row.sid_hash,
+      actorName: row.actor_name,
+      wpUserId: row.wp_user_id == null ? null : Number(row.wp_user_id),
+      createdAt: Number(row.created),
+      touchedAt: Number(row.touched),
+    };
+    let registration = await cachedRegistration(env, session);
+    if (!registration) {
+      if (lrsDown) continue;
+      try {
+        registration = await getRegistration(env, session);
+      } catch (e) {
+        if (e instanceof LrsUnavailable) lrsDown = true;
+        else if (e instanceof LrsError) console.error('official replay skipped: no registration', e.message);
+        else throw e;
+        continue;
+      }
+    }
+    await replayPending(env, session, registration, until);
+    replayed++;
+  }
+  return replayed;
 }
 
 /**
@@ -305,6 +362,7 @@ export async function recordOfficial(
 ): Promise<void> {
   const deadline = Date.now() + INLINE_DRAIN_BUDGET_MS;
   let later: Promise<string | null> | undefined;
+  let kept = false;
   try {
     await ensureRecordSchema(env.DB);
     const found = await registrationWithin(env, session, deadline);
@@ -318,12 +376,20 @@ export async function recordOfficial(
         // Queue times stay distinct across the batch, so the drain sends in decision order.
         queued += await recordOne(env, ctx, session.actorName, e, r, now, queued);
       }
+      kept = true;
     } else {
       await holdPending(env, session.actorName, events, results, now);
+      kept = true;
       later = registration ? Promise.resolve(registration) : found.later;
     }
   } catch (e) {
     console.error('official record failed', (e as Error)?.name, (e as Error)?.message);
+    // Not lost: held, so the next replay records it (again, if part of it was recorded: a no-op).
+    if (!kept) {
+      await holdPending(env, session.actorName, events, results, now).catch((err) =>
+        console.error('official hold failed', (err as Error)?.name, (err as Error)?.message),
+      );
+    }
   }
   const waitUntil = waitUntilOf(handlerCtx);
   if (later && waitUntil) {

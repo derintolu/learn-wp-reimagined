@@ -10,6 +10,7 @@ import { setContentForTests } from '../../functions/_lib/content';
 import { ensureRecordSchema, ensureSchema } from '../../functions/_lib/db';
 import type { Env } from '../../functions/_lib/env';
 import { POST as events } from '../../functions/api/events';
+import { GET as lrsDrain } from '../../functions/api/lrs-drain';
 import { SESSION_COOKIE, createSession, type Session } from '../../functions/_lib/session/session';
 import { INLINE_DRAIN_BUDGET_MS } from '../../functions/_lib/lrs/outbox';
 import { lrsHealth } from '../../functions/_lib/record/registration';
@@ -22,6 +23,7 @@ import { fakeLrs } from '../helpers/fakeLrs';
 const REG = '7d3c1a2b-4e5f-4a6b-8c7d-9e0f1a2b3c4d';
 const FREE = 'theme-json-basics';
 const LEARNER = '3f2b8c1e-5d4a-4e6f-8a9b-0c1d2e3f4a5b';
+const CRON = 'cron-secret-for-tests';
 
 let db: ReturnType<typeof createSqliteD1>;
 let env: Env;
@@ -59,6 +61,8 @@ const outbox = async () =>
 const pendingCount = async () =>
   Number((await db.prepare('SELECT COUNT(*) AS n FROM official_pending').first<{ n: number }>())!.n) +
   Number((await db.prepare('SELECT COUNT(*) AS n FROM official_pending_parts').first<{ n: number }>())!.n);
+const cron = () => lrsDrain(new Request('http://x/api/lrs-drain', { headers: { authorization: `Bearer ${CRON}` } }), { params: {}, env });
+const ok = (e: { eventId: string }): EventResult => ({ eventId: e.eventId, ok: true, statements: [] });
 const stateCalls = () => lrs.calls.filter((c) => c.url.includes('/activities/state')).length;
 
 beforeEach(async () => {
@@ -66,7 +70,7 @@ beforeEach(async () => {
   SERVER_FLAGS.lrsShadow = true;
   setContentForTests(buildContent('tests/fixtures/content'));
   db = createSqliteD1();
-  env = { DB: db, SESSION_KEY: 'test-session-key-not-a-secret', LRS_KEY: 'ck_test', LRS_SECRET: 'cs_test' };
+  env = { DB: db, SESSION_KEY: 'test-session-key-not-a-secret', LRS_KEY: 'ck_test', LRS_SECRET: 'cs_test', CRON_SECRET: CRON };
   await ensureSchema(db);
   await ensureRecordSchema(db);
   lrs = fakeLrs();
@@ -198,5 +202,60 @@ describe('a slow first registration', () => {
     expect(parts.every((p) => p.n < 64 * 1024)).toBe(true);
     expect(await replayPending(env, session, REG)).toBe(true);
     expect((await outbox()).map(verbOf)).toEqual(['launched', 'initialized', 'experienced']);
+  });
+
+  it('a held event whose learner sends nothing more reaches the LRS on the cron run', async () => {
+    lrs.delayMs = 0;
+    const { session } = await learner();
+    await holdPending(env, session.actorName, [opened, completed] as ServerEvent[], [ok(opened), ok(completed)], Date.now() - 5000);
+    const res = await cron();
+    expect(res.status).toBe(200);
+    expect(await res.json()).toMatchObject({ replayed: 1, sent: 3, left: 0 });
+    const registration = await cachedRegistration(session);
+    expect(registration).toMatch(/^[0-9a-f-]{36}$/);
+    expect(lrs.statements.map(verbOf)).toEqual(['launched', 'initialized', 'completed']);
+    expect(lrs.statements.every((s) => s.context.registration === registration)).toBe(true);
+    expect(await listShadowFacts(env, new Date(Date.now() - 5000).toISOString().slice(0, 10))).toEqual([
+      { actor: session.actorName, facts: [{ lessonId: FREE, kind: 'completed' }] },
+    ]);
+    expect(await pendingCount()).toBe(0);
+  });
+
+  it('the cron keeps held events while the LRS is down, and drops those of a learner who is gone', async () => {
+    lrs.delayMs = 0;
+    lrs.down = true;
+    const { session } = await learner();
+    await holdPending(env, session.actorName, [opened] as ServerEvent[], [ok(opened)], Date.now());
+    await holdPending(env, 'gone-learner', [opened] as ServerEvent[], [ok(opened)], Date.now());
+    expect((await cron()).status).toBe(200);
+    const held = await db.prepare('SELECT DISTINCT actor_name FROM official_pending').all<{ actor_name: string }>();
+    expect(held.results).toEqual([{ actor_name: session.actorName }]);
+    expect(await outbox()).toEqual([]);
+  });
+
+  it('a replay that fails holds the new batch instead of losing it', async () => {
+    lrs.delayMs = 0;
+    const log = vi.spyOn(console, 'error').mockImplementation(() => {});
+    const { session, cookie } = await learner();
+    await db.prepare('UPDATE sessions SET registration = ? WHERE sid_hash = ?').bind(REG, session.sidHash).run();
+    // A held row that cannot be read back: the replay throws.
+    await db.prepare('INSERT INTO official_pending (actor_name, item, now) VALUES (?, ?, ?)').bind(session.actorName, '0', 0).run();
+    await db.prepare('INSERT INTO official_pending_parts (actor_name, item, seq, part) VALUES (?, ?, ?, ?)').bind(session.actorName, '0', 0, '{not json').run();
+    expect((await post([completed], cookie, false)).res.status).toBe(200);
+    expect(log).toHaveBeenCalledWith('official record failed', 'SyntaxError', expect.any(String));
+    const items = (await db.prepare('SELECT item FROM official_pending ORDER BY item').all<{ item: string }>()).results.map((r) => r.item);
+    expect(items).toHaveLength(2);
+    expect(items[1]).toContain(completed.eventId);
+  });
+
+  it('a dropped held event is logged with its eventId', async () => {
+    lrs.delayMs = 0;
+    const log = vi.spyOn(console, 'error').mockImplementation(() => {});
+    const { session } = await learner();
+    const gone = { eventId: 'evt-00000077', type: 'lessonOpened', lessonId: 'no-such-lesson' } as ServerEvent;
+    await holdPending(env, session.actorName, [gone], [ok(gone)], Date.now());
+    expect(await replayPending(env, session, REG)).toBe(true);
+    expect(log).toHaveBeenCalledWith(expect.stringContaining('dropped a held event'), 'lessonOpened', 'evt-00000077');
+    expect(await pendingCount()).toBe(0);
   });
 });

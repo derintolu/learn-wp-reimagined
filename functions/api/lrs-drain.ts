@@ -1,5 +1,5 @@
-// 5-minute cron target (sf.jsonc "crons"): ends AU sessions idle for 30 minutes with `abandoned`, then drains
-// the LRS outbox. Same CRON_SECRET bearer check as /api/mcp-sweep. Does nothing with SERVER_FLAGS.lrsShadow off.
+// Cron target (sf.jsonc "crons"): records the events held for learners who had no registration yet (ruling R52),
+// ends AU sessions idle for 30 minutes with `abandoned`, then drains the LRS outbox, all within CRON_DRAIN_BUDGET_MS. Same CRON_SECRET bearer check as /api/mcp-sweep. Does nothing with SERVER_FLAGS.lrsShadow off.
 import type { Handler } from '../_lib/env';
 import { error, json } from '../_lib/http';
 import { sameSecret } from '../_lib/guards';
@@ -7,6 +7,7 @@ import { SERVER_FLAGS } from '../_lib/config';
 import { ensureRecordSchema } from '../_lib/db';
 import { drain, enqueue } from '../_lib/lrs/outbox';
 import { abandonedStatement, listIdleAuSessions, officialActor } from '../_lib/record/official';
+import { replayHeld } from '../_lib/record/shadow';
 
 /** Leaves headroom under the function time limit; what is left waits for the next run. */
 export const CRON_DRAIN_BUDGET_MS = 20_000;
@@ -18,6 +19,8 @@ export const GET: Handler = async (req, { env }) => {
   if (!SERVER_FLAGS.lrsShadow) return json({ sent: 0, left: 0, abandoned: 0 });
   await ensureRecordSchema(env.DB);
   const now = Date.now();
+  // The replay takes at most half the budget; the drain has what is left.
+  const replayed = await replayHeld(env, now + CRON_DRAIN_BUDGET_MS / 2);
   let abandoned = 0;
   for (const row of await listIdleAuSessions(env, now)) {
     const reg = await env.DB
@@ -35,5 +38,5 @@ export const GET: Handler = async (req, { env }) => {
       abandoned++;
     }
   }
-  return json({ ...(await drain(env, now, CRON_DRAIN_BUDGET_MS)), abandoned });
+  return json({ ...(await drain(env, now, Math.max(0, now + CRON_DRAIN_BUDGET_MS - Date.now()))), abandoned, replayed });
 };
