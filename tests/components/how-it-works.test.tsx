@@ -213,6 +213,10 @@ describe('/how-it-works', () => {
     expect(MCP_URL).toBe('https://learnwp.sqwrlz.com/api/mcp');
     expect(text()).not.toContain("isn't installed");
     expect(Object.values(STATUS)).not.toContain('Installed, not connected yet');
+    expect(Object.values(STATUS)).not.toContain('Public, not running here');
+    // The connector runs the course-xapi-mcp reference server, so its repo line says so.
+    const spec = Array.from(container.querySelectorAll('.how-status-line')).find((p) => p.textContent!.includes('course-xapi-mcp on GitHub'))!;
+    expect(spec.querySelector('.status')!.textContent).toBe(STATUS.live);
     expect(text()).toContain('The LRS and the Sensei connector are installed and running here, on two installs, and so is badge signing.');
     expect(text()).toContain('The course server writes every learning record here, and nothing else does.');
     expect(text()).not.toContain('Record handles');
@@ -241,6 +245,8 @@ describe('/how-it-works', () => {
     expect(t).toContain("CATAPULT cmi5 test suite is wired in as a release gate and hasn't been run yet");
     expect(t).toContain('eddsa-rdfc-2022');
     expect(t).toContain('did:web:lrs.sqwrlz.com');
+    expect(t).toContain("and the LRS's claim, badge and record pages are public at lrs.sqwrlz.com.");
+    expect(t).not.toContain("the claim pages aren't public yet");
   });
 
   it('walks one lesson end to end in six labelled steps, using the real tool names', () => {

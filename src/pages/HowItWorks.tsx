@@ -25,7 +25,6 @@ const MCP = { bodyMb: 1, global: '1,200', perToken: 120, windowMin: 10, practice
 /** One small label per component: where it stands on this site today. */
 export const STATUS = {
   live: 'Live here',
-  public: 'Public, not running here',
   progress: 'In progress',
   idle: 'Running, not wired in',
   next: 'Next',
@@ -313,7 +312,7 @@ export function HowItWorks() {
           <li>Apache-2.0.</li>
         </ul>
         <p class="how-status-line">
-          <Status kind="public" /> <a href={SPEC_REPO_URL}>course-xapi-mcp on GitHub</a>
+          <Status kind="live" /> <a href={SPEC_REPO_URL}>course-xapi-mcp on GitHub</a>
         </p>
       </Band>
 
@@ -431,7 +430,7 @@ export function HowItWorks() {
           <code>did:web</code> issuer, <code>did:web:{LRS_HOST}</code> for this site. Revoking a badge flips a bit in a
           signed Bitstring Status List. A badge is worked out only from statements the course server wrote, cites exactly
           one earning statement as evidence, and is signed when you claim it. No MCP tool can sign anything. The signing
-          code passes the W3C test vectors, and the claim pages aren't public yet.
+          code passes the W3C test vectors, and the LRS's claim, badge and record pages are public at {LRS_HOST}.
         </p>
         <p class="how-status-line">
           <Status kind="progress" /> <a href={LEDGER_REPO_URL}>Learning Ledger on GitHub</a>, GPL-2.0-or-later
