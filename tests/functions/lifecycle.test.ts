@@ -1,6 +1,7 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { LEDGER_BASE, LRS_API, LRS_XAPI } from '../../functions/_lib/config';
 import { createSqliteD1 } from '../../dev/sqliteD1';
+import { brokerLimited } from '../helpers/brokerLimited';
 import { ensureSchema, ensureRecordSchema, ensureOAuthSchema } from '../../functions/_lib/db';
 import type { Env } from '../../functions/_lib/env';
 import { ERASE_AFTER_LRS, ERASE_BEFORE_LRS, eraseLearner, sweep, latestDrift } from '../../functions/_lib/session/lifecycle';
@@ -113,10 +114,11 @@ describe('eraseLearner', () => {
   });
 
   it('every table keyed by actor_name is erased', () => {
-    const src = readFileSync('functions/_lib/db.ts', 'utf8');
+    const src = ['functions/_lib/db.ts', 'functions/_lib/session/lifecycle.ts'].map((f) => readFileSync(f, 'utf8')).join('\n');
     const tables = [...src.matchAll(/CREATE TABLE IF NOT EXISTS (\w+) \(([^']*)\)/g)].filter((m) => /\bactor_name\b/.test(m[2])).map((m) => m[1]);
-    // sessions is removed last by deleteSession; oauth_codes and oauth_tokens by revokeAllForActor.
-    const handled = new Set([...ERASE_BEFORE_LRS, ...ERASE_AFTER_LRS, 'sessions', 'oauth_codes', 'oauth_tokens']);
+    // sessions is removed last by deleteSession; oauth_codes and oauth_tokens by revokeAllForActor; drift_actors when
+    // the learner's entries leave the stored drift reports.
+    const handled = new Set([...ERASE_BEFORE_LRS, ...ERASE_AFTER_LRS, 'sessions', 'oauth_codes', 'oauth_tokens', 'drift_actors']);
     expect(tables.length).toBeGreaterThan(5);
     expect(tables.filter((t) => !handled.has(t))).toEqual([]);
   });
@@ -272,6 +274,55 @@ describe('drift', () => {
     delete env.LEDGER_PROGRAM_ID;
     await recordShadowFact(env, 'abc', { lessonId: 'theme-json-basics', kind: 'completed' }, NOW);
     expect((await sweep(env, NOW)).drift).toEqual({ checked: 0, mismatched: [], status: 'not-configured' });
+  });
+
+  it('a report over 64 KiB is stored and read back in parts under the broker limit', async () => {
+    const log = { max: 0 };
+    env = { ...env, DB: brokerLimited(db, log) };
+    await addSession('abc', 77, NOW - DAY);
+    await recordShadowFact(env, 'abc', { lessonId: 'theme-json-basics', kind: 'completed' }, NOW);
+    const keys = Array.from({ length: 1000 }, (_, i) => `lesson-${String(i).padStart(4, '0')}-${'x'.repeat(90)}`);
+    wire(keys.map((k) => lrsStatement(k, 'completed')), { completed: [], tested_out: [] });
+    const r = await sweep(env, NOW);
+    expect(r.drift.mismatched[0].lrsOnly).toHaveLength(1000);
+    expect(JSON.stringify(r.drift).length).toBeGreaterThan(70_000);
+    expect(log.max).toBeLessThanOrEqual(65_536);
+    expect(await latestDrift(env)).toEqual(r.drift);
+  });
+
+  it('keeps only the latest seven reports', async () => {
+    for (let d = 0; d < 9; d++) await sweep(env, NOW + d * DAY);
+    const day = (n: number) => new Date(NOW + n * DAY).toISOString().slice(0, 10);
+    const days = async (sql: string) => (await db.prepare(sql).all<{ day: string }>()).results.map((r) => r.day);
+    const kept = [2, 3, 4, 5, 6, 7, 8].map(day);
+    expect(await days('SELECT day FROM drift_reports ORDER BY day')).toEqual(kept);
+    expect(await days('SELECT DISTINCT day FROM drift_report_parts ORDER BY day')).toEqual(kept);
+  });
+
+  it('erasing a learner removes their entries from every stored report', async () => {
+    const abc = await addSession('abc', 77, NOW - DAY);
+    await addSession('def', 78, NOW - DAY);
+    for (const a of ['abc', 'def']) await recordShadowFact(env, a, { lessonId: 'theme-json-basics', kind: 'completed' }, NOW - DAY);
+    wire([lrsStatement('theme-json-basics', 'completed')], { completed: [], tested_out: [] });
+    await sweep(env, NOW - DAY);
+    await sweep(env, NOW);
+    const parts = async () => (await db.prepare('SELECT part FROM drift_report_parts ORDER BY day, seq').all<{ part: string }>()).results.map((r) => r.part).join('');
+    expect((await parts()).match(/"abc"/g)).toHaveLength(2);
+    await eraseLearner(env, abc, { revokeBadges: true });
+    expect((await latestDrift(env))!.mismatched.map((m) => m.actor)).toEqual(['def']);
+    expect(await parts()).not.toContain('"abc"');
+    expect((await parts()).match(/"def"/g)).toHaveLength(2);
+    expect((await db.prepare("SELECT COUNT(*) AS c FROM drift_actors WHERE actor_name = 'abc'").first<{ c: number }>())!.c).toBe(0);
+  });
+
+  it('drops a report stored whole before reports moved to parts, which no erase could clean', async () => {
+    await db.prepare('CREATE TABLE IF NOT EXISTS drift_reports (day VARCHAR(10) PRIMARY KEY, body TEXT, created BIGINT)').run();
+    await db
+      .prepare('INSERT INTO drift_reports (day, body, created) VALUES (?, ?, ?)')
+      .bind('2026-10-01', JSON.stringify({ checked: 1, mismatched: [{ actor: 'abc', lrsOnly: ['x'], senseiOnly: [] }] }), NOW - 27 * DAY)
+      .run();
+    expect(await latestDrift(env)).toBeNull();
+    expect((await db.prepare('SELECT COUNT(*) AS c FROM drift_reports').first<{ c: number }>())!.c).toBe(0);
   });
 
   it('asks the ledger for the configured program', async () => {

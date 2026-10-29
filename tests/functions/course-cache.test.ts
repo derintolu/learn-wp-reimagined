@@ -3,6 +3,7 @@ import { getAgentCourse } from '../../functions/_lib/mcp/agentCourse';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { zipSync } from 'fflate';
 import { createSqliteD1 } from '../../dev/sqliteD1';
+import { brokerLimited } from '../helpers/brokerLimited';
 import { buildContent } from '../../scripts/build-content';
 import { bundleToPackage } from '../../src/shared/package';
 import { getContent, setContentForTests, setCurrentContent } from '../../functions/_lib/content';
@@ -446,39 +447,6 @@ describe('GET /api/course', () => {
   });
 });
 
-/**
- * A D1 over SQLite that refuses any operation over 65,536 bytes, like Spacefast's broker: the statement (its text
- * plus bound values) and the result it returns (every value of every row).
- */
-function brokerLimited(real: Env['DB'], log: { max: number } = { max: 0 }): Env['DB'] {
-  const values = (v: unknown[]) => v.reduce<number>((n, x) => n + (typeof x === 'string' ? Buffer.byteLength(x) : 8), 0);
-  const limit = (n: number) => {
-    log.max = Math.max(log.max, n);
-    if (n > 65_536) throw new Error(`Database operation is ${n} bytes; the limit is 65536.`);
-  };
-  const rows = (rs: unknown[]) => rs.reduce<number>((n, r) => n + values(Object.values((r ?? {}) as object)), 0);
-  const wrap = (sql: string, v: unknown[]) => {
-    const check = () => limit(Buffer.byteLength(sql) + values(v));
-    const q = real.prepare(sql).bind(...v);
-    return {
-      bind: (...nv: unknown[]) => wrap(sql, nv),
-      run: async () => (check(), q.run()),
-      first: async () => {
-        check();
-        const r = await q.first();
-        limit(rows([r]));
-        return r;
-      },
-      all: async () => {
-        check();
-        const r = await q.all();
-        limit(rows(r.results));
-        return r;
-      },
-    };
-  };
-  return { prepare: (sql: string) => wrap(sql, []) } as unknown as Env['DB'];
-}
 
 describe('splitUtf8', () => {
   it('never splits a multibyte character, keeps every part within the limit and joins back to the input', () => {
