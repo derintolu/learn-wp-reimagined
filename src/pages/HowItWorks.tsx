@@ -427,11 +427,13 @@ export function HowItWorks() {
 
         <h3>Badge signing</h3>
         <p>
-          The LRS issues Open Badges 3.0 credentials with an <code>eddsa-rdfc-2022</code> proof over an Ed25519 key and a{' '}
+          {BADGES_ISSUING ? 'The LRS issues' : 'The LRS is set up to issue'} Open Badges 3.0 credentials with an{' '}
+          <code>eddsa-rdfc-2022</code> proof over an Ed25519 key and a{' '}
           <code>did:web</code> issuer, <code>did:web:{LRS_HOST}</code> for this site. Revoking a badge flips a bit in a
           signed Bitstring Status List. A badge is worked out only from statements the course server wrote, cites exactly
           one earning statement as evidence, and is signed when you claim it. No MCP tool can sign anything. The signing
           code passes the W3C test vectors, and the LRS's claim, badge and record pages are public at {LRS_HOST}.
+          {!BADGES_ISSUING && ` ${BADGES_NOT_ISSUED}`}
         </p>
         <p class="how-status-line">
           <Status kind="progress" /> <a href={LEDGER_REPO_URL}>Learning Ledger on GitHub</a>, GPL-2.0-or-later

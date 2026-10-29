@@ -475,12 +475,17 @@ describe('/how-it-works: badges before the LRS issues them (R57)', () => {
     const figure = container.querySelector('figure.how-diagram')!;
     expect(figure.querySelector('figcaption')!.textContent!.replace(/\s+/g, ' ')).toContain(`the LRS signs your badges. ${BADGES_NOT_ISSUED}`);
     for (const svg of Array.from(figure.querySelectorAll('svg'))) expect(svg.getAttribute('aria-label')).toBe(`${DIAGRAM_LABEL} ${BADGES_NOT_ISSUED}`);
+    expect(t).not.toContain('The LRS issues Open Badges 3.0 credentials');
+    expect(t).toContain('The LRS is set up to issue Open Badges 3.0 credentials with an eddsa-rdfc-2022 proof');
+    expect(t).toContain(`and the LRS's claim, badge and record pages are public at ${LRS_HOST}. ${BADGES_NOT_ISSUED}`);
   });
 
   it('with issuing on, the approved copy and no not-issued sentence', () => {
     const { container } = render(<HowItWorks />);
     const t = text();
     expect(t).toContain('When you finish a path, the LRS has a badge for you to claim.');
+    expect(t).toContain('The LRS issues Open Badges 3.0 credentials with an eddsa-rdfc-2022 proof');
+    expect(t).not.toContain('set up to issue');
     expect(t).not.toContain(BADGES_NOT_ISSUED);
     expect(badgesCard(container).textContent).not.toContain(BADGES_NOT_ISSUED);
   });
