@@ -63,13 +63,21 @@ export async function writeParts(db: D1Like, t: PartsTable, key: Id, ver: Id, bo
   if (!fresh) await db.prepare(`DELETE FROM ${t.table} WHERE ${t.keyCol} = ? AND ${t.verCol} = ? AND seq >= ?`).bind(key, ver, parts.length).run();
 }
 
-/** The joined parts of (key, ver), or null when there are none. */
+/**
+ * The joined parts of (key, ver), or null when there are none. One SELECT per part, so no single result can pass the
+ * broker limit either; the read stops at the first missing seq.
+ */
 export async function readParts(db: D1Like, t: PartsTable, key: Id, ver: Id): Promise<string | null> {
-  const { results } = await db
-    .prepare(`SELECT part FROM ${t.table} WHERE ${t.keyCol} = ? AND ${t.verCol} = ? ORDER BY seq`)
-    .bind(key, ver)
-    .all<{ part: string }>();
-  return results.length ? results.map((r) => r.part).join('') : null;
+  const parts: string[] = [];
+  for (let seq = 0; ; seq++) {
+    const row = await db
+      .prepare(`SELECT part FROM ${t.table} WHERE ${t.keyCol} = ? AND ${t.verCol} = ? AND seq = ?`)
+      .bind(key, ver, seq)
+      .first<{ part: string }>();
+    if (!row) break;
+    parts.push(row.part);
+  }
+  return parts.length ? parts.join('') : null;
 }
 
 /** Removes the parts of every version of key except keep (all of them when keep is omitted). */

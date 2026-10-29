@@ -429,21 +429,35 @@ describe('GET /api/course', () => {
   });
 });
 
-/** A D1 over SQLite that refuses any statement over 65,536 bytes (its text plus bound values), like Spacefast's broker. */
+/**
+ * A D1 over SQLite that refuses any operation over 65,536 bytes, like Spacefast's broker: the statement (its text
+ * plus bound values) and the result it returns (every value of every row).
+ */
 function brokerLimited(real: Env['DB'], log: { max: number } = { max: 0 }): Env['DB'] {
-  const size = (sql: string, v: unknown[]) => Buffer.byteLength(sql) + v.reduce<number>((n, x) => n + (typeof x === 'string' ? Buffer.byteLength(x) : 8), 0);
+  const values = (v: unknown[]) => v.reduce<number>((n, x) => n + (typeof x === 'string' ? Buffer.byteLength(x) : 8), 0);
+  const limit = (n: number) => {
+    log.max = Math.max(log.max, n);
+    if (n > 65_536) throw new Error(`Database operation is ${n} bytes; the limit is 65536.`);
+  };
+  const rows = (rs: unknown[]) => rs.reduce<number>((n, r) => n + values(Object.values((r ?? {}) as object)), 0);
   const wrap = (sql: string, v: unknown[]) => {
-    const check = () => {
-      const n = size(sql, v);
-      log.max = Math.max(log.max, n);
-      if (n > 65_536) throw new Error(`Database operation is ${n} bytes; the limit is 65536.`);
-    };
+    const check = () => limit(Buffer.byteLength(sql) + values(v));
     const q = real.prepare(sql).bind(...v);
     return {
       bind: (...nv: unknown[]) => wrap(sql, nv),
       run: async () => (check(), q.run()),
-      first: async () => (check(), q.first()),
-      all: async () => (check(), q.all()),
+      first: async () => {
+        check();
+        const r = await q.first();
+        limit(rows([r]));
+        return r;
+      },
+      all: async () => {
+        check();
+        const r = await q.all();
+        limit(rows(r.results));
+        return r;
+      },
     };
   };
   return { prepare: (sql: string) => wrap(sql, []) } as unknown as Env['DB'];

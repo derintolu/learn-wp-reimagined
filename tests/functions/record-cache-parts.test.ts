@@ -3,16 +3,37 @@ import { createSqliteD1 } from '../../dev/sqliteD1';
 import type { Env } from '../../functions/_lib/env';
 import { invalidateRecordCache, readCachedRecord, writeCachedRecord, RECORD_CACHE_TTL_MS } from '../../functions/_lib/record/read';
 
-/** A D1 over SQLite that refuses any statement over 65,536 bytes (text plus bound values), like Spacefast's broker. */
+const bytes = (v: unknown[]) => v.reduce<number>((a, x) => a + (typeof x === 'string' ? Buffer.byteLength(x) : 8), 0);
+
+/**
+ * A D1 over SQLite that refuses any operation over 65,536 bytes, like Spacefast's broker: the statement (text plus
+ * bound values) and the result it returns (every value of every row).
+ */
 function brokerLimited(real: Env['DB'], log: { max: number }): Env['DB'] {
+  const limit = (n: number) => {
+    log.max = Math.max(log.max, n);
+    if (n > 65_536) throw new Error(`Database operation is ${n} bytes; the limit is 65536.`);
+  };
+  const rowsBytes = (rows: unknown[]) => rows.reduce<number>((a, r) => a + bytes(Object.values((r ?? {}) as object)), 0);
   const wrap = (sql: string, v: unknown[]) => {
-    const check = () => {
-      const n = Buffer.byteLength(sql) + v.reduce<number>((a, x) => a + (typeof x === 'string' ? Buffer.byteLength(x) : 8), 0);
-      log.max = Math.max(log.max, n);
-      if (n > 65_536) throw new Error(`Database operation is ${n} bytes; the limit is 65536.`);
-    };
+    const check = () => limit(Buffer.byteLength(sql) + bytes(v));
     const q = real.prepare(sql).bind(...v);
-    return { bind: (...nv: unknown[]) => wrap(sql, nv), run: async () => (check(), q.run()), first: async () => (check(), q.first()), all: async () => (check(), q.all()) };
+    return {
+      bind: (...nv: unknown[]) => wrap(sql, nv),
+      run: async () => (check(), q.run()),
+      first: async () => {
+        check();
+        const r = await q.first();
+        limit(rowsBytes([r]));
+        return r;
+      },
+      all: async () => {
+        check();
+        const r = await q.all();
+        limit(rowsBytes(r.results));
+        return r;
+      },
+    };
   };
   return { prepare: (sql: string) => wrap(sql, []) } as unknown as Env['DB'];
 }
@@ -20,7 +41,7 @@ function brokerLimited(real: Env['DB'], log: { max: number }): Env['DB'] {
 const NOW = Date.UTC(2026, 9, 28, 12);
 const projection = (n: number) => JSON.stringify({ items: 'café € '.repeat(n) });
 
-describe('record_cache stores the projection in parts under the broker limit', () => {
+describe('record_cache stores and reads the projection in parts under the broker limit', () => {
   it('round-trips a 200 KB projection', async () => {
     const log = { max: 0 };
     const env = { DB: brokerLimited(createSqliteD1(), log) } as Env;
