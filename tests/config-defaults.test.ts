@@ -12,7 +12,7 @@ describe('shipped flag defaults', () => {
       sessions: true,
       wordpressContent: true,
       senseiLearners: true,
-      lrsShadow: false,
+      lrsShadow: true,
       agentOnStandard: false,
       officialRecord: false,
       badges: false,
@@ -26,7 +26,7 @@ describe('shipped flag defaults', () => {
       sessions: true,
       mcpOnStandard: true,
       senseiLearners: true,
-      lrsShadow: false,
+      lrsShadow: true,
       wordpressContent: true,
       senseiCertificates: false,
       badges: false,
@@ -39,6 +39,7 @@ describe('shipped flag defaults', () => {
     expect((['wordpressContent', 'senseiLearners', 'lrsShadow', 'officialRecord', 'agentOnStandard', 'badges'] as const).filter(phaseOn)).toEqual([
       'wordpressContent',
       'senseiLearners',
+      'lrsShadow',
     ]);
   });
 });
