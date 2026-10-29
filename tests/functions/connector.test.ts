@@ -4,6 +4,8 @@ import {
   ConnectorError,
   ConnectorUnavailable,
 } from "../../functions/_lib/ledger/connector";
+import { createPrivateKey, createPublicKey } from "node:crypto";
+import { verifyRequest } from "../../functions/_lib/ledger/sign";
 import type { Env } from "../../functions/_lib/env";
 
 const SEED_HEX =
@@ -32,8 +34,8 @@ describe("ConnectorClient", () => {
       string,
       RequestInit,
     ];
-    expect(url).toBe(
-      "https://learnwp.sqwrlz.com/wp-json/learning-ledger/v1/course-server/packages/learn-wp-reimagined",
+    expect(url).toMatch(
+      /^https:\/\/learnwp\.sqwrlz\.com\/wp-json\/learning-ledger\/v1\/course-server\/packages\/learn-wp-reimagined\?nc=[0-9a-f-]{36}$/,
     );
     const h = init.headers as Record<string, string>;
     expect(h["If-None-Match"]).toBe('"abc"');
@@ -148,8 +150,45 @@ describe("request path", () => {
       fetchFn as unknown as typeof fetch,
     ).getPackage("a b");
     expect((fetchFn.mock.calls[0] as unknown as [string])[0]).toMatch(
-      /packages\/a%20b$/,
+      /packages\/a%20b\?nc=[0-9a-f-]{36}$/,
     );
+  });
+});
+
+describe("cache-busting nc on signed GETs", () => {
+  const pub = createPublicKey(createPrivateKey({ key: Buffer.from(KEY, "base64"), format: "der", type: "pkcs8" }))
+    .export({ format: "der", type: "spki" })
+    .subarray(-32)
+    .toString("base64");
+
+  it("every GET carries a distinct nc and the signature covers it", async () => {
+    const fetchFn = vi.fn(async () => new Response(JSON.stringify({}), { status: 200 }));
+    const c = new ConnectorClient(env, fetchFn as unknown as typeof fetch);
+    await c.status();
+    await c.status();
+    await c.getPackage("course");
+    const calls = fetchFn.mock.calls as unknown as Array<[string, RequestInit]>;
+    const ncs = calls.map(([u]) => new URL(u).searchParams.get("nc"));
+    expect(ncs.every((n) => n && /^[0-9a-f-]{36}$/.test(n))).toBe(true);
+    expect(new Set(ncs).size).toBe(3);
+    for (const [u, init] of calls) {
+      const url = new URL(u);
+      const v = await verifyRequest({
+        method: "GET",
+        path: url.pathname + url.search,
+        body: new Uint8Array(),
+        headers: new Headers(init.headers as Record<string, string>),
+        publicKeyB64: pub,
+        now: Math.floor(Date.now() / 1000),
+      });
+      expect(v.ok).toBe(true);
+    }
+  });
+
+  it("does not add nc to a POST", async () => {
+    const fetchFn = vi.fn(async () => new Response(JSON.stringify({ user_id: 1, actor: { account: { homePage: "h", name: "n" } } }), { status: 201 }));
+    await new ConnectorClient(env, fetchFn as unknown as typeof fetch).createLearner();
+    expect((fetchFn.mock.calls[0] as unknown as [string])[0]).not.toContain("nc=");
   });
 });
 

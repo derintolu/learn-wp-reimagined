@@ -132,13 +132,12 @@ export class ConnectorClient {
   }
 
   /**
-   * GET learners/{id}/progress?program=<ledger program post id>. A fresh `nc` on every read: Batcache in front of
-   * WordPress keys on the URL, so without it a progress answer (or a 404) is served again from the cache.
+   * GET learners/{id}/progress?program=<ledger program post id>.
    */
   async progress(userId: number, program: string): Promise<SenseiProgress> {
     const res = await this.send(
       "GET",
-      `/course-server/learners/${userId}/progress?program=${encodeURIComponent(program)}&nc=${crypto.randomUUID()}`,
+      `/course-server/learners/${userId}/progress?program=${encodeURIComponent(program)}`,
     );
     const j = (await res.json()) as { courses?: Array<Record<string, unknown>> };
     const byId = new Map(Object.entries(this.courseIds()).map(([k, v]) => [v, k]));
@@ -190,6 +189,9 @@ export class ConnectorClient {
     if (!key || !keyId)
       throw new ConnectorUnavailable("connector signing key is not configured");
     const url = new URL(LEDGER_BASE + route);
+    // Batcache in front of WordPress keys on the URL alone, so a repeated signed GET would be replayed to anyone.
+    // A fresh `nc` makes every GET/HEAD URL unique; it is part of the signed path.
+    if (method === "GET" || method === "HEAD") url.searchParams.set("nc", crypto.randomUUID());
     const ctl = new AbortController();
     const timer = setTimeout(() => ctl.abort(), TIMEOUT_MS);
     let res: Response;
