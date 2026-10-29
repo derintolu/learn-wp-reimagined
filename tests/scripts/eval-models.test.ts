@@ -11,14 +11,14 @@ const cases = parse(readFileSync('tests/eval/cases.yaml', 'utf8')) as {
 describe('eval-models content switch', () => {
   it('defaults to the fixtures and takes --content <dir>', () => {
     expect(contentDirFrom([])).toBe(FIXTURE_CONTENT);
-    expect(contentDirFrom(['--only', 'placement', '--content', 'content'])).toBe('content');
+    expect(contentDirFrom(['--only', 'placement', '--content', 'content/snapshot'])).toBe('content/snapshot');
   });
 
   it('uses contentStart on real content and start on the fixtures', () => {
     const e = { start: ['theme-json-basics'], contentStart: ['bt-what-is-a-block-theme'] };
     expect(expectedStarts(e, FIXTURE_CONTENT)).toEqual(['theme-json-basics']);
-    expect(expectedStarts(e, 'content')).toEqual(['bt-what-is-a-block-theme']);
-    expect(expectedStarts({ start: ['ln-what-is-wordpress'] }, 'content')).toEqual(['ln-what-is-wordpress']);
+    expect(expectedStarts(e, 'content/snapshot')).toEqual(['bt-what-is-a-block-theme']);
+    expect(expectedStarts({ start: ['ln-what-is-wordpress'] }, 'content/snapshot')).toEqual(['ln-what-is-wordpress']);
   });
 
   it('every expected start is a real lesson in the content it is checked against', () => {
@@ -26,7 +26,7 @@ describe('eval-models content switch', () => {
     const real = buildContent();
     for (const c of cases.placement) {
       for (const id of expectedStarts(c.expect, FIXTURE_CONTENT)) expect(fixture.lessons[id], `${c.id}: ${id}`).toBeTruthy();
-      for (const id of expectedStarts(c.expect, 'content')) expect(real.lessons[id], `${c.id}: ${id}`).toBeTruthy();
+      for (const id of expectedStarts(c.expect, 'content/snapshot')) expect(real.lessons[id], `${c.id}: ${id}`).toBeTruthy();
     }
   });
 });

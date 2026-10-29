@@ -1,7 +1,7 @@
 // Evaluates Workers AI candidate models against the real prompts and adapter.
 //
 //   npx tsx scripts/eval-models.ts [--models glm-4.7-flash,kimi-k2.6] [--tokens placement=400,judge=300,tutor=700,feedback=300]
-//                                  [--only placement,judge] [--out results.json] [--probe] [--content content]
+//                                  [--only placement,judge] [--out results.json] [--probe] [--content content/snapshot]
 //
 // --content picks the content directory (default tests/fixtures/content). On any other directory a placement
 // case is checked against its `contentStart` lesson ids when it has them, since the fixture ids don't exist there.

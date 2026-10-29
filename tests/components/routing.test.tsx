@@ -5,7 +5,7 @@ import { act, cleanup, fireEvent, render, screen, waitFor } from '@testing-libra
 
 vi.mock('../../src/content', async () => {
   const { buildContent } = await import('../../scripts/build-content');
-  return { content: buildContent('tests/fixtures/content') };
+  return { content: buildContent('tests/fixtures/content'), adoptPending: () => false, prefetchLatest: () => {} };
 });
 vi.mock('../../src/ai/client', () => ({
   getStatus: vi.fn(async () => ({ ai: 'off' })),

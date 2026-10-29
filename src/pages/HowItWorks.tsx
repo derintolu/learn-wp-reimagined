@@ -43,7 +43,7 @@ const SOURCES = [
   { id: 'src-accuracy-learner', file: 'docs/content-accuracy-learner.md', what: 'The accuracy check of the Learner lessons.' },
   { id: 'src-accuracy-vibe', file: 'docs/content-accuracy-vibe-coder.md', what: 'The accuracy check of the Vibe coder lessons.' },
   { id: 'src-spec', file: 'docs/superpowers/specs/2026-10-19-learn-wp-reimagined-design.md', what: 'The design spec. Section 8 records how the planted bugs are made.' },
-  { id: 'src-content', file: 'content/paths/', what: 'The lessons, each planted bug, and the checks that confirm a fix.' },
+  { id: 'src-content', file: 'content/snapshot/', what: 'The lessons pulled from Sensei, each planted bug, and the checks that confirm a fix.' },
   { id: 'src-prompts', file: 'functions/_lib/prompts.ts', what: 'What the AI is told it may and may not do.' },
   { id: 'src-budget', file: 'functions/_lib/budget.ts', what: 'The monthly cap and the daily sub-cap.' },
   { id: 'src-gate', file: 'functions/_lib/mcp/gate.ts', what: 'The limits in front of the MCP server.' },
@@ -51,14 +51,7 @@ const SOURCES = [
   { id: 'src-record', file: 'docs/record-format.md', what: 'The learning record format and its xAPI statements.' },
 ] as const;
 
-/** With the Sensei content flag on, the lessons are read from the committed snapshot, not from YAML. */
-const sources = () =>
-  (FEATURES.wordpressContent
-    ? SOURCES.map((s) =>
-        s.id === 'src-content' ? { ...s, file: 'content/snapshot/', what: 'The lessons as exported from Sensei, committed so changes can be reviewed.' } : s,
-      )
-    : [...SOURCES]
-  ).filter((s) => !FEATURES.agentOnStandard || s.id !== 'src-store');
+const sources = () => SOURCES.filter((s) => !FEATURES.agentOnStandard || s.id !== 'src-store');
 
 const blob = (file: string) => `${REPO_URL}/${file.endsWith('/') ? 'tree' : 'blob'}/main/${file.replace(/\/$/, '')}`;
 

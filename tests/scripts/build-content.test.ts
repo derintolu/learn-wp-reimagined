@@ -4,8 +4,8 @@ import { join } from 'node:path';
 import { describe, expect, it } from 'vitest';
 import { buildContent } from '../../scripts/build-content';
 import { SNAPSHOT_DIR, readSnapshot, writeSnapshot } from '../../scripts/content-pull';
-import { buildContentFromYaml } from '../../scripts/yaml-content';
-import { compareBundles } from '../../src/shared/package';
+import { packageErrors } from '../../scripts/package-errors';
+import { bundleToPackage } from '../../src/shared/package';
 
 const FIXTURE = join(__dirname, '../fixtures/content');
 
@@ -45,8 +45,11 @@ describe('buildContent', () => {
     expect(Object.keys(buildContent().lessons)).toHaveLength(18);
   });
 
-  it('the snapshot equals the YAML build until the YAML is deleted', () => {
-    expect(compareBundles(buildContentFromYaml('content'), buildContent())).toEqual([]);
+  it('a package missing a lesson file fails with validator codes', () => {
+    const files = bundleToPackage(buildContent());
+    delete files['cxm/lessons/' + Object.keys(buildContent().lessons)[0] + '.json'];
+    const errors = packageErrors(Object.fromEntries(Object.entries(files).map(([k, v]) => [k, new TextEncoder().encode(v)])));
+    expect(errors.join('\n')).toMatch(/CXM-[A-Z]+-\d+/);
   });
 
   it('refuses a package the standard\'s validator rejects, naming the code', () => {

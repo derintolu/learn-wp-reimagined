@@ -143,13 +143,14 @@ describe('/proposal with the Sensei content flag', () => {
     flags.wordpressContent = false;
   });
 
-  it('ships off, with the pinned version and the block-theme backend view', () => {
-    expect(flags.wordpressContent).toBe(false);
+  it('ships on, with the pinned version and the block-theme backend view', () => {
+    expect(flags.wordpressContent).toBe(true);
     expect(SENSEI_VERSION).toBe('4.26.4');
     expect(BACKEND_VIEW_PATH).toBe('/backend/block-theme');
   });
 
   it('off: no Sensei backend copy and no backend-view link', () => {
+    flags.wordpressContent = false;
     const { container } = view();
     expect(text()).not.toContain('backend view');
     expect(text()).not.toContain(SENSEI_VERSION);
@@ -178,7 +179,7 @@ describe('/proposal with the Sensei content flag', () => {
     expect(t).toContain("The tutor and placement are running in this concept. What isn't shown is Sensei progress (phase 3 below) and the Training Team's review of these lessons.");
     expect(t).toContain('authored in Sensei and exported to a committed snapshot');
     expect(t).not.toContain('are plain YAML files');
-    expect(t).toContain('as exported from Sensei.');
+    expect(t).toContain('as pulled from Sensei.');
     expect(t).not.toContain('content/paths/');
     expect(t).toContain('content/snapshot/');
   });

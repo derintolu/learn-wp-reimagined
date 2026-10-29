@@ -49,9 +49,9 @@ const SOURCES = [
   { id: 'src-lrs', file: 'functions/_lib/lrs/', what: 'The client for the record store.' },
   { id: 'src-ledger', file: 'https://github.com/derintolu/learning-ledger', what: 'The plugin that is the record store and the Sensei connector.' },
   { id: 'src-relay', file: 'functions/_lib/mcp/practiceStore.ts', what: 'The agent relay, and how long it keeps a record.' },
-  { id: 'src-content', file: 'content/paths/', what: 'The lessons, checkpoints, branches and planted bugs, as YAML.' },
+  { id: 'src-content', file: 'content/snapshot/', what: 'The lessons, checkpoints, branches and planted bugs, as pulled from Sensei.' },
   { id: 'src-schema', file: 'src/shared/schema.ts', what: 'The content schema: every checkpoint needs advance, review and skip branches and a fallback.' },
-  { id: 'src-build', file: 'scripts/build-content.ts', what: 'The build-time validator for the content.' },
+  { id: 'src-build', file: 'scripts/build-content.ts', what: 'The build-time validator for the content snapshot.' },
   { id: 'src-checks', file: 'src/shared/checks.ts', what: 'The deterministic code checks.' },
   { id: 'src-content-tests', file: 'tests/content/', what: 'Tests that run each code check against the planted bug, the fix and the starter file.' },
   { id: 'src-motion', file: 'tests/styles/reduced-motion.test.ts', what: 'The guard that every animation has a reduced-motion override.' },
@@ -59,16 +59,8 @@ const SOURCES = [
   { id: 'src-vendor', file: 'vendor/course-xapi-mcp/', what: "The MCP course server: the standard's reference server, vendored, with its licence notes." },
 ] as const;
 
-/** With the Sensei content flag on, the lessons are read from the committed snapshot, not from YAML. */
 const sources = () =>
-  (FEATURES.wordpressContent
-    ? SOURCES.map((s) => {
-        if (s.id === 'src-content') return { ...s, file: 'content/snapshot/', what: 'The lessons, checkpoints, branches and planted bugs, as exported from Sensei.' };
-        if (s.id === 'src-build') return { ...s, what: 'The build-time validator for the content snapshot.' };
-        return s;
-      })
-    : [...SOURCES]
-  )
+  [...SOURCES]
     .filter((s) => phaseOn('officialRecord') || (s.id !== 'src-lrs' && s.id !== 'src-ledger'))
     .filter((s) => !FEATURES.agentOnStandard || s.id !== 'src-relay');
 

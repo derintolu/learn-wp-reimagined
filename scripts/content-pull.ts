@@ -1,15 +1,12 @@
 // The committed course snapshot: content/snapshot/ holds the course-xapi-mcp package (authoring flavour) that
-// the studio builds from. `npm run content:pull` refreshes it from the course server; `--from-yaml` writes it
-// from today's YAML (until the YAML is deleted).
+// the studio builds from. `npm run content:pull` refreshes it from the course server (Sensei is the source of truth).
 import { mkdirSync, readdirSync, readFileSync, rmSync, statSync, writeFileSync } from 'node:fs';
 import { dirname, join, relative, sep } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { unzipSync } from 'fflate';
 import { PROGRAM_KEY } from '../functions/_lib/config';
 import type { ConnectorClient } from '../functions/_lib/ledger/connector';
-import { bundleToPackage } from '../src/shared/package';
 import type { PackageFiles } from '../src/shared/package';
-import { buildContentFromYaml } from './yaml-content';
 
 export const SNAPSHOT_DIR = 'content/snapshot';
 const VERSION_FILE = 'VERSION.json';
@@ -63,14 +60,8 @@ export async function pullSnapshot(connector: Pick<ConnectorClient, 'getPackage'
   writeSnapshot(files, dir, { version: r.version, etag: r.etag });
 }
 
-async function main(args: string[]): Promise<number> {
+async function main(): Promise<number> {
   const out = process.env.SNAPSHOT_DIR ?? SNAPSHOT_DIR;
-  if (args[0] === '--from-yaml') {
-    const yamlDir = args[1] ?? 'content';
-    writeSnapshot(bundleToPackage(buildContentFromYaml(yamlDir)), out);
-    console.log(`snapshot: written to ${out} from ${yamlDir}`);
-    return 0;
-  }
   const { ConnectorClient: Client } = await import('../functions/_lib/ledger/connector');
   const { readConnectorEnv } = await import('./keys');
   const env = readConnectorEnv(process.env.ENV_FILE ?? '.env.server') as unknown as ConstructorParameters<typeof Client>[0];
@@ -80,5 +71,5 @@ async function main(args: string[]): Promise<number> {
 }
 
 if (process.argv[1] && fileURLToPath(import.meta.url) === process.argv[1]) {
-  main(process.argv.slice(2)).then((c) => process.exit(c), (e) => { console.error((e as Error).message); process.exit(1); });
+  main().then((c) => process.exit(c), (e) => { console.error((e as Error).message); process.exit(1); });
 }

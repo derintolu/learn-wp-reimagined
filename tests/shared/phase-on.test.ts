@@ -5,9 +5,10 @@ import { PHASE_ORDER, phasesUpTo, restoreFlags, setFlags } from '../helpers/flag
 afterEach(restoreFlags);
 
 describe('phaseOn (R30 order)', () => {
-  it('ships with every phase off, lrsShadow included', () => {
+  it('ships with wordpressContent on and every later phase off, lrsShadow included', () => {
     expect(FEATURES.lrsShadow).toBe(false);
-    for (const p of [...PHASE_ORDER, 'badges'] as const) expect(phaseOn(p)).toBe(false);
+    expect(phaseOn('wordpressContent')).toBe(true);
+    for (const p of [...PHASE_ORDER.slice(1), 'badges'] as const) expect(phaseOn(p)).toBe(false);
   });
 
   it('a phase is on only with every earlier phase on', () => {

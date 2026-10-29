@@ -1,6 +1,6 @@
 // The site's content as a learning-mcp course. Converted at runtime (memoised per isolate) rather than
 // written to a second generated file, so new paths flow through with no pipeline change (ruling R-B3).
-// Content is authored once, in content/paths/**.yaml.
+// Content is authored once, in Sensei, and pulled into content/snapshot/.
 import { parseCourse, type Course } from '../../../vendor/learning-mcp/core/index.ts';
 import { BRANCH_SUCCESS, BRANCH_WHEN, COURSE_ACTIVITY_BASE, COURSE_ID, COURSE_VERSION } from '../../../src/shared/course-meta';
 import type { ContentBundle } from '../../../src/shared/types';

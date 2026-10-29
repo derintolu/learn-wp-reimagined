@@ -98,7 +98,7 @@ describe('/how-it-works', () => {
     expect(t).toContain(`placement got ${last[1]} of ${last[2]} test conversations right, measured on this site's own lessons`);
     expect(doc).toMatch(/Re-run: \d+% \(\d+\/\d+\) on the real content/);
     if (last[1] === last[2]) expect(t).not.toContain('The miss was');
-    for (const f of ['docs/content-accuracy.md', 'docs/content-accuracy-learner.md', 'docs/content-accuracy-vibe-coder.md', 'content/paths/', 'docs/model-eval.md', 'functions/_lib/budget.ts', 'functions/_lib/mcp/gate.ts', 'functions/_lib/config.ts', 'docs/record-format.md']) {
+    for (const f of ['docs/content-accuracy.md', 'docs/content-accuracy-learner.md', 'docs/content-accuracy-vibe-coder.md', 'content/snapshot/', 'docs/model-eval.md', 'functions/_lib/budget.ts', 'functions/_lib/mcp/gate.ts', 'functions/_lib/config.ts', 'docs/record-format.md']) {
       expect(t).toContain(f);
     }
   });
@@ -200,7 +200,7 @@ describe('/how-it-works', () => {
       'The course-xapi-mcp reference server': STATUS.live,
       'Learning Ledger': STATUS.installed,
       'The LRS at lrs.sqwrlz.com': STATUS.installed,
-      'Sensei as the course back end': STATUS.next,
+      'Sensei as the course back end': STATUS.live,
       Badges: STATUS.next,
     });
     expect(text()).toContain(MCP_URL);
@@ -285,13 +285,14 @@ describe('/how-it-works with the Sensei content flag', () => {
     flags.wordpressContent = false;
   });
 
-  it('ships off, with the pinned version and the block-theme backend view', () => {
-    expect(flags.wordpressContent).toBe(false);
+  it('ships on, with the pinned version and the block-theme backend view', () => {
+    expect(flags.wordpressContent).toBe(true);
     expect(SENSEI_VERSION).toBe('4.26.4');
     expect(BACKEND_VIEW_PATH).toBe('/backend/block-theme');
   });
 
   it('off: no Sensei backend copy and no backend-view link', () => {
+    flags.wordpressContent = false;
     const { container } = view();
     expect(text()).not.toContain('backend view');
     expect(text()).not.toContain(SENSEI_VERSION);
@@ -401,6 +402,7 @@ describe('/how-it-works with the anonymous-accounts flag', () => {
   it('on with Sensei content: adds the enrolment sentence to the Sensei part, and only then', () => {
     const enrol = "Sensei enrols you in a path when you start it. Sensei's own pages are the same for everyone and don't show your progress.";
     flags.senseiLearners = true;
+    flags.wordpressContent = false;
     view();
     expect(text()).not.toContain(enrol);
     cleanup();

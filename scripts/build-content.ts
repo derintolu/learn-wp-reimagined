@@ -5,7 +5,7 @@ import { packageToBundle } from '../src/shared/package';
 import type { ContentBundle } from '../src/shared/types';
 import { SNAPSHOT_DIR, readSnapshot } from './content-pull';
 import { houseRules } from './house-rules';
-import { packageErrors } from './migrate-to-sensei';
+import { packageErrors } from './package-errors';
 
 const enc = new TextEncoder();
 
