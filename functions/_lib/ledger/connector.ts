@@ -158,9 +158,14 @@ export class ConnectorClient {
     return this.send("GET", `/course-server/learners/${userId}/certificates/${this.courseId(courseKey)}`);
   }
 
-  /** DELETE learners/{id}: removes the WordPress user, its connector rows and (queued if need be) its LRS actors. */
-  async deleteLearner(userId: number): Promise<void> {
-    await this.send("DELETE", `/course-server/learners/${userId}`);
+  /**
+   * DELETE learners/{id}: removes the WordPress user, its connector rows and (queued if need be) its LRS actors.
+   * revokeBadges false (Learning Ledger 0.1.7+) keeps the badges the learner claimed; the query is part of the signed
+   * path. Left out when true, the ledger's default.
+   */
+  async deleteLearner(userId: number, opts?: { revokeBadges?: boolean }): Promise<void> {
+    const query = opts?.revokeBadges === false ? "?revokeBadges=false" : "";
+    await this.send("DELETE", `/course-server/learners/${userId}${query}`);
   }
 
   private courseIds(): Record<string, number> {

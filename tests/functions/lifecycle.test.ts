@@ -81,6 +81,17 @@ describe('eraseLearner', () => {
     expect(await count()).toBe(0);
   });
 
+  it('delete my data deletes the Sensei learner without keeping badges; retention keeps them', async () => {
+    const s = await addSession('abc', 77, NOW);
+    await eraseLearner(env, s, { revokeBadges: true });
+    const t = await addSession('def', 78, NOW);
+    await eraseLearner(env, t, { revokeBadges: false });
+    expect(calls.filter((c) => c.method === 'DELETE').map((c) => c.url.replace(LEDGER_BASE, ''))).toEqual([
+      '/course-server/learners/77',
+      '/course-server/learners/78?revokeBadges=false',
+    ]);
+  });
+
   it('removes the learner OAuth tokens and local record rows', async () => {
     const s = await addSession('abc', null, NOW);
     await ensureOAuthSchema(db);
@@ -198,6 +209,7 @@ describe('sweep', () => {
     expect(r.expired).toBe(1);
     expect(r.retained).toBe(1);
     expect(JSON.parse(eraseCalls()[0].body).revokeBadges).toBe(false);
+    expect(calls.filter((c) => c.method === 'DELETE').map((c) => c.url.replace(LEDGER_BASE, ''))).toEqual(['/course-server/learners/5?revokeBadges=false']);
     expect(await count()).toBe(1);
     expect((await db.prepare('SELECT actor_name FROM sessions').first<any>()).actor_name).toBe('fresh');
   });

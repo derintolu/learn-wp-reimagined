@@ -32,10 +32,10 @@ export const ERASE_AFTER_LRS = ['shadow_facts', 'official_outcomes', 'carry_over
  * in place and the delete (or the next sweep) runs every step again. A learner already gone (404) counts as done.
  * The Sensei step runs whenever the session names a WordPress user.
  *
- * Learning Ledger (c9b5915) ignores `revokeBadges` on POST /actors/erase and leaves badge rows to listeners of
- * `learning_ledger/actor_erased`, of which it registers none: an erase neither revokes nor deletes a badge. So the
- * retention sweep cannot revoke a claimed badge, and "Delete my data" does not revoke one either (an owner item
- * before badges shipped). The option is sent anyway, for when the LRS honours it.
+ * `revokeBadges` goes to both deletes. Learning Ledger 0.1.1+ honours it on POST /actors/erase: true ("Delete my
+ * data") revokes the learner's badges, false (the retention sweep) keeps the ones they claimed. The Sensei learner
+ * delete also erases the learner's LRS actors, so it carries the same choice (`?revokeBadges=false`, Learning Ledger
+ * 0.1.7+); without it the sweep would revoke claimed badges through that second erase.
  */
 export async function eraseLearner(env: Env, s: Session, opts: { revokeBadges: boolean }): Promise<void> {
   await ensureRecordSchema(env.DB);
@@ -52,7 +52,7 @@ export async function eraseLearner(env: Env, s: Session, opts: { revokeBadges: b
   }
   if (s.wpUserId != null) {
     try {
-      await new ConnectorClient(env).deleteLearner(s.wpUserId);
+      await new ConnectorClient(env).deleteLearner(s.wpUserId, { revokeBadges: opts.revokeBadges });
     } catch (e) {
       if (!(e instanceof ConnectorError && e.status === 404)) throw e;
     }

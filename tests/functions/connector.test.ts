@@ -264,6 +264,36 @@ describe("learner routes", () => {
     expect(call(f)[1].method).toBe("DELETE");
   });
 
+  it("deleteLearner with revokeBadges false asks the ledger to keep claimed badges, and signs the query", async () => {
+    const f = vi.fn(async () => new Response("{}", { status: 200 }));
+    await client(f).deleteLearner(41, { revokeBadges: false });
+    const [u, init] = call(f);
+    expect(u).toBe(`${base}/41?revokeBadges=false`);
+    expect(init.method).toBe("DELETE");
+    const pub = createPublicKey(createPrivateKey({ key: Buffer.from(KEY, "base64"), format: "der", type: "pkcs8" }))
+      .export({ format: "der", type: "spki" })
+      .subarray(-32)
+      .toString("base64");
+    const url = new URL(u);
+    const verify = (path: string) =>
+      verifyRequest({
+        method: "DELETE",
+        path,
+        body: new Uint8Array(),
+        headers: new Headers(init.headers as Record<string, string>),
+        publicKeyB64: pub,
+        now: Math.floor(Date.now() / 1000),
+      });
+    expect((await verify(url.pathname + url.search)).ok).toBe(true);
+    expect((await verify(url.pathname)).ok).toBe(false);
+  });
+
+  it("deleteLearner with revokeBadges true sends no parameter", async () => {
+    const f = vi.fn(async () => new Response("{}", { status: 200 }));
+    await client(f).deleteLearner(41, { revokeBadges: true });
+    expect(call(f)[0]).toBe(`${base}/41`);
+  });
+
   it("built without a fetchFn, calls the global fetch with no receiver (Workers)", async () => {
     const original = globalThis.fetch;
     globalThis.fetch = function (this: unknown) {
