@@ -187,13 +187,57 @@ describe('LrsClient', () => {
     }
   });
 
-  it('sets a 3 s timeout signal and refuses redirects', async () => {
+  it('sets a 3 s timeout signal and never follows redirects', async () => {
     const spy = vi.spyOn(AbortSignal, 'timeout');
     const f = fake(new Response(null, { status: 204 }));
     await new LrsClient(env, f.fn).putStatement(stmt);
     expect(spy).toHaveBeenCalledWith(3000);
-    expect(f.calls[0].init.redirect).toBe('error');
+    expect(f.calls[0].init.redirect).toBe('manual');
     spy.mockRestore();
+  });
+
+  describe('on the Workers runtime', () => {
+    // Workers accepts only 'follow' and 'manual' for init.redirect and throws a TypeError otherwise.
+    const workers = (respond: () => Response) => {
+      const calls: Call[] = [];
+      const fn = (async (url: string | URL | Request, init?: RequestInit) => {
+        if (init?.redirect !== 'follow' && init?.redirect !== 'manual') throw new TypeError(`Invalid redirect value, must be one of "follow" or "manual" ("${String(init?.redirect)}" given)`);
+        calls.push({ url: String(url), init: init ?? {} });
+        return respond();
+      }) as unknown as typeof fetch;
+      return { fn, calls };
+    };
+
+    it('completes a request', async () => {
+      const w = workers(() => new Response(null, { status: 204 }));
+      await new LrsClient(env, w.fn).putStatement(stmt);
+      expect(w.calls).toHaveLength(1);
+    });
+
+    it('answers a 302 with an LrsError and does not follow it', async () => {
+      const w = workers(() => new Response(null, { status: 302, headers: { Location: 'https://evil.example/x' } }));
+      const err = await new LrsClient(env, w.fn).getStatements({ agent: actor }).catch((e) => e);
+      expect(err).toBeInstanceOf(LrsError);
+      expect(err.status).toBe(302);
+      expect(err.message).toBe('the LRS answered with a redirect');
+      expect(w.calls).toHaveLength(1);
+    });
+
+    it('treats an opaque-redirect response as a refused redirect', async () => {
+      const opaque = { status: 0, type: 'opaqueredirect', ok: false, headers: new Headers() } as unknown as Response;
+      const w = workers(() => opaque);
+      const err = await new LrsClient(env, w.fn).getStatements({ agent: actor }).catch((e) => e);
+      expect(err).toBeInstanceOf(LrsError);
+      expect(err.message).toBe('the LRS answered with a redirect');
+    });
+  });
+
+  it('keeps the cause when the LRS did not answer, never the credentials', async () => {
+    const f = fake(new TypeError('x'.repeat(300)));
+    const err = await new LrsClient(env, f.fn).putStatement(stmt).catch((e) => e);
+    expect(err).toBeInstanceOf(LrsUnavailable);
+    expect(err.message).toBe('the LRS did not answer: TypeError ' + 'x'.repeat(120));
+    expect(err.message).not.toContain(SECRET);
   });
 
   it('is unavailable, without calling out, when the credentials are not configured', async () => {

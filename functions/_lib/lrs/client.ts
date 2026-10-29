@@ -68,12 +68,20 @@ export class LrsClient {
           ...init.headers,
         },
         body: init.body as BodyInit | undefined,
-        redirect: 'error',
+        // Workers supports only 'follow' and 'manual'; a 3xx is refused below instead of followed.
+        redirect: 'manual',
         signal: AbortSignal.timeout(TIMEOUT_MS),
       });
-    } catch {
-      throw new LrsUnavailable('the LRS did not answer');
+    } catch (e) {
+      // The cause (never headers or credentials) stays visible in logs.
+      const name = e instanceof Error ? e.name : typeof e;
+      let message = e instanceof Error ? e.message : '';
+      // A platform error could echo the request; the credentials never reach the message.
+      for (const secret of [LRS_KEY, LRS_SECRET, btoa(`${LRS_KEY}:${LRS_SECRET}`)]) message = message.split(secret).join('[redacted]');
+      message = message.slice(0, 120);
+      throw new LrsUnavailable(`the LRS did not answer: ${name} ${message}`.trimEnd());
     }
+    if (res.type === 'opaqueredirect' || (res.status >= 300 && res.status < 400)) throw new LrsError(res.status, 'the LRS answered with a redirect');
     if (res.status >= 500 || res.status === 429 || res.status === 408) throw new LrsUnavailable(`the LRS failed (HTTP ${res.status})`);
     return res;
   }
