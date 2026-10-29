@@ -240,6 +240,25 @@ describe('LrsClient', () => {
     expect(err.message).not.toContain(SECRET);
   });
 
+  it('redacts the key and the Basic value from the cause', async () => {
+    for (const leak of [KEY, BASIC.slice('Basic '.length)]) {
+      const f = fake(new TypeError(`bad request ${leak} end`));
+      const err = await new LrsClient(env, f.fn).putStatement(stmt).catch((e) => e);
+      expect(err).toBeInstanceOf(LrsUnavailable);
+      expect(err.message).not.toContain(leak);
+      expect(err.message).toContain('[redacted]');
+    }
+  });
+
+  it('a credential btoa cannot encode still ends as LrsUnavailable', async () => {
+    const odd = { DB: {} as Env['DB'], LRS_KEY: 'k\u4e2d', LRS_SECRET: SECRET } as Env;
+    const f = fake();
+    const err = await new LrsClient(odd, f.fn).putStatement(stmt).catch((e) => e);
+    expect(err).toBeInstanceOf(LrsUnavailable);
+    expect(err.message).not.toContain(SECRET);
+    expect(f.calls).toHaveLength(0);
+  });
+
   it('is unavailable, without calling out, when the credentials are not configured', async () => {
     const f = fake();
     const c = new LrsClient({ DB: env.DB } as Env, f.fn);

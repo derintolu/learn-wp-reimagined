@@ -77,7 +77,13 @@ export class LrsClient {
       const name = e instanceof Error ? e.name : typeof e;
       let message = e instanceof Error ? e.message : '';
       // A platform error could echo the request; the credentials never reach the message.
-      for (const secret of [LRS_KEY, LRS_SECRET, btoa(`${LRS_KEY}:${LRS_SECRET}`)]) message = message.split(secret).join('[redacted]');
+      let basic = '';
+      try {
+        basic = btoa(`${LRS_KEY}:${LRS_SECRET}`);
+      } catch {
+        // a non-Latin-1 credential has no Basic form to redact
+      }
+      for (const secret of [LRS_KEY, LRS_SECRET, basic]) if (secret) message = message.split(secret).join('[redacted]');
       message = message.slice(0, 120);
       throw new LrsUnavailable(`the LRS did not answer: ${name} ${message}`.trimEnd());
     }
