@@ -37,6 +37,8 @@ export interface LedgerStatus {
   sodium: "native" | "compat" | null;
   trustedKeys: string[];
   connectorSecretSha256?: string;
+  /** The homePage Learning Ledger names learner actors by (the site's home URL). */
+  actorHomePage?: string;
 }
 
 /** Progress of one learner, keyed by path id (courses) and by Sensei post id as a string (lessons). */
@@ -89,6 +91,8 @@ export class ConnectorClient {
     };
     if (typeof connector.secret_sha256 === "string")
       out.connectorSecretSha256 = connector.secret_sha256;
+    if (typeof connector.actor_home_page === "string")
+      out.actorHomePage = connector.actor_home_page;
     return out;
   }
 

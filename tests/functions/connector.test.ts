@@ -94,6 +94,19 @@ describe("ConnectorClient", () => {
     });
   });
 
+  it("maps connector.actor_home_page when it is a string", async () => {
+    const mk = (connector: unknown) =>
+      new ConnectorClient(
+        env,
+        (async () => new Response(JSON.stringify({ connector }), { status: 200 })) as unknown as typeof fetch,
+      ).status();
+    expect((await mk({ actor_home_page: "https://learnwp.sqwrlz.com" })).actorHomePage).toBe(
+      "https://learnwp.sqwrlz.com",
+    );
+    expect((await mk({ actor_home_page: 5 })).actorHomePage).toBeUndefined();
+    expect((await mk({})).actorHomePage).toBeUndefined();
+  });
+
   it("throws ConnectorUnavailable on a 5xx and ConnectorError on a 4xx", async () => {
     const mk = (s: number) =>
       new ConnectorClient(

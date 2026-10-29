@@ -1,4 +1,5 @@
-// Idempotent Space A provisioning through WP-CLI. Only public values appear in arguments.
+// Idempotent Space A provisioning through WP-CLI. Only public values appear in arguments. The host refuses
+// `wp eval`, so no step evaluates PHP: the home check reads the connector status route instead.
 // CLI: npx tsx scripts/provision.ts space-a   (SPACE_A_ID, SPACEFAST_TOKEN, LEDGER_ZIP_URL, BACKEND_VIEW_ZIP_URL,
 // optional PROGRAM_ID from `wp learning-ledger program list`). Connector key is read from the env file
 // (ENV_FILE, default .env.server). The ledger step is skipped once the plugin reports a version, so a newer
@@ -28,13 +29,6 @@ export interface ProvisionConfig {
 }
 
 export const KEY_ID = 'course-server';
-/**
- * Fails (WP_CLI::error, exit 1) unless WordPress `home` is the site. Learning Ledger names learner actors by
- * untrailingslashit(home_url()) and maps an actor back to its user only on that homePage, while every official
- * statement names XAPI_BASE; the course server refuses learners whose homePage differs. A check only: changing
- * `home` is the owner's call.
- */
-export const HOME_CHECK = `if ( untrailingslashit( home_url() ) !== '${XAPI_BASE}' ) { WP_CLI::error( 'WordPress home is ' . home_url() . ', not ${XAPI_BASE}.' ); }`;
 export const PING_BASE = 'https://learnwp.sqwrlz.com/api';
 
 const EMPTY: LedgerStatus = { versions: {}, roles: [], sensei: null, certificates: null, sodium: null, trustedKeys: [] };
@@ -42,6 +36,8 @@ const EMPTY: LedgerStatus = { versions: {}, roles: [], sensei: null, certificate
 interface Step {
   name: string;
   args?: string[];
+  /** A step without args that only reads the fresh status; false fails the run. */
+  check?: (s: LedgerStatus) => boolean;
   skip: (s: LedgerStatus) => boolean | Promise<boolean>;
   unavailable?: boolean;
 }
@@ -70,6 +66,12 @@ async function runSteps(steps: Step[], read: () => Promise<LedgerStatus>, run: (
         report.push({ name: step.name, state: 'skipped' });
         continue;
       }
+      if (step.check) {
+        const passed = step.check(current);
+        report.push({ name: step.name, state: passed ? 'done' : 'failed' });
+        if (!passed) break;
+        continue;
+      }
       const ok = await run(step.args!);
       report.push({ name: step.name, state: ok ? 'done' : 'failed', args: step.args });
       if (!ok) break;
@@ -96,8 +98,9 @@ export async function provisionSpaceA(
   const steps: Step[] = [
     { name: 'sensei', args: ['plugin', 'install', 'sensei-lms', '--version=4.26.4', '--activate'], skip: (s) => s.sensei !== null || active('sensei-lms')() },
     { name: 'certificates', args: ['plugin', 'install', 'sensei-certificates', '--version=2.6.0', '--activate'], skip: (s) => s.certificates !== null || active('sensei-certificates')() },
-    // R23: WP-CLI activation does not run the Certificates installer; its option marks that it ran.
-    { name: 'certificates-installer', args: ['eval', "do_action('sensei_certificates_run_installer');"], skip: () => run(['option', 'get', 'sensei_certificates_version']) },
+    // R23: WP-CLI activation does not run the Certificates installer; its option marks that it ran. Certificates
+    // schedules this event on activation and WP-Cron does not fire on Spacefast, so it is run by hand.
+    { name: 'certificates-installer', args: ['cron', 'event', 'run', 'sensei_certificates_check_run_installer'], skip: () => run(['option', 'get', 'sensei_certificates_version']) },
     { name: 'ledger', args: ['plugin', 'install', cfg.ledgerZipUrl, '--activate', '--force'], skip: (s) => 'plugin' in s.versions },
     { name: 'backend-view', args: ['plugin', 'install', cfg.backendViewZipUrl, '--activate', '--force'], skip: active('lwr-backend-view') },
     // No read-back exists for the permalink structure; setting it again is harmless.
@@ -107,7 +110,9 @@ export async function provisionSpaceA(
     cfg.programId === undefined
       ? { name: 'content-ping', skip: () => true, unavailable: true }
       : { name: 'content-ping', args: ['learning-ledger', 'program', 'update', String(cfg.programId), `--course-server-url=${cfg.pingBase ?? PING_BASE}`], skip: () => false },
-    { name: 'home', args: ['eval', HOME_CHECK], skip: () => false },
+    // Learning Ledger names learner actors by the site's home URL, while every official statement names XAPI_BASE;
+    // the course server refuses learners whose homePage differs. A check only: changing `home` is the owner's call.
+    { name: 'home', check: (s) => s.actorHomePage === XAPI_BASE, skip: () => false },
   ];
 
   return runSteps(steps, read, run);

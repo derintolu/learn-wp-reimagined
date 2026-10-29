@@ -96,8 +96,20 @@ describe('lwr-backend-view public REST route', () => {
     expect(php).toContain("'_order_' . $course_id");
     expect(php).toContain("apply_filters( 'the_content'");
   });
-  it('bumps the version past 0.1.0', () => {
-    expect(/^\s*\* Version:\s*(\S+)/m.exec(php)![1]).not.toBe('0.1.0');
+  it('is version 0.3.0 in the header and the constant', () => {
+    expect(/^\s*\* Version:\s*(\S+)/m.exec(php)![1]).toBe('0.3.0');
+    expect(/LWR_BACKEND_VIEW_VERSION\s*=\s*'([^']+)'/.exec(php)![1]).toBe('0.3.0');
+  });
+  it('registers a public ids route over programs, courses and lessons', () => {
+    expect(php).toContain("'/ids'");
+    expect(php).toContain('lwr_backend_view_rest_ids');
+    expect(php).toContain('lledger_program');
+    expect(php).toContain('LIMIT 500');
+    expect(php).toContain('ORDER BY p.ID');
+    expect(php).toContain('(object) $groups');
+  });
+  it("exposes the post id on the course, the lesson and the course's lessons", () => {
+    expect(php.match(/'id'\s+=> \(int\)/g)).toHaveLength(3);
   });
 });
 

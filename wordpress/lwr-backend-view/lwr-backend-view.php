@@ -2,7 +2,7 @@
 /**
  * Plugin Name: LWR Backend View
  * Description: Banner on Sensei course and lesson screens in wp-admin that links back to the studio, and a read-only public route the studio's backend view reads. Part of an unofficial concept.
- * Version: 0.2.0
+ * Version: 0.3.0
  * Requires at least: 6.4
  * Requires PHP: 8.0
  * Author: Learn WP Reimagined
@@ -16,7 +16,7 @@
 defined( 'ABSPATH' ) || exit;
 
 const LWR_BACKEND_VIEW_STUDIO  = 'https://learnwp.sqwrlz.com';
-const LWR_BACKEND_VIEW_VERSION = '0.2.0';
+const LWR_BACKEND_VIEW_VERSION = '0.3.0';
 
 /**
  * The post type of the current admin screen when it is a Sensei course or lesson screen, else ''.
@@ -120,7 +120,7 @@ function lwr_backend_view_find( string $type, string $key ): ?WP_Post {
 /**
  * Published lessons of a course in Sensei's order (its per-course order meta, then menu order, then ID).
  *
- * @return array<int, array{key: string, title: string}>
+ * @return array<int, array{id: int, key: string, title: string}>
  */
 function lwr_backend_view_course_lessons( int $course_id ): array {
 	global $wpdb;
@@ -140,6 +140,7 @@ function lwr_backend_view_course_lessons( int $course_id ): array {
 	$lessons = array();
 	foreach ( $ids as $id ) {
 		$lessons[] = array(
+			'id'    => (int) $id,
 			'key'   => lwr_backend_view_key( (int) $id ),
 			'title' => get_the_title( (int) $id ),
 		);
@@ -169,6 +170,7 @@ function lwr_backend_view_rest_course( WP_REST_Request $request ): WP_REST_Respo
 	}
 	return lwr_backend_view_respond(
 		array(
+			'id'      => (int) $post->ID,
 			'key'     => lwr_backend_view_key( $post->ID ),
 			'title'   => get_the_title( $post ),
 			'content' => apply_filters( 'the_content', $post->post_content ), // phpcs:ignore WordPress.NamingConventions.PrefixAllGlobals -- core filter.
@@ -189,6 +191,7 @@ function lwr_backend_view_rest_lesson( WP_REST_Request $request ): WP_REST_Respo
 	$course    = $course_id ? get_post( $course_id ) : null;
 	return lwr_backend_view_respond(
 		array(
+			'id'      => (int) $post->ID,
 			'key'     => lwr_backend_view_key( $post->ID ),
 			'title'   => get_the_title( $post ),
 			'content' => apply_filters( 'the_content', $post->post_content ), // phpcs:ignore WordPress.NamingConventions.PrefixAllGlobals -- core filter.
@@ -197,9 +200,65 @@ function lwr_backend_view_rest_lesson( WP_REST_Request $request ): WP_REST_Respo
 	);
 }
 
+/**
+ * GET /wp-json/lwr-backend-view/v1/ids: post ids by stable key for the Learning Ledger program, the courses and
+ * the lessons. Published, unprotected posts that carry the key meta only; on a duplicate key the lowest id wins.
+ */
+function lwr_backend_view_rest_ids(): WP_REST_Response {
+	global $wpdb;
+	// phpcs:disable WordPress.DB.PreparedSQL.NotPrepared,WordPress.DB.DirectDatabaseQuery -- fixed SQL, values prepared.
+	$rows = $wpdb->get_results(
+		$wpdb->prepare(
+			"SELECT p.ID, p.post_type, m.meta_value AS skey FROM {$wpdb->posts} p
+			INNER JOIN {$wpdb->postmeta} m ON m.post_id = p.ID AND m.meta_key = '_lledger_stable_key'
+			WHERE p.post_type IN ( %s, %s, %s ) AND p.post_status = 'publish' AND p.post_password = ''
+			ORDER BY p.ID LIMIT 500",
+			'lledger_program',
+			'course',
+			'lesson'
+		)
+	);
+	// phpcs:enable
+	$groups = array(
+		'program' => array(),
+		'courses' => array(),
+		'lessons' => array(),
+	);
+	$names  = array(
+		'lledger_program' => 'program',
+		'course'          => 'courses',
+		'lesson'          => 'lessons',
+	);
+	foreach ( (array) $rows as $row ) {
+		$group = $names[ $row->post_type ] ?? '';
+		$key   = (string) $row->skey;
+		if ( '' === $group || '' === $key || isset( $groups[ $group ][ $key ] ) ) {
+			continue;
+		}
+		$groups[ $group ][ $key ] = (int) $row->ID;
+	}
+	// Objects, so an empty group is {} and not [].
+	return lwr_backend_view_respond(
+		array(
+			'program' => (object) $groups['program'],
+			'courses' => (object) $groups['courses'],
+			'lessons' => (object) $groups['lessons'],
+		)
+	);
+}
+
 add_action(
 	'rest_api_init',
 	static function () {
+		register_rest_route(
+			'lwr-backend-view/v1',
+			'/ids',
+			array(
+				'methods'             => WP_REST_Server::READABLE,
+				'callback'            => 'lwr_backend_view_rest_ids',
+				'permission_callback' => '__return_true',
+			)
+		);
 		foreach ( array( 'course', 'lesson' ) as $type ) {
 			register_rest_route(
 				'lwr-backend-view/v1',

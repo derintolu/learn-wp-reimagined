@@ -5,7 +5,7 @@ import { chmodSync } from 'node:fs';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import { createHash } from 'node:crypto';
 import { generateKeys, generateLrsKey, readConnectorEnv } from '../../scripts/keys';
-import { HOME_CHECK, LRS_STATUS_URL, lrsStatus, provisionSpaceA, provisionSpaceB } from '../../scripts/provision';
+import { LRS_STATUS_URL, lrsStatus, provisionSpaceA, provisionSpaceB } from '../../scripts/provision';
 import { httpSpacefastApi, type SpacefastApi } from '../../scripts/lib/spacefast';
 import { ConnectorError, ConnectorUnavailable, type LedgerStatus } from '../../functions/_lib/ledger/connector';
 
@@ -17,7 +17,9 @@ const cfg = {
   publicKeyB64: PUB,
   programId: 7,
 };
+const HOME = 'https://learnwp.sqwrlz.com';
 const EMPTY: LedgerStatus = { versions: {}, roles: [], sensei: null, certificates: null, sodium: null, trustedKeys: [] };
+const HOMED: LedgerStatus = { ...EMPTY, actorHomePage: HOME };
 
 /** Fake API: `failing` returns ok=false for a command; `active` makes the is-active / option checks pass. */
 function fake(opts: { active?: string[]; optionSet?: boolean; failOn?: string } = {}) {
@@ -37,18 +39,17 @@ describe('provisionSpaceA', () => {
   it('issues the exact arg arrays in order', async () => {
     const f = fake();
     let reads = 0;
-    const report = await provisionSpaceA(f.api, async () => (reads++, EMPTY), cfg);
+    const report = await provisionSpaceA(f.api, async () => (reads++, HOMED), cfg);
     expect(f.installs()).toEqual([
       ['plugin', 'install', 'sensei-lms', '--version=4.26.4', '--activate'],
       ['plugin', 'install', 'sensei-certificates', '--version=2.6.0', '--activate'],
-      ['eval', "do_action('sensei_certificates_run_installer');"],
+      ['cron', 'event', 'run', 'sensei_certificates_check_run_installer'],
       ['plugin', 'install', cfg.ledgerZipUrl, '--activate', '--force'],
       ['plugin', 'install', cfg.backendViewZipUrl, '--activate', '--force'],
       ['rewrite', 'structure', '/%postname%/'],
       ['learning-ledger', 'role', 'enable', 'connector'],
       ['learning-ledger', 'connector', 'trust-key', '--id=course-server', '--public-key=' + PUB],
       ['learning-ledger', 'program', 'update', '7', '--course-server-url=https://learnwp.sqwrlz.com/api'],
-      ['eval', HOME_CHECK],
     ]);
     expect(report.every((s) => s.state === 'done')).toBe(true);
     expect(reads).toBeGreaterThanOrEqual(report.length);
@@ -56,26 +57,32 @@ describe('provisionSpaceA', () => {
 
   it('skips steps the status already reports', async () => {
     const f = fake({ active: ['sensei-lms', 'sensei-certificates', 'lwr-backend-view'], optionSet: true });
-    const status: LedgerStatus = { ...EMPTY, versions: { plugin: '1.0.0' }, roles: ['connector'], trustedKeys: ['course-server'] };
+    const status: LedgerStatus = { ...HOMED, versions: { plugin: '1.0.0' }, roles: ['connector'], trustedKeys: ['course-server'] };
     const report = await provisionSpaceA(f.api, async () => status, cfg);
     expect(f.installs()).toEqual([
       ['rewrite', 'structure', '/%postname%/'],
       ['learning-ledger', 'program', 'update', '7', '--course-server-url=https://learnwp.sqwrlz.com/api'],
-      ['eval', HOME_CHECK],
     ]);
     expect(report.filter((s) => s.state === 'skipped').map((s) => s.name)).toEqual([
       'sensei', 'certificates', 'certificates-installer', 'ledger', 'backend-view', 'role', 'trust-key',
     ]);
+    expect(report.at(-1)).toEqual({ name: 'home', state: 'done' });
   });
 
-  it('checks, never sets, that WordPress home is the site, and fails the run when it is not', async () => {
-    // Learning Ledger names learner actors by untrailingslashit(home_url()); official statements name XAPI_BASE.
-    expect(HOME_CHECK).toContain("untrailingslashit( home_url() ) !== 'https://learnwp.sqwrlz.com'");
-    expect(HOME_CHECK).toContain('WP_CLI::error');
-    expect(HOME_CHECK).not.toMatch(/update_option|option update/);
-    const f = fake({ failOn: `eval ${HOME_CHECK}` });
-    const report = await provisionSpaceA(f.api, async () => EMPTY, cfg);
-    expect(report.at(-1)).toMatchObject({ name: 'home', state: 'failed' });
+  it('passes the home step without WP-CLI when the status actor homePage is the site', async () => {
+    const f = fake();
+    const report = await provisionSpaceA(f.api, async () => HOMED, cfg);
+    expect(report.at(-1)).toEqual({ name: 'home', state: 'done' });
+    expect(f.calls.some((a) => a[0] === 'eval')).toBe(false);
+  });
+
+  it('fails the home step, last in the report, when the actor homePage differs or is missing', async () => {
+    for (const status of [{ ...EMPTY, actorHomePage: 'https://other.example' }, EMPTY]) {
+      const f = fake();
+      const report = await provisionSpaceA(f.api, async () => status, cfg);
+      expect(report.at(-1)).toEqual({ name: 'home', state: 'failed' });
+      expect(f.calls.some((a) => a[0] === 'eval')).toBe(false);
+    }
   });
 
   it('stops and reports on the first failed step', async () => {
@@ -88,7 +95,9 @@ describe('provisionSpaceA', () => {
   it('treats a 404 status route as nothing installed yet', async () => {
     const f = fake();
     const report = await provisionSpaceA(f.api, async () => { throw new ConnectorError(404, 'no route'); }, cfg);
-    expect(report.every((s) => s.state === 'done')).toBe(true);
+    // Every install runs; only the home check fails, as a status that never answers names no actor homePage.
+    expect(report.slice(0, -1).every((s) => s.state === 'done')).toBe(true);
+    expect(report.at(-1)).toEqual({ name: 'home', state: 'failed' });
   });
 
   it('stops with a failed status step on any other status error, running nothing', async () => {
@@ -155,7 +164,7 @@ describe('provisionSpaceB', () => {
 
   it('skips steps the status already reports', async () => {
     const f = fake();
-    const status: LedgerStatus = { ...EMPTY, versions: { plugin: '1.0.0' }, roles: ['lrs'] };
+    const status: LedgerStatus = { ...HOMED, versions: { plugin: '1.0.0' }, roles: ['lrs'] };
     const report = await provisionSpaceB(f.api, async () => status, cfgB);
     // spike inactive, ledger and role reported, client exists (the update probe succeeds)
     expect(f.installs()).toEqual([['learning-ledger', 'client', 'update', 'course-server', SCOPES, RATE]]);
@@ -164,7 +173,7 @@ describe('provisionSpaceB', () => {
 
   it('creates the client when the role is on but the client is missing', async () => {
     const f = fake({ failOn: `learning-ledger client update course-server ${SCOPES} ${RATE}` });
-    const status: LedgerStatus = { ...EMPTY, versions: { plugin: '1.0.0' }, roles: ['lrs'] };
+    const status: LedgerStatus = { ...HOMED, versions: { plugin: '1.0.0' }, roles: ['lrs'] };
     const report = await provisionSpaceB(f.api, async () => status, cfgB);
     expect(report.at(-1)).toMatchObject({ name: 'client', state: 'done' });
     expect(f.installs().at(-1)![2]).toBe('create');
