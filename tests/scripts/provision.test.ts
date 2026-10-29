@@ -49,7 +49,7 @@ describe('provisionSpaceA', () => {
       ['rewrite', 'structure', '/%postname%/'],
       ['learning-ledger', 'role', 'enable', 'connector'],
       ['learning-ledger', 'connector', 'trust-key', '--id=course-server', '--public-key=' + PUB],
-      ['learning-ledger', 'program', 'update', '7', '--course-server-url=https://learnwp.sqwrlz.com/api'],
+      ['learning-ledger', 'program', 'update', '7', '--course-server-url=https://learnwp.sqwrlz.com/api/mcp'],
     ]);
     expect(report.every((s) => s.state === 'done')).toBe(true);
     expect(reads).toBeGreaterThanOrEqual(report.length);
@@ -61,7 +61,7 @@ describe('provisionSpaceA', () => {
     const report = await provisionSpaceA(f.api, async () => status, cfg);
     expect(f.installs()).toEqual([
       ['rewrite', 'structure', '/%postname%/'],
-      ['learning-ledger', 'program', 'update', '7', '--course-server-url=https://learnwp.sqwrlz.com/api'],
+      ['learning-ledger', 'program', 'update', '7', '--course-server-url=https://learnwp.sqwrlz.com/api/mcp'],
     ]);
     expect(report.filter((s) => s.state === 'skipped').map((s) => s.name)).toEqual([
       'sensei', 'certificates', 'certificates-installer', 'ledger', 'backend-view', 'role', 'trust-key',

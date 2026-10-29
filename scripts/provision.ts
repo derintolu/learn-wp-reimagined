@@ -29,7 +29,7 @@ export interface ProvisionConfig {
 }
 
 export const KEY_ID = 'course-server';
-export const PING_BASE = 'https://learnwp.sqwrlz.com/api';
+export const PING_BASE = 'https://learnwp.sqwrlz.com/api/mcp';
 
 const EMPTY: LedgerStatus = { versions: {}, roles: [], sensei: null, certificates: null, sodium: null, trustedKeys: [] };
 

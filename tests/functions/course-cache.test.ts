@@ -11,6 +11,7 @@ import { COURSE_REVALIDATE_MS, onNewVersion, refreshContent, resetCourseCacheFor
 import { GET as course } from '../../functions/api/course';
 import { signRequest } from '../../functions/_lib/ledger/sign';
 import { POST as ping } from '../../functions/api/content-changed';
+import { POST as mcpPing } from '../../functions/api/mcp/content-changed';
 import type { Env } from '../../functions/_lib/env';
 import { ensureRecordSchema } from '../../functions/_lib/db';
 import { handleMcp } from '../../functions/_lib/mcp/handler';
@@ -160,6 +161,24 @@ describe('POST /api/content-changed', () => {
     expect((await call(h)).status).toBe(202);
     expect((await call(h)).status).toBe(401);
     expect(fetchMock).toHaveBeenCalledTimes(1);
+  });
+});
+
+describe('POST /api/mcp/content-changed (R48)', () => {
+  const body = enc.encode('{"program":"course","version":2,"etag":"\\"e2\\""}');
+  const signedFor = (path: string) =>
+    signRequest({ method: 'POST', path, body, keyId: 'kid1', privateKeyPkcs8B64: KEY, now: Math.floor(Date.now() / 1000), nonce: crypto.randomUUID().replace(/-/g, '') });
+  const call = (headers: Record<string, string>) =>
+    mcpPing(new Request('http://x/api/mcp/content-changed', { method: 'POST', headers, body }), { params: {}, env });
+
+  it('a ping signed for its own path is 202', async () => {
+    send200('"e1"', 1);
+    expect((await call(await signedFor('/api/mcp/content-changed'))).status).toBe(202);
+  });
+
+  it('a ping signed for the other path is 401', async () => {
+    expect((await call(await signedFor('/api/content-changed'))).status).toBe(401);
+    expect(fetchMock).not.toHaveBeenCalled();
   });
 });
 
