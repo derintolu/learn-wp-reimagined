@@ -94,6 +94,13 @@ async function runHooks(env: Env, zip: Uint8Array, etag: string): Promise<boolea
   return ok;
 }
 
+/** What this isolate is serving: the loaded bundle's etag, else the baked one (the etag always matches getContent()). */
+function memory(): { etag: string; version: number; changed: boolean } {
+  return loadedEtag ? { etag: loadedEtag, version: loadedVersion, changed: false } : { etag: bakedEtag(), version: 0, changed: false };
+}
+
+const short = (e: unknown) => String((e as Error)?.message ?? e).slice(0, 200);
+
 let failedAt = 0;
 let dbFailedAt = 0;
 let loadedVersion = 0;
@@ -108,7 +115,6 @@ export async function refreshContent(
   opts: { force?: boolean } = {},
 ): Promise<{ etag: string; version: number; changed: boolean }> {
   if (!SERVER_FLAGS.wordpressContent) return { etag: bakedEtag(), version: 0, changed: false };
-  const memory = () => (loadedEtag ? { etag: loadedEtag, version: loadedVersion, changed: false } : { etag: bakedEtag(), version: 0, changed: false });
   // A broken database costs one attempt per window, like a down connector.
   if (!opts.force && dbFailedAt && now - dbFailedAt < COURSE_REVALIDATE_MS) return memory();
   const stage = { name: 'schema' };
@@ -117,7 +123,7 @@ export async function refreshContent(
     dbFailedAt = 0;
     return r;
   } catch (e) {
-    console.error('course cache db error', stage.name, (e as Error)?.message);
+    console.error('course cache db error', stage.name, short(e));
     dbFailedAt = now;
     return memory();
   }
@@ -140,10 +146,12 @@ async function refresh(
     return { etag: row.etag, version: Number(row.version), changed: false };
   }
   // No cached copy and the last attempt failed: do not try again until the window passes (one 3 s try per window).
-  if (!row && !opts.force && failedAt && now - failedAt < COURSE_REVALIDATE_MS) return { etag: bakedEtag(), version: 0, changed: false };
+  if (!row && !opts.force && failedAt && now - failedAt < COURSE_REVALIDATE_MS) return memory();
   // Hooks are pending for a version whose hooks failed, and for one cached while lrsShadow was off and never
   // imported into the LRS (the flag flipped after wordpressContent, ruling R30).
+  stage.name = 'hooks_pending';
   const hooksPending = !!row && (Number(row.hooks_done) === 0 || (await courseImportPending(env, row.etag)));
+  stage.name = 'fetch';
   try {
     // A version whose hooks failed is fetched in full again so the hooks can be retried with its zip.
     const res = await new ConnectorClient(env).getPackage(PROGRAM_KEY, hooksPending ? undefined : row?.etag);
@@ -193,7 +201,7 @@ async function refresh(
       await use(env, row);
       return { etag: row.etag, version: Number(row.version), changed: false };
     }
-    return { etag: bakedEtag(), version: 0, changed: false };
+    return memory();
   }
 }
 

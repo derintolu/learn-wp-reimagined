@@ -340,6 +340,18 @@ describe('a course-cache database failure never fails a learner request (R49)', 
     expect(fetchMock).toHaveBeenCalledTimes(2);
   });
 
+  it('after a failed INSERT, a down connector in the next window keeps the etag of the content in memory', async () => {
+    env = { ...env, DB: failingOn(/^INSERT INTO course_cache/) };
+    send200('"e1"', 1);
+    await refreshContent(env, T0);
+    fetchMock.mockRejectedValue(new Error('down'));
+    const later = T0 + COURSE_REVALIDATE_MS + 1;
+    const r = await refreshContent(env, later);
+    expect(r.etag).toBe('"e1"');
+    // And within the connector back-off window.
+    expect((await refreshContent(env, later + 1000)).etag).toBe('"e1"');
+  });
+
   it('a SELECT that throws answers 200 with the baked content', async () => {
     env = { ...env, DB: failingOn(/^SELECT etag/) };
     const res = await get();

@@ -27,7 +27,7 @@ export async function guarded(fn: () => Promise<Response>): Promise<Response> {
   } catch (e) {
     if (e instanceof HttpError) return error(e.status, e.code, e.message);
     // Name and message only: never the request, its headers or the environment.
-    console.error('unhandled', (e as Error)?.name, (e as Error)?.message);
+    console.error('unhandled', (e as Error)?.name, String((e as Error)?.message).slice(0, 200));
     return error(500, 'server-error', 'Something went wrong.');
   }
 }
