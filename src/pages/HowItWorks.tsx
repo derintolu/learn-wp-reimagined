@@ -155,9 +155,11 @@ export function HowItWorks() {
         </>
       ) : (
         <>
-          Version 0.1.0 runs on the LRS space at {LRS_HOST}, with the LRS role on and badge signing keys made. The Sensei
-          connector isn't installed on this site yet, and the course server doesn't write to the LRS yet. The public repo
-          is where work continues.
+          Version 0.1.0 runs on the LRS space at {LRS_HOST}, with the LRS role on and badge signing keys made.{' '}
+          {anon
+            ? 'The Sensei connector runs on this site and makes your anonymous Sensei user. The course server doesn\'t write to the LRS yet.'
+            : "The Sensei connector isn't installed on this site yet, and the course server doesn't write to the LRS yet."}{' '}
+          The public repo is where work continues.
         </>
       ),
     },

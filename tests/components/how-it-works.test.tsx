@@ -389,6 +389,19 @@ describe('/how-it-works with the anonymous-accounts flag', () => {
     expect(t).not.toMatch(/\p{Extended_Pictographic}/u);
   });
 
+  it('on: the Sensei connector is named as running here, since it makes the anonymous user; off: not installed', () => {
+    flags.senseiLearners = true;
+    view();
+    expect(text()).toContain(
+      'with the LRS role on and badge signing keys made. The Sensei connector runs on this site and makes your anonymous Sensei user. The course server doesn\'t write to the LRS yet. The public repo is where work continues.',
+    );
+    expect(text()).not.toContain("connector isn't installed");
+    cleanup();
+    flags.senseiLearners = false;
+    view();
+    expect(text()).toContain("The Sensei connector isn't installed on this site yet, and the course server doesn't write to the LRS yet.");
+  });
+
   it('on with Sensei content: adds the enrolment sentence to the Sensei part, and only then', () => {
     const enrol = "Sensei enrols you in a path when you start it. Sensei's own pages are the same for everyone and don't show your progress.";
     flags.senseiLearners = true;
