@@ -99,7 +99,7 @@ async function runHooks(env: Env, zip: Uint8Array, etag: string): Promise<boolea
       await hook(zip, etag, env);
     } catch (e) {
       ok = false;
-      console.error('onNewVersion hook failed', (e as Error)?.message);
+      console.error('onNewVersion hook failed', short(e));
     }
   }
   return ok;
@@ -215,7 +215,7 @@ async function refresh(
   } catch (e) {
     // Only a database failure propagates; a connector or package failure keeps the last good copy.
     if (!(e instanceof ConnectorUnavailable) && !(e instanceof ConnectorError) && !(e instanceof PackageError)) throw e;
-    console.error('course refresh failed', (e as Error)?.message);
+    console.error('course refresh failed', short(e));
     // Back off: record the attempt so a down connector costs one try per window, not one per request.
     failedAt = now;
     if (row) {

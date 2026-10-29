@@ -237,6 +237,23 @@ describe('failures and hooks', () => {
     off();
   });
 
+  it('a hook failure and a failed refresh log at most 200 characters of the error', async () => {
+    const hook = vi.fn(async () => {
+      throw new Error('h'.repeat(5000));
+    });
+    const off = onNewVersion(hook);
+    send200('"e1"', 1);
+    await refreshContent(env, T0);
+    off();
+    fetchMock.mockRejectedValue(new Error('d'.repeat(5000)));
+    await refreshContent(env, T0 + COURSE_REVALIDATE_MS);
+    const calls = (console.error as unknown as { mock: { calls: unknown[][] } }).mock.calls;
+    const logged = (label: string) => calls.filter((c) => c[0] === label).map((c) => String(c[1]));
+    expect(logged('onNewVersion hook failed')).toHaveLength(1);
+    expect(logged('course refresh failed')).toHaveLength(1);
+    for (const m of [...logged('onNewVersion hook failed'), ...logged('course refresh failed')]) expect(m.length).toBeLessThanOrEqual(200);
+  });
+
   it('the MCP course model follows a refreshed bundle', async () => {
     send200('"e1"', 1);
     await refreshContent(env, T0);

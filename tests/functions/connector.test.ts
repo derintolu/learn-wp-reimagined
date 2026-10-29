@@ -142,6 +142,17 @@ describe("ConnectorClient", () => {
   });
 });
 
+describe("network failure message", () => {
+  it("keeps at most 200 characters of the underlying error", async () => {
+    const fetchFn = vi.fn(async () => {
+      throw new Error("x".repeat(5000));
+    });
+    const err = await new ConnectorClient(env, fetchFn as unknown as typeof fetch).status().catch((e) => e);
+    expect(err).toBeInstanceOf(ConnectorUnavailable);
+    expect(err.message).toBe(`ledger request failed: ${"x".repeat(200)}`);
+  });
+});
+
 describe("request path", () => {
   it("percent-encodes the program in the signed path", async () => {
     const fetchFn = vi.fn(async () => new Response(null, { status: 304 }));

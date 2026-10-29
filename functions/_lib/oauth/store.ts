@@ -469,6 +469,16 @@ export async function revokeAllForActor(env: Env, actorName: string): Promise<nu
   return res.meta.changes;
 }
 
+/**
+ * The daily sweep (/api/sweep): deletes the authorization requests and codes that expired more than REQUEST_TTL_MS
+ * ago (the grace clearExpired keeps, so a late replay of a spent code still ends its tokens). Returns the rows removed.
+ */
+export async function deleteExpiredCodes(env: Env, now: number): Promise<number> {
+  await ensureOAuthSchema(env.DB);
+  const res = await env.DB.prepare('DELETE FROM oauth_codes WHERE expires < ?').bind(now - REQUEST_TTL_MS).run();
+  return res.meta.changes;
+}
+
 /** The daily sweep (/api/sweep): deletes access and refresh tokens past their expiry. Returns the rows removed. */
 export async function deleteExpiredTokens(env: Env, now: number): Promise<number> {
   await ensureOAuthSchema(env.DB);

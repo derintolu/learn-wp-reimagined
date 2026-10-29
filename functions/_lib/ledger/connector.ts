@@ -220,7 +220,7 @@ export class ConnectorClient {
       throw new ConnectorUnavailable(
         ctl.signal.aborted
           ? "ledger request timed out"
-          : `ledger request failed: ${(e as Error).message}`,
+          : `ledger request failed: ${String((e as Error)?.message ?? e).slice(0, 200)}`,
       );
     } finally {
       clearTimeout(timer);

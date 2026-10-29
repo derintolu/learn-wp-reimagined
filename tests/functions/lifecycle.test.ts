@@ -12,7 +12,7 @@ import { GET as sweepRoute } from '../../functions/api/sweep';
 import { GET as driftRoute } from '../../functions/api/admin/drift';
 import { recordShadowFact } from '../../functions/_lib/record/shadow';
 import { enqueue, drain } from '../../functions/_lib/lrs/outbox';
-import { resolveToken, sha256Hex } from '../../functions/_lib/oauth/store';
+import { REQUEST_TTL_MS, resolveToken, sha256Hex } from '../../functions/_lib/oauth/store';
 import { activityId, XAPI_BASE } from '../../src/shared/xapi';
 
 const SEED_HEX = '9d61b19deffd5a60ba844af492ec2cc44449c5697b326919703bac031cae7f60';
@@ -289,7 +289,25 @@ describe('routes', () => {
   it('/api/sweep needs the cron secret and returns the counts', async () => {
     expect((await sweepRoute(new Request('http://x/api/sweep'), { params: {}, env })).status).toBe(401);
     const res = await sweepRoute(new Request('http://x/api/sweep', auth('cron')), { params: {}, env });
-    expect(await res.json()).toEqual({ expired: 0, retained: 0, drift: { checked: 0, mismatched: [] }, tokensExpired: 0 });
+    expect(await res.json()).toEqual({ expired: 0, retained: 0, drift: { checked: 0, mismatched: [] }, tokensExpired: 0, codesExpired: 0 });
+  });
+
+  it('/api/sweep deletes OAuth requests and codes expired past the replay grace, and keeps the rest', async () => {
+    await ensureOAuthSchema(db);
+    const now = Date.now();
+    const code = (hash: string, kind: string, expires: number) =>
+      db
+        .prepare("INSERT INTO oauth_codes (code_hash, kind, client_id, redirect_uri, code_challenge, created, expires, used) VALUES (?, ?, 'c', 'http://r', 'x', 1, ?, 0)")
+        .bind(hash, kind, expires)
+        .run();
+    await code('old-request', 'request', now - REQUEST_TTL_MS - 1000);
+    await code('old-code', 'code', now - REQUEST_TTL_MS - 1000);
+    await code('in-grace', 'code', now - 1000);
+    await code('live', 'request', now + 60_000);
+    const res = await sweepRoute(new Request('http://x/api/sweep', auth('cron')), { params: {}, env });
+    expect(await res.json()).toMatchObject({ codesExpired: 2 });
+    const left = (await db.prepare('SELECT code_hash FROM oauth_codes ORDER BY code_hash').all<{ code_hash: string }>()).results.map((r) => r.code_hash);
+    expect(left).toEqual(['in-grace', 'live']);
   });
 
   it('/api/sweep deletes expired OAuth tokens and keeps live ones', async () => {

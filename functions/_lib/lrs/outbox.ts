@@ -12,7 +12,7 @@ export const DRAIN_BATCH = 50;
 export const BACKOFF_MINUTES = [1, 5, 15, 60] as const;
 /**
  * What the shadow record may add to /api/events (ruling R22): the registration lookup and the inline drain
- * share this budget; the 5-minute cron takes the rest.
+ * share this budget; the hourly drain cron (/api/lrs-drain, ruling R29) takes the rest.
  */
 export const INLINE_DRAIN_BUDGET_MS = 800;
 /** A statement the LRS refuses (4xx) is given up after this many attempts and kept, dead-lettered. */
