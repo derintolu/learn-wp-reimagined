@@ -11,7 +11,7 @@ describe('shipped flag defaults', () => {
       serverEvents: true,
       sessions: true,
       wordpressContent: true,
-      senseiLearners: false,
+      senseiLearners: true,
       lrsShadow: false,
       agentOnStandard: false,
       officialRecord: false,
@@ -25,7 +25,7 @@ describe('shipped flag defaults', () => {
       serverEvents: true,
       sessions: true,
       mcpOnStandard: true,
-      senseiLearners: false,
+      senseiLearners: true,
       lrsShadow: false,
       wordpressContent: true,
       senseiCertificates: false,
@@ -38,6 +38,7 @@ describe('shipped flag defaults', () => {
   it('the phases on, in R30 order', () => {
     expect((['wordpressContent', 'senseiLearners', 'lrsShadow', 'officialRecord', 'agentOnStandard', 'badges'] as const).filter(phaseOn)).toEqual([
       'wordpressContent',
+      'senseiLearners',
     ]);
   });
 });
