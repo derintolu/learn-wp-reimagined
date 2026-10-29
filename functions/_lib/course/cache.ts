@@ -51,6 +51,7 @@ async function use(env: Env, row: Row): Promise<void> {
   if (!r) return;
   setCurrentContent(JSON.parse(r.body) as ContentBundle);
   loadedEtag = row.etag;
+  loadedVersion = Number(row.version);
 }
 
 /** A package that cannot be served: it does not decode, or the course it holds does not build. */
@@ -94,19 +95,47 @@ async function runHooks(env: Env, zip: Uint8Array, etag: string): Promise<boolea
 }
 
 let failedAt = 0;
+let dbFailedAt = 0;
+let loadedVersion = 0;
 
-/** The bundle's ETag and version after making sure the cache is current. Never throws for a connector failure. */
+/**
+ * The bundle's ETag and version after making sure the cache is current. Never throws (R49): a connector or package
+ * failure keeps the last good copy, and a database failure is logged and served from memory or the baked snapshot.
+ */
 export async function refreshContent(
   env: Env,
   now = Date.now(),
   opts: { force?: boolean } = {},
 ): Promise<{ etag: string; version: number; changed: boolean }> {
   if (!SERVER_FLAGS.wordpressContent) return { etag: bakedEtag(), version: 0, changed: false };
+  const memory = () => (loadedEtag ? { etag: loadedEtag, version: loadedVersion, changed: false } : { etag: bakedEtag(), version: 0, changed: false });
+  // A broken database costs one attempt per window, like a down connector.
+  if (!opts.force && dbFailedAt && now - dbFailedAt < COURSE_REVALIDATE_MS) return memory();
+  const stage = { name: 'schema' };
+  try {
+    const r = await refresh(env, now, opts, stage);
+    dbFailedAt = 0;
+    return r;
+  } catch (e) {
+    console.error('course cache db error', stage.name, (e as Error)?.message);
+    dbFailedAt = now;
+    return memory();
+  }
+}
+
+async function refresh(
+  env: Env,
+  now: number,
+  opts: { force?: boolean },
+  stage: { name: string },
+): Promise<{ etag: string; version: number; changed: boolean }> {
   await ensureCourseCacheSchema(env.DB);
+  stage.name = 'select';
   const row = await env.DB.prepare('SELECT etag, version, fetched, hooks_done FROM course_cache WHERE course_id = ?')
     .bind(PROGRAM_KEY)
     .first<Row>();
   if (row && !opts.force && now - Number(row.fetched) < COURSE_REVALIDATE_MS) {
+    stage.name = 'load';
     await use(env, row);
     return { etag: row.etag, version: Number(row.version), changed: false };
   }
@@ -120,13 +149,20 @@ export async function refreshContent(
     const res = await new ConnectorClient(env).getPackage(PROGRAM_KEY, hooksPending ? undefined : row?.etag);
     if (res.status === 304) {
       if (!row) throw new ConnectorUnavailable('ledger answered 304 with no cached copy');
+      stage.name = 'touch';
       await env.DB.prepare('UPDATE course_cache SET fetched = ? WHERE course_id = ?').bind(now, PROGRAM_KEY).run();
+      stage.name = 'load';
       await use(env, row);
       return { etag: row.etag, version: Number(row.version), changed: false };
     }
     const bundle = decodePackage(res.zip);
     const body = JSON.stringify(bundle);
     const changed = res.etag !== row?.etag;
+    // In memory first: a database failure below still leaves this isolate serving the fetched content.
+    setCurrentContent(bundle);
+    loadedEtag = res.etag;
+    loadedVersion = res.version;
+    stage.name = row ? 'update' : 'insert';
     if (row) {
       await env.DB.prepare('UPDATE course_cache SET etag = ?, version = ?, body = ?, fetched = ?, hooks_done = ? WHERE course_id = ?')
         .bind(res.etag, res.version, body, now, changed ? 0 : Number(row.hooks_done), PROGRAM_KEY)
@@ -136,11 +172,10 @@ export async function refreshContent(
         .bind(PROGRAM_KEY, res.etag, res.version, body, now)
         .run();
     }
-    setCurrentContent(bundle);
-    loadedEtag = res.etag;
     failedAt = 0;
     if (changed || hooksPending) {
       if (await runHooks(env, res.zip, res.etag)) {
+        stage.name = 'hooks_done';
         await env.DB.prepare('UPDATE course_cache SET hooks_done = 1 WHERE course_id = ? AND etag = ?').bind(PROGRAM_KEY, res.etag).run();
       }
     }
@@ -152,7 +187,9 @@ export async function refreshContent(
     // Back off: record the attempt so a down connector costs one try per window, not one per request.
     failedAt = now;
     if (row) {
+      stage.name = 'touch';
       await env.DB.prepare('UPDATE course_cache SET fetched = ? WHERE course_id = ?').bind(now, PROGRAM_KEY).run();
+      stage.name = 'load';
       await use(env, row);
       return { etag: row.etag, version: Number(row.version), changed: false };
     }
@@ -172,5 +209,7 @@ export async function loadCurrentCourse(env: Env): Promise<void> {
 /** Test-only: forget what this isolate has loaded and any failure back-off. */
 export function resetCourseCacheForTests(): void {
   loadedEtag = null;
+  loadedVersion = 0;
   failedAt = 0;
+  dbFailedAt = 0;
 }

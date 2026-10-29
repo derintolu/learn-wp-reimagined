@@ -8,6 +8,7 @@ import { buildContent } from '../../scripts/build-content';
 import { bundleToPackage } from '../../src/shared/package';
 import { getContent, setContentForTests, setCurrentContent } from '../../functions/_lib/content';
 import { COURSE_REVALIDATE_MS, onNewVersion, refreshContent, resetCourseCacheForTests } from '../../functions/_lib/course/cache';
+import { guarded } from '../../functions/_lib/ai';
 import { GET as course } from '../../functions/api/course';
 import { signRequest } from '../../functions/_lib/ledger/sign';
 import { POST as ping } from '../../functions/api/content-changed';
@@ -305,11 +306,56 @@ describe('a package that loads but does not build the course', () => {
     expect(await refreshContent(env, T0 + COURSE_REVALIDATE_MS)).toEqual({ etag: '"e1"', version: 1, changed: false });
   });
 
-  it('a database failure still propagates', async () => {
-    const db = env.DB;
+  it('a database failure never escapes: it is logged and the baked etag is served (R49)', async () => {
     env = { ...env, DB: { prepare: () => { throw new Error('D1 is down'); } } as unknown as Env['DB'] };
-    await expect(refreshContent(env, T0)).rejects.toThrow('D1 is down');
-    env = { ...env, DB: db };
+    const r = await refreshContent(env, T0);
+    expect(r.etag).toMatch(/^"baked-/);
+    expect(console.error).toHaveBeenCalledWith('course cache db error', 'schema', 'D1 is down');
+  });
+});
+
+/** A D1 whose statements matching `sql` throw, over a real SQLite. */
+function failingOn(sql: RegExp): Env['DB'] {
+  const real = createSqliteD1();
+  return { prepare: (q: string) => (sql.test(q) ? { bind: () => ({ run: async () => { throw new Error('too big'); }, first: async () => { throw new Error('too big'); }, all: async () => { throw new Error('too big'); } }) } : real.prepare(q)) } as unknown as Env['DB'];
+}
+
+describe('a course-cache database failure never fails a learner request (R49)', () => {
+  const get = () => course(new Request('http://x/api/course'), { params: {}, env });
+
+  it('an INSERT that throws still serves the fetched content, and logs once per window', async () => {
+    env = { ...env, DB: failingOn(/^INSERT INTO course_cache/) };
+    send200('"e1"', 1);
+    const res = await get();
+    expect(res.status).toBe(200);
+    expect(res.headers.get('ETag')).toBe('"e1"');
+    expect(Object.keys((await res.json() as typeof bundle).lessons).sort()).toEqual(Object.keys(bundle.lessons).sort());
+    expect((await get()).status).toBe(200);
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+    const logs = (console.error as unknown as { mock: { calls: unknown[][] } }).mock.calls.filter((c) => c[0] === 'course cache db error');
+    expect(logs).toEqual([['course cache db error', 'insert', 'too big']]);
+    // The window passes: one more attempt.
+    send200('"e1"', 1);
+    await refreshContent(env, Date.now() + COURSE_REVALIDATE_MS + 1);
+    expect(fetchMock).toHaveBeenCalledTimes(2);
+  });
+
+  it('a SELECT that throws answers 200 with the baked content', async () => {
+    env = { ...env, DB: failingOn(/^SELECT etag/) };
+    const res = await get();
+    expect(res.status).toBe(200);
+    expect(res.headers.get('ETag')).toMatch(/^"baked-/);
+    expect(fetchMock).not.toHaveBeenCalled();
+    expect(console.error).toHaveBeenCalledWith('course cache db error', 'select', 'too big');
+  });
+});
+
+describe('guarded', () => {
+  it('logs an unexpected error and still answers 500 server-error', async () => {
+    const res = await guarded(async () => { throw new TypeError('boom'); });
+    expect(res.status).toBe(500);
+    expect(((await res.json()) as { error: { code: string } | string }).error).toBeTruthy();
+    expect(console.error).toHaveBeenCalledWith('unhandled', 'TypeError', 'boom');
   });
 });
 
