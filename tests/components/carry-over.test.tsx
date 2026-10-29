@@ -7,7 +7,7 @@ import { CarryOverOffer } from '../../src/components/CarryOverOffer';
 import { resetSession } from '../../src/record/session';
 import { setRecordManager } from '../../src/record/useRecord';
 import { memoryManager } from './helpers';
-import { phasesUpTo, restoreFlags } from '../helpers/flags';
+import { phasesUpTo, restoreFlags, setFlags } from '../helpers/flags';
 
 const flags = FEATURES as { sessions: boolean; officialRecord: boolean };
 const lessonId = Object.keys(content.lessons)[0];
@@ -60,7 +60,7 @@ describe('CarryOverOffer', () => {
   });
 
   it('offer hidden with the flag off', async () => {
-    restoreFlags();
+    setFlags({ officialRecord: false });
     await mount(true);
     expect(screen.queryByRole('button', { name: 'Bring your progress over' })).toBeNull();
   });

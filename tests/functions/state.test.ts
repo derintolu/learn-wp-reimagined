@@ -1,5 +1,6 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { SERVER_FLAGS } from '../../functions/_lib/config';
+import { PHASES_OFF, restoreServerFlags, setServerFlags } from '../helpers/flags';
 import { createSqliteD1 } from '../../dev/sqliteD1';
 import { ensureSchema } from '../../functions/_lib/db';
 import type { Env } from '../../functions/_lib/env';
@@ -16,8 +17,7 @@ const ctx = (kind = 'files') => ({ params: { kind }, env });
 const url = (kind = 'files') => `http://x/api/state/${kind}`;
 
 beforeEach(async () => {
-  SERVER_FLAGS.sessions = true;
-  SERVER_FLAGS.officialRecord = true;
+  setServerFlags({ ...PHASES_OFF, sessions: true, officialRecord: true });
   env = { DB: createSqliteD1(), SESSION_KEY: 'test-session-key-not-a-secret', LRS_KEY: 'ck_test', LRS_SECRET: 'cs_test' };
   await ensureSchema(env.DB);
   lrs = fakeLrs();
@@ -27,8 +27,7 @@ beforeEach(async () => {
   cookie = `${SESSION_COOKIE}=${res.headers.get('set-cookie')!.split(';')[0].split('=').slice(1).join('=')}`;
 });
 afterEach(() => {
-  SERVER_FLAGS.sessions = false;
-  SERVER_FLAGS.officialRecord = false;
+  restoreServerFlags();
   vi.unstubAllGlobals();
 });
 

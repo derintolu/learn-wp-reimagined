@@ -340,6 +340,7 @@ describe('Sensei enrolment on events', () => {
   });
 
   it('does nothing with the flag off or without a learner', async () => {
+    SERVER_FLAGS.senseiLearners = false;
     const enrol = vi.fn(async () => {});
     await run([placed('block-theme')], enrol);
     SERVER_FLAGS.senseiLearners = true;

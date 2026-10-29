@@ -1,5 +1,6 @@
 import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
 import { SERVER_FLAGS } from '../../functions/_lib/config';
+import { PHASES_OFF, restoreServerFlags, setServerFlags } from '../helpers/flags';
 import { createSqliteD1 } from '../../dev/sqliteD1';
 import { buildContent } from '../../scripts/build-content';
 import { setContentForTests } from '../../functions/_lib/content';
@@ -53,14 +54,14 @@ beforeEach(async () => {
   await ensureRecordSchema(db);
   lrs = fakeLrs();
   vi.stubGlobal('fetch', lrs.fetch);
-  SERVER_FLAGS.officialRecord = true;
+  setServerFlags({ ...PHASES_OFF, officialRecord: true });
   const made = await createSession(env, Date.now());
   session = made.session;
   cookie = made.cookie.split(';')[0];
   lrs.state.set(stateKey('cxm-current-registration'), { registration: REG });
 });
 afterEach(() => {
-  SERVER_FLAGS.officialRecord = false;
+  restoreServerFlags();
   vi.unstubAllGlobals();
 });
 

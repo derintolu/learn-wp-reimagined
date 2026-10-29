@@ -1,19 +1,20 @@
-import { afterEach, describe, expect, it } from 'vitest';
-import { FEATURES, phaseOn } from '../../src/config';
-import { PHASE_ORDER, phasesUpTo, restoreFlags, setFlags } from '../helpers/flags';
+import { afterEach, beforeEach, describe, expect, it } from 'vitest';
+import { phaseOn } from '../../src/config';
+import { PHASE_ORDER, PHASES_OFF, phasesUpTo, restoreFlags, setFlags } from '../helpers/flags';
 
+// How the flags ship is asserted once, in tests/config-defaults.test.ts.
+beforeEach(() => setFlags({ wordpressContent: true, ...PHASES_OFF }));
 afterEach(restoreFlags);
 
 describe('phaseOn (R30 order)', () => {
-  it('ships with wordpressContent on and every later phase off, lrsShadow included', () => {
-    expect(FEATURES.lrsShadow).toBe(false);
+  it('with wordpressContent on and every later phase off, only wordpressContent is on', () => {
     expect(phaseOn('wordpressContent')).toBe(true);
     for (const p of [...PHASE_ORDER.slice(1), 'badges'] as const) expect(phaseOn(p)).toBe(false);
   });
 
   it('a phase is on only with every earlier phase on', () => {
     for (const p of PHASE_ORDER) {
-      restoreFlags();
+      setFlags({ wordpressContent: false, ...PHASES_OFF });
       phasesUpTo(p);
       expect(phaseOn(p)).toBe(true);
       for (const earlier of PHASE_ORDER.slice(0, PHASE_ORDER.indexOf(p))) {

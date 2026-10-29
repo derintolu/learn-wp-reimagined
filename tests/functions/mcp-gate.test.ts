@@ -1,5 +1,5 @@
 import { build } from 'esbuild';
-import { beforeEach, describe, expect, it } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import { createSqliteD1 } from '../../dev/sqliteD1';
 import { handleMcp } from '../../functions/_lib/mcp/handler';
 import { MCP_LIMITS, TOO_LARGE, TOO_MANY, inspectMcpBody, mcpHandleKey } from '../../functions/_lib/mcp/gate';
@@ -7,6 +7,7 @@ import { practiceForm } from '../../functions/_lib/mcp/handles';
 import type { D1Like, Env } from '../../functions/_lib/env';
 import { newHandle } from '../../vendor/learning-mcp/core/index.ts';
 import { vendorShimsEsbuild } from '../../scripts/vendor-shims';
+import { PHASES_OFF, restoreServerFlags, setServerFlags } from '../helpers/flags';
 
 // Each loop test makes 60 to 121 sequential MCP requests (about 1 s alone); under parallel load that is several times slower.
 const LOOP_TIMEOUT = 60_000;
@@ -16,9 +17,14 @@ let env: Env;
 let t: number;
 
 beforeEach(() => {
+  // Today's practice connector: the gate before agentOnStandard's sign-in.
+  setServerFlags(PHASES_OFF);
   db = createSqliteD1();
   env = { DB: db } as Env;
   t = Date.parse('2026-10-20T12:00:00Z');
+});
+afterEach(() => {
+  restoreServerFlags();
 });
 
 /** Sends one JSON-RPC body and reads the whole response (the SDK streams it, so the tool runs while it is read). */

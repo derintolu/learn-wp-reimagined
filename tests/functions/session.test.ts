@@ -1,5 +1,6 @@
 import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
 import { SERVER_FLAGS } from '../../functions/_lib/config';
+import { PHASES_OFF, restoreServerFlags, setServerFlags } from '../helpers/flags';
 import { createSqliteD1 } from '../../dev/sqliteD1';
 import { buildContent } from '../../scripts/build-content';
 import { setContentForTests } from '../../functions/_lib/content';
@@ -28,12 +29,14 @@ const withCookie = (v: string, init: RequestInit = {}) =>
 const count = async () => (await db.prepare('SELECT COUNT(*) AS c FROM sessions').first<{ c: number }>())!.c;
 
 beforeEach(async () => {
+  setServerFlags(PHASES_OFF);
   setContentForTests(buildContent('tests/fixtures/content'));
   db = createSqliteD1();
   env = { DB: db, SESSION_KEY: KEY };
   await ensureSchema(db);
 });
 afterEach(() => {
+  restoreServerFlags();
   SERVER_FLAGS.sessions = false;
 });
 
@@ -168,7 +171,6 @@ describe('sessions bound to Sensei learners', () => {
     env = { DB: db, SESSION_KEY: KEY, CONNECTOR_SIGNING_KEY: SIGNING, CONNECTOR_KEY_ID: 'kid1' };
   });
   afterEach(() => {
-    SERVER_FLAGS.senseiLearners = false;
     vi.unstubAllGlobals();
   });
 
@@ -293,7 +295,6 @@ describe('a Sensei learner for sessions made before learners were on', () => {
     SERVER_FLAGS.senseiLearners = true;
   });
   afterEach(() => {
-    SERVER_FLAGS.senseiLearners = false;
     enrolHealth.downUntil = 0;
     vi.unstubAllGlobals();
   });

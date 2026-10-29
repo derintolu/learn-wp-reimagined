@@ -48,6 +48,7 @@ import { resetSaveWarning, RESTORED_EVENT } from '../../src/components/RecordPan
 import { RecordManager, type RecordStore } from '../../src/record/store';
 import { applyEvent, newRecord, type LearningRecord } from '../../src/shared/record';
 import { memoryManager } from './helpers';
+import { PHASES_OFF, restoreFlags, setFlags } from '../helpers/flags';
 
 const status = vi.mocked(getStatus);
 const judgeMock = vi.mocked(judge);
@@ -105,6 +106,7 @@ async function typeInto(name: RegExp, text: string) {
 }
 
 beforeEach(() => {
+  setFlags(PHASES_OFF);
   setPlaygroundImporter(() => Promise.reject(new Error('no Playground in tests')));
   status.mockResolvedValue({ ai: 'off' });
   stream.mockRejectedValue(new Error('not set'));
@@ -112,6 +114,7 @@ beforeEach(() => {
 });
 afterEach(() => {
   cleanup();
+  restoreFlags();
   vi.clearAllMocks();
   setRecordManager(null);
   setPlaygroundImporter(null);

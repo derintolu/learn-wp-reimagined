@@ -1,6 +1,7 @@
 import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
 import { XAPI_BASE } from '../../src/shared/xapi';
 import { SERVER_FLAGS } from '../../functions/_lib/config';
+import { PHASES_OFF, restoreServerFlags, setServerFlags } from '../helpers/flags';
 import { createSqliteD1 } from '../../dev/sqliteD1';
 import { ensureSchema } from '../../functions/_lib/db';
 import type { Env } from '../../functions/_lib/env';
@@ -32,7 +33,7 @@ const get = (c?: string) => sensei(new Request('http://x/api/sensei', { headers:
 beforeEach(async () => {
   db = createSqliteD1();
   await ensureSchema(db);
-  SERVER_FLAGS.senseiLearners = true;
+  setServerFlags({ ...PHASES_OFF, senseiLearners: true });
   env = {
     DB: db,
     SESSION_KEY: 'k',
@@ -49,7 +50,7 @@ beforeEach(async () => {
   });
 });
 afterEach(() => {
-  SERVER_FLAGS.senseiLearners = false;
+  restoreServerFlags();
   vi.unstubAllGlobals();
 });
 

@@ -29,7 +29,7 @@ import { resetSaveWarning } from '../../src/components/RecordPanel';
 import { resetAiStatusForTests } from '../../src/ai/useAiStatus';
 import { RecordManager, type RecordStore } from '../../src/record/store';
 import { applyEvent, branchHistory, newRecord, type LearningRecord } from '../../src/shared/record';
-import { phasesUpTo, restoreFlags } from '../helpers/flags';
+import { PHASES_OFF, phasesUpTo, restoreFlags, setFlags } from '../helpers/flags';
 
 const PLACED = { pathId: 'block-theme' as const, startLessonId: 'theme-json-basics', skip: [], reason: 'Picked.' };
 
@@ -87,6 +87,7 @@ function stubMedia(narrow: boolean) {
 const outline = () => screen.findByRole('navigation', { name: 'Course outline' });
 
 beforeEach(() => {
+  setFlags(PHASES_OFF);
   setPlaygroundImporter(() => Promise.reject(new Error('no Playground in tests')));
   vi.mocked(getStatus).mockResolvedValue({ ai: 'off' });
   vi.mocked(tutorStream).mockRejectedValue(new Error('off'));
@@ -94,6 +95,7 @@ beforeEach(() => {
 });
 afterEach(() => {
   cleanup();
+  restoreFlags();
   vi.clearAllMocks();
   vi.unstubAllGlobals();
   setRecordManager(null);
@@ -508,6 +510,7 @@ describe('Studio outline, official record', () => {
   });
 
   it('with the phase off the studio has no notices wrapper', async () => {
+    setFlags({ officialRecord: false });
     use(at('templates-and-parts', 0, { completedLessons: ['theme-json-basics'] }));
     const { container } = open('/learn/templates-and-parts');
     await outline();

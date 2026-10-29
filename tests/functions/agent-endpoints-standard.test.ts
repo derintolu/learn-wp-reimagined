@@ -8,6 +8,7 @@ import { POST as getRecord } from '../../functions/api/agent/record';
 import { POST as del } from '../../functions/api/agent/delete';
 import * as mcpRoute from '../../functions/api/mcp';
 import { SERVER_FLAGS } from '../../functions/_lib/config';
+import { PHASES_OFF, restoreServerFlags, setServerFlags } from '../helpers/flags';
 import { MCP_TTL_MS } from '../../functions/_lib/mcp/recordStore';
 import { MCP_LIMITS } from '../../functions/_lib/mcp/gate';
 import { practiceForm } from '../../functions/_lib/mcp/handles';
@@ -41,12 +42,12 @@ let open: { close(): Promise<void> }[] = [];
 beforeEach(() => {
   db = createSqliteD1();
   env = { DB: db } as Env;
-  SERVER_FLAGS.mcpOnStandard = true;
+  setServerFlags({ ...PHASES_OFF, mcpOnStandard: true });
 });
 afterEach(async () => {
   await Promise.all(open.map((c) => c.close()));
   open = [];
-  SERVER_FLAGS.mcpOnStandard = true;
+  restoreServerFlags();
 });
 
 async function agent(era: 'legacy' | 'modern' = 'legacy') {

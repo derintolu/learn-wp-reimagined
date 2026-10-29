@@ -15,7 +15,7 @@ import { makeLive } from './livePaths';
 import { FEATURES } from '../../src/config';
 import { recordWithStateFiles } from '../../src/finale/playground';
 import { newRecord } from '../../src/shared/record';
-import { phasesUpTo, restoreFlags } from '../helpers/flags';
+import { phasesUpTo, restoreFlags, setFlags } from '../helpers/flags';
 
 afterEach(() => {
   cleanup();
@@ -61,6 +61,7 @@ describe('Finale with the State document', () => {
   });
 
   it('keeps the local files when there are any, and ignores the document with the flag off', async () => {
+    setFlags({ officialRecord: false });
     stub({ 'style.css': STYLE });
     await withLessons(['bt-what-is-a-block-theme']);
     render(<Finale />);

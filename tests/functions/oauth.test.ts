@@ -6,6 +6,7 @@ import type { Env } from '../../functions/_lib/env';
 import { SESSION_COOKIE } from '../../functions/_lib/session/session';
 import { XAPI_BASE } from '../../src/shared/xapi';
 import { SERVER_FLAGS } from '../../functions/_lib/config';
+import { PHASES_OFF, restoreServerFlags, setServerFlags } from '../helpers/flags';
 import {
   ACCESS_TTL_S,
   CODE_TTL_MS,
@@ -136,6 +137,7 @@ async function signIn(): Promise<{ id: string; tokens: Tokens; session: string }
 }
 
 beforeEach(async () => {
+  setServerFlags(PHASES_OFF);
   db = createSqliteD1();
   env = { DB: db, SESSION_KEY: KEY };
   await ensureSchema(db);
@@ -143,6 +145,7 @@ beforeEach(async () => {
   vi.spyOn(Date, 'now').mockImplementation(() => now);
 });
 afterEach(() => {
+  restoreServerFlags();
   vi.restoreAllMocks();
 });
 
@@ -456,10 +459,6 @@ describe('MCP authorization server', () => {
 });
 
 describe('agent sign-in with agentOnStandard on (native apps, no visitor address)', () => {
-  afterEach(() => {
-    SERVER_FLAGS.agentOnStandard = false;
-  });
-
   it('accepts private-use schemes of native apps and [::1] loopback; still refuses unsafe ones', async () => {
     SERVER_FLAGS.agentOnStandard = true;
     for (const good of ['com.example.app:/oauth2redirect', 'cursor://anysphere.cursor-retrieval/oauth/callback', 'http://[::1]:8080/cb', 'https://example.com/cb']) {
@@ -499,6 +498,7 @@ describe('agent sign-in with agentOnStandard on (native apps, no visitor address
   });
 
   it('with the flag off, registration rules and buckets are as before', async () => {
+    SERVER_FLAGS.agentOnStandard = false;
     for (const bad of ['com.example.app:/oauth2redirect', 'cursor://anysphere.cursor-retrieval/oauth/callback', 'http://[::1]:8080/cb']) {
       expect((await newClient([bad])).status, bad).toBe(400);
     }

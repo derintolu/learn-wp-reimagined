@@ -6,7 +6,7 @@ import { STATE_DEBOUNCE_MS, fetchFilesState, notifyFileEdited, startStateSync, s
 import { STATE_MAX_BYTES, STATE_TOO_BIG_MESSAGE, type FilesDoc, type ResumeDoc } from '../../src/shared/stateDoc';
 import { memoryManager } from '../components/helpers';
 import type { RecordManager } from '../../src/record/store';
-import { phasesUpTo, restoreFlags } from '../helpers/flags';
+import { PHASES_OFF, phasesUpTo, restoreFlags, setFlags } from '../helpers/flags';
 
 vi.mock('../../src/record/session', () => ({ ensureSession: async () => ({ homePage: 'h', name: 'n' }) }));
 
@@ -49,6 +49,7 @@ let stop: () => void;
 beforeEach(async () => {
   vi.useFakeTimers({ toFake: ['setTimeout', 'clearTimeout', 'Date'] });
   vi.setSystemTime(new Date('2026-10-28T10:00:00.000Z'));
+  setFlags(PHASES_OFF);
   phasesUpTo('officialRecord');
   server = fakeServer();
   vi.stubGlobal('fetch', server.fetch);
@@ -74,7 +75,7 @@ const filesPuts = () => server.puts.filter((p) => p.kind === 'files');
 describe('startStateSync', () => {
   it('does nothing with the flag off', async () => {
     stop();
-    restoreFlags();
+    setFlags({ officialRecord: false });
     stop = startStateSync(m);
     await edit('a.css', 'x');
     await settle(STATE_DEBOUNCE_MS * 3);
@@ -248,7 +249,7 @@ describe('fetchFilesState', () => {
     expect(await fetchFilesState()).toEqual({ files: { 'a.css': 'x' } });
     server.docs.files = { files: 5 };
     expect(await fetchFilesState()).toBeNull();
-    restoreFlags();
+    setFlags({ officialRecord: false });
     server.fetch.mockClear();
     expect(await fetchFilesState()).toBeNull();
     expect(stateCalls()).toHaveLength(0);

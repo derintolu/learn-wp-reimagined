@@ -1,5 +1,6 @@
 import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
 import { SERVER_FLAGS, LRS_API } from '../../functions/_lib/config';
+import { PHASES_OFF, restoreServerFlags, setServerFlags } from '../helpers/flags';
 import { createSqliteD1 } from '../../dev/sqliteD1';
 import { buildContent } from '../../scripts/build-content';
 import { getContent, setContentForTests } from '../../functions/_lib/content';
@@ -30,7 +31,7 @@ const claim = (badge: unknown, cookieHeader: string | null = cookie) =>
   call(claimLink, cookieHeader, { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ badge }) });
 
 beforeEach(async () => {
-  SERVER_FLAGS.badges = true;
+  setServerFlags({ ...PHASES_OFF, badges: true });
   setContentForTests(buildContent('tests/fixtures/content'));
   const db = createSqliteD1();
   await ensureSchema(db);
@@ -61,7 +62,7 @@ beforeEach(async () => {
   );
 });
 afterEach(() => {
-  SERVER_FLAGS.badges = false;
+  restoreServerFlags();
   vi.unstubAllGlobals();
 });
 

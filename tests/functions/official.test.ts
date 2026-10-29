@@ -1,5 +1,6 @@
 import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
 import { SERVER_FLAGS } from '../../functions/_lib/config';
+import { PHASES_OFF, restoreServerFlags, setServerFlags } from '../helpers/flags';
 import { createSqliteD1 } from '../../dev/sqliteD1';
 import { buildContent } from '../../scripts/build-content';
 import { getContent, setContentForTests } from '../../functions/_lib/content';
@@ -58,6 +59,7 @@ const outbox = async () =>
   );
 
 beforeEach(async () => {
+  setServerFlags(PHASES_OFF);
   setContentForTests(buildContent('tests/fixtures/content'));
   db = createSqliteD1();
   env = { DB: db, SESSION_KEY: 'test-session-key-not-a-secret', LRS_KEY: 'ck_test', LRS_SECRET: 'cs_test' };
@@ -67,7 +69,7 @@ beforeEach(async () => {
   lrsHealth.downUntil = 0;
 });
 afterEach(() => {
-  SERVER_FLAGS.lrsShadow = false;
+  restoreServerFlags();
   vi.unstubAllGlobals();
   vi.restoreAllMocks();
 });
@@ -181,6 +183,7 @@ describe('registration', () => {
 
 describe('decide with the LRS in shadow', () => {
   it('flag off: no outbox, no shadow facts, no LRS calls', async () => {
+    SERVER_FLAGS.lrsShadow = false;
     const { session } = await createSession(env, NOW);
     const [r] = (await decide(session, [{ eventId: eid(), type: 'lessonCompleted', lessonId: FREE }])) as any[];
     expect(r.ok).toBe(true);
@@ -354,6 +357,7 @@ describe('importCourseOnNewVersion', () => {
   });
 
   it('does nothing with the flag off', async () => {
+    SERVER_FLAGS.lrsShadow = false;
     await importCourseOnNewVersion(env, new Uint8Array([1]), '"1"');
     expect(lrs.calls).toEqual([]);
   });

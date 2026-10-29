@@ -4,6 +4,7 @@ import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it, vi } 
 import { createSqliteD1 } from '../../dev/sqliteD1';
 import * as route from '../../functions/api/mcp';
 import { SERVER_FLAGS } from '../../functions/_lib/config';
+import { PHASES_OFF, restoreServerFlags, setServerFlags } from '../helpers/flags';
 import { getContent, setContentForTests } from '../../functions/_lib/content';
 import { ensureOAuthSchema } from '../../functions/_lib/db';
 import * as decide from '../../functions/_lib/events/decide';
@@ -31,7 +32,6 @@ let db: D1Like;
 let env: Env;
 let lrs: ReturnType<typeof fakeLrs>;
 let open: { close(): Promise<void> }[] = [];
-const flags = { ...SERVER_FLAGS };
 
 // Access tokens are bearer secrets: nothing on this path may log one.
 const logs: unknown[][] = [];
@@ -50,12 +50,12 @@ beforeEach(() => {
   env = { DB: db, SESSION_KEY: 'k'.repeat(32), LRS_KEY: 'ck_test', LRS_SECRET: 'cs_test' } as Env;
   lrs = fakeLrs();
   vi.stubGlobal('fetch', lrs.fetch);
-  Object.assign(SERVER_FLAGS, flags, { agentOnStandard: true, lrsShadow: true });
+  setServerFlags({ ...PHASES_OFF, agentOnStandard: true, lrsShadow: true });
 });
 afterEach(async () => {
   await Promise.all(open.map((c) => c.close()));
   open = [];
-  Object.assign(SERVER_FLAGS, flags);
+  restoreServerFlags();
   vi.unstubAllGlobals();
   // A spy left by a failed test must not carry its calls into the next one.
   if (vi.isMockFunction(decide.decideEvents)) vi.mocked(decide.decideEvents).mockRestore();

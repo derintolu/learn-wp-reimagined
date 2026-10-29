@@ -7,9 +7,10 @@ import { setRecordManager } from '../../src/record/useRecord';
 import { LRS_HOST } from '../../src/shared/course-meta';
 import { RecordManager } from '../../src/record/store';
 import type { LearningRecord } from '../../src/shared/record';
-import { phasesUpTo, restoreFlags, setFlags } from '../helpers/flags';
+import { PHASES_OFF, phasesUpTo, restoreFlags, setFlags } from '../helpers/flags';
 
 beforeEach(() => {
+  setFlags({ wordpressContent: true, ...PHASES_OFF });
   vi.stubGlobal('fetch', vi.fn(async () => new Response('{}', { status: 404 })));
   let saved: LearningRecord | null = null;
   // An IndexedDB-kind store, so the panel shows its "Saved in this browser" line.

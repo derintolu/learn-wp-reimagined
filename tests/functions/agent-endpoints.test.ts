@@ -1,7 +1,7 @@
 import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest';
 import { buildContent } from '../../scripts/build-content';
 import { createSqliteD1 } from '../../dev/sqliteD1';
-import { SERVER_FLAGS } from '../../functions/_lib/config';
+import { PHASES_OFF, restoreServerFlags, setServerFlags } from '../helpers/flags';
 import { POST as handoff } from '../../functions/api/agent/handoff';
 import { POST as getRecord } from '../../functions/api/agent/record';
 import { POST as del } from '../../functions/api/agent/delete';
@@ -39,13 +39,13 @@ afterAll(() => {
 beforeEach(() => {
   db = createSqliteD1();
   env = { DB: db } as Env;
-  SERVER_FLAGS.mcpOnStandard = false;
+  setServerFlags({ ...PHASES_OFF, mcpOnStandard: false });
 });
 let open: { close(): Promise<void> }[] = [];
 afterEach(async () => {
   await Promise.all(open.map((c) => c.close()));
   open = [];
-  SERVER_FLAGS.mcpOnStandard = true;
+  restoreServerFlags();
 });
 
 describe('POST /api/agent/handoff', () => {

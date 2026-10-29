@@ -1,5 +1,6 @@
 import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
 import { SERVER_FLAGS, LRS_API, LRS_XAPI } from '../../functions/_lib/config';
+import { PHASES_OFF, restoreServerFlags, setServerFlags } from '../helpers/flags';
 import { createSqliteD1 } from '../../dev/sqliteD1';
 import { buildContent } from '../../scripts/build-content';
 import { setContentForTests } from '../../functions/_lib/content';
@@ -45,6 +46,7 @@ const call = (h: typeof getRecord, method = 'GET', withCookie = true) =>
   h(new Request('https://learnwp.sqwrlz.com/api/record', { method, headers: withCookie ? { cookie: `${SESSION_COOKIE}=${cookie}` } : {} }), { params: {}, env });
 
 beforeEach(async () => {
+  setServerFlags(PHASES_OFF);
   setContentForTests(buildContent('tests/fixtures/content'));
   db = createSqliteD1();
   env = { DB: db, SESSION_KEY: 'test-session-key-not-a-secret', LRS_KEY: 'ck_test', LRS_SECRET: 'cs_test' };
@@ -78,8 +80,7 @@ beforeEach(async () => {
   SERVER_FLAGS.officialRecord = true;
 });
 afterEach(() => {
-  SERVER_FLAGS.officialRecord = false;
-  SERVER_FLAGS.lrsShadow = false;
+  restoreServerFlags();
   vi.unstubAllGlobals();
 });
 

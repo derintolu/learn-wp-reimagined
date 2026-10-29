@@ -1,5 +1,5 @@
 // @vitest-environment happy-dom
-import { afterEach, describe, expect, it } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import { existsSync, readFileSync } from 'node:fs';
 import { cleanup, render, screen } from '@testing-library/preact';
 import { Proposal } from '../../src/pages/Proposal';
@@ -8,9 +8,14 @@ import { BACKEND_VIEW_PATH, COST_PER_1000_LEARNERS_USD, LRS_HOST, RETENTION_DAYS
 import { REVIEW_DISCLAIMER } from '../../src/studio/Feed';
 import { DAY_CAP_MICROS, MONTH_CAP_MICROS } from '../../functions/_lib/budget';
 import { MCP_TTL_MS } from '../../functions/_lib/mcp/recordStore';
-import { phasesUpTo, restoreFlags, setFlags } from '../helpers/flags';
+import { PHASES_OFF, phasesUpTo, restoreFlags, setFlags } from '../helpers/flags';
 import { SHADOW_COPY } from '../../src/pages/copy';
 
+// Every test starts from lessons on Sensei with sessions on and every later phase off (how config.ts ships
+// the flags is asserted once, in tests/config-defaults.test.ts); a test that needs another state sets it.
+beforeEach(() => {
+  setFlags({ wordpressContent: true, sessions: true, ...PHASES_OFF });
+});
 afterEach(() => {
   cleanup();
   restoreFlags();
@@ -139,12 +144,8 @@ describe('/proposal with the Sensei content flag', () => {
   const flags = FEATURES as { wordpressContent: boolean };
   const view = () => render(<Proposal />);
   const hrefs = (c: Element) => Array.from(c.querySelectorAll('a')).map((a) => a.getAttribute('href'));
-  afterEach(() => {
-    flags.wordpressContent = false;
-  });
 
-  it('ships on, with the pinned version and the block-theme backend view', () => {
-    expect(flags.wordpressContent).toBe(true);
+  it('pins the Sensei version and the block-theme backend view', () => {
     expect(SENSEI_VERSION).toBe('4.26.4');
     expect(BACKEND_VIEW_PATH).toBe('/backend/block-theme');
   });
@@ -189,6 +190,7 @@ const PRIVACY_SESSION = 'The server keeps only a random session, with no name or
 
 describe('/proposal with sessions (phase 2)', () => {
   it('on: the approved Privacy sentence between the record and the relay lines', () => {
+    setFlags({ sessions: true });
     render(<Proposal />);
     expect(text()).toContain(
       `The record lives in the learner's browser, or in a folder they pick, and they can download or restore it at any time. ${PRIVACY_SESSION} The record isn't kept on a server unless they opt in to the relay below.`,
@@ -212,15 +214,9 @@ describe('/proposal with sessions (phase 2)', () => {
 
 describe('/proposal with the anonymous-accounts flag', () => {
   const flags = FEATURES as { senseiLearners: boolean };
-  afterEach(() => {
+
+  it('off: the keep-your-own-record decision, privacy line and phase 2 heading, unchanged', () => {
     flags.senseiLearners = false;
-  });
-
-  it('ships off', () => {
-    expect(flags.senseiLearners).toBe(false);
-  });
-
-  it('off: today\'s decision, privacy line and phase 2 heading, unchanged', () => {
     render(<Proposal />);
     const t = text();
     expect(t).toContain('A record the learner keeps, instead of accounts. No sign-up, and no personal data held.');
@@ -258,17 +254,9 @@ describe('/proposal with the official-record flag', () => {
     flags.senseiLearners = true;
     flags.wordpressContent = true;
   };
-  afterEach(() => {
-    flags.officialRecord = false;
-    flags.senseiLearners = false;
-    flags.wordpressContent = false;
-  });
-
-  it('ships off', () => {
-    expect(flags.officialRecord).toBe(false);
-  });
 
   it('off: phases 2 and 3, privacy and decisions unchanged', () => {
+    flags.officialRecord = false;
     render(<Proposal />);
     const t = text();
     expect(t).toContain('Phase 2: keep the record with a WordPress.org login');
@@ -348,13 +336,6 @@ describe('/proposal final rewrite (phase 8)', () => {
     flags.wordpressContent = true;
     flags.badges = true;
   };
-  afterEach(() => {
-    flags.officialRecord = false;
-    flags.senseiLearners = false;
-    flags.wordpressContent = false;
-    flags.badges = false;
-    flags.agentOnStandard = false;
-  });
 
   const REVOKED = 'Deleting your data revokes any badges you claimed, and a revoked badge stops verifying.';
 
@@ -377,8 +358,7 @@ describe('/proposal final rewrite (phase 8)', () => {
   });
 
   it('off: none of the phase 8 copy renders', () => {
-    flags.officialRecord = true;
-    setFlags({ lrsShadow: true });
+    setFlags({ officialRecord: true, lrsShadow: true, senseiLearners: true, badges: false });
     render(<Proposal />);
     const t = text();
     for (const s of ['no longer only proposed', 'A standard, so the course', 'A plugin, so Sensei', 'Why the record store is separate', 'revokes any badges', 'plain hosting']) expect(t).not.toContain(s);
@@ -418,6 +398,7 @@ describe('/proposal final rewrite (phase 8)', () => {
   });
 
   it('agentOnStandard replaces the handle decision; off keeps it', () => {
+    flags.agentOnStandard = false;
     render(<Proposal />);
     expect(text()).toContain('The record handle is the only key to an agent record.');
     cleanup();
@@ -441,7 +422,7 @@ describe('/proposal with the LRS shadow (phase 5)', () => {
   });
 
   it('off: unchanged', () => {
-    setFlags({ senseiLearners: true, wordpressContent: true });
+    setFlags({ senseiLearners: true, wordpressContent: true, lrsShadow: false });
     render(<Proposal />);
     const t = text();
     expect(t).not.toContain(SHADOW_COPY);
@@ -460,6 +441,7 @@ describe('/proposal with the LRS shadow (phase 5)', () => {
 describe('/proposal Sensei progress line and agents (I10)', () => {
   it('officialRecord on, agentOnStandard off: finishing in the studio only', () => {
     phasesUpTo('officialRecord');
+    setFlags({ agentOnStandard: false });
     render(<Proposal />);
     expect(text()).toContain('In this concept, finishing a lesson in the studio marks it complete for that learner in Sensei');
     expect(text()).not.toContain('or in an agent');

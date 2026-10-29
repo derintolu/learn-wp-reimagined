@@ -4,6 +4,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { zipSync } from 'fflate';
 import { createSqliteD1 } from '../../dev/sqliteD1';
 import { SERVER_FLAGS } from '../../functions/_lib/config';
+import { PHASES_OFF, restoreServerFlags, setServerFlags } from '../helpers/flags';
 import { buildContent } from '../../scripts/build-content';
 import { bundleToPackage } from '../../src/shared/package';
 import { getContent, setContentForTests, setCurrentContent } from '../../functions/_lib/content';
@@ -42,7 +43,7 @@ const send200 = (etag: string, version: number, b = bundle) =>
   fetchMock.mockImplementationOnce(async () => new Response(zipOf(b), { status: 200, headers: { ETag: etag, 'X-Package-Version': String(version) } }));
 
 beforeEach(() => {
-  SERVER_FLAGS.wordpressContent = true;
+  setServerFlags({ ...PHASES_OFF, wordpressContent: true });
   env = { DB: createSqliteD1(), CONNECTOR_SIGNING_KEY: KEY, CONNECTOR_KEY_ID: 'kid1', CONNECTOR_PING_PUBLIC_KEY: PUBLIC_B64 } as Env;
   fetchMock = vi.fn();
   vi.stubGlobal('fetch', fetchMock);
@@ -52,7 +53,7 @@ beforeEach(() => {
   resetCourseCacheForTests();
 });
 afterEach(() => {
-  SERVER_FLAGS.wordpressContent = false;
+  restoreServerFlags();
   vi.unstubAllGlobals();
   vi.restoreAllMocks();
   setCurrentContent(null);
@@ -244,10 +245,6 @@ describe('failures and hooks', () => {
 });
 
 describe('import into the LRS when lrsShadow flips after wordpressContent (R30 order)', () => {
-  afterEach(() => {
-    SERVER_FLAGS.lrsShadow = false;
-  });
-
   it('a cache filled with lrsShadow off imports on the first refresh after it flips on', async () => {
     const imp = vi.mocked(importCourseOnNewVersion);
     imp.mockClear();
@@ -385,8 +382,6 @@ describe('every route that reads the course loads the current copy first', () =>
   };
   afterEach(() => {
     vi.useRealTimers();
-    SERVER_FLAGS.badges = false;
-    SERVER_FLAGS.officialRecord = false;
   });
 
   it('/api/mcp', async () => {

@@ -6,6 +6,7 @@ import { createSqliteD1 } from '../../dev/sqliteD1';
 import * as mcpRoute from '../../functions/api/mcp';
 import { POST as handoff } from '../../functions/api/agent/handoff';
 import { SERVER_FLAGS } from '../../functions/_lib/config';
+import { PHASES_OFF, restoreServerFlags, setServerFlags } from '../helpers/flags';
 import * as metadata from '../../functions/api/oauth/metadata';
 import * as register from '../../functions/api/oauth/register';
 import * as authorize from '../../functions/api/oauth/authorize';
@@ -23,11 +24,11 @@ let dir: string;
 beforeEach(() => {
   env = { DB: createSqliteD1() } as Env;
   dir = mkdtempSync(join(tmpdir(), 'verify-mcp-'));
-  SERVER_FLAGS.mcpOnStandard = true;
+  setServerFlags({ ...PHASES_OFF, mcpOnStandard: true });
 });
 afterEach(() => {
   rmSync(dir, { recursive: true, force: true });
-  SERVER_FLAGS.mcpOnStandard = true;
+  restoreServerFlags();
 });
 
 const seed = async (lessonId: string): Promise<string> =>
@@ -83,7 +84,6 @@ describe('verifyMcpOAuth: the sign-in an agent does (SERVER_FLAGS.agentOnStandar
     SERVER_FLAGS.agentOnStandard = true;
   });
   afterEach(() => {
-    SERVER_FLAGS.agentOnStandard = false;
     vi.unstubAllGlobals();
   });
 

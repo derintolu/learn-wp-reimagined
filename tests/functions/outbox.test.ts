@@ -1,5 +1,6 @@
 import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
 import { SERVER_FLAGS } from '../../functions/_lib/config';
+import { PHASES_OFF, restoreServerFlags, setServerFlags } from '../helpers/flags';
 import { createSqliteD1 } from '../../dev/sqliteD1';
 import { buildContent } from '../../scripts/build-content';
 import { setContentForTests } from '../../functions/_lib/content';
@@ -32,6 +33,7 @@ const rows = async () =>
   (await db.prepare('SELECT statement_id, body, attempts, next_at FROM lrs_outbox ORDER BY created, statement_id').all<{ statement_id: string; body: string; attempts: number; next_at: number }>()).results;
 
 beforeEach(async () => {
+  setServerFlags(PHASES_OFF);
   setContentForTests(buildContent('tests/fixtures/content'));
   db = createSqliteD1();
   env = { DB: db, SESSION_KEY: 'test-session-key-not-a-secret', LRS_KEY: 'ck_test', LRS_SECRET: 'cs_test', CRON_SECRET: CRON };
@@ -42,7 +44,7 @@ beforeEach(async () => {
   lrsHealth.downUntil = 0;
 });
 afterEach(() => {
-  SERVER_FLAGS.lrsShadow = false;
+  restoreServerFlags();
   vi.unstubAllGlobals();
   vi.restoreAllMocks();
 });
@@ -319,6 +321,7 @@ describe('GET /api/lrs-drain', () => {
   });
 
   it('does nothing with the flag off', async () => {
+    SERVER_FLAGS.lrsShadow = false;
     await enqueue(env, [stmt(1)], NOW);
     expect(await (await get(`Bearer ${CRON}`)).json()).toEqual({ sent: 0, left: 0, abandoned: 0 });
     expect(lrs.calls).toEqual([]);

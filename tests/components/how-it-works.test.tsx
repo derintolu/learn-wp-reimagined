@@ -1,5 +1,5 @@
 // @vitest-environment happy-dom
-import { afterEach, describe, expect, it } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import { existsSync, readFileSync } from 'node:fs';
 import { cleanup, render, screen } from '@testing-library/preact';
 import { HowItWorks, LEDGER_REPO_URL, SPEC, SPEC_REPO_URL, STATUS } from '../../src/pages/HowItWorks';
@@ -11,9 +11,14 @@ import { ROUTES } from '../../functions/_lib/config';
 import { DAY_CAP_MICROS, MONTH_CAP_MICROS } from '../../functions/_lib/budget';
 import { MCP_LIMITS } from '../../functions/_lib/mcp/gate';
 import { MCP_TTL_MS } from '../../functions/_lib/mcp/recordStore';
-import { phasesUpTo, restoreFlags, setFlags } from '../helpers/flags';
+import { PHASES_OFF, phasesUpTo, restoreFlags, setFlags } from '../helpers/flags';
 import { SHADOW_COPY } from '../../src/pages/copy';
 
+// Every test starts from lessons on Sensei with sessions on and every later phase off (how config.ts ships
+// the flags is asserted once, in tests/config-defaults.test.ts); a test that needs another state sets it.
+beforeEach(() => {
+  setFlags({ wordpressContent: true, sessions: true, ...PHASES_OFF });
+});
 afterEach(() => {
   cleanup();
   restoreFlags();
@@ -281,12 +286,8 @@ describe('/how-it-works with the Sensei content flag', () => {
   const flags = FEATURES as { wordpressContent: boolean };
   const view = () => render(<HowItWorks />);
   const hrefs = (c: Element) => Array.from(c.querySelectorAll('a')).map((a) => a.getAttribute('href'));
-  afterEach(() => {
-    flags.wordpressContent = false;
-  });
 
-  it('ships on, with the pinned version and the block-theme backend view', () => {
-    expect(flags.wordpressContent).toBe(true);
+  it('pins the Sensei version and the block-theme backend view', () => {
     expect(SENSEI_VERSION).toBe('4.26.4');
     expect(BACKEND_VIEW_PATH).toBe('/backend/block-theme');
   });
@@ -339,11 +340,8 @@ const SESSION_TAIL =
   "Nothing syncs between your devices unless you move the record yourself. Signing in with a WordPress.org account is a possible next step, and it isn't built.";
 
 describe('/how-it-works with sessions (phase 2)', () => {
-  it('ships on', () => {
-    expect(FEATURES.sessions).toBe(true);
-  });
-
   it('on: the approved phase 2 accounts bullet, and nothing that says there is no server state', () => {
+    setFlags({ sessions: true });
     render(<HowItWorks />);
     const t = text();
     expect(t).toContain(SESSION_BULLET);
@@ -370,17 +368,9 @@ describe('/how-it-works with sessions (phase 2)', () => {
 describe('/how-it-works with the anonymous-accounts flag', () => {
   const flags = FEATURES as { senseiLearners: boolean; wordpressContent: boolean };
   const view = () => render(<HowItWorks />);
-  afterEach(() => {
-    flags.senseiLearners = false;
-    flags.wordpressContent = false;
-  });
-
-  it('ships off', () => {
-    expect(flags.senseiLearners).toBe(false);
-  });
 
   it('off, sessions off: the pre-session accounts bullet', () => {
-    setFlags({ sessions: false });
+    setFlags({ senseiLearners: false, sessions: false });
     view();
     expect(text()).toContain(
       "There are no accounts yet. Nobody signs in today. In the browser, your progress is one JSON file of xAPI statements under an anonymous ID (the record format), and it stays on your device.",
@@ -425,19 +415,14 @@ describe('/how-it-works with the official-record flag', () => {
     flags.senseiLearners = true;
     flags.wordpressContent = true;
   };
-  afterEach(() => {
-    flags.officialRecord = false;
-    flags.senseiLearners = false;
-    flags.wordpressContent = false;
-  });
 
-  it('ships off, with the numbers from course-meta', () => {
-    expect(flags.officialRecord).toBe(false);
+  it('takes its numbers from course-meta', () => {
     expect(RETENTION_DAYS).toBe(180);
     expect(LRS_HOST).toBe('lrs.sqwrlz.com');
   });
 
   it('off: no where-the-record-lives copy, and the page text is what it was', () => {
+    flags.officialRecord = false;
     const before = (view(), text());
     expect(before).not.toContain('Where your record lives');
     expect(before).not.toContain('Progress that reaches Sensei');
@@ -480,6 +465,7 @@ describe('/how-it-works with the official-record flag', () => {
   });
 
   it('off with the other flags on: phase 4 lines unchanged', () => {
+    flags.officialRecord = false;
     flags.wordpressContent = true;
     flags.senseiLearners = true;
     view();
@@ -524,12 +510,6 @@ describe('/how-it-works final rewrite (phase 8)', () => {
     flags.wordpressContent = true;
     flags.badges = true;
   };
-  afterEach(() => {
-    flags.officialRecord = false;
-    flags.senseiLearners = false;
-    flags.wordpressContent = false;
-    flags.badges = false;
-  });
   const REVOKED = 'Deleting your data revokes any badges you claimed, and a revoked badge stops verifying.';
 
   it.each([['today', () => {}], ['every flag on', allOn]])('%s: every source listed exists, and every Cite resolves', (_n, set) => {
@@ -542,8 +522,7 @@ describe('/how-it-works final rewrite (phase 8)', () => {
   });
 
   it('off: no badge, certificate or revocation copy', () => {
-    flags.officialRecord = true;
-    setFlags({ lrsShadow: true });
+    setFlags({ officialRecord: true, lrsShadow: true, senseiLearners: true, badges: false });
     render(<HowItWorks />);
     const t = text();
     for (const s of ['Badges you can verify', 'A Sensei certificate', 'revokes any badges', 'not an official WordPress credential', 'Sensei LMS and the open Learning Ledger plugin']) expect(t).not.toContain(s);
@@ -551,11 +530,12 @@ describe('/how-it-works final rewrite (phase 8)', () => {
 
   it('on: badges, certificate, revocation, the unofficial lines and the credit', () => {
     allOn();
+    setFlags({ senseiCertificates: false });
     render(<HowItWorks />);
     const t = text();
     expect(t).toContain('Badges you can verify. Finishing a path earns a badge, issued as an Open Badges 3.0 credential and signed by the record store as "Learn WordPress, reimagined".');
     expect(t).toContain('The badge does not carry your random ID.');
-    // SERVER_FLAGS.senseiCertificates is off (no rendered certificate yet), so the page uses the approved fallback.
+    // With senseiCertificates off (no rendered certificate yet) the page uses the approved fallback.
     expect(t).toContain("A Sensei certificate. Sensei issues its certificate when a path is complete. The studio shows that it exists, but can't yet download it.");
     expect(t).not.toContain('offers it as a download');
     expect(t).toContain(REVOKED);
@@ -596,9 +576,6 @@ describe('/how-it-works final rewrite (phase 8)', () => {
 
 describe('/how-it-works LRS and Ledger parts per flag state', () => {
   const flags = FEATURES as { officialRecord: boolean; senseiLearners: boolean; wordpressContent: boolean; badges: boolean; agentOnStandard: boolean };
-  afterEach(() => {
-    Object.assign(flags, { officialRecord: false, senseiLearners: false, wordpressContent: false, badges: false, agentOnStandard: false });
-  });
   const part = (c: HTMLElement, name: string) => Array.from(c.querySelectorAll('.how-parts__list li')).find((x) => x.querySelector('strong')!.textContent!.startsWith(name))!.textContent!;
   const on = (o: Partial<typeof flags>) => Object.assign(flags, { officialRecord: true, senseiLearners: true, wordpressContent: true, lrsShadow: true }, o);
 
@@ -624,6 +601,7 @@ describe('/how-it-works LRS and Ledger parts per flag state', () => {
 
 describe('/how-it-works with the LRS shadow (phase 5)', () => {
   it('off: no second-server sentence', () => {
+    setFlags({ lrsShadow: false });
     render(<HowItWorks />);
     expect(text()).not.toContain(SHADOW_COPY);
   });
@@ -674,6 +652,7 @@ describe('/how-it-works agent copy across officialRecord and agentOnStandard (I1
   const card = (c: Element, id: string) => Array.from(c.querySelectorAll('.custody__card')).find((x) => x.textContent!.includes(id))!.textContent!;
   it('officialRecord on, agents still practice: connector says practice record, custody still "moving"', () => {
     phasesUpTo('officialRecord');
+    setFlags({ agentOnStandard: false });
     const { container } = render(<HowItWorks />);
     expect(text()).toContain('Your record there is a practice record. Badges are off.');
     expect(card(container, 'author-lrs')).toContain('This site is moving to this option');

@@ -2,7 +2,7 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { cleanup, fireEvent, render, screen, waitFor } from '@testing-library/preact';
 import { Consent, EXPIRED, LOAD_FAILED } from '../../src/pages/Consent';
-import { restoreFlags, setFlags } from '../helpers/flags';
+import { PHASES_OFF, restoreFlags, setFlags } from '../helpers/flags';
 
 const json = (body: unknown, status = 200) =>
   new Response(JSON.stringify(body), { status, headers: { 'content-type': 'application/json' } });
@@ -21,6 +21,7 @@ function mount(info: unknown = { clientName: 'Claude', redirectHost: 'claude.ai'
 }
 
 beforeEach(() => {
+  setFlags(PHASES_OFF);
   history.replaceState(null, '', '/consent?request=req-1');
   fetchMock = vi.fn();
   vi.stubGlobal('fetch', fetchMock);
@@ -86,6 +87,7 @@ describe('Consent page', () => {
   });
 
   it('agentOnStandard off (today): a server error still reads as expired', async () => {
+    setFlags({ agentOnStandard: false });
     mount({ error: { code: 'internal' } }, 503);
     expect(await screen.findByText(EXPIRED)).toBeTruthy();
   });

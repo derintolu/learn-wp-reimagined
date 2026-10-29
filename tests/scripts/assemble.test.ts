@@ -14,6 +14,7 @@ import {
 } from '../../scripts/assemble';
 import { getContent } from '../../functions/_lib/content';
 import { connectMcp } from '../helpers/mcpClient';
+import { PHASES_OFF } from '../helpers/flags';
 
 const API = fileURLToPath(new URL('../../functions/api', import.meta.url));
 
@@ -33,6 +34,22 @@ const allJs = (dir: string): string[] =>
     const full = join(dir, name);
     return statSync(full).isDirectory() ? allJs(full) : name.endsWith('.js') ? [full] : [];
   });
+
+/**
+ * The bundle carries its own copy of SERVER_FLAGS, which a test cannot reach at run time: set `flags` in the
+ * emitted code before importing it, so a test does not depend on how functions/_lib/config.ts ships them.
+ */
+const setBundledServerFlags = (dir: string, flags: Record<string, boolean>) => {
+  const holders = allJs(dir).filter((f) => /\bvar SERVER_FLAGS = \{/.test(readFileSync(f, 'utf8')));
+  expect(holders).toHaveLength(1);
+  const code = readFileSync(holders[0], 'utf8').replace(/\bvar SERVER_FLAGS = \{[^}]*\}/, (literal) =>
+    Object.entries(flags).reduce((l, [k, v]) => {
+      expect(l, k).toMatch(new RegExp(`\\b${k}: (true|false)`));
+      return l.replace(new RegExp(`\\b${k}: (true|false)`), `${k}: ${v}`);
+    }, literal),
+  );
+  writeFileSync(holders[0], code);
+};
 
 /** The module specifiers a built ESM file imports. */
 const importsOf = (code: string): string[] => [...code.matchAll(/^\s*import\s[^;]*?from\s*["']([^"']+)["']/gm)].map((m) => m[1]);
@@ -135,6 +152,8 @@ describe('the MCP connector bundle', () => {
   it('the bundled connector serves tools/list when imported as a module', async () => {
     const out = tmp();
     const files = await bundleFunctions(API, out);
+    // Today's practice connector: no sign-in (agentOnStandard off).
+    setBundledServerFlags(out, PHASES_OFF);
     const mod = await import(files.find((f) => f.endsWith('/mcp.js'))!);
     const { createSqliteD1 } = await import('../../dev/sqliteD1');
     const res: Response = await mod.POST(
@@ -164,6 +183,8 @@ describe('the MCP connector bundle', () => {
   it('the bundled connector runs a code checkpoint with its regex checks (the web shims, not Node)', async () => {
     const out = tmp();
     const files = await bundleFunctions(API, out);
+    // Today's practice connector: no sign-in (agentOnStandard off).
+    setBundledServerFlags(out, PHASES_OFF);
     const mod = await import(files.find((f) => f.endsWith('/mcp.js'))!);
     const { createSqliteD1 } = await import('../../dev/sqliteD1');
     const env = { DB: createSqliteD1() };

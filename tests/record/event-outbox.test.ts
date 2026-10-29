@@ -4,7 +4,7 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { BEAT_FLUSH_MS, EventClient, OUTBOX_KEY, SEND_TIMEOUT_MS } from '../../src/record/eventClient';
 import { resetSession } from '../../src/record/session';
-import { phasesUpTo, restoreFlags } from '../helpers/flags';
+import { PHASES_OFF, phasesUpTo, restoreFlags, setFlags } from '../helpers/flags';
 
 let outcomes: ('ok' | 'offline' | number)[];
 let sessionDelay = 0;
@@ -13,6 +13,7 @@ let fetchMock: ReturnType<typeof vi.fn>;
 const eventBodies = () => fetchMock.mock.calls.filter((c) => c[0] === '/api/events').map((c) => JSON.parse(c[1].body).events as { eventId: string; type: string }[]);
 
 beforeEach(() => {
+  setFlags(PHASES_OFF);
   vi.useFakeTimers();
   localStorage.clear();
   resetSession();
@@ -97,6 +98,7 @@ describe('event outbox (lrsShadow on)', () => {
 
 describe('event outbox with lrsShadow off (today)', () => {
   it('keeps nothing, as before', async () => {
+    setFlags({ lrsShadow: false });
     outcomes = ['offline'];
     await new EventClient(() => 'l').send({ type: 'lessonCompleted', lessonId: 'a' });
     expect(localStorage.getItem(OUTBOX_KEY)).toBeNull();

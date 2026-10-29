@@ -4,6 +4,7 @@ import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it, vi } 
 import { createSqliteD1 } from '../../dev/sqliteD1';
 import * as route from '../../functions/api/mcp';
 import { SERVER_FLAGS } from '../../functions/_lib/config';
+import { PHASES_OFF, restoreServerFlags, setServerFlags } from '../helpers/flags';
 import { getContent } from '../../functions/_lib/content';
 import { handleMcp } from '../../functions/_lib/mcp/handler';
 import { D1PracticeStore } from '../../functions/_lib/mcp/practiceStore';
@@ -37,12 +38,12 @@ afterAll(() => {
 beforeEach(() => {
   db = createSqliteD1();
   env = { DB: db } as Env;
-  SERVER_FLAGS.mcpOnStandard = true;
+  setServerFlags({ ...PHASES_OFF, mcpOnStandard: true });
 });
 afterEach(async () => {
   await Promise.all(open.map((c) => c.close()));
   open = [];
-  SERVER_FLAGS.mcpOnStandard = true;
+  restoreServerFlags();
 });
 
 async function session(era: Era, e: Env = env) {

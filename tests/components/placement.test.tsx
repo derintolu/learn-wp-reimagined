@@ -20,6 +20,7 @@ import { setPlaygroundImporter } from '../../src/studio/previewClient';
 import type { RecordManager } from '../../src/record/store';
 import { LocationProvider } from 'preact-iso';
 import { memoryManager } from './helpers';
+import { PHASES_OFF, restoreFlags, setFlags } from '../helpers/flags';
 
 const status = vi.mocked(getStatus);
 const place = vi.mocked(placement);
@@ -34,6 +35,8 @@ const PLACED = {
 let manager: RecordManager;
 
 beforeEach(() => {
+  // Home's connect copy before agentOnStandard's sign-in.
+  setFlags(PHASES_OFF);
   setPlaygroundImporter(() => Promise.reject(new Error('no Playground in tests')));
   history.replaceState(null, '', '/');
   manager = memoryManager(content);
@@ -43,6 +46,7 @@ beforeEach(() => {
 });
 afterEach(() => {
   cleanup();
+  restoreFlags();
   vi.clearAllMocks();
   setRecordManager(null);
   setPlaygroundImporter(null);
