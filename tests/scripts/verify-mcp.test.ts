@@ -7,8 +7,11 @@ import * as authorize from '../../functions/api/oauth/authorize';
 import * as consent from '../../functions/api/oauth/consent';
 import * as token from '../../functions/api/oauth/token';
 import * as revoke from '../../functions/api/oauth/revoke';
+import { mkdtempSync, writeFileSync } from 'node:fs';
+import { tmpdir } from 'node:os';
+import { join } from 'node:path';
 import { createSession } from '../../functions/_lib/session/session';
-import { verifyMcpOAuth } from '../../scripts/verify-mcp';
+import { runCli, verifyMcpOAuth } from '../../scripts/verify-mcp';
 import { routeFetch } from '../helpers/mcpClient';
 import { LEDGER_ENV, fakeLrs } from '../helpers/fakeLrs';
 import type { Env } from '../../functions/_lib/env';
@@ -110,5 +113,40 @@ describe('verifyMcpOAuth: the sign-in an agent does', () => {
     expect(JSON.stringify(r)).not.toMatch(/access_token|refresh_token|code_verifier|Bearer/);
     const err = await verifyMcpOAuth('https://learn-wp-reimagined.space.fast/api/mcp', 'modern', { cookie: sid, fetch: fetchLike, completeLesson: 'nope' }).catch((e: Error) => e.message);
     expect(String(err)).not.toContain(secret);
+  });
+
+  const cli = async (argv: string[], cookie: string) => {
+    const dir = mkdtempSync(join(tmpdir(), 'vmcp-'));
+    const file = join(dir, 'session');
+    writeFileSync(file, cookie);
+    const lines: string[] = [];
+    const { fetchLike } = recordSite();
+    const code = await runCli(argv.map((a) => (a === '<file>' ? file : a)), (l) => lines.push(l), (l) => lines.push(l), fetchLike);
+    return { code, printed: lines.join('\n') };
+  };
+
+  it('CLI: --complete-lesson with no value fails with the usage text and a non-zero exit, before signing in', async () => {
+    const base = ['https://learn-wp-reimagined.space.fast/api/mcp', 'modern', '--oauth', '--cookie-file', '<file>'];
+    for (const argv of [[...base, '--complete-lesson'], [...base, '--complete-lesson', '--oauth']]) {
+      const r = await cli(argv, 'x');
+      expect(r.code).toBe(2);
+      expect(r.printed).toContain('usage: verify-mcp.ts');
+    }
+  });
+
+  it('CLI: --help names the throwaway-session caveat', async () => {
+    const r = await cli(['--help'], 'x');
+    expect(r.code).toBe(0);
+    expect(r.printed).toMatch(/throwaway session/);
+  });
+
+  it('CLI: what is printed on the main path carries no cookie, token, code or verifier', async () => {
+    const { cookie } = await createSession(env, Date.now());
+    const sid = cookie.split(';')[0]!;
+    const r = await cli(['https://learn-wp-reimagined.space.fast/api/mcp', 'modern', '--oauth', '--cookie-file', '<file>', '--complete-lesson', 'ln-publish'], sid);
+    expect(r.code).toBe(0);
+    expect(r.printed).toContain('lesson ln-publish: 4 beats, completed in the official record');
+    expect(r.printed).not.toContain(sid.slice('lwr_sid='.length));
+    expect(r.printed).not.toMatch(/access_token|refresh_token|code_verifier|Bearer|lwr_sid/);
   });
 });

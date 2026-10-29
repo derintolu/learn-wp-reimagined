@@ -173,24 +173,43 @@ export async function verifyMcpOAuth(
   }
 }
 
-if (process.argv[1] && fileURLToPath(import.meta.url) === process.argv[1]) {
-  const args = process.argv.slice(2);
-  const flag = (name: string) => {
+const USAGE = [
+  'usage: verify-mcp.ts <url> [legacy|modern] --oauth --cookie-file <path> [--complete-lesson <lessonId>]',
+  '  --complete-lesson writes labelled "Verification run" answers into the session\'s record; use it on a throwaway session.',
+].join('\n');
+
+/** The command line: prints through `out`/`err`, returns the exit code. Usage mistakes return 2 with the usage text. */
+export async function runCli(argv: string[], out: (line: string) => void, err: (line: string) => void, fetchImpl?: FetchLike): Promise<number> {
+  const args = [...argv];
+  if (args.includes('--help') || args.includes('-h')) {
+    out(USAGE);
+    return 0;
+  }
+  const flag = (name: string): string | undefined | null => {
     const i = args.indexOf(name);
-    return i >= 0 ? args.splice(i, 2)[1] : undefined;
+    if (i < 0) return undefined;
+    const v = args[i + 1];
+    if (v === undefined || v.startsWith('--')) return null;
+    args.splice(i, 2);
+    return v;
   };
   const oauth = args.includes('--oauth');
   if (oauth) args.splice(args.indexOf('--oauth'), 1);
   const cookieFile = flag('--cookie-file');
   const completeLessonId = flag('--complete-lesson');
   const [url, era = 'legacy'] = args;
-  if (!url || (era !== 'legacy' && era !== 'modern') || !oauth || !cookieFile) {
-    throw new Error('usage: verify-mcp.ts <url> [legacy|modern] --oauth --cookie-file <path> [--complete-lesson <lessonId>]');
+  if (!url || (era !== 'legacy' && era !== 'modern') || !oauth || !cookieFile || completeLessonId === null) {
+    err(USAGE);
+    return 2;
   }
-  const r = await verifyMcpOAuth(url, era, { cookie: readFileSync(cookieFile, 'utf8'), ...(completeLessonId ? { completeLesson: completeLessonId } : {}) });
-  console.log(`server: ${r.serverName}`);
-  console.log(`tools (${r.tools.length}): ${r.tools.join(', ')}`);
-  console.log(`custody: ${String(r.custody)}, official: ${String(r.official)}`);
-  if (r.lesson) console.log(`lesson ${r.lesson.lessonId}: ${r.lesson.beats} beats, ${r.lesson.completed ? 'completed' : 'NOT completed'} in the official record`);
-  if (completeLessonId && !r.lesson?.completed) process.exitCode = 1;
+  const r = await verifyMcpOAuth(url, era, { cookie: readFileSync(cookieFile, 'utf8'), ...(fetchImpl ? { fetch: fetchImpl } : {}), ...(completeLessonId ? { completeLesson: completeLessonId } : {}) });
+  out(`server: ${r.serverName}`);
+  out(`tools (${r.tools.length}): ${r.tools.join(', ')}`);
+  out(`custody: ${String(r.custody)}, official: ${String(r.official)}`);
+  if (r.lesson) out(`lesson ${r.lesson.lessonId}: ${r.lesson.beats} beats, ${r.lesson.completed ? 'completed' : 'NOT completed'} in the official record`);
+  return completeLessonId && !r.lesson?.completed ? 1 : 0;
+}
+
+if (process.argv[1] && fileURLToPath(import.meta.url) === process.argv[1]) {
+  process.exitCode = await runCli(process.argv.slice(2), console.log, console.error);
 }
