@@ -13,7 +13,7 @@ describe('shipped flag defaults', () => {
       wordpressContent: true,
       senseiLearners: true,
       lrsShadow: true,
-      agentOnStandard: false,
+      agentOnStandard: true,
       officialRecord: true,
       badges: false,
       senseiCertificates: false,
@@ -31,7 +31,7 @@ describe('shipped flag defaults', () => {
       senseiCertificates: false,
       badges: false,
       officialRecord: true,
-      agentOnStandard: false,
+      agentOnStandard: true,
     });
   });
 
@@ -41,6 +41,7 @@ describe('shipped flag defaults', () => {
       'senseiLearners',
       'lrsShadow',
       'officialRecord',
+      'agentOnStandard',
     ]);
   });
 });

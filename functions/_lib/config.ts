@@ -59,7 +59,7 @@ export const PRICES: Record<string, { inPerM: number; outPerM: number }> = {
  * author-lrs custody, Task 45b): agent calls are decided and recorded as the studio's events are. Off, /api/mcp
  * is the practice connector above (mcpOnStandard), unchanged.
  */
-export const SERVER_FLAGS = { serverEvents: true, sessions: true, mcpOnStandard: true, senseiLearners: true, lrsShadow: true, wordpressContent: true, senseiCertificates: false, badges: false, officialRecord: true, agentOnStandard: false };
+export const SERVER_FLAGS = { serverEvents: true, sessions: true, mcpOnStandard: true, senseiLearners: true, lrsShadow: true, wordpressContent: true, senseiCertificates: false, badges: false, officialRecord: true, agentOnStandard: true };
 
 /** Learning Ledger REST base (the plugin's learning-ledger/v1 namespace on the WordPress site). */
 export const LEDGER_BASE = 'https://learnwp.sqwrlz.com/wp-json/learning-ledger/v1';
