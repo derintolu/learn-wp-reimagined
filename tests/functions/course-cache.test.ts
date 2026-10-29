@@ -7,7 +7,7 @@ import { SERVER_FLAGS } from '../../functions/_lib/config';
 import { buildContent } from '../../scripts/build-content';
 import { bundleToPackage } from '../../src/shared/package';
 import { getContent, setContentForTests, setCurrentContent } from '../../functions/_lib/content';
-import { COURSE_REVALIDATE_MS, onNewVersion, refreshContent, resetCourseCacheForTests } from '../../functions/_lib/course/cache';
+import { COURSE_REVALIDATE_MS, splitUtf8, onNewVersion, refreshContent, resetCourseCacheForTests } from '../../functions/_lib/course/cache';
 import { guarded } from '../../functions/_lib/ai';
 import { GET as course } from '../../functions/api/course';
 import { signRequest } from '../../functions/_lib/ledger/sign';
@@ -448,5 +448,121 @@ describe('GET /api/course', () => {
     const again = await get({ 'If-None-Match': '"e1"' });
     expect(again.status).toBe(304);
     expect(again.headers.get('ETag')).toBe('"e1"');
+  });
+});
+
+/** A D1 over SQLite that refuses any statement over 65,536 bytes (its text plus bound values), like Spacefast's broker. */
+function brokerLimited(real: Env['DB'], log: { max: number } = { max: 0 }): Env['DB'] {
+  const size = (sql: string, v: unknown[]) => Buffer.byteLength(sql) + v.reduce<number>((n, x) => n + (typeof x === 'string' ? Buffer.byteLength(x) : 8), 0);
+  const wrap = (sql: string, v: unknown[]) => {
+    const check = () => {
+      const n = size(sql, v);
+      log.max = Math.max(log.max, n);
+      if (n > 65_536) throw new Error(`Database operation is ${n} bytes; the limit is 65536.`);
+    };
+    const q = real.prepare(sql).bind(...v);
+    return {
+      bind: (...nv: unknown[]) => wrap(sql, nv),
+      run: async () => (check(), q.run()),
+      first: async () => (check(), q.first()),
+      all: async () => (check(), q.all()),
+    };
+  };
+  return { prepare: (sql: string) => wrap(sql, []) } as unknown as Env['DB'];
+}
+
+describe('splitUtf8', () => {
+  it('never splits a multibyte character, keeps every part within the limit and joins back to the input', () => {
+    const s = 'a\u00e9\u20ac\u{1F600}'.repeat(500) + 'tail';
+    for (const max of [4, 5, 7, 100, 1001]) {
+      const parts = splitUtf8(s, max);
+      expect(parts.join('')).toBe(s);
+      for (const p of parts) {
+        expect(Buffer.byteLength(p)).toBeLessThanOrEqual(max);
+        expect(p).not.toMatch(/[\ud800-\udbff]$|^[\udc00-\udfff]/);
+      }
+    }
+    expect(splitUtf8('', 10)).toEqual(['']);
+  });
+});
+
+describe('the cached body is stored in parts under the broker limit', () => {
+  const padOf = (b: typeof bundle) => (b.lessons[Object.keys(bundle.lessons)[0]!] as unknown as { beats: { content: string }[] }).beats[0]!.content;
+  const withPad = (pad: string) => {
+    const b = structuredClone(bundle);
+    (b.lessons[Object.keys(bundle.lessons)[0]!] as unknown as { beats: { content: string }[] }).beats[0]!.content = pad;
+    return b;
+  };
+  const big = () => withPad('caf\u00e9 \u20ac '.repeat(15_000));
+  const get = () => course(new Request('http://x/api/course'), { params: {}, env });
+
+  it('round-trips a 157 KB bundle and serves it from the database on a fresh isolate', async () => {
+    const b = big();
+    expect(Buffer.byteLength(JSON.stringify(b))).toBeGreaterThan(150_000);
+    const log = { max: 0 };
+    env = { ...env, DB: brokerLimited(createSqliteD1(), log) };
+    send200('"e1"', 1, b);
+    expect((await get()).status).toBe(200);
+    expect(console.error).not.toHaveBeenCalledWith('course cache db error', expect.anything(), expect.anything());
+    expect(log.max).toBeLessThanOrEqual(65_536);
+    const n = await env.DB.prepare('SELECT COUNT(*) AS n FROM course_cache_parts').first<{ n: number }>();
+    expect(n!.n).toBeGreaterThan(3);
+    expect((await env.DB.prepare('SELECT body FROM course_cache').first<{ body: string | null }>())!.body).toBeNull();
+
+    resetCourseCacheForTests();
+    setCurrentContent(null);
+    vi.useFakeTimers({ now: Date.now() + 1000, toFake: ['Date'] });
+    try {
+      const res = await get();
+      expect(res.headers.get('ETag')).toBe('"e1"');
+      expect(padOf((await res.json()) as typeof bundle)).toBe(padOf(b).trim());
+      expect(fetchMock).toHaveBeenCalledTimes(1);
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  it('an interrupted write (parts written, row not updated) leaves the previous body readable', async () => {
+    const b1 = big();
+    send200('"e1"', 1, b1);
+    await refreshContent(env, T0);
+    const real = env.DB;
+    env = { ...env, DB: { prepare: (q: string) => (/^UPDATE course_cache SET etag/.test(q) ? { bind: () => ({ run: async () => { throw new Error('cut off'); } }) } : real.prepare(q)) } as unknown as Env['DB'] };
+    const b2 = withPad('new');
+    send200('"e2"', 2, b2);
+    await refreshContent(env, T0 + COURSE_REVALIDATE_MS);
+    env = { ...env, DB: real };
+    resetCourseCacheForTests();
+    setCurrentContent(null);
+    fetchMock.mockImplementationOnce(async () => new Response(null, { status: 304 }));
+    const r = await refreshContent(env, T0 + COURSE_REVALIDATE_MS + 1);
+    expect(r.etag).toBe('"e1"');
+    expect(padOf(getContent())).toBe(padOf(b1).trim());
+  });
+
+  it('missing parts fall back, log a read error, and the version is fetched in full to write them again', async () => {
+    send200('"e1"', 1);
+    await refreshContent(env, T0);
+    await env.DB.prepare('DELETE FROM course_cache_parts').run();
+    resetCourseCacheForTests();
+    setCurrentContent(null);
+    const r = await refreshContent(env, T0 + 1000);
+    expect(r.etag).toMatch(/^"baked-/);
+    expect(console.error).toHaveBeenCalledWith('course cache db error', 'read', expect.stringContaining('unusable cached body'));
+    send200('"e1"', 1);
+    expect(await refreshContent(env, T0 + COURSE_REVALIDATE_MS + 2000, { force: true })).toMatchObject({ etag: '"e1"' });
+    expect((fetchMock.mock.calls[1]![1] as RequestInit).headers).not.toHaveProperty('If-None-Match');
+    resetCourseCacheForTests();
+    setCurrentContent(null);
+    expect((await refreshContent(env, T0 + COURSE_REVALIDATE_MS + 3000)).etag).toBe('"e1"');
+  });
+
+  it('removes the parts of the replaced etag', async () => {
+    send200('"e1"', 1);
+    await refreshContent(env, T0);
+    send200('"e2"', 2);
+    await refreshContent(env, T0 + 1, { force: true });
+    const { results } = await env.DB.prepare('SELECT DISTINCT etag FROM course_cache_parts').all<{ etag: string }>();
+    expect(results.map((r) => r.etag)).toEqual(['"e2"']);
   });
 });

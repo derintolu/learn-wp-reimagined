@@ -44,14 +44,60 @@ export function bakedEtag(): string {
   return (baked = `"baked-${h.toString(16)}"`);
 }
 
-/** Loads the cached bundle into memory when it is not the one already loaded (the body is read only then). */
+/** The most UTF-8 bytes in one stored part: the broker refuses an operation over 65,536 bytes, and the INSERT carries more. */
+export const COURSE_PART_BYTES = 48_000;
+
+/** Splits s at character boundaries into parts of at most maxBytes UTF-8 bytes each; the parts join back to s. */
+export function splitUtf8(s: string, maxBytes: number): string[] {
+  if (maxBytes < 4) throw new RangeError('maxBytes must be at least 4');
+  const parts: string[] = [];
+  let start = 0;
+  let bytes = 0;
+  let i = 0;
+  while (i < s.length) {
+    const cp = s.codePointAt(i)!;
+    const w = cp < 0x80 ? 1 : cp < 0x800 ? 2 : cp < 0x10000 ? 3 : 4;
+    if (bytes + w > maxBytes) {
+      parts.push(s.slice(start, i));
+      start = i;
+      bytes = 0;
+    }
+    bytes += w;
+    i += cp > 0xffff ? 2 : 1;
+  }
+  if (start < s.length || parts.length === 0) parts.push(s.slice(start));
+  return parts;
+}
+
+// The etag whose parts were missing or unreadable: the next refresh fetches that version in full to write them again.
+let unusableEtag: string | null = null;
+
+/** Loads the cached bundle into memory when it is not the one already loaded (the parts are read only then). */
 async function use(env: Env, row: Row): Promise<void> {
   if (loadedEtag === row.etag) return;
-  const r = await env.DB.prepare('SELECT body FROM course_cache WHERE course_id = ?').bind(PROGRAM_KEY).first<{ body: string }>();
-  if (!r) return;
-  setCurrentContent(JSON.parse(r.body) as ContentBundle);
+  const { results } = await env.DB.prepare('SELECT part FROM course_cache_parts WHERE course_id = ? AND etag = ? ORDER BY seq')
+    .bind(PROGRAM_KEY, row.etag)
+    .all<{ part: string }>();
+  try {
+    if (!results.length) throw new Error('no stored parts');
+    setCurrentContent(JSON.parse(results.map((r) => r.part).join('')) as ContentBundle);
+  } catch (e) {
+    unusableEtag = row.etag;
+    throw new Error(`unusable cached body: ${short(e)}`);
+  }
   loadedEtag = row.etag;
   loadedVersion = Number(row.version);
+}
+
+/** Writes the body as parts for etag. Parts of any other etag are removed only after the course_cache row has moved on. */
+async function writeParts(env: Env, etag: string, body: string): Promise<void> {
+  await env.DB.prepare('DELETE FROM course_cache_parts WHERE course_id = ? AND etag = ?').bind(PROGRAM_KEY, etag).run();
+  const parts = splitUtf8(body, COURSE_PART_BYTES);
+  for (let seq = 0; seq < parts.length; seq++) {
+    await env.DB.prepare('INSERT INTO course_cache_parts (course_id, etag, seq, part) VALUES (?, ?, ?, ?)')
+      .bind(PROGRAM_KEY, etag, seq, parts[seq])
+      .run();
+  }
 }
 
 /** A package that cannot be served: it does not decode, or the course it holds does not build. */
@@ -141,7 +187,7 @@ async function refresh(
     .bind(PROGRAM_KEY)
     .first<Row>();
   if (row && !opts.force && now - Number(row.fetched) < COURSE_REVALIDATE_MS) {
-    stage.name = 'load';
+    stage.name = 'read';
     await use(env, row);
     return { etag: row.etag, version: Number(row.version), changed: false };
   }
@@ -151,15 +197,16 @@ async function refresh(
   // imported into the LRS (the flag flipped after wordpressContent, ruling R30).
   stage.name = 'hooks_pending';
   const hooksPending = !!row && (Number(row.hooks_done) === 0 || (await courseImportPending(env, row.etag)));
+  const unusable = !!row && unusableEtag === row.etag;
   stage.name = 'fetch';
   try {
     // A version whose hooks failed is fetched in full again so the hooks can be retried with its zip.
-    const res = await new ConnectorClient(env).getPackage(PROGRAM_KEY, hooksPending ? undefined : row?.etag);
+    const res = await new ConnectorClient(env).getPackage(PROGRAM_KEY, hooksPending || unusable ? undefined : row?.etag);
     if (res.status === 304) {
       if (!row) throw new ConnectorUnavailable('ledger answered 304 with no cached copy');
       stage.name = 'touch';
       await env.DB.prepare('UPDATE course_cache SET fetched = ? WHERE course_id = ?').bind(now, PROGRAM_KEY).run();
-      stage.name = 'load';
+      stage.name = 'read';
       await use(env, row);
       return { etag: row.etag, version: Number(row.version), changed: false };
     }
@@ -171,15 +218,19 @@ async function refresh(
     loadedEtag = res.etag;
     loadedVersion = res.version;
     stage.name = row ? 'update' : 'insert';
+    // Parts first, then the row that points at them, then the old parts: a reader never sees a half-written body.
+    await writeParts(env, res.etag, body);
     if (row) {
-      await env.DB.prepare('UPDATE course_cache SET etag = ?, version = ?, body = ?, fetched = ?, hooks_done = ? WHERE course_id = ?')
-        .bind(res.etag, res.version, body, now, changed ? 0 : Number(row.hooks_done), PROGRAM_KEY)
+      await env.DB.prepare('UPDATE course_cache SET etag = ?, version = ?, fetched = ?, hooks_done = ? WHERE course_id = ?')
+        .bind(res.etag, res.version, now, changed ? 0 : Number(row.hooks_done), PROGRAM_KEY)
         .run();
     } else {
-      await env.DB.prepare('INSERT INTO course_cache (course_id, etag, version, body, fetched, hooks_done) VALUES (?, ?, ?, ?, ?, 0)')
-        .bind(PROGRAM_KEY, res.etag, res.version, body, now)
+      await env.DB.prepare('INSERT INTO course_cache (course_id, etag, version, fetched, hooks_done) VALUES (?, ?, ?, ?, 0)')
+        .bind(PROGRAM_KEY, res.etag, res.version, now)
         .run();
     }
+    unusableEtag = null;
+    await env.DB.prepare('DELETE FROM course_cache_parts WHERE course_id = ? AND etag <> ?').bind(PROGRAM_KEY, res.etag).run();
     failedAt = 0;
     if (changed || hooksPending) {
       if (await runHooks(env, res.zip, res.etag)) {
@@ -197,7 +248,7 @@ async function refresh(
     if (row) {
       stage.name = 'touch';
       await env.DB.prepare('UPDATE course_cache SET fetched = ? WHERE course_id = ?').bind(now, PROGRAM_KEY).run();
-      stage.name = 'load';
+      stage.name = 'read';
       await use(env, row);
       return { etag: row.etag, version: Number(row.version), changed: false };
     }
@@ -218,6 +269,7 @@ export async function loadCurrentCourse(env: Env): Promise<void> {
 export function resetCourseCacheForTests(): void {
   loadedEtag = null;
   loadedVersion = 0;
+  unusableEtag = null;
   failedAt = 0;
   dbFailedAt = 0;
 }

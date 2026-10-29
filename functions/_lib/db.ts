@@ -65,6 +65,12 @@ export async function ensureCourseCacheSchema(db: D1Like): Promise<void> {
       'CREATE TABLE IF NOT EXISTS course_cache (course_id VARCHAR(64) PRIMARY KEY, etag VARCHAR(80), version INT, body MEDIUMTEXT, fetched BIGINT, hooks_done INT)',
     )
     .run();
+  // The bundle JSON is over the broker's 64 KiB operation limit, so it is stored in parts (body is no longer written).
+  await db
+    .prepare(
+      'CREATE TABLE IF NOT EXISTS course_cache_parts (course_id VARCHAR(64), etag VARCHAR(80), seq INT, part MEDIUMTEXT, PRIMARY KEY (course_id, etag, seq))',
+    )
+    .run();
   await db.prepare('CREATE TABLE IF NOT EXISTS ping_nonces (nonce VARCHAR(80) PRIMARY KEY, seen BIGINT)').run();
   courseCacheReady.add(db);
 }
