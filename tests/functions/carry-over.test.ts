@@ -13,6 +13,7 @@ import { checkProfile } from '../../vendor/course-xapi-mcp/core/xapi/profile-che
 import { activityIds } from '../../vendor/course-xapi-mcp/core/constants';
 import type { XapiStatement } from '../../vendor/course-xapi-mcp/core/xapi/types';
 import { LEDGER_ENV, fakeLrs } from '../helpers/fakeLrs';
+import { enrolHealth } from '../../functions/_lib/session/enrol';
 
 const NOW = Date.UTC(2026, 9, 28, 12, 0, 0);
 const REG = '7d3c1a2b-4e5f-4a6b-8c7d-9e0f1a2b3c4d';
@@ -146,5 +147,53 @@ describe('POST /api/carry-over', () => {
     expect((await call({ completedLessons: 'x' })).status).toBe(400);
     expect((await call({ completedLessons: [], files: { a: 1 } })).status).toBe(400);
     expect(lrs.calls).toEqual([]);
+  });
+});
+
+/** The ledger refuses to make a learner (503) while `refuse` is set; every other call goes to the fake LRS. */
+const learnerDown = (real: typeof fetch, refuse: { on: boolean }) =>
+  (async (input: RequestInfo | URL, init?: RequestInit) =>
+    refuse.on && init?.method === 'POST' && String(input).endsWith('/course-server/learners') ? new Response('x', { status: 503 }) : real(input, init)) as typeof fetch;
+const OLD_ACTOR = 'legacy-actor-made-before-learners';
+const sessionActor = async () => (await env.DB.prepare('SELECT actor_name FROM sessions').first<{ actor_name: string }>())!.actor_name;
+
+describe('POST /api/carry-over for a session made before Sensei learners were on', () => {
+  const refuse = { on: false };
+  beforeEach(async () => {
+    enrolHealth.downUntil = 0;
+    refuse.on = false;
+    vi.stubGlobal('fetch', learnerDown(lrs.fetch, refuse));
+    await db.prepare('UPDATE sessions SET wp_user_id = NULL, actor_name = ?').bind(OLD_ACTOR).run();
+  });
+  afterEach(() => {
+    enrolHealth.downUntil = 0;
+    vi.restoreAllMocks();
+  });
+
+  it('answers 503 connector-unavailable and writes nothing official while no learner can be made', async () => {
+    refuse.on = true;
+    vi.spyOn(console, 'error').mockImplementation(() => {});
+    const res = await call({ completedLessons: [FIRST], files: { 'theme.json': '{}' }, current: { pathId: 'block-theme', lessonId: FIRST, beatIndex: 0 } });
+    expect(res.status).toBe(503);
+    expect(((await res.json()) as { error: { code: string } }).error.code).toBe('connector-unavailable');
+    expect((await db.prepare('SELECT COUNT(*) AS c FROM carry_overs').first<{ c: number }>())!.c).toBe(0);
+    expect(await outbox()).toEqual([]);
+    expect(lrs.calls).toEqual([]);
+    // Not claimed: once a learner exists, the carry-over still works.
+    refuse.on = false;
+    enrolHealth.downUntil = 0;
+    expect((await call({ completedLessons: [FIRST] })).status).toBe(200);
+  });
+
+  it('a learner adopted in the same request carries over under the ledger actor', async () => {
+    const res = await call({ completedLessons: [FIRST] });
+    expect(res.status).toBe(200);
+    const actor = await sessionActor();
+    expect(actor).toMatch(/^ledger-\d+$/);
+    expect((await db.prepare('SELECT actor_name FROM carry_overs').all<{ actor_name: string }>()).results).toEqual([{ actor_name: actor }]);
+    const sent = await outbox();
+    expect(sent).toHaveLength(1);
+    expect((sent[0].actor as { account: { name: string } }).account.name).toBe(actor);
+    expect(JSON.stringify([...lrs.state.keys()])).not.toContain(OLD_ACTOR);
   });
 });

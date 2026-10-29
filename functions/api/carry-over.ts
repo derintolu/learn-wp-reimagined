@@ -8,7 +8,7 @@ import { guarded } from '../_lib/ai';
 import { ensureRecordSchema, isDuplicateKey } from '../_lib/db';
 import { getContent } from '../_lib/content';
 import { refreshContent } from '../_lib/course/cache';
-import { readSession } from '../_lib/session/session';
+import { ensureLearner, readSession } from '../_lib/session/session';
 import { LrsClient, LrsError, LrsUnavailable, type StateKey } from '../_lib/lrs/client';
 import { drainAfterDecide, enqueue, INLINE_DRAIN_BUDGET_MS } from '../_lib/lrs/outbox';
 import { getRegistration } from '../_lib/record/registration';
@@ -73,6 +73,13 @@ export const POST: Handler = (req, ctx) =>
       cur && has(bundle.paths, cur.pathId as string) && has(bundle.lessons, cur.lessonId as string)
         ? { pathId: cur.pathId, lessonId: cur.lessonId, beatIndex: cur.beatIndex }
         : null;
+
+    // Nothing official until the session has a Sensei learner: a session made before learners were on adopts the
+    // ledger's actor here, and a claim or statements under its old name would outlive the delete and the sweep.
+    await ensureLearner(env, session, now);
+    if (session.wpUserId == null) {
+      return error(503, 'connector-unavailable', 'The learning record is unavailable right now. Please try again shortly.');
+    }
 
     await ensureRecordSchema(env.DB);
     try {

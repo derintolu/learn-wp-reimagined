@@ -6,6 +6,7 @@ import { createSession } from '../../functions/_lib/session/session';
 import { GET, PUT, STATE_MAX_BYTES } from '../../functions/api/state';
 import { lrsHealth } from '../../functions/_lib/record/registration';
 import { LEDGER_ENV, fakeLrs } from '../helpers/fakeLrs';
+import { enrolHealth } from '../../functions/_lib/session/enrol';
 
 let env: Env;
 let lrs: ReturnType<typeof fakeLrs>;
@@ -98,5 +99,48 @@ describe('/api/state', () => {
   it('answers 503 when the LRS is down', async () => {
     lrs.down = true;
     expect((await get()).status).toBe(503);
+  });
+});
+
+/** The ledger refuses to make a learner (503) while `refuse` is set; every other call goes to the fake LRS. */
+const learnerDown = (real: typeof fetch, refuse: { on: boolean }) =>
+  (async (input: RequestInfo | URL, init?: RequestInit) =>
+    refuse.on && init?.method === 'POST' && String(input).endsWith('/course-server/learners') ? new Response('x', { status: 503 }) : real(input, init)) as typeof fetch;
+const OLD_ACTOR = 'legacy-actor-made-before-learners';
+const sessionActor = async () => (await env.DB.prepare('SELECT actor_name FROM sessions').first<{ actor_name: string }>())!.actor_name;
+
+describe('/api/state for a session made before Sensei learners were on', () => {
+  const refuse = { on: false };
+  const doc1 = { files: { a: '1' }, times: { a: '2026-10-28T10:00:00.000Z' } };
+  beforeEach(async () => {
+    enrolHealth.downUntil = 0;
+    refuse.on = false;
+    vi.stubGlobal('fetch', learnerDown(lrs.fetch, refuse));
+    await env.DB.prepare('UPDATE sessions SET wp_user_id = NULL, actor_name = ?').bind(OLD_ACTOR).run();
+  });
+  afterEach(() => {
+    enrolHealth.downUntil = 0;
+    vi.restoreAllMocks();
+  });
+
+  it('GET and PUT answer 503 connector-unavailable and touch no State document while no learner can be made', async () => {
+    refuse.on = true;
+    vi.spyOn(console, 'error').mockImplementation(() => {});
+    for (const res of [await get(), await put(doc1)]) {
+      expect(res.status).toBe(503);
+      expect(((await res.json()) as { error: { code: string } }).error.code).toBe('connector-unavailable');
+    }
+    expect(lrs.calls).toEqual([]);
+    expect(lrs.state.size).toBe(0);
+  });
+
+  it('a learner adopted in the same request writes the document under the ledger actor', async () => {
+    expect((await put(doc1)).status).toBe(200);
+    const actor = await sessionActor();
+    expect(actor).toMatch(/^ledger-\d+$/);
+    const keys = JSON.stringify([...lrs.state.keys()]);
+    expect(keys).toContain(actor);
+    expect(keys).not.toContain(OLD_ACTOR);
+    expect(((await (await get()).json()) as { doc: unknown }).doc).toEqual(doc1);
   });
 });

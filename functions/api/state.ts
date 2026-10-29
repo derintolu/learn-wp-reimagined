@@ -6,7 +6,7 @@ import { clientKey, readJsonCapped } from '../_lib/guards';
 import { guarded } from '../_lib/ai';
 import { ensureSchema } from '../_lib/db';
 import { rateLimit } from '../_lib/ratelimit';
-import { readSession } from '../_lib/session/session';
+import { ensureLearner, readSession } from '../_lib/session/session';
 import { LrsClient, LrsError, LrsUnavailable, type StateKey } from '../_lib/lrs/client';
 import { getRegistration } from '../_lib/record/registration';
 import { OFFICIAL_COURSE_ID, officialActor } from '../_lib/record/official';
@@ -30,6 +30,12 @@ async function open(req: Request, ctx: Parameters<Handler>[1]): Promise<Response
   if (!session) return error(401, 'no-session', 'Start a session first.');
   if (!(await rateLimit(env.DB, `state:${clientKey(req, env)}`, now, 120, 600_000))) {
     return error(429, 'rate-limited', 'You are going a little fast. Please wait a few minutes and try again.');
+  }
+  // Nothing official until the session has a Sensei learner: a session made before learners were on adopts the
+  // ledger's actor here, and a State document under its old name would outlive the delete and the retention sweep.
+  await ensureLearner(env, session, now);
+  if (session.wpUserId == null) {
+    return error(503, 'connector-unavailable', 'The record service is not answering. Your files are still saved in this browser.');
   }
   const registration = await getRegistration(env, session);
   const key: StateKey = { activityId: OFFICIAL_COURSE_ID, agent: officialActor(session.actorName) as StateKey['agent'], registration, stateId: STATE_ID[kind] };
