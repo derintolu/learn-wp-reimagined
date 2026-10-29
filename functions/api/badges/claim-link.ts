@@ -1,22 +1,21 @@
-// POST /api/badges/claim-link { badge }: a fresh claim link for one of the session's pending badges (Task 49),
-// behind SERVER_FLAGS.badges. The LRS makes the link single use and replaces the previous one; it is returned once
+// POST /api/badges/claim-link { badge }: a fresh claim link for one of the session's pending badges (Task 49).
+// The LRS makes the link single use and replaces the previous one; it is returned once
 // and never stored here.
 import type { Handler } from '../../_lib/env';
 import { error, json } from '../../_lib/http';
 import { guarded } from '../../_lib/ai';
 import { readJsonCapped } from '../../_lib/guards';
-import { LRS_API, SERVER_FLAGS } from '../../_lib/config';
+import { LRS_API } from '../../_lib/config';
 import { LrsClient, LrsError, LrsUnavailable } from '../../_lib/lrs/client';
 import { officialActor } from '../../_lib/record/official';
 import { readSession } from '../../_lib/session/session';
-import { lrsDown, needSession, notFound } from '../badges';
+import { lrsDown, needSession } from '../badges';
 
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 const LRS_ORIGIN = new URL(LRS_API).origin;
 
 export const POST: Handler = (req, { env }) =>
   guarded(async () => {
-    if (!SERVER_FLAGS.badges) return notFound();
     const session = await readSession(req, env, Date.now());
     if (!session) return needSession();
     const body = await readJsonCapped<{ badge?: unknown } | null>(req, 1024);

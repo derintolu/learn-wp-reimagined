@@ -19,11 +19,8 @@ vi.mock('../../src/content', () => ({
 
 import { LocationProvider } from 'preact-iso';
 import { BackendView } from '../../src/pages/BackendView';
-import { FEATURES } from '../../src/config';
 import { sanitizeHtml } from '../../src/backend/sanitize';
 import { BACKEND_VIEW_PATH } from '../../src/shared/course-meta';
-
-const flags = FEATURES as { wordpressContent: boolean };
 let calls: { url: string; init?: RequestInit }[] = [];
 
 const COURSE = {
@@ -65,11 +62,9 @@ function at(url: string) {
 
 beforeEach(() => {
   calls = [];
-  flags.wordpressContent = true;
 });
 afterEach(() => {
   cleanup();
-  flags.wordpressContent = false;
   vi.useRealTimers();
 });
 
@@ -193,16 +188,6 @@ describe('backend view: lesson', () => {
     fakeFetch(() => LESSON);
     at('/backend/block-theme/solo');
     await screen.findByText('Nothing');
-  });
-});
-
-describe('backend view: flag', () => {
-  it('flag off renders NotFound and never fetches', async () => {
-    flags.wordpressContent = false;
-    fakeFetch(() => COURSE);
-    at('/backend/block-theme');
-    await screen.findByText('Nothing');
-    expect(calls).toEqual([]);
   });
 });
 

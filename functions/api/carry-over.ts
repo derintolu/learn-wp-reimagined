@@ -1,5 +1,4 @@
-// Carry over progress from the old local record into the official record (Task 37), behind
-// SERVER_FLAGS.officialRecord. Each known completed lesson not already satisfied is waived (reason
+// Carry over progress from the old local record into the official record (Task 37). Each known completed lesson not already satisfied is waived (reason
 // Administrative, result extension carried-over); the learner's files and resume position are merged into the
 // studio's own State documents (/api/state: lwr-files and lwr-resume under the registration). Old statements are never read from the body, let alone posted. Once per actor: the claim is a D1 row.
 import type { Handler } from '../_lib/env';
@@ -7,7 +6,6 @@ import { error, json } from '../_lib/http';
 import { readJsonCapped } from '../_lib/guards';
 import { guarded } from '../_lib/ai';
 import { ensureRecordSchema, isDuplicateKey } from '../_lib/db';
-import { SERVER_FLAGS } from '../_lib/config';
 import { getContent } from '../_lib/content';
 import { refreshContent } from '../_lib/course/cache';
 import { readSession } from '../_lib/session/session';
@@ -46,7 +44,6 @@ async function mergeStateDoc<T>(client: LrsClient, key: StateKey, parse: (v: unk
 export const POST: Handler = (req, ctx) =>
   guarded(async () => {
     const { env } = ctx;
-    if (!SERVER_FLAGS.officialRecord) return error(404, 'not-found', 'Not found.');
     const now = Date.now();
     const session = await readSession(req, env, now);
     if (!session) return error(401, 'no-session', 'Start a session first.');

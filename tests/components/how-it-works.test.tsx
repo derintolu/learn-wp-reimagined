@@ -1,27 +1,19 @@
 // @vitest-environment happy-dom
-import { afterEach, beforeEach, describe, expect, it } from 'vitest';
+import { afterEach, describe, expect, it } from 'vitest';
 import { existsSync, readFileSync } from 'node:fs';
 import { cleanup, render, screen } from '@testing-library/preact';
 import { HowItWorks, LEDGER_REPO_URL, SPEC, SPEC_REPO_URL, STATUS } from '../../src/pages/HowItWorks';
 import { DIAGRAM_LABEL } from '../../src/pages/HowItWorksDiagram';
-import { FEATURES, REPO_URL } from '../../src/config';
+import { REPO_URL } from '../../src/config';
 import { BACKEND_VIEW_PATH, COST_PER_1000_LEARNERS_USD, LRS_HOST, MCP_URL, RETENTION_DAYS, SENSEI_VERSION } from '../../src/shared/course-meta';
 import { REVIEW_DISCLAIMER } from '../../src/studio/Feed';
 import { ROUTES } from '../../functions/_lib/config';
 import { DAY_CAP_MICROS, MONTH_CAP_MICROS } from '../../functions/_lib/budget';
 import { MCP_LIMITS } from '../../functions/_lib/mcp/gate';
-import { MCP_TTL_MS } from '../../functions/_lib/mcp/recordStore';
-import { PHASES_OFF, phasesUpTo, restoreFlags, setFlags } from '../helpers/flags';
-import { SHADOW_COPY } from '../../src/pages/copy';
+import { DEFAULTS } from '../../vendor/course-xapi-mcp/core/constants.ts';
 
-// Every test starts from lessons on Sensei with sessions on and every later phase off (how config.ts ships
-// the flags is asserted once, in tests/config-defaults.test.ts); a test that needs another state sets it.
-beforeEach(() => {
-  setFlags({ wordpressContent: true, sessions: true, ...PHASES_OFF });
-});
 afterEach(() => {
   cleanup();
-  restoreFlags();
 });
 
 const text = () => (document.querySelector('.how-page')?.textContent ?? '').replace(/\s+/g, ' ');
@@ -52,8 +44,8 @@ describe('/how-it-works', () => {
     render(<HowItWorks />);
     const t = text();
     expect(t).toContain('It runs the course-xapi-mcp reference server');
-    expect(t).toContain('Your record there is a practice record. Badges are off.');
-    expect(t).toContain('on the course-xapi-mcp reference server');
+    expect(t).toContain('What your agent does lands in the same record as the studio.');
+    expect(t).not.toContain('Your record there is a practice record.');
     expect(t).not.toContain('learning-mcp 0.1');
     expect(t).not.toContain('moves onto the reference server next');
   });
@@ -62,8 +54,9 @@ describe('/how-it-works', () => {
     const { container } = render(<HowItWorks />);
     const hrefs = Array.from(container.querySelectorAll('a')).map((a) => a.getAttribute('href'));
     expect(hrefs).toContain('https://course-xapi-mcp.sqwrlz.com/spec/0.2/');
-    expect(readFileSync('functions/_lib/mcp/practiceStore.ts', 'utf8')).toContain('MCP_TTL_MS');
-    expect(text()).toContain('functions/_lib/mcp/practiceStore.ts');
+    expect(readFileSync('functions/_lib/mcp/gate.ts', 'utf8')).toContain('MCP_LIMITS');
+    expect(text()).toContain('functions/_lib/mcp/gate.ts');
+    expect(text()).not.toContain('practiceStore');
   });
 
   it('labels the planted bug as the lessons do, and says who planted it', () => {
@@ -83,13 +76,12 @@ describe('/how-it-works', () => {
     expect(t).toContain(`$${DAY_CAP_MICROS / 1_000_000} a day`);
     expect(t).toContain(`$${COST_PER_1000_LEARNERS_USD.toFixed(2)} per 1000 learners`);
     expect(t).toContain(`${MCP_LIMITS.global.limit.toLocaleString('en-US')} requests`);
-    expect(t).toContain(`${MCP_LIMITS.perHandle.limit} tool calls`);
-    expect(t).toContain(`${MCP_LIMITS.create.limit} new records`);
+    expect(t).toContain(`${MCP_LIMITS.perToken.limit} tool calls every 10 minutes for each signed-in agent`);
     expect(MCP_LIMITS.global.windowMs).toBe(600_000);
-    expect(MCP_LIMITS.perHandle.windowMs).toBe(600_000);
-    expect(MCP_LIMITS.create.windowMs).toBe(600_000);
+    expect(MCP_LIMITS.perToken.windowMs).toBe(600_000);
     expect(t).toContain(`${MCP_LIMITS.bodyBytes / 1_048_576} MB`);
-    expect(t).toContain(`${MCP_TTL_MS / 86_400_000} days`);
+    // The standard's practice option, described in "Who holds the record".
+    expect(t).toContain(`for up to ${DEFAULTS.practiceTtlMs / 86_400_000} days`);
     const doc = readFileSync('docs/model-eval.md', 'utf8');
     const refusals = (model: string) => new RegExp(`^\\| ${model} \\|(?:[^|]*\\|){4} \\d+% \\((\\d)/(\\d)\\) \\|`, 'm').exec(doc)!;
     const scout = refusals('llama-4-scout-17b-16e-instruct');
@@ -126,6 +118,7 @@ describe('/how-it-works', () => {
       'Learning Ledger',
       'One lesson, end to end',
       'What the AI costs',
+      'Where your record lives',
       "What's concept",
       'Credit',
       'Sources',
@@ -201,23 +194,19 @@ describe('/how-it-works', () => {
     expect(parts).toEqual({
       'The studio': STATUS.live,
       'The MCP connector': STATUS.live,
-      'Record handles': STATUS.live,
+      'Agent sign-in': STATUS.live,
       'The course-xapi-mcp reference server': STATUS.live,
-      'Learning Ledger': STATUS.installed,
-      'The LRS at lrs.sqwrlz.com': STATUS.installed,
+      'Learning Ledger': STATUS.live,
+      'The LRS at lrs.sqwrlz.com': STATUS.live,
       'Sensei as the course back end': STATUS.live,
-      Badges: STATUS.next,
+      Badges: STATUS.live,
     });
     expect(text()).toContain(MCP_URL);
     expect(MCP_URL).toBe('https://learnwp.sqwrlz.com/api/mcp');
-    expect(STATUS.installed).toBe('Installed, not connected yet');
-    expect(text()).not.toContain("isn't installed there yet");
-    expect(text()).toContain(
-      "Version 0.1.0 runs on the LRS space at lrs.sqwrlz.com, with the LRS role on and badge signing keys made. The Sensei connector isn't installed on this site yet, and the course server doesn't write to the LRS yet. The public repo is where work continues.",
-    );
-    expect(text()).toContain(
-      "Learning Ledger 0.1.0 runs here as the LRS, and its xAPI endpoint answers. The course server and Sensei aren't connected to it yet, so it holds no course records.",
-    );
+    expect(text()).not.toContain("isn't installed");
+    expect(text()).toContain('The LRS and the Sensei connector are installed and running here, on two installs, and so is badge signing.');
+    expect(text()).toContain('The course server writes every learning record here, and nothing else does.');
+    expect(text()).not.toContain('Record handles');
   });
 
   it('explains the four custody options in order, and only practice earns no badge', () => {
@@ -225,7 +214,9 @@ describe('/how-it-works', () => {
     const cards = Array.from(container.querySelectorAll('.custody__card'));
     expect(cards.map((c) => c.querySelector('code')!.textContent)).toEqual(['lms-launched', 'author-lrs', 'server-kept', 'practice']);
     expect(cards.map((c) => c.querySelector('.custody__badges')!.textContent)).toEqual(['Badges: Yes', 'Badges: Yes', 'Badges: Yes', 'Badges: No']);
-    expect(cards[1].textContent).toContain('This site is moving to this option');
+    expect(cards[1].textContent).toContain('The agent path here uses this option');
+    expect(cards[1].textContent).not.toContain('moving to this option');
+    expect(cards[3].textContent).not.toContain('works much like this');
     expect(text()).toContain("the agent can't write or replace the official record");
   });
 
@@ -282,9 +273,7 @@ describe('COST_PER_1000_LEARNERS_USD', () => {
   });
 });
 
-describe('/how-it-works with the Sensei content flag', () => {
-  const flags = FEATURES as { wordpressContent: boolean };
-  const view = () => render(<HowItWorks />);
+describe('/how-it-works: Sensei', () => {
   const hrefs = (c: Element) => Array.from(c.querySelectorAll('a')).map((a) => a.getAttribute('href'));
 
   it('pins the Sensei version and the block-theme backend view', () => {
@@ -292,160 +281,71 @@ describe('/how-it-works with the Sensei content flag', () => {
     expect(BACKEND_VIEW_PATH).toBe('/backend/block-theme');
   });
 
-  it('off: no Sensei backend copy and no backend-view link', () => {
-    flags.wordpressContent = false;
-    const { container } = view();
-    expect(text()).not.toContain('backend view');
-    expect(text()).not.toContain(SENSEI_VERSION);
-    expect(hrefs(container)).not.toContain(BACKEND_VIEW_PATH);
-    expect(text()).toContain('authored as plain files in the repo');
-  });
-
-  it('on: links the backend view, and the new copy has no emoji', () => {
-    flags.wordpressContent = true;
-    const { container } = view();
+  it('links the backend view, and the copy has no emoji', () => {
+    const { container } = render(<HowItWorks />);
     expect(hrefs(container)).toContain(BACKEND_VIEW_PATH);
     expect(screen.getAllByRole('link', { name: /^the backend view/ }).length).toBeGreaterThan(0);
     expect(text()).not.toMatch(/\p{Extended_Pictographic}/u);
-    // An app route now: opens in the same tab through the router, so no target.
+    // An app route: opens in the same tab through the router, so no target.
     const link = container.querySelector(`a[href="${BACKEND_VIEW_PATH}"]`)!;
     expect(link.getAttribute('target')).toBeNull();
     expect(link.textContent).not.toContain('opens in a new tab');
   });
 
-  it('on: names Sensei with the pinned version, and updates the branching, concept and sources lines', () => {
-    flags.wordpressContent = true;
-    view();
+  it('names Sensei with the pinned version, and the branching, concept and sources lines', () => {
+    render(<HowItWorks />);
     const t = text();
     expect(t).toContain(`Sensei LMS ${SENSEI_VERSION}`);
     expect(t).toContain('authored in Sensei, with a reviewable copy committed to the repo');
     expect(t).not.toContain('authored as plain files in the repo');
-    expect(t).toContain('Your progress does not appear in Sensei yet.');
+    expect(t).not.toContain('Your progress does not appear in Sensei yet.');
     expect(t).not.toContain('Nothing here talks to learn.wordpress.org or Sensei');
     expect(t).toContain('content/snapshot/');
     expect(t).not.toContain('content/paths/');
   });
 
-  it('on: labels Sensei as live here', () => {
-    flags.wordpressContent = true;
-    const { container } = view();
+  it('enrolment and "What Sensei sees" are in the Sensei part', () => {
+    const { container } = render(<HowItWorks />);
     const sensei = Array.from(container.querySelectorAll('.how-parts__list li')).find((li) => li.querySelector('strong')!.textContent === 'Sensei as the course back end')!;
     expect(sensei.querySelector('.status')!.textContent).toBe(STATUS.live);
+    expect(sensei.textContent).toContain("Sensei enrols you in a path when you start it. Sensei's own pages are the same for everyone and don't show your progress.");
+    expect(sensei.textContent).toContain('Your progress in Sensei is shown in the "What Sensei sees" panel in the studio.');
   });
-});
 
-const SESSION_BULLET =
-  'There are no accounts. Nobody signs in. At your first recorded step the site gives your browser a random session so the server can tell your steps apart. It holds no name or email, and "Delete my data" in the record menu removes it.';
-const SESSION_TAIL =
-  "Nothing syncs between your devices unless you move the record yourself. Signing in with a WordPress.org account is a possible next step, and it isn't built.";
-
-describe('/how-it-works with sessions (phase 2)', () => {
-  it('on: the approved phase 2 accounts bullet, and nothing that says there is no server state', () => {
-    setFlags({ sessions: true });
+  it("with the backend view read from Sensei, not Sensei's own page (R13)", () => {
     render(<HowItWorks />);
     const t = text();
-    expect(t).toContain(SESSION_BULLET);
-    expect(t).toContain(SESSION_TAIL);
-    expect(t).not.toContain('There are no accounts yet');
-    expect(t).not.toContain('Nobody signs in today');
-  });
-
-  it('off: no session sentence', () => {
-    setFlags({ sessions: false });
-    render(<HowItWorks />);
-    expect(text()).not.toContain('random session');
-    expect(text()).toContain('There are no accounts yet. Nobody signs in today.');
-  });
-
-  it('the anonymous account replaces the session bullet', () => {
-    setFlags({ senseiLearners: true });
-    render(<HowItWorks />);
-    expect(text()).not.toContain(SESSION_BULLET);
-    expect(text()).toContain('You get an anonymous account.');
+    expect(t).toContain('You can read any lesson on the backend view, read from Sensei, with no AI and no branching. Take the lesson in the studio.');
+    expect(t).not.toContain("Sensei's own page,");
+    expect(t).not.toContain('as Sensei shows it');
   });
 });
 
-describe('/how-it-works with the anonymous-accounts flag', () => {
-  const flags = FEATURES as { senseiLearners: boolean; wordpressContent: boolean };
-  const view = () => render(<HowItWorks />);
-
-  it('off, sessions off: the pre-session accounts bullet', () => {
-    setFlags({ senseiLearners: false, sessions: false });
-    view();
-    expect(text()).toContain(
-      "There are no accounts yet. Nobody signs in today. In the browser, your progress is one JSON file of xAPI statements under an anonymous ID (the record format), and it stays on your device.",
-    );
-    expect(text()).not.toContain('You get an anonymous account.');
-  });
-
-  it('on: the anonymous-account bullet replaces the no-accounts bullet, verbatim', () => {
-    flags.senseiLearners = true;
-    view();
+describe('/how-it-works: accounts', () => {
+  it('the anonymous-account bullet, verbatim, and no no-accounts or session-only bullet', () => {
+    render(<HowItWorks />);
     const t = text();
     expect(t).toContain(
       'You get an anonymous account. At your first recorded step the site creates a WordPress user for you in this prototype\'s Sensei, so Sensei can enrol you. It has a random ID, no name, no email and no password, and you never sign in to it. "Delete my data" in the record menu deletes it. Nothing syncs between your devices unless you move the record yourself. Signing in with a WordPress.org account is not built.',
     );
+    expect(t).toContain('Records from before this change can be brought over once; those lessons show as complete but never count toward a badge.');
     expect(t).not.toContain('There are no accounts');
+    expect(t).not.toContain('Nobody signs in today');
+    expect(t).not.toContain('random session so the server can tell your steps apart');
+    expect(t).not.toContain('it stays on your device');
     expect(t).not.toMatch(/\p{Extended_Pictographic}/u);
-  });
-
-  it('on: the Sensei connector is named as running here, since it makes the anonymous user; off: not installed', () => {
-    flags.senseiLearners = true;
-    view();
-    expect(text()).toContain(
-      'with the LRS role on and badge signing keys made. The Sensei connector runs on this site and makes your anonymous Sensei user. The course server doesn\'t write to the LRS yet. The public repo is where work continues.',
-    );
-    expect(text()).not.toContain("connector isn't installed");
-    cleanup();
-    flags.senseiLearners = false;
-    view();
-    expect(text()).toContain("The Sensei connector isn't installed on this site yet, and the course server doesn't write to the LRS yet.");
-  });
-
-  it('on with Sensei content: adds the enrolment sentence to the Sensei part, and only then', () => {
-    const enrol = "Sensei enrols you in a path when you start it. Sensei's own pages are the same for everyone and don't show your progress.";
-    flags.senseiLearners = true;
-    flags.wordpressContent = false;
-    view();
-    expect(text()).not.toContain(enrol);
-    cleanup();
-    flags.wordpressContent = true;
-    view();
-    expect(text()).toContain(enrol);
-    cleanup();
-    flags.senseiLearners = false;
-    view();
-    expect(text()).not.toContain(enrol);
   });
 });
 
-describe('/how-it-works with the official-record flag', () => {
-  const flags = FEATURES as { officialRecord: boolean; senseiLearners: boolean; wordpressContent: boolean };
-  const view = () => render(<HowItWorks />);
-  const allOn = () => {
-    flags.officialRecord = true;
-    setFlags({ lrsShadow: true });
-    flags.senseiLearners = true;
-    flags.wordpressContent = true;
-  };
-
+describe('/how-it-works: where your record lives', () => {
   it('takes its numbers from course-meta', () => {
     expect(RETENTION_DAYS).toBe(180);
     expect(LRS_HOST).toBe('lrs.sqwrlz.com');
   });
 
-  it('off: no where-the-record-lives copy, and the page text is what it was', () => {
-    flags.officialRecord = false;
-    const before = (view(), text());
-    expect(before).not.toContain('Where your record lives');
-    expect(before).not.toContain('Progress that reaches Sensei');
-    expect(before).not.toContain(`${RETENTION_DAYS} days`);
-    expect(before).not.toContain('A real record, kept in a real LRS');
-  });
-
-  it('on: the approved copy, verbatim, with the numbers read from course-meta', () => {
-    allOn();
-    view();
+  it('the approved copy, verbatim, with the numbers read from course-meta', () => {
+    const { container } = render(<HowItWorks />);
+    expect(Array.from(container.querySelectorAll('h2')).map((h) => h.textContent)).toContain('Where your record lives');
     const t = text();
     expect(t).toContain(
       `A real record, kept in a real LRS. Your progress is a set of xAPI statements, the standard format for learning records, under a random ID with no name or email. The official copy is kept in a learning record store at ${LRS_HOST}, a separate WordPress install running the Learning Ledger plugin. Only the course server writes to it.`,
@@ -457,76 +357,21 @@ describe('/how-it-works with the official-record flag', () => {
     expect(t).toContain(
       `Where your record lives. It lives on our servers under a random ID, in two places: the record store at ${LRS_HOST}, and the Sensei user that tracks your lessons. It holds your steps, the answers you typed to checkpoints in your own words, and the files you edited, because those are what resuming and a future badge need. It holds no email unless you add one, which isn't built yet. A learner with no activity for ${RETENTION_DAYS} days is deleted, and "Delete my data" in the record menu deletes it at once: your steps and files in the record store, your Sensei user and its progress, and any connected agents. "Download my record" gives you a copy first. There is no third-party analytics.`,
     );
+    expect(t).toContain("This Sensei is the prototype's own, so your progress here doesn't count on Learn.");
     expect(t).not.toMatch(/\p{Extended_Pictographic}/u);
   });
 
-  it('on: has its own heading, and the relay copy is still there', () => {
-    allOn();
-    const { container } = view();
-    expect(Array.from(container.querySelectorAll('h2')).map((h) => h.textContent)).toContain('Where your record lives');
-    expect(text()).toContain('Record handles');
-  });
-
-  it('on: Sensei and concept lines follow phase 6', () => {
-    allOn();
-    view();
-    const t = text();
-    expect(t).toContain('Your progress in Sensei is shown in the "What Sensei sees" panel in the studio.');
-    expect(t).toContain("This Sensei is the prototype's own, so your progress here doesn't count on Learn.");
-    expect(t).not.toContain('Your progress does not appear in Sensei yet.');
-    expect(t).toContain('Records from before this change can be brought over once; those lessons show as complete but never count toward a badge.');
-  });
-
-  it('off with the other flags on: phase 4 lines unchanged', () => {
-    flags.officialRecord = false;
-    flags.wordpressContent = true;
-    flags.senseiLearners = true;
-    view();
-    const t = text();
-    expect(t).toContain('Your progress does not appear in Sensei yet.');
-    expect(t).not.toContain('What Sensei sees');
-    expect(t).not.toContain('Records from before this change');
-  });
-
-  it('on with every earlier phase on: no browser-only or Sensei-not-installed sentence', () => {
-    allOn();
-    view();
-    const t = text();
-    expect(t).not.toContain('There are no accounts yet');
-    expect(t).not.toContain('it stays on your device');
-    expect(t).not.toContain("isn't installed on this site's WordPress yet");
-    expect(t).not.toContain('Nothing here talks to learn.wordpress.org or Sensei');
-    expect(t).toContain('You get an anonymous account.');
-  });
-
-  it.each([
-    ['wordpressContent', { senseiLearners: true, wordpressContent: false }],
-    ['senseiLearners', { senseiLearners: false, wordpressContent: true }],
-    ['both', { senseiLearners: false, wordpressContent: false }],
-  ])('on with %s off: renders exactly as with the flag off', (_n, set) => {
-    Object.assign(flags, { ...set, officialRecord: false });
-    const r = view();
-    const base = text();
-    r.unmount();
-    Object.assign(flags, { ...set, officialRecord: true });
-    view();
-    expect(text()).toBe(base);
+  it('no shadow-copy sentence: the official record is the record', () => {
+    render(<HowItWorks />);
+    expect(text()).not.toContain('a second server');
+    expect(text()).not.toContain('Your local record is still the one the site uses.');
   });
 });
 
 describe('/how-it-works final rewrite (phase 8)', () => {
-  const flags = FEATURES as { officialRecord: boolean; senseiLearners: boolean; wordpressContent: boolean; badges: boolean };
-  const allOn = () => {
-    flags.officialRecord = true;
-    setFlags({ lrsShadow: true });
-    flags.senseiLearners = true;
-    flags.wordpressContent = true;
-    flags.badges = true;
-  };
   const REVOKED = 'Deleting your data revokes any badges you claimed, and a revoked badge stops verifying.';
 
-  it.each([['today', () => {}], ['every flag on', allOn]])('%s: every source listed exists, and every Cite resolves', (_n, set) => {
-    set();
+  it('every source listed exists, and every Cite resolves', () => {
     const { container } = render(<HowItWorks />);
     const items = Array.from(container.querySelectorAll('.prose__sources li'));
     for (const li of items) expect(existsSync(li.querySelector('code')!.textContent!), li.textContent ?? '').toBe(true);
@@ -534,23 +379,13 @@ describe('/how-it-works final rewrite (phase 8)', () => {
     for (const a of Array.from(container.querySelectorAll('a.prose__cite'))) expect(ids.has(a.getAttribute('href')!.slice(1)), a.textContent ?? '').toBe(true);
   });
 
-  it('off: no badge, certificate or revocation copy', () => {
-    setFlags({ officialRecord: true, lrsShadow: true, senseiLearners: true, badges: false });
-    render(<HowItWorks />);
-    const t = text();
-    for (const s of ['Badges you can verify', 'A Sensei certificate', 'revokes any badges', 'not an official WordPress credential', 'Sensei LMS and the open Learning Ledger plugin']) expect(t).not.toContain(s);
-  });
-
-  it('on: badges, certificate, revocation, the unofficial lines and the credit', () => {
-    allOn();
-    setFlags({ senseiCertificates: false });
+  it('badges, certificate, revocation, the unofficial lines and the credit', () => {
     render(<HowItWorks />);
     const t = text();
     expect(t).toContain('Badges you can verify. Finishing a path earns a badge, issued as an Open Badges 3.0 credential and signed by the record store as "Learn WordPress, reimagined".');
     expect(t).toContain('The badge does not carry your random ID.');
-    // With senseiCertificates off (no rendered certificate yet) the page uses the approved fallback.
-    expect(t).toContain("A Sensei certificate. Sensei issues its certificate when a path is complete. The studio shows that it exists, but can't yet download it.");
-    expect(t).not.toContain('offers it as a download');
+    expect(t).toContain('A Sensei certificate. When a path\'s course is complete, Sensei LMS Certificates issues its usual PDF, and the studio offers it as a download from the "What Sensei sees" panel.');
+    expect(t).not.toContain("can't yet download it");
     expect(t).toContain(REVOKED);
     expect(t).toContain("We don't revoke badges when a learner just goes idle.");
     expect(t).toContain('The badges are issued by this prototype, not by WordPress.org, and are not an official WordPress credential.');
@@ -561,124 +396,19 @@ describe('/how-it-works final rewrite (phase 8)', () => {
     expect(t).toContain('It runs on Cloudflare Workers AI, Spacefast, WordPress Playground, Sensei LMS and the open Learning Ledger plugin and course-xapi-mcp standard.');
     expect(t).not.toMatch(/\p{Extended_Pictographic}/u);
   });
-
-  it('on: the Badges part is live and the LRS holds records', () => {
-    allOn();
-    const { container } = render(<HowItWorks />);
-    const li = (name: string) => Array.from(container.querySelectorAll('.how-parts__list li')).find((x) => x.querySelector('strong')!.textContent!.startsWith(name))!;
-    expect(li('Badges').querySelector('.status')!.textContent).toBe(STATUS.live);
-    expect(li('The LRS at').textContent).not.toContain('holds no records');
-    expect(li('Learning Ledger').textContent).not.toContain("isn't installed");
-  });
-
-  it('on with an earlier phase off: renders as with the flag off', () => {
-    flags.wordpressContent = true;
-    flags.senseiLearners = true;
-    flags.officialRecord = true;
-    setFlags({ lrsShadow: true });
-    const r = render(<HowItWorks />);
-    const base = text();
-    r.unmount();
-    flags.badges = true;
-    flags.senseiLearners = false;
-    render(<HowItWorks />);
-    expect(text()).not.toContain(REVOKED);
-    expect(base).not.toContain(REVOKED);
-  });
 });
 
-describe('/how-it-works LRS and Ledger parts per flag state', () => {
-  const flags = FEATURES as { officialRecord: boolean; senseiLearners: boolean; wordpressContent: boolean; badges: boolean; agentOnStandard: boolean };
-  const part = (c: HTMLElement, name: string) => Array.from(c.querySelectorAll('.how-parts__list li')).find((x) => x.querySelector('strong')!.textContent!.startsWith(name))!.textContent!;
-  const on = (o: Partial<typeof flags>) => Object.assign(flags, { officialRecord: true, senseiLearners: true, wordpressContent: true, lrsShadow: true }, o);
-
-  it('officialRecord only: no badge signing claim, agents keep practice records', () => {
-    on({});
-    const { container } = render(<HowItWorks />);
-    expect(part(container, 'Learning Ledger')).not.toContain('badge signing');
-    expect(part(container, 'The LRS at')).toContain('Agents keep practice records elsewhere until they sign in.');
-    expect(part(container, 'The LRS at')).not.toContain('nothing else does');
-  });
-  it('badges on: badge signing is named', () => {
-    on({ badges: true });
-    const { container } = render(<HowItWorks />);
-    expect(part(container, 'Learning Ledger')).toContain('and so is badge signing');
-  });
-  it('agentOnStandard on: the unconditional sentence', () => {
-    on({ agentOnStandard: true });
-    const { container } = render(<HowItWorks />);
-    expect(part(container, 'The LRS at')).toContain('writes every learning record here, and nothing else does.');
-    expect(part(container, 'The LRS at')).not.toContain('practice records');
-  });
-});
-
-describe('/how-it-works with the LRS shadow (phase 5)', () => {
-  it('off: no second-server sentence', () => {
-    setFlags({ lrsShadow: false });
-    render(<HowItWorks />);
-    expect(text()).not.toContain(SHADOW_COPY);
-  });
-
-  it('on, in R30 order: the approved sentence, verbatim', () => {
-    phasesUpTo('lrsShadow');
-    render(<HowItWorks />);
-    expect(text()).toContain(
-      'While we test a separate record store, a copy of your steps, including the answers you type to checkpoints, is also kept on a second server, under your random ID. Your local record is still the one the site uses. "Delete my data" removes the copy.',
-    );
-  });
-
-  it('on out of order: nothing', () => {
-    setFlags({ lrsShadow: true });
-    render(<HowItWorks />);
-    expect(text()).not.toContain(SHADOW_COPY);
-  });
-
-  it('officialRecord on: the shadow sentence gives way to where the record lives', () => {
-    phasesUpTo('officialRecord');
-    render(<HowItWorks />);
-    expect(text()).not.toContain('Your local record is still the one the site uses.');
-    expect(text()).toContain('Where your record lives.');
-  });
-});
-
-describe('/how-it-works backend view wording (R13)', () => {
-  it('with Sensei content: the backend view is read from Sensei, not Sensei\'s own page', () => {
-    setFlags({ wordpressContent: true });
-    render(<HowItWorks />);
-    const t = text();
-    expect(t).toContain('You can read any lesson on the backend view, read from Sensei, with no AI and no branching. Take the lesson in the studio.');
-    expect(t).not.toContain("Sensei's own page,");
-    expect(t).not.toContain('as Sensei shows it');
-  });
-});
-
-describe('/how-it-works certificate sentence follows FEATURES.senseiCertificates', () => {
-  it('on: the download sentence', () => {
-    phasesUpTo('officialRecord');
-    setFlags({ badges: true, senseiCertificates: true });
-    render(<HowItWorks />);
-    expect(text()).toContain('the studio offers it as a download from the "What Sensei sees" panel.');
-  });
-});
-
-describe('/how-it-works agent copy across officialRecord and agentOnStandard (I10)', () => {
+describe('/how-it-works: agent copy', () => {
   const card = (c: Element, id: string) => Array.from(c.querySelectorAll('.custody__card')).find((x) => x.textContent!.includes(id))!.textContent!;
-  it('officialRecord on, agents still practice: connector says practice record, custody still "moving"', () => {
-    phasesUpTo('officialRecord');
-    setFlags({ agentOnStandard: false });
-    const { container } = render(<HowItWorks />);
-    expect(text()).toContain('Your record there is a practice record. Badges are off.');
-    expect(card(container, 'author-lrs')).toContain('This site is moving to this option');
-    expect(card(container, 'practice')).toContain('The agent path live here today works much like this.');
-  });
-  it('agentOnStandard on: same record as the studio, custody on author-lrs, no practice line', () => {
-    phasesUpTo('agentOnStandard');
+  it('same record as the studio, custody on author-lrs, no practice line, no relay', () => {
     const { container } = render(<HowItWorks />);
     const t = text();
     expect(t).toContain('What your agent does lands in the same record as the studio.');
+    expect(t).toContain('You sign in when your agent asks.');
     expect(t).not.toContain('Your record there is a practice record.');
+    expect(t).not.toContain('record handle');
+    expect(t).not.toContain('new records every');
     expect(card(container, 'author-lrs')).toContain('The agent path here uses this option');
-    expect(card(container, 'author-lrs')).not.toContain('moving to this option');
     expect(card(container, 'practice')).not.toContain('works much like this');
   });
 });

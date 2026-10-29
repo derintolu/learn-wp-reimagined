@@ -1,48 +1,26 @@
-// The one place that asserts how the flags ship. Every other test sets the flag state it needs
-// (tests/helpers/flags.ts), so flipping a phase (R30 order) changes this file and nothing else.
+// Every phase flag is gone (Task 52): the behaviour they switched is always on. Only the product toggle `agent` remains.
+import { readFileSync } from 'node:fs';
 import { describe, expect, it } from 'vitest';
-import { FEATURES, phaseOn } from '../src/config';
-import { SERVER_FLAGS } from '../functions/_lib/config';
+import * as client from '../src/config';
+import * as server from '../functions/_lib/config';
 
-describe('shipped flag defaults', () => {
-  it('client FEATURES', () => {
-    expect(FEATURES).toEqual({
-      agent: true,
-      serverEvents: true,
-      sessions: true,
-      wordpressContent: true,
-      senseiLearners: true,
-      lrsShadow: true,
-      agentOnStandard: true,
-      officialRecord: true,
-      badges: true,
-      senseiCertificates: true,
-    });
+const PHASE_FLAGS = ['serverEvents', 'sessions', 'wordpressContent', 'senseiLearners', 'lrsShadow', 'officialRecord', 'agentOnStandard', 'badges', 'senseiCertificates', 'mcpOnStandard'];
+
+describe('no phase flag remains', () => {
+  it('client FEATURES holds only the agent toggle, and there is no phaseOn', () => {
+    expect(client.FEATURES).toEqual({ agent: true });
+    expect('phaseOn' in client).toBe(false);
   });
 
-  it('server SERVER_FLAGS', () => {
-    expect(SERVER_FLAGS).toEqual({
-      serverEvents: true,
-      sessions: true,
-      mcpOnStandard: true,
-      senseiLearners: true,
-      lrsShadow: true,
-      wordpressContent: true,
-      senseiCertificates: true,
-      badges: true,
-      officialRecord: true,
-      agentOnStandard: true,
-    });
+  it('the server has no SERVER_FLAGS', () => {
+    expect('SERVER_FLAGS' in server).toBe(false);
   });
 
-  it('the phases on, in R30 order', () => {
-    expect((['wordpressContent', 'senseiLearners', 'lrsShadow', 'officialRecord', 'agentOnStandard', 'badges'] as const).filter(phaseOn)).toEqual([
-      'wordpressContent',
-      'senseiLearners',
-      'lrsShadow',
-      'officialRecord',
-      'agentOnStandard',
-      'badges',
-    ]);
+  it('neither config file defines a phase flag', () => {
+    for (const f of ['src/config.ts', 'functions/_lib/config.ts']) {
+      const text = readFileSync(f, 'utf8');
+      expect(text).not.toMatch(/SERVER_FLAGS|phaseOn/);
+      for (const flag of PHASE_FLAGS) expect(text).not.toMatch(new RegExp(`\\b${flag}\\s*:`));
+    }
   });
 });

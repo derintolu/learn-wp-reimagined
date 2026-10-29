@@ -24,7 +24,6 @@
     { "source": "/.well-known/oauth-authorization-server", "destination": "/api/oauth/metadata" }
   ],
   "crons": [
-    { "path": "/api/mcp-sweep", "schedule": "daily" },
     { "path": "/api/lrs-drain", "schedule": "hourly" },
     { "path": "/api/sweep", "schedule": "daily" }
   ]

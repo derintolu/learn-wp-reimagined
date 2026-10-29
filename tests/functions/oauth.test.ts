@@ -5,8 +5,7 @@ import { ensureSchema } from '../../functions/_lib/db';
 import type { Env } from '../../functions/_lib/env';
 import { SESSION_COOKIE } from '../../functions/_lib/session/session';
 import { XAPI_BASE } from '../../src/shared/xapi';
-import { SERVER_FLAGS } from '../../functions/_lib/config';
-import { PHASES_OFF, restoreServerFlags, setServerFlags } from '../helpers/flags';
+import { LEDGER_ENV, fakeLrs } from '../helpers/fakeLrs';
 import {
   ACCESS_TTL_S,
   CODE_TTL_MS,
@@ -137,16 +136,17 @@ async function signIn(): Promise<{ id: string; tokens: Tokens; session: string }
 }
 
 beforeEach(async () => {
-  setServerFlags(PHASES_OFF);
   db = createSqliteD1();
-  env = { DB: db, SESSION_KEY: KEY };
+  // Consent makes the learner's session, and so their Sensei learner, through the connector fakeLrs answers.
+  env = { DB: db, SESSION_KEY: KEY, ...LEDGER_ENV };
   await ensureSchema(db);
+  vi.stubGlobal('fetch', fakeLrs().fetch);
   now = T0;
   vi.spyOn(Date, 'now').mockImplementation(() => now);
 });
 afterEach(() => {
-  restoreServerFlags();
   vi.restoreAllMocks();
+  vi.unstubAllGlobals();
 });
 
 describe('MCP authorization server', () => {
@@ -221,7 +221,7 @@ describe('MCP authorization server', () => {
     expect((await exchange(id, code, { redirect_uri: REDIRECT + '/' })).status).toBe(400);
 
     // registration: https anywhere, http only on loopback, no fragments or other schemes
-    for (const bad of ['http://example.com/cb', 'https://example.com/cb#frag', 'javascript:alert(1)', 'myapp://cb', 'http://[::1]/cb', 'https://user:pw@example.com/cb']) {
+    for (const bad of ['http://example.com/cb', 'https://example.com/cb#frag', 'javascript:alert(1)', 'myapp://cb', 'https://user:pw@example.com/cb']) {
       const res = await newClient([bad]);
       expect(res.status).toBe(400);
       expect(((await res.json()) as any).error).toBe('invalid_redirect_uri');
@@ -292,7 +292,7 @@ describe('MCP authorization server', () => {
     const sc = res.headers.getSetCookie().find((c) => c.startsWith(`${SESSION_COOKIE}=`))!;
     expect(sc).toMatch(/HttpOnly/);
     expect(sc).toMatch(/Secure/);
-    const rows = (await db.prepare('SELECT actor_name FROM sessions').all<{ actor_name: string }>()).results;
+    const rows = (await db.prepare('SELECT actor_name, wp_user_id FROM sessions').all<{ actor_name: string; wp_user_id: number }>()).results;
     expect(rows).toHaveLength(1);
 
     const code = new URL(((await res.json()) as any).redirect).searchParams.get('code')!;
@@ -300,7 +300,7 @@ describe('MCP authorization server', () => {
     const who = await resolveToken(env, bearer(t.access_token), now);
     expect(who).toEqual({
       actor: { objectType: 'Agent', account: { homePage: XAPI_BASE, name: rows[0].actor_name } },
-      wpUserId: 0,
+      wpUserId: Number(rows[0].wp_user_id),
       registration: '',
     });
 
@@ -427,12 +427,9 @@ describe('MCP authorization server', () => {
     const ip = (n: number) => ({ 'cf-connecting-ip': `10.0.0.${n}` });
     const hitsAtLimit = (k: string, n: number) => db.prepare('UPDATE hits SET n = ? WHERE k = ?').bind(n, k).run();
 
-    // a rotating x-client-id does not buy a fresh bucket
-    for (let i = 0; i < REGISTER_LIMIT.perKey; i++) {
-      expect((await newClient([REDIRECT], { 'x-client-id': `rotating-client-${String(i).padStart(4, '0')}` })).status).toBe(201);
-    }
-    expect((await newClient([REDIRECT], { 'x-client-id': 'rotating-client-9999' })).status).toBe(429);
     // a known visitor address has its own bucket, under the global ceiling
+    for (let i = 0; i < REGISTER_LIMIT.perKey; i++) expect((await newClient([REDIRECT], ip(8))).status).toBe(201);
+    expect((await newClient([REDIRECT], ip(8))).status).toBe(429);
     const res = await newClient([REDIRECT], ip(9));
     expect(res.status).toBe(201);
     const id = ((await res.json()) as { client_id: string }).client_id;
@@ -458,9 +455,8 @@ describe('MCP authorization server', () => {
   });
 });
 
-describe('agent sign-in with agentOnStandard on (native apps, no visitor address)', () => {
+describe('agent sign-in (native apps, no visitor address)', () => {
   it('accepts private-use schemes of native apps and [::1] loopback; still refuses unsafe ones', async () => {
-    SERVER_FLAGS.agentOnStandard = true;
     for (const good of ['com.example.app:/oauth2redirect', 'cursor://anysphere.cursor-retrieval/oauth/callback', 'http://[::1]:8080/cb', 'https://example.com/cb']) {
       expect((await newClient([good])).status, good).toBe(201);
     }
@@ -472,7 +468,6 @@ describe('agent sign-in with agentOnStandard on (native apps, no visitor address
   });
 
   it('a private-use redirect gets the code, state and iss; the consent page names the scheme when there is no host', async () => {
-    SERVER_FLAGS.agentOnStandard = true;
     const APP = 'com.example.app:/oauth2redirect';
     const res = await newClient([APP]);
     const id = ((await res.json()) as { client_id: string }).client_id;
@@ -491,19 +486,8 @@ describe('agent sign-in with agentOnStandard on (native apps, no visitor address
   });
 
   it('without a visitor address, registration is held only by the global ceiling', async () => {
-    SERVER_FLAGS.agentOnStandard = true;
     for (let i = 0; i < REGISTER_LIMIT.perKey + 5; i++) expect((await newClient()).status).toBe(201);
     await db.prepare('UPDATE hits SET n = ? WHERE k = ?').bind(REGISTER_LIMIT.global, 'oauth:reg:g').run();
-    expect((await newClient()).status).toBe(429);
-  });
-
-  it('with the flag off, registration rules and buckets are as before', async () => {
-    SERVER_FLAGS.agentOnStandard = false;
-    for (const bad of ['com.example.app:/oauth2redirect', 'cursor://anysphere.cursor-retrieval/oauth/callback', 'http://[::1]:8080/cb']) {
-      expect((await newClient([bad])).status, bad).toBe(400);
-    }
-    // The three refused registrations above count against the one shared bucket.
-    for (let i = 3; i < REGISTER_LIMIT.perKey; i++) expect((await newClient()).status).toBe(201);
     expect((await newClient()).status).toBe(429);
   });
 });

@@ -1,4 +1,4 @@
-/* Bring your own agent: the Connect page, and the handoff and import views in the record menu.
+/* Bring your own agent: the Connect page, and the handoff view in the record menu.
    Kept in its own file so other workstreams' stylesheets stay untouched. Tokens: src/styles/tokens.css. */
 
 .copy-field { display: grid; gap: 0.3rem; min-width: 0; }
@@ -36,35 +36,6 @@ pre.copy-field__value { white-space: pre; overflow-wrap: normal; overflow-x: aut
 .agent-handoff__note { margin: 0.35rem 0 0; color: var(--outcome-review); font-weight: 600; font-size: var(--step--1); }
 .agent-handoff__link { margin: 0; }
 
-.agent-import { display: grid; gap: 0.9rem; min-width: 0; }
-.agent-import__label { display: block; margin-bottom: 0.35rem; font-weight: 600; }
-.agent-import__field {
-  width: 100%;
-  box-sizing: border-box;
-  min-height: 4.5rem;
-  padding: 0.55rem 0.7rem;
-  border: 1px solid var(--ink-muted);
-  border-radius: 0.5rem;
-  font: inherit;
-  font-family: var(--font-mono);
-  font-size: var(--step--1);
-  resize: vertical;
-}
-.agent-import__field:focus-visible { outline: 2px solid var(--wp-blue); outline-offset: 2px; }
-.agent-import__privacy { margin: 0.45rem 0 0.7rem; color: var(--ink-muted); font-size: var(--step--1); }
-.agent-import__plan { display: grid; gap: 0.75rem; }
-.agent-import__plan .record__summary { margin: 0; }
-.agent-import__conflicts { display: grid; gap: 0.6rem; margin: 0; padding: 0; border: 0; min-width: 0; }
-.agent-import__conflicts legend { padding: 0; margin-bottom: 0.4rem; font-weight: 600; }
-.agent-import__conflict { display: grid; grid-template-columns: auto minmax(0, 1fr); gap: 0.5rem; align-items: start; }
-.agent-import__conflict input { width: 1.1rem; height: 1.1rem; margin: 0.15rem 0 0; accent-color: var(--wp-blue); }
-.agent-import__what { display: block; font-weight: 600; }
-.agent-import__vs { display: grid; grid-template-columns: 3rem minmax(0, 1fr); gap: 0.2rem 0.5rem; margin-top: 0.3rem; color: var(--ink-muted); font-size: var(--step--1); }
-.agent-import__vs pre { margin: 0; padding: 0.3rem 0.45rem; border-radius: 0.35rem; background: var(--surface-muted); color: var(--ink); font-family: var(--font-mono); white-space: pre-wrap; overflow-wrap: anywhere; }
-.agent-import__ignored summary { cursor: pointer; color: var(--ink-muted); }
-.agent-import__ignored ul { margin: 0.4rem 0 0; padding-left: 1.2rem; color: var(--ink-muted); font-size: var(--step--1); }
-.agent-import__delete { padding-top: 0.6rem; border-top: 1px solid var(--rule); }
-
 /* The Connect page */
 .connect__url { margin: 1.5rem 0 1rem; max-width: 36rem; }
 .connect__note { color: var(--ink-muted); }
@@ -85,8 +56,6 @@ pre.copy-field__value { white-space: pre; overflow-wrap: normal; overflow-x: aut
 .connect__plans { margin: 0; color: var(--ink-muted); font-size: var(--step--1); }
 .connect__client ol { margin: 0; padding-left: 1.2rem; display: grid; gap: 0.35rem; }
 .connect__docs { margin: 0; font-size: var(--step--1); }
-.connect__import { display: grid; gap: 1rem; }
-.connect__import .agent-import { max-width: 36rem; }
 
 /* The carry-over offer: a quiet band above the page, shown once. */
 .carry-over { display: grid; gap: 0.5rem; padding: 0.9rem var(--gutter); background: var(--tint); border-bottom: 1px solid var(--rule); }

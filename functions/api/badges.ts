@@ -1,9 +1,8 @@
-// GET /api/badges: the learner's path badges from the LRS (Task 49), behind SERVER_FLAGS.badges.
+// GET /api/badges: the learner's path badges from the LRS (Task 49).
 // Each badge carries how many lessons the learner tested out of on its path, from the waived outcomes kept per learner.
 import type { Handler } from '../_lib/env';
 import { error, json } from '../_lib/http';
 import { guarded } from '../_lib/ai';
-import { SERVER_FLAGS } from '../_lib/config';
 import { getContent } from '../_lib/content';
 import { loadCurrentCourse } from '../_lib/course/cache';
 import { ensureRecordSchema } from '../_lib/db';
@@ -34,7 +33,6 @@ export const BADGES_PER_10_MIN = 30;
 
 export const GET: Handler = (req, { env }) =>
   guarded(async () => {
-    if (!SERVER_FLAGS.badges) return notFound();
     await loadCurrentCourse(env);
     const now = Date.now();
     const session = await readSession(req, env, now);

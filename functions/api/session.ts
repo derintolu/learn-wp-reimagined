@@ -31,8 +31,8 @@ export const POST: Handler = (req, { env }) =>
       return error(429, 'limited', 'Too many new sessions. Please wait a few minutes and try again.');
     }
     try {
-      const { session, cookie, actor } = await createSession(env, now);
-      return reply({ actor: actor ?? actorOf(session.actorName) }, cookie);
+      const { cookie, actor } = await createSession(env, now);
+      return reply({ actor }, cookie);
     } catch (e) {
       if (e instanceof ConnectorUnavailable || e instanceof ConnectorError) return connectorDown();
       throw e;

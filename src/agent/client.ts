@@ -5,7 +5,7 @@ export type AgentResult<T> = { ok: true; data: T } | { ok: false; message: strin
 export const NO_ANSWER = "The connector didn't answer. Try again in a moment.";
 const GENERIC = 'Something went wrong. Try again in a moment.';
 
-/** POSTs JSON to /api/agent/* and /api/oauth/revoke-all; any handle travels in the body, never in a URL. */
+/** POSTs JSON to /api/oauth/revoke-all. */
 async function post<T>(path: string, body: unknown): Promise<AgentResult<T>> {
   const ctl = new AbortController();
   let timedOut = false;
@@ -37,13 +37,6 @@ async function post<T>(path: string, body: unknown): Promise<AgentResult<T>> {
     clearTimeout(timer);
   }
 }
-
-export const startHandoff = (lessonId: string, files: Record<string, string>) =>
-  post<{ handle: string; mcpUrl: string; prompt: string }>('/api/agent/handoff', { lessonId, files });
-
-export const fetchAgentRecord = (handle: string) => post<{ record: unknown }>('/api/agent/record', { handle });
-
-export const deleteAgentRecord = (handle: string) => post<{ deleted: boolean }>('/api/agent/delete', { handle });
 
 /** "Disconnect agents": ends every agent sign-in of this learner. JSON only, with the session cookie. */
 export const revokeAllAgents = () => post<{ revoked: number }>('/api/oauth/revoke-all', {});

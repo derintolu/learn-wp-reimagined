@@ -18,7 +18,7 @@ export interface Env {
   AI_ROUTES?: string;
   /** Header carrying the real client IP behind the edge; defaults to cf-connecting-ip. */
   TRUSTED_IP_HEADER?: string;
-  /** Bearer token the daily /api/mcp-sweep cron must send. */
+  /** Bearer token the /api/sweep and /api/lrs-drain crons must send. */
   CRON_SECRET?: string;
   /** HMAC key for hashing session cookies; sessions are off without it. */
   SESSION_KEY?: string;

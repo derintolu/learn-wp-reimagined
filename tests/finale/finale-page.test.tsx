@@ -12,10 +12,8 @@ import { setRecordManager } from '../../src/record/useRecord';
 import { content } from '../../src/content';
 import { memoryManager } from '../components/helpers';
 import { makeLive } from './livePaths';
-import { FEATURES } from '../../src/config';
 import { recordWithStateFiles } from '../../src/finale/playground';
 import { newRecord } from '../../src/shared/record';
-import { phasesUpTo, restoreFlags, setFlags } from '../helpers/flags';
 
 afterEach(() => {
   cleanup();
@@ -36,9 +34,7 @@ async function withLessons(ids: string[], files: Record<string, [string, string]
 const STYLE = '/*\nTheme Name: Ada Theme\nText Domain: my-block-theme\n*/\n';
 
 describe('Finale with the State document', () => {
-  const flags = FEATURES as { officialRecord: boolean };
   afterEach(() => {
-    restoreFlags();
     vi.unstubAllGlobals();
   });
   const stub = (files: Record<string, string>) =>
@@ -51,7 +47,6 @@ describe('Finale with the State document', () => {
     );
 
   it('finale uses the State document when local files are empty', async () => {
-    phasesUpTo('officialRecord');
     stub({ 'style.css': STYLE });
     await withLessons(['bt-what-is-a-block-theme']);
     render(<Finale />);
@@ -60,13 +55,7 @@ describe('Finale with the State document', () => {
     await waitFor(() => expect(screen.getByText(/and you wrote it/)).toBeTruthy());
   });
 
-  it('keeps the local files when there are any, and ignores the document with the flag off', async () => {
-    setFlags({ officialRecord: false });
-    stub({ 'style.css': STYLE });
-    await withLessons(['bt-what-is-a-block-theme']);
-    render(<Finale />);
-    await waitFor(() => expect(screen.getByText(/Here's the finished theme from the path/)).toBeTruthy());
-    expect(screen.queryByText(/and you wrote it/)).toBeNull();
+  it('keeps the local files when there are any', async () => {
     const local = { ...newRecord(), files: { 'a.css': 'local' } };
     expect(recordWithStateFiles(local, { files: { 'a.css': 'remote' } }).files).toEqual({ 'a.css': 'local' });
     expect(recordWithStateFiles(newRecord(), null).files).toEqual({});

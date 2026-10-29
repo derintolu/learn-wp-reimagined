@@ -1,6 +1,5 @@
 import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
-import { SERVER_FLAGS, LRS_API, LRS_XAPI } from '../../functions/_lib/config';
-import { PHASES_OFF, restoreServerFlags, setServerFlags } from '../helpers/flags';
+import { LRS_API, LRS_XAPI } from '../../functions/_lib/config';
 import { createSqliteD1 } from '../../dev/sqliteD1';
 import { buildContent } from '../../scripts/build-content';
 import { setContentForTests } from '../../functions/_lib/content';
@@ -15,7 +14,8 @@ import { GET as getRecord } from '../../functions/api/record';
 import { GET as getExport } from '../../functions/api/record/export';
 import { POST as postViewLink } from '../../functions/api/record/view-link';
 import { ADL_VERBS, STATE_IDS, activityIds } from '../../vendor/course-xapi-mcp/core/constants';
-import { fakeLrs } from '../helpers/fakeLrs';
+import { LEDGER_ENV, fakeLrs } from '../helpers/fakeLrs';
+import { fakeLearners } from '../helpers/fakeLearners';
 
 const NOW = Date.UTC(2026, 9, 27, 12, 0, 0);
 const REG = '7d3c1a2b-4e5f-4a6b-8c7d-9e0f1a2b3c4d';
@@ -46,12 +46,12 @@ const call = (h: typeof getRecord, method = 'GET', withCookie = true) =>
   h(new Request('https://learnwp.sqwrlz.com/api/record', { method, headers: withCookie ? { cookie: `${SESSION_COOKIE}=${cookie}` } : {} }), { params: {}, env });
 
 beforeEach(async () => {
-  setServerFlags(PHASES_OFF);
   setContentForTests(buildContent('tests/fixtures/content'));
   db = createSqliteD1();
-  env = { DB: db, SESSION_KEY: 'test-session-key-not-a-secret', LRS_KEY: 'ck_test', LRS_SECRET: 'cs_test' };
+  env = { DB: db, SESSION_KEY: 'test-session-key-not-a-secret', LRS_KEY: 'ck_test', LRS_SECRET: 'cs_test', ...LEDGER_ENV };
   await ensureSchema(db);
-  const made = await createSession(env, NOW);
+  // Before fetch is stubbed below: the learner comes from a stand-in, not the network.
+  const made = await createSession(env, NOW, fakeLearners());
   cookie = made.cookie.split(';')[0].split('=')[1];
   actorName = made.session.actorName;
   lrs = fakeLrs();
@@ -77,10 +77,8 @@ beforeEach(async () => {
     return lrs.fetch(input, init);
   });
   lrsHealth.downUntil = 0;
-  SERVER_FLAGS.officialRecord = true;
 });
 afterEach(() => {
-  restoreServerFlags();
   vi.unstubAllGlobals();
 });
 
@@ -90,14 +88,6 @@ describe('official record routes', () => {
       expect((await call(h, m, false)).status).toBe(401);
     }
     expect(lrsGets).toBe(0);
-  });
-
-  it('flag off → 404 and the LRS is never called', async () => {
-    SERVER_FLAGS.officialRecord = false;
-    for (const [h, m] of [[getRecord, 'GET'], [getExport, 'GET'], [postViewLink, 'POST']] as const) {
-      expect((await call(h, m)).status).toBe(404);
-    }
-    expect(lrs.calls).toEqual([]);
   });
 
   it('projects the record across LRS pages, with badges', async () => {

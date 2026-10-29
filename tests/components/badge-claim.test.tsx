@@ -2,16 +2,12 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { act, cleanup, fireEvent, render, screen, waitFor, within } from '@testing-library/preact';
 import { LocationProvider } from 'preact-iso';
-import { FEATURES } from '../../src/config';
 import { content } from '../../src/content';
 import { BadgeClaim } from '../../src/pages/BadgeClaim';
 import { RecordPanel } from '../../src/components/RecordPanel';
 import { CompletedSummary } from '../../src/components/CompletedSummary';
 import { setRecordManager } from '../../src/record/useRecord';
 import { memoryManager } from './helpers';
-import { phasesUpTo, restoreFlags } from '../helpers/flags';
-
-const flags = FEATURES as { badges: boolean };
 const ID = '33333333-3333-4333-8333-333333333333';
 const lesson = Object.values(content.lessons)[0];
 const badge = (over: object = {}) => ({ id: ID, pathId: lesson.pathId, name: 'Block themes', status: 'pending', testedOut: 3, ...over });
@@ -23,8 +19,6 @@ let fetchMock: ReturnType<typeof vi.fn>;
 let assign: ReturnType<typeof vi.fn>;
 
 beforeEach(() => {
-  phasesUpTo('officialRecord');
-  flags.badges = true;
   list = [badge()];
   mintUrl = 'https://lrs.sqwrlz.com/claim/abc';
   mintOk = true;
@@ -41,7 +35,6 @@ beforeEach(() => {
 });
 afterEach(() => {
   cleanup();
-  restoreFlags();
   setRecordManager(null);
   vi.unstubAllGlobals();
   vi.restoreAllMocks();
@@ -104,12 +97,6 @@ describe('badge claim page', () => {
     await screen.findByText(/couldn't find that badge/);
   });
 
-  it('is NotFound with the flag off and asks for nothing', () => {
-    flags.badges = false;
-    render(<BadgeClaim />);
-    expect(screen.getByText(/That page doesn't exist/)).toBeTruthy();
-    expect(fetchMock).not.toHaveBeenCalled();
-  });
 });
 
 describe('badges in the record menu and on a completed lesson', () => {
@@ -138,13 +125,6 @@ describe('badges in the record menu and on a completed lesson', () => {
     expect(within(panel).queryByRole('link', { name: 'Claim it' })).toBeNull();
   });
 
-  it('lists nothing and fetches nothing with the flag off', async () => {
-    flags.badges = false;
-    const panel = await openPanel();
-    expect(within(panel).queryByText('Your badges')).toBeNull();
-    expect(fetchMock.mock.calls.some((c) => c[0] === '/api/badges')).toBe(false);
-  });
-
   it('a completed lesson links to the claim page for its path', async () => {
     const m = memoryManager(content);
     render(<CompletedSummary lesson={lesson} record={m.record} />);
@@ -152,11 +132,4 @@ describe('badges in the record menu and on a completed lesson', () => {
     expect(link.getAttribute('href')).toBe(`/badges/claim?badge=${ID}`);
   });
 
-  it('a completed lesson shows no claim link with the flag off', () => {
-    flags.badges = false;
-    const m = memoryManager(content);
-    render(<CompletedSummary lesson={lesson} record={m.record} />);
-    expect(screen.queryByRole('link', { name: 'Claim it' })).toBeNull();
-    expect(fetchMock).not.toHaveBeenCalled();
-  });
 });

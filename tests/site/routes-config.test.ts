@@ -33,7 +33,6 @@ describe('sf.jsonc routes', () => {
   it('keeps the crons entries and has no catch-all fallback', () => {
     expect(sf.fallback).toBeUndefined();
     expect(sf.crons).toEqual([
-      { path: '/api/mcp-sweep', schedule: 'daily' },
       { path: '/api/lrs-drain', schedule: 'hourly' },
       { path: '/api/sweep', schedule: 'daily' },
     ]);

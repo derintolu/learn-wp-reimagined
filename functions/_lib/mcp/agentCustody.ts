@@ -1,4 +1,4 @@
-// Record option 2 for /api/mcp (SERVER_FLAGS.agentOnStandard): the reference server's author-lrs custody, kept
+// Record option 2 for /api/mcp: the reference server's author-lrs custody, kept
 // on our own LRS client (lrs/client.ts) and registration (record/registration.ts) rather than the vendored
 // createAuthorLrsCustody's client, with the same documents and the same ETag rule: the learner's working state is
 // the State document `cxm-learner-state` under their registration, beside the `cxm-current-registration`

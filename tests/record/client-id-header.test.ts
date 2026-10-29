@@ -7,7 +7,6 @@ import { clientId } from '../../src/ai/client';
 import { EventClient } from '../../src/record/eventClient';
 import { ensureSession, resetSession } from '../../src/record/session';
 import { fetchFilesState } from '../../src/record/stateSync';
-import { phasesUpTo, restoreFlags } from '../helpers/flags';
 
 let seen: { url: string; id: string | null }[];
 beforeEach(() => {
@@ -27,14 +26,12 @@ beforeEach(() => {
   );
 });
 afterEach(() => {
-  restoreFlags();
   resetSession();
   vi.unstubAllGlobals();
 });
 
 describe('x-client-id on the studio\'s own API calls', () => {
   it('session, events and state requests carry the browser\'s client id', async () => {
-    phasesUpTo('officialRecord');
     await ensureSession();
     await new EventClient(() => 'learner').send({ type: 'lessonCompleted', lessonId: 'x' });
     await fetchFilesState();

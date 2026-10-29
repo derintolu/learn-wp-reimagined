@@ -1,6 +1,5 @@
 import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
 import { XAPI_BASE } from '../../src/shared/xapi';
-import { SERVER_FLAGS } from '../../functions/_lib/config';
 import { createSqliteD1 } from '../../dev/sqliteD1';
 import { ensureSchema } from '../../functions/_lib/db';
 import type { Env } from '../../functions/_lib/env';
@@ -29,8 +28,6 @@ const get = (c?: string, path = 'block-theme') =>
 beforeEach(async () => {
   const db = createSqliteD1();
   await ensureSchema(db);
-  SERVER_FLAGS.senseiLearners = true;
-  SERVER_FLAGS.senseiCertificates = true;
   complete = true;
   pdfStatus = 200;
   env = {
@@ -50,8 +47,6 @@ beforeEach(async () => {
   });
 });
 afterEach(() => {
-  SERVER_FLAGS.senseiLearners = false;
-  SERVER_FLAGS.senseiCertificates = false;
   vi.unstubAllGlobals();
 });
 
@@ -79,11 +74,5 @@ describe('GET /api/sensei/certificate', () => {
 
   it('401 without a session', async () => {
     expect((await get()).status).toBe(401);
-  });
-
-  it('404 when the flag is off', async () => {
-    const c = await cookie();
-    SERVER_FLAGS.senseiCertificates = false;
-    expect((await get(c)).status).toBe(404);
   });
 });

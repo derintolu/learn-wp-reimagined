@@ -1,5 +1,4 @@
 import { useEffect, useState } from 'preact/hooks';
-import { phaseOn } from '../config';
 import { onDataDeleted } from '../record/deleted';
 import type { PathId } from '../shared/types';
 
@@ -22,7 +21,7 @@ export function testedOutInWords(n: number): string {
   return `${w} ${n === 1 ? 'lesson' : 'lessons'}`;
 }
 
-/** The learner's badges, or null while loading or when they cannot be read. Does nothing with the flag off. */
+/** The learner's badges, or null while loading or when they cannot be read. */
 export async function fetchBadges(): Promise<BadgeSummary[] | null> {
   try {
     const res = await fetch('/api/badges', { credentials: 'same-origin' });
@@ -56,7 +55,7 @@ export async function mintClaimUrl(badge: string): Promise<string | null> {
 export function useBadges(active = true): BadgeSummary[] | null {
   const [badges, setBadges] = useState<BadgeSummary[] | null>(null);
   useEffect(() => {
-    if (!phaseOn('badges') || !active) return;
+    if (!active) return;
     let live = true;
     fetchBadges().then((b) => live && setBadges(b));
     return () => {

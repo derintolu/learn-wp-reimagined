@@ -1,6 +1,6 @@
 // Shadow mode (phase 5): after deciding, the course server builds the official statements, queues them for the
-// LRS and records the learning facts it sent, per day, for the comparison report (Task 32). Behind
-// SERVER_FLAGS.lrsShadow; nothing here can fail an event.
+// LRS and records the learning facts it sent, per day, for the comparison report (Task 32). Nothing here can
+// fail an event.
 import type { Env } from '../env';
 import { ensureRecordSchema, isDuplicateKey } from '../db';
 import { getContent } from '../content';

@@ -20,7 +20,6 @@ import { setPlaygroundImporter } from '../../src/studio/previewClient';
 import type { RecordManager } from '../../src/record/store';
 import { LocationProvider } from 'preact-iso';
 import { memoryManager } from './helpers';
-import { PHASES_OFF, restoreFlags, setFlags } from '../helpers/flags';
 
 const status = vi.mocked(getStatus);
 const place = vi.mocked(placement);
@@ -35,8 +34,6 @@ const PLACED = {
 let manager: RecordManager;
 
 beforeEach(() => {
-  // Home's connect copy before agentOnStandard's sign-in.
-  setFlags(PHASES_OFF);
   setPlaygroundImporter(() => Promise.reject(new Error('no Playground in tests')));
   history.replaceState(null, '', '/');
   manager = memoryManager(content);
@@ -46,7 +43,6 @@ beforeEach(() => {
 });
 afterEach(() => {
   cleanup();
-  restoreFlags();
   vi.clearAllMocks();
   setRecordManager(null);
   setPlaygroundImporter(null);
@@ -405,7 +401,7 @@ describe('Home', () => {
   const HEADLINE = 'Learn WordPress in the AI you already use.';
   const main = () => document.querySelector('main')!;
 
-  it('leads with the connect offer, then the paths, the studio, what is being built and the concept', () => {
+  it('leads with the connect offer, then the paths, the studio and the concept', () => {
     render(<App />);
     const titles = Array.from(main().querySelectorAll(':scope > section h1, :scope > section > .wrap h2, :scope > section > .wrap > div > h2')).map(
       (h) => h.textContent,
@@ -416,7 +412,6 @@ describe('Home', () => {
       'Your AI becomes the tutor',
       'Three paths',
       'Or learn here, in your browser',
-      "What's being built",
       'An unofficial concept',
     ]);
   });
@@ -441,7 +436,7 @@ describe('Home', () => {
     const items = within(steps).getAllByRole('listitem');
     expect(items).toHaveLength(3);
     expect(items[0].textContent).toContain('Copy the connector URL.');
-    expect(items[1].textContent).toContain('custom connector, with no sign-in');
+    expect(items[1].textContent).toContain('custom connector and sign in when your agent asks');
     expect(items[2].textContent).toContain('ask it to teach you the course');
     expect(within(steps).getByText(MCP_URL)).toBeTruthy();
     fireEvent.click(within(steps).getByRole('button', { name: 'Copy connector url' }));
@@ -449,30 +444,19 @@ describe('Home', () => {
     expect(within(steps).getByRole('link', { name: /Setup for Claude, ChatGPT/ }).getAttribute('href')).toBe('/connect');
   });
 
-  it('keeps the approved privacy sentence for the agent record', () => {
+  it('keeps the approved sentence for the agent record', () => {
     render(<App />);
-    expect(main().textContent).toContain(
-      'When you take the course into an agent, the server keeps your progress under a random record handle that only you hold. It stores no personal data, expires after 30 days without use, and you can delete it at any time from Connect your AI.',
+    expect(main().textContent?.replace(/\s+/g, ' ')).toContain(
+      'When you take the course into an agent, you sign in when your agent asks, and the server keeps your progress in your learner record. You can end every agent sign-in with Disconnect agents in Your record.',
     );
   });
 
-  it('labels what is not live yet and does not claim it as running', () => {
+  it('does not call the running pieces "not live yet"', () => {
     render(<App />);
-    const next = document.getElementById('next-title')!.closest('section')!;
-    expect(next.textContent).toContain('not live yet');
-    expect(next.textContent).toContain('None of this runs on the site today.');
-    for (const planned of ['course-xapi-mcp', 'Learning Ledger', 'Open Badges 3.0', 'Sensei']) {
-      expect(next.textContent).toContain(planned);
-    }
-    // Outside the "being built" band the page names none of the planned pieces.
-    const rest = Array.from(main().querySelectorAll(':scope > section'))
-      .filter((s) => s !== next)
-      .map((s) => s.textContent)
-      .join(' ');
-    for (const planned of ['course-xapi-mcp', 'Learning Ledger', 'Badge', 'Sensei', 'cmi5', 'LRS']) {
-      expect(rest).not.toContain(planned);
-    }
-    expect(rest).toContain("hasn't been tried inside each of these apps yet");
+    expect(document.getElementById('next-title')).toBeNull();
+    expect(main().textContent).not.toContain('not live yet');
+    expect(main().textContent).not.toContain('None of this runs on the site today.');
+    expect(main().textContent).toContain("hasn't been tried inside each of these apps yet");
   });
 
   it('links the paths, How this works and the proposal lower down', () => {

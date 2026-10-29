@@ -1,4 +1,4 @@
-// /api/mcp with SERVER_FLAGS.agentOnStandard: the course-xapi-mcp reference server with record option 2, signed in
+// /api/mcp: the course-xapi-mcp reference server with record option 2, signed in
 // through MCP authorization. The learner is the actor their OAuth access token (Task 43) stands for; without a live
 // token the answer is 401 naming the protected-resource metadata of the host the request came to (ruling R19).
 // The course is the full package of the course the server serves now (agentCourse.ts); the custody keeps the record
@@ -7,14 +7,16 @@
 import { createCourseServer } from '../../../vendor/course-xapi-mcp/server/server.ts';
 import type { LearnerRef } from '../../../vendor/course-xapi-mcp/core/index.ts';
 import type { XapiAgent } from '../../../vendor/course-xapi-mcp/core/xapi/types.ts';
-import { XAPI_BASE } from '../../../src/shared/xapi';
+import { LEGACY_XAPI_BASES, XAPI_BASE } from '../../../src/shared/xapi';
 import type { Env } from '../env';
 import { refreshContent } from '../course/cache';
 import { issuerFor, resolveToken, sha256Hex } from '../oauth/store';
 import { getAgentCourse } from './agentCourse';
 import { agentCustody, sessionForActor } from './agentCustody';
 import { gateMcp, inspectMcpBody } from './gate';
-import { MCP_ORIGINS } from './standardHandler';
+
+/** Browser origins allowed to call the connector: the site, at both its addresses (ruling R11). */
+export const MCP_ORIGINS: readonly string[] = [XAPI_BASE, ...LEGACY_XAPI_BASES];
 
 const BEARER = /^Bearer ([A-Za-z0-9_-]{43})$/i;
 
@@ -37,7 +39,7 @@ export interface AgentDeps {
   now?: () => number;
 }
 
-/** Serves one MCP request with option 2. Schema setup is the caller's (handler.ts). */
+/** Serves one MCP request. Schema setup is the caller's (handler.ts). */
 export async function handleMcpAgent(req: Request, env: Env, deps: AgentDeps = {}, handlerCtx?: unknown): Promise<Response> {
   const now = deps.now ?? Date.now;
   const presented = BEARER.exec((req.headers.get('authorization') ?? '').trim())?.[1];
@@ -46,7 +48,7 @@ export async function handleMcpAgent(req: Request, env: Env, deps: AgentDeps = {
   const origin = req.headers.get('origin');
   if (origin !== null && !MCP_ORIGINS.includes(origin)) return forbidden();
 
-  // A practice handle in a tool call: the agent was set up for the practice connector (flag off).
+  // A record handle in a tool call: the agent was set up for the practice connector this server no longer runs.
   const info = req.method === 'POST' ? inspectMcpBody(await gate.req.clone().text()) : undefined;
   const carriesHandle = (info?.handles.length ?? 0) > 0;
   const grant = await resolveToken(env, gate.req, now());

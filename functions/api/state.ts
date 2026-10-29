@@ -6,7 +6,6 @@ import { clientKey, readJsonCapped } from '../_lib/guards';
 import { guarded } from '../_lib/ai';
 import { ensureSchema } from '../_lib/db';
 import { rateLimit } from '../_lib/ratelimit';
-import { SERVER_FLAGS } from '../_lib/config';
 import { readSession } from '../_lib/session/session';
 import { LrsClient, LrsError, LrsUnavailable, type StateKey } from '../_lib/lrs/client';
 import { getRegistration } from '../_lib/record/registration';
@@ -23,7 +22,6 @@ const kindOf = (req: Request, params: Record<string, string>): StateKind | null 
 /** Everything both methods share; a Response is the refusal to return. */
 async function open(req: Request, ctx: Parameters<Handler>[1]): Promise<Response | { kind: StateKind; key: StateKey; client: LrsClient }> {
   const { env } = ctx;
-  if (!SERVER_FLAGS.officialRecord) return error(404, 'not-found', 'No such route.');
   const kind = kindOf(req, ctx.params);
   if (!kind) return error(404, 'not-found', 'No such route.');
   await ensureSchema(env.DB);

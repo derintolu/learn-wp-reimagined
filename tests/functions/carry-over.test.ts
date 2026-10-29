@@ -1,6 +1,4 @@
 import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
-import { SERVER_FLAGS } from '../../functions/_lib/config';
-import { PHASES_OFF, restoreServerFlags, setServerFlags } from '../helpers/flags';
 import { createSqliteD1 } from '../../dev/sqliteD1';
 import { buildContent } from '../../scripts/build-content';
 import { setContentForTests } from '../../functions/_lib/content';
@@ -14,7 +12,7 @@ import { ADL_VERBS, CMI5 } from '../../vendor/course-xapi-mcp/core/constants';
 import { checkProfile } from '../../vendor/course-xapi-mcp/core/xapi/profile-check';
 import { activityIds } from '../../vendor/course-xapi-mcp/core/constants';
 import type { XapiStatement } from '../../vendor/course-xapi-mcp/core/xapi/types';
-import { fakeLrs } from '../helpers/fakeLrs';
+import { LEDGER_ENV, fakeLrs } from '../helpers/fakeLrs';
 
 const NOW = Date.UTC(2026, 9, 28, 12, 0, 0);
 const REG = '7d3c1a2b-4e5f-4a6b-8c7d-9e0f1a2b3c4d';
@@ -49,19 +47,17 @@ const outbox = async () => [
 beforeEach(async () => {
   setContentForTests(buildContent('tests/fixtures/content'));
   db = createSqliteD1();
-  env = { DB: db, SESSION_KEY: 'test-session-key-not-a-secret', LRS_KEY: 'ck_test', LRS_SECRET: 'cs_test' };
+  env = { DB: db, SESSION_KEY: 'test-session-key-not-a-secret', LRS_KEY: 'ck_test', LRS_SECRET: 'cs_test', ...LEDGER_ENV };
   await ensureSchema(db);
   await ensureRecordSchema(db);
   lrs = fakeLrs();
   vi.stubGlobal('fetch', lrs.fetch);
-  setServerFlags({ ...PHASES_OFF, officialRecord: true });
   const made = await createSession(env, Date.now());
   session = made.session;
   cookie = made.cookie.split(';')[0];
   lrs.state.set(stateKey('cxm-current-registration'), { registration: REG });
 });
 afterEach(() => {
-  restoreServerFlags();
   vi.unstubAllGlobals();
 });
 
@@ -145,12 +141,10 @@ describe('POST /api/carry-over', () => {
     expect((await call({ completedLessons: [FIRST] })).status).toBe(200);
   });
 
-  it('is 404 with the flag off, 401 without a session, 400 for a bad body', async () => {
+  it('401 without a session, 400 for a bad body', async () => {
     expect((await call({ completedLessons: [] }, false)).status).toBe(401);
     expect((await call({ completedLessons: 'x' })).status).toBe(400);
     expect((await call({ completedLessons: [], files: { a: 1 } })).status).toBe(400);
-    SERVER_FLAGS.officialRecord = false;
-    expect((await call({ completedLessons: [FIRST] })).status).toBe(404);
     expect(lrs.calls).toEqual([]);
   });
 });

@@ -4,7 +4,6 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { BEAT_FLUSH_MS, EventClient, OUTBOX_KEY, SEND_TIMEOUT_MS } from '../../src/record/eventClient';
 import { resetSession } from '../../src/record/session';
-import { PHASES_OFF, phasesUpTo, restoreFlags, setFlags } from '../helpers/flags';
 
 let outcomes: ('ok' | 'offline' | number)[];
 let sessionDelay = 0;
@@ -13,7 +12,6 @@ let fetchMock: ReturnType<typeof vi.fn>;
 const eventBodies = () => fetchMock.mock.calls.filter((c) => c[0] === '/api/events').map((c) => JSON.parse(c[1].body).events as { eventId: string; type: string }[]);
 
 beforeEach(() => {
-  setFlags(PHASES_OFF);
   vi.useFakeTimers();
   localStorage.clear();
   resetSession();
@@ -36,7 +34,6 @@ beforeEach(() => {
   vi.stubGlobal('fetch', fetchMock);
 });
 afterEach(() => {
-  restoreFlags();
   resetSession();
   localStorage.clear();
   vi.useRealTimers();
@@ -45,8 +42,7 @@ afterEach(() => {
 
 const stored = () => JSON.parse(localStorage.getItem(OUTBOX_KEY) ?? '[]') as { eventId: string; type: string }[];
 
-describe('event outbox (lrsShadow on)', () => {
-  beforeEach(() => phasesUpTo('lrsShadow'));
+describe('event outbox', () => {
 
   it('a failed lessonCompleted is kept and resent with the same eventId on the next flush', async () => {
     outcomes = ['offline'];
@@ -96,18 +92,8 @@ describe('event outbox (lrsShadow on)', () => {
   });
 });
 
-describe('event outbox with lrsShadow off (today)', () => {
-  it('keeps nothing, as before', async () => {
-    setFlags({ lrsShadow: false });
-    outcomes = ['offline'];
-    await new EventClient(() => 'l').send({ type: 'lessonCompleted', lessonId: 'a' });
-    expect(localStorage.getItem(OUTBOX_KEY)).toBeNull();
-  });
-});
-
-describe('send timeout and the session (senseiLearners on)', () => {
+describe('send timeout and the session', () => {
   it('a slow first session does not use up the send window', async () => {
-    phasesUpTo('senseiLearners');
     sessionDelay = SEND_TIMEOUT_MS - 1000;
     eventDelay = 2000;
     const c = new EventClient(() => 'l');

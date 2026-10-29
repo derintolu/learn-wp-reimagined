@@ -7,7 +7,6 @@ import { resetSession } from '../../src/record/session';
 import { STATE_DEBOUNCE_MS, fetchFilesState, notifyFileEdited, startStateSync } from '../../src/record/stateSync';
 import { RecordManager } from '../../src/record/store';
 import { applyEvent, newRecord, type LearningRecord } from '../../src/shared/record';
-import { phasesUpTo, restoreFlags } from '../helpers/flags';
 
 const lessons = Object.keys(content.lessons);
 let calls: { url: string; method: string }[];
@@ -16,7 +15,6 @@ let remoteFiles: unknown;
 
 beforeEach(() => {
   vi.useFakeTimers({ toFake: ['setTimeout', 'clearTimeout'] });
-  phasesUpTo('officialRecord');
   resetSession();
   calls = [];
   hasSession = false;
@@ -39,7 +37,6 @@ beforeEach(() => {
   );
 });
 afterEach(() => {
-  restoreFlags();
   resetSession();
   vi.useRealTimers();
   vi.unstubAllGlobals();

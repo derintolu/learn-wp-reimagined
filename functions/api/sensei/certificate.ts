@@ -1,15 +1,13 @@
 import type { Handler } from '../../_lib/env';
 import { error } from '../../_lib/http';
 import { guarded } from '../../_lib/ai';
-import { SERVER_FLAGS } from '../../_lib/config';
 import { ConnectorClient, ConnectorError, ConnectorUnavailable } from '../../_lib/ledger/connector';
 import { readSession } from '../../_lib/session/session';
 import type { PathId } from '../../../src/shared/types';
 
-/** The learner's Sensei certificate PDF for a completed path. Answers only with senseiCertificates on. */
+/** The learner's Sensei certificate PDF for a completed path. */
 export const GET: Handler = (req, { env }) =>
   guarded(async () => {
-    if (!SERVER_FLAGS.senseiCertificates) return error(404, 'not-found', 'Not found.');
     const session = await readSession(req, env, Date.now());
     if (!session || session.wpUserId == null) return error(401, 'no-session', 'No Sensei learner for this session.');
     if (!env.LEDGER_PROGRAM_ID) return error(503, 'disabled', 'Sensei progress is not configured.');

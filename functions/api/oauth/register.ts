@@ -2,7 +2,6 @@
 import type { Handler } from '../../_lib/env';
 import { readJsonCapped } from '../../_lib/guards';
 import { rateLimit } from '../../_lib/ratelimit';
-import { SERVER_FLAGS } from '../../_lib/config';
 import { OAuthError, REGISTER_LIMIT, addressKey, oauthGuarded, oauthJson, ready, registerClient } from '../../_lib/oauth/store';
 
 export const POST: Handler = (req, { env }) =>
@@ -10,10 +9,10 @@ export const POST: Handler = (req, { env }) =>
     await ready(env);
     const now = Date.now();
     const { perKey, global, windowMs } = REGISTER_LIMIT;
-    // Per key first, so a key that is already blocked never uses up the global ceiling. With agentOnStandard on,
-    // visitors with no address ('anon', the whole world on Spacefast) are held by the global ceiling alone.
+    // Per key first, so a key that is already blocked never uses up the global ceiling. Visitors with no
+    // address ('anon', the whole world on Spacefast) are held by the global ceiling alone.
     const key = addressKey(req, env);
-    const perKeyOk = SERVER_FLAGS.agentOnStandard && key === 'anon' ? true : await rateLimit(env.DB, `oauth:reg:${key}`, now, perKey, windowMs);
+    const perKeyOk = key === 'anon' ? true : await rateLimit(env.DB, `oauth:reg:${key}`, now, perKey, windowMs);
     if (!perKeyOk || !(await rateLimit(env.DB, 'oauth:reg:g', now, global, windowMs))) {
       throw new OAuthError('temporarily_unavailable', 'Too many registrations. Wait a few minutes and try again.', 429);
     }

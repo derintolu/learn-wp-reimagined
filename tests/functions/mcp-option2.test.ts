@@ -1,10 +1,8 @@
-// /api/mcp with SERVER_FLAGS.agentOnStandard: the course-xapi-mcp reference server with record option 2
+// /api/mcp: the course-xapi-mcp reference server with record option 2
 // (author-lrs custody), signed in with our OAuth access tokens. Agent calls take the studio's decide-and-record path.
 import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest';
 import { createSqliteD1 } from '../../dev/sqliteD1';
 import * as route from '../../functions/api/mcp';
-import { SERVER_FLAGS } from '../../functions/_lib/config';
-import { PHASES_OFF, restoreServerFlags, setServerFlags } from '../helpers/flags';
 import { getContent, setContentForTests } from '../../functions/_lib/content';
 import { ensureOAuthSchema } from '../../functions/_lib/db';
 import * as decide from '../../functions/_lib/events/decide';
@@ -18,7 +16,7 @@ import { getRegistration } from '../../functions/_lib/record/registration';
 import { ensureRecordSchema } from '../../functions/_lib/db';
 import { ADL_VERBS, CXM_EXT, CXM_VERBS, EXTENSION_ID, STATE_IDS, TOOL_NAMES, activityIds } from '../../vendor/course-xapi-mcp/core/constants.ts';
 import { connectMcp, routeFetch, type Era } from '../helpers/mcpClient';
-import { fakeLrs } from '../helpers/fakeLrs';
+import { LEDGER_ENV, fakeLrs } from '../helpers/fakeLrs';
 import type { D1Like, Env } from '../../functions/_lib/env';
 
 const LESSON = 'bt-what-is-a-block-theme';
@@ -47,15 +45,13 @@ afterAll(() => {
 
 beforeEach(() => {
   db = createSqliteD1();
-  env = { DB: db, SESSION_KEY: 'k'.repeat(32), LRS_KEY: 'ck_test', LRS_SECRET: 'cs_test' } as Env;
+  env = { DB: db, SESSION_KEY: 'k'.repeat(32), LRS_KEY: 'ck_test', LRS_SECRET: 'cs_test', ...LEDGER_ENV } as Env;
   lrs = fakeLrs();
   vi.stubGlobal('fetch', lrs.fetch);
-  setServerFlags({ ...PHASES_OFF, agentOnStandard: true, lrsShadow: true });
 });
 afterEach(async () => {
   await Promise.all(open.map((c) => c.close()));
   open = [];
-  restoreServerFlags();
   vi.unstubAllGlobals();
   // A spy left by a failed test must not carry its calls into the next one.
   if (vi.isMockFunction(decide.decideEvents)) vi.mocked(decide.decideEvents).mockRestore();
@@ -425,7 +421,7 @@ describe('/api/mcp option 2: HTTP', () => {
         body: JSON.stringify(Array.from({ length: n }, (_, i) => rpc('tools/call', { name: 'get_status', arguments: {} }, i))),
       });
     const now = Date.now();
-    expect((await gateMcp(calls(MCP_LIMITS.perHandle.limit), env, now, { tokenHash: h })).ok).toBe(true);
+    expect((await gateMcp(calls(MCP_LIMITS.perToken.limit), env, now, { tokenHash: h })).ok).toBe(true);
     const over = await gateMcp(calls(1), env, now, { tokenHash: h });
     expect(over.ok).toBe(false);
     if (!over.ok) expect(over.res.status).toBe(429);
@@ -433,19 +429,5 @@ describe('/api/mcp option 2: HTTP', () => {
     const keys = (await db.prepare('SELECT k FROM hits').all<{ k: string }>()).results.map((r) => r.k);
     expect(keys).toContain('mcp:t:' + h.slice(0, 32));
     expect(keys.every((k) => !k.includes(token))).toBe(true);
-  });
-});
-
-describe('SERVER_FLAGS.agentOnStandard off', () => {
-  it("today's practice connector, unchanged: no token needed, handles resolve", async () => {
-    SERVER_FLAGS.agentOnStandard = false;
-    const s = await connectMcp(routeFetch(route, env), 'modern');
-    open.push(s.client);
-    const ext = (s.client.getServerCapabilities() as any)?.extensions?.[EXTENSION_ID];
-    expect(ext).toMatchObject({ custody: 'practice', official: false });
-    const start = await s.call('start_placement');
-    expect(start.data.handle).toMatch(/^cxp_/);
-    expect((await s.call('get_status', { handle: start.data.handle })).data.custody).toBe('practice');
-    expect(lrs.calls).toEqual([]);
   });
 });

@@ -1,6 +1,5 @@
 import { clientId } from '../clientId';
 import { clearOfficial } from './official';
-import { FEATURES } from '../config';
 import { dataDeleted } from './deleted';
 import { getEventClient } from './eventClient';
 import { resetStateSync } from './stateSync';
@@ -52,13 +51,12 @@ async function readActor(res: Response | null): Promise<SessionActor | null | un
 /**
  * The learner's session, made on first use. The cookie is HttpOnly, so the studio asks the server
  * (GET) for the session it may already have and only makes a new one (POST) when there is none.
- * Concurrent callers share one request. Null when sessions are off, rate-limited, unavailable or
+ * Concurrent callers share one request. Null when sessions are not configured, rate-limited, unavailable or
  * unreachable; nothing is remembered about a failure, so the next recorded action tries again.
  * With `create: false` it only looks (GET) and never makes a session: for reads and for writes the
- * learner did not just cause, so a page load never creates a session (or, with senseiLearners, a user).
+ * learner did not just cause, so a page load never creates a session (or a WordPress user).
  */
 export function ensureSession(opts: { create?: boolean } = {}): Promise<SessionActor | null> {
-  if (!FEATURES.sessions) return Promise.resolve(null);
   if (actor) return Promise.resolve(actor);
   if (inflight) return inflight;
   if (opts.create === false) return lookUp();

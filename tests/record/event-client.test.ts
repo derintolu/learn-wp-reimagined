@@ -2,7 +2,6 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { BEAT_FLUSH_MS, EventClient } from '../../src/record/eventClient';
 import { resetSession } from '../../src/record/session';
-import { PHASES_OFF, restoreFlags, setFlags } from '../helpers/flags';
 
 const LEARNER = '11111111-2222-4333-8444-555555555555';
 let fetchMock: ReturnType<typeof vi.fn>;
@@ -17,8 +16,8 @@ const okResponse = (events: { eventId: string }[]) =>
   ({ ok: true, json: async () => ({ results: events.map((e) => ({ eventId: e.eventId, ok: true, statements: [] })) }) }) as Response;
 
 beforeEach(() => {
-  // The event client before the LRS shadow: failed non-beat events are not kept (event-outbox.test.ts has that).
-  setFlags(PHASES_OFF);
+  // Failed non-beat events are kept and resent (event-outbox.test.ts has that); each test starts with none kept.
+  localStorage.clear();
   vi.useFakeTimers();
   resetSession();
   eventOutcomes = [];
@@ -36,7 +35,6 @@ beforeEach(() => {
   vi.stubGlobal('fetch', fetchMock);
 });
 afterEach(() => {
-  restoreFlags();
   resetSession();
   vi.useRealTimers();
   vi.unstubAllGlobals();
@@ -127,10 +125,11 @@ describe('EventClient', () => {
     c.queueBeat('l1', 0);
     eventOutcomes = ['offline'];
     expect(await c.send({ type: 'lessonCompleted', lessonId: 'l1' })).toBeNull();
-    const firstBeatId = bodyOf(0).events[0].eventId;
+    const [firstBeatId, failedId] = bodyOf(0).events.map((e: { eventId: string }) => e.eventId);
     const r = await c.send({ type: 'lessonCompleted', lessonId: 'l1' });
     expect(r?.ok).toBe(true);
-    expect(bodyOf(1).events[0].eventId).toBe(firstBeatId);
+    // The kept event goes first, then the queued beat, then the new event.
+    expect(bodyOf(1).events.map((e: { eventId: string }) => e.eventId).slice(0, 2)).toEqual([failedId, firstBeatId]);
   });
 
   it('send returns null on a 5xx', async () => {

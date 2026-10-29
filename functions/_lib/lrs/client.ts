@@ -1,6 +1,6 @@
 import { LRS_API, LRS_XAPI } from '../config';
 import type { Env } from '../env';
-import type { XapiStatement } from '../../../vendor/learning-mcp/core/index.ts';
+import type { XapiStatement } from '../../../vendor/course-xapi-mcp/core/xapi/types.ts';
 
 export type Actor = XapiStatement['actor'];
 

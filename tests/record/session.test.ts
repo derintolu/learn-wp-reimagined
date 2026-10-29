@@ -1,14 +1,11 @@
 // @vitest-environment happy-dom
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import { FEATURES } from '../../src/config';
 import { content } from '../../src/content';
 import { EventClient } from '../../src/record/eventClient';
 import { deleteMyData, deleteMyDataDetailed, currentActor, ensureSession, forgetSession, resetSession } from '../../src/record/session';
 import { RecordManager, type RecordStore } from '../../src/record/store';
 import { setRecordManager } from '../../src/record/useRecord';
 import type { LearningRecord } from '../../src/shared/record';
-
-const flags = FEATURES as { sessions: boolean };
 const ACTOR = { homePage: 'https://learn.example/xapi', name: 'learner-abc' };
 const lessonId = Object.keys(content.lessons)[0];
 
@@ -43,11 +40,9 @@ function memStore(): RecordStore & { saved: LearningRecord | null } {
 }
 
 beforeEach(() => {
-  flags.sessions = true;
   resetSession();
 });
 afterEach(() => {
-  flags.sessions = false;
   setRecordManager(null);
   vi.unstubAllGlobals();
 });
@@ -111,12 +106,6 @@ describe('ensureSession', () => {
     expect(await Promise.all([second, third])).toEqual([ACTOR, ACTOR]);
   });
 
-  it('makes no request when the sessions feature is off', async () => {
-    flags.sessions = false;
-    stubFetch({});
-    expect(await ensureSession()).toBeNull();
-    expect(calls).toHaveLength(0);
-  });
 });
 
 describe('sessions and the event client', () => {
@@ -170,10 +159,8 @@ describe('deleteMyData', () => {
     const store = memStore();
     const m = new RecordManager(store, content, new EventClient(() => m.record.learnerId));
     setRecordManager(m);
-    flags.sessions = false; // no session traffic while the record is built
     await m.dispatch({ type: 'lessonCompleted', lessonId });
     await m.settled();
-    flags.sessions = true;
     return { m, store };
   }
 

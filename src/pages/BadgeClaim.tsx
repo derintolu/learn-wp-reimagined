@@ -1,8 +1,6 @@
 import { useEffect, useRef, useState } from 'preact/hooks';
-import { phaseOn } from '../config';
 import { fetchBadges, mintClaimUrl, type BadgeSummary } from '../badges/badges';
 import { usePageTitle } from '../usePageTitle';
-import { NotFound } from './routes';
 import '../styles/consent.css';
 
 export const CLAIM_FAILED = 'We could not make a claim link. Nothing was changed. Try again in a moment.';
@@ -13,11 +11,6 @@ const badgeId = () => new URLSearchParams(window.location.search).get('badge');
 
 /** /badges/claim?badge=<id>: what the badge is, then a top-level hop to the LRS's claim page. */
 export function BadgeClaim() {
-  if (!phaseOn('badges')) return <NotFound />;
-  return <Claim />;
-}
-
-function Claim() {
   usePageTitle('Claim your badge');
   const [view, setView] = useState<View>({ state: 'loading' });
   const [busy, setBusy] = useState(false);

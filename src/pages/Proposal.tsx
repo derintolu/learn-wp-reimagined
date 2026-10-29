@@ -23,14 +23,12 @@
  */
 import type { ComponentChildren } from 'preact';
 import { Swipe } from '../components/Swipe';
-import { FEATURES, phaseOn, REPO_URL } from '../config';
+import { REPO_URL } from '../config';
 import { BACKEND_VIEW_PATH, COST_PER_1000_LEARNERS_USD, LRS_HOST, RETENTION_DAYS } from '../shared/course-meta';
 import { usePageTitle } from '../usePageTitle';
-import { SHADOW_COPY } from './copy';
 
 // These mirror server constants; tests/components/proposal.test.tsx checks each against its source file.
 const CAP = { month: 100, day: 10 };
-const RELAY_DAYS = 30;
 
 const LEARN = {
   relaunch: 'https://make.wordpress.org/training/2024/08/02/meet-the-new-learn-wordpress/',
@@ -48,7 +46,6 @@ const SOURCES = [
   { id: 'src-store-if', file: 'src/record/store.ts', what: 'The record store interface that a WordPress.org adapter would implement.' },
   { id: 'src-lrs', file: 'functions/_lib/lrs/', what: 'The client for the record store.' },
   { id: 'src-ledger', file: 'https://github.com/derintolu/learning-ledger', what: 'The plugin that is the record store and the Sensei connector.' },
-  { id: 'src-relay', file: 'functions/_lib/mcp/practiceStore.ts', what: 'The agent relay, and how long it keeps a record.' },
   { id: 'src-content', file: 'content/snapshot/', what: 'The lessons, checkpoints, branches and planted bugs, as pulled from Sensei.' },
   { id: 'src-schema', file: 'src/shared/schema.ts', what: 'The content schema: every checkpoint needs advance, review and skip branches and a fallback.' },
   { id: 'src-build', file: 'scripts/build-content.ts', what: 'The build-time validator for the content snapshot.' },
@@ -58,11 +55,6 @@ const SOURCES = [
   { id: 'src-accuracy', file: 'docs/content-accuracy.md', what: 'The accuracy check of the Block theme lessons (with -learner and -vibe-coder versions for the other paths).' },
   { id: 'src-vendor', file: 'vendor/course-xapi-mcp/', what: "The MCP course server: the standard's reference server, vendored, with its licence notes." },
 ] as const;
-
-const sources = () =>
-  [...SOURCES]
-    .filter((s) => phaseOn('officialRecord') || (s.id !== 'src-lrs' && s.id !== 'src-ledger'))
-    .filter((s) => !FEATURES.agentOnStandard || s.id !== 'src-relay');
 
 const blob = (file: string) => file.startsWith('https://') ? file : `${REPO_URL}/${file.endsWith('/') ? 'tree' : 'blob'}/main/${file.replace(/\/$/, '')}`;
 
@@ -91,9 +83,6 @@ function Band({ id, title, dark, children }: { id: string; title: ComponentChild
 /** /proposal: for the Training Team and leadership, written like a Make/Training post (spec §2, §3). */
 export function Proposal() {
   usePageTitle('The proposal');
-  const shadow = phaseOn('lrsShadow');
-  const official = phaseOn('officialRecord');
-  const final = phaseOn('badges');
   return (
     <div class="proposal-page">
       <section class="band band--light" aria-labelledby="proposal-page-title">
@@ -179,106 +168,70 @@ export function Proposal() {
       <Band id="phases-title" title="A phased path onto Learn">
         <p>
           None of this needs Learn to be rebuilt. Each phase is useful by itself, and the next one can wait.
-          {final && ' Phases 1 to 3 below are no longer only proposed: each is running in this concept, with a link to where you can see it.'}
+          {' Phases 1 to 3 below are no longer only proposed: each is running in this concept, with a link to where you can see it.'}
         </p>
         <h3>Phase 1: a tutor and placement beside Sensei</h3>
         <p>
-          {FEATURES.wordpressContent ? (
-            <>
-              Lessons live in Sensei, written and reviewed as they are now. In this concept they do: all 18 are stored in
-              Sensei, and you can read each one on <a href={BACKEND_VIEW_PATH}>the backend view</a>.
-            </>
-          ) : (
-            'Lessons stay in Sensei, written and reviewed as they are now.'
-          )}{' '}
+          Lessons live in Sensei, written and reviewed as they are now. In this concept they do: all 18 are stored in
+          Sensei, and you can read each one on <a href={BACKEND_VIEW_PATH}>the backend view</a>.{' '}
           A tutor sits beside each lesson, grounded in that
           lesson's own text, and links back to the lesson or the Developer Handbook when it isn't sure. A placement chat
           recommends a pathway course and a starting lesson. The only new content is a short note per course saying who it
           suits.
-          {FEATURES.senseiLearners
-            ? ` You get an anonymous account on the course server: a random id, no email and no password.${shadow ? '' : ' Your progress record stays in your browser.'}`
-            : " Progress stays in the learner's browser, so no accounts are needed."}{' '}
+          {' You get an anonymous account on the course server: a random id, no email and no password.'}{' '}
           If the AI is down,
           the lessons read exactly as they do today.
-          {FEATURES.wordpressContent &&
-            " The tutor and placement are running in this concept. What isn't shown is Sensei progress (phase 3 below) and the Training Team's review of these lessons."}
+          {" The tutor and placement are running in this concept. What isn't shown is Sensei progress (phase 3 below) and the Training Team's review of these lessons."}
         </p>
-        {final && (
-          <p>
-            See it: start the placement chat, then read the same lesson on <a href={BACKEND_VIEW_PATH}>the backend view</a>,
-            read from Sensei, with no AI and no branching.
-          </p>
-        )}
-        {official ? (
-          <>
-            <h3>Phase 2: the record in a store, not in the browser</h3>
-            <p>
-              In this concept the learner's record is written by the course server to a separate learning record store, and
-              read back into the studio. The store is a separate WordPress install running the open Learning Ledger plugin,
-              which is how a busy record store would be run next to a busy Learn site. The browser keeps a working copy only.
-              Not built: linking the anonymous record to a WordPress.org account. One open question remains there: a record
-              under an anonymous ID can't be rewritten, so linking it to a profile needs an agreed approach, such as a signed
-              "linked" statement.
-            </p>
-            {final && <p>See it: open the record menu, then the record on the record store's own page.</p>}
-            <h3>Phase 3: Sensei progress</h3>
-            <p>
-              In this concept, finishing a lesson in the studio{FEATURES.agentOnStandard ? ', or in an agent,' : ''} marks it complete for that learner in
-              Sensei, through the record store, with skipped lessons marked complete and recorded as "tested out". Sensei has
-              no REST route for this, so the plugin calls Sensei's PHP from inside WordPress. A real Learn adoption would need
-              the Sensei maintainers' view on that, on lesson progress having only "in progress" and "complete", and on
-              whether "tested out" belongs in Sensei itself.
-            </p>
-            {final && <p>See it: finish a lesson, then open 'What Sensei sees'.</p>}
-          </>
-        ) : (
-          <>
-          <h3>{FEATURES.senseiLearners ? 'Phase 2: keep the record, with or without a login' : 'Phase 2: keep the record with a WordPress.org login'}</h3>
-          <p>
-            The learning record goes through a small <Cite to="src-store-if">record store interface</Cite>. Today it has a
-            browser store, a local folder and the agent relay. A WordPress.org account adapter, signing in with WordPress.org,
-            would sync the same record to the learner's profile across devices (
-            <Cite to="src-spec">spec, section 3a</Cite>). It isn't built. One open question: the record's xAPI statements use
-            an anonymous actor and can't be rewritten, so linking them to an account needs an agreed approach, such as a
-            signed "linked" statement.
-            {FEATURES.senseiLearners &&
-              " In this concept the learner already has an anonymous account that Sensei tracks. What's still open is only the harder step, linking it to a WordPress.org login."}
-          </p>
-          <h3>Phase 3: Sensei progress</h3>
-          <p>
-            Once a learner is signed in, completed lessons and passed checkpoints could be written to their Sensei progress,
-            so the two views agree. This depends on what Sensei can accept, and would need its maintainers' input.
-          </p>
-          </>
-        )}
+        <p>
+          See it: start the placement chat, then read the same lesson on <a href={BACKEND_VIEW_PATH}>the backend view</a>,
+          read from Sensei, with no AI and no branching.
+        </p>
+        <h3>Phase 2: the record in a store, not in the browser</h3>
+        <p>
+          In this concept the learner's record is written by the course server to a separate learning record store, and
+          read back into the studio. The store is a separate WordPress install running the open Learning Ledger plugin,
+          which is how a busy record store would be run next to a busy Learn site. The browser keeps a working copy only.
+          Not built: linking the anonymous record to a WordPress.org account. One open question remains there: a record
+          under an anonymous ID can't be rewritten, so linking it to a profile needs an agreed approach, such as a signed
+          "linked" statement.
+        </p>
+        <p>See it: open the record menu, then the record on the record store's own page.</p>
+        <h3>Phase 3: Sensei progress</h3>
+        <p>
+          In this concept, finishing a lesson in the studio, or in an agent, marks it complete for that learner in
+          Sensei, through the record store, with skipped lessons marked complete and recorded as "tested out". Sensei has
+          no REST route for this, so the plugin calls Sensei's PHP from inside WordPress. A real Learn adoption would need
+          the Sensei maintainers' view on that, on lesson progress having only "in progress" and "complete", and on
+          whether "tested out" belongs in Sensei itself.
+        </p>
+        <p>See it: finish a lesson, then open 'What Sensei sees'.</p>
       </Band>
 
-      {final && (
-        <Band id="stack-title" title="The standard, the plugin and the record store" dark>
-          <p>
-            <strong>A standard, so the course isn't tied to this site.</strong> The course is described in{' '}
-            <a href="https://course-xapi-mcp.sqwrlz.com/">course-xapi-mcp</a>, an open specification built on cmi5 for
-            courses a learner takes in their own agent. A course server written to it can serve any course package, and any
-            compliant agent can take any such course. We believe this is the right layer for Learn to adopt rather than a
-            site-specific API. The standard is by the same author as this concept and has not been reviewed outside it. This
-            site's course server is its <Cite to="src-vendor">reference server</Cite>.
-          </p>
-          <p>
-            <strong>A plugin, so Sensei doesn't change.</strong> <a href="https://github.com/derintolu/learning-ledger">Learning Ledger</a>{' '}
-            is a WordPress plugin with two roles that can run on the same or different installs: a record store (an xAPI
-            endpoint with badge issuing), and a connector that applies the store's records to an LMS. It has a built-in
-            Sensei integration, and puts the checkpoints and planted bugs in lessons as blocks. In this concept it runs in
-            both roles, on two installs. Other LMS integrations are on its roadmap and aren't built. Nothing in Sensei is
-            patched.
-          </p>
-          <p>
-            <strong>Why the record store is separate.</strong> A record store takes many small writes. The recommended
-            setup is to run it apart from the site learners read, so a busy store can't slow lessons. The concept runs it
-            that way, on its own address, and the same address is the identity that signs the badges, so that address has
-            to stay registered.
-          </p>
-        </Band>
-      )}
+      <Band id="stack-title" title="The standard, the plugin and the record store" dark>
+        <p>
+          <strong>A standard, so the course isn't tied to this site.</strong> The course is described in{' '}
+          <a href="https://course-xapi-mcp.sqwrlz.com/">course-xapi-mcp</a>, an open specification built on cmi5 for
+          courses a learner takes in their own agent. A course server written to it can serve any course package, and any
+          compliant agent can take any such course. We believe this is the right layer for Learn to adopt rather than a
+          site-specific API. The standard is by the same author as this concept and has not been reviewed outside it. This
+          site's course server is its <Cite to="src-vendor">reference server</Cite>.
+        </p>
+        <p>
+          <strong>A plugin, so Sensei doesn't change.</strong> <a href="https://github.com/derintolu/learning-ledger">Learning Ledger</a>{' '}
+          is a WordPress plugin with two roles that can run on the same or different installs: a record store (an xAPI
+          endpoint with badge issuing), and a connector that applies the store's records to an LMS. It has a built-in
+          Sensei integration, and puts the checkpoints and planted bugs in lessons as blocks. In this concept it runs in
+          both roles, on two installs. Other LMS integrations are on its roadmap and aren't built. Nothing in Sensei is
+          patched.
+        </p>
+        <p>
+          <strong>Why the record store is separate.</strong> A record store takes many small writes. The recommended
+          setup is to run it apart from the site learners read, so a busy store can't slow lessons. The concept runs it
+          that way, on its own address, and the same address is the identity that signs the badges, so that address has
+          to stay registered.
+        </p>
+      </Band>
 
       <Band id="workflow-title" title="How authored branching fits the content workflow" dark>
         <p>
@@ -322,7 +275,7 @@ export function Proposal() {
           <Cite to="src-budget">the budget code</Cite>). At the cap, the AI features switch to their no-AI versions until the
           next day or month (UTC). Learners who bring their own AI aren't affected: their AI does the thinking on their
           own subscription, and no model runs on this site's account.
-          {final && ' The record store, Sensei and the sign-in add no model cost; they are plain hosting.'}
+          {' The record store, Sensei and the sign-in add no model cost; they are plain hosting.'}
         </p>
         <h3>Privacy</h3>
         <ul>
@@ -330,51 +283,25 @@ export function Proposal() {
             The record's xAPI statements use an anonymous actor, a random ID with no name or email (
             <Cite to="src-record">the record format</Cite>).
           </li>
-          {official ? (
-            <>
-              <li>
-                The official record is stored on our servers under a random ID, with no name or email. It includes the
-                answers a learner types to checkpoints, in their own words, because the record, and later a badge, link to
-                that evidence.
-              </li>
-              <li>It is kept in a separate store at {LRS_HOST}, owned by the same person, with no third-party analytics.</li>
-              <li>A learner who is idle for {RETENTION_DAYS} days is deleted.</li>
-              <li>
-                A learner can download their record at any time and delete it at any time from the record menu. Deleting
-                removes the statements, files, Sensei user and progress, and connected agents.
-              </li>
-            </>
-          ) : (
-            <>
-              <li>
-                The record lives in the learner's browser, or in a folder they pick, and they can download or restore it at
-                any time.
-                {FEATURES.sessions && !FEATURES.senseiLearners &&
-                  ' The server keeps only a random session, with no name or email, and the learner can delete it from the record menu.'}
-                {!shadow && " The record isn't kept on a server unless they opt in to the relay below."}
-              </li>
-              {shadow && <li>{SHADOW_COPY}</li>}
-            </>
-          )}
-          {!FEATURES.agentOnStandard && (
           <li>
-            For AI apps on the web, which can't read local files, the learner can opt in to a relay. It keeps a copy under a random
-            handle, stores no personal data, expires after {RELAY_DAYS} days without use, and can be deleted at any time (
-            <Cite to="src-relay">the relay</Cite>).
+            The official record is stored on our servers under a random ID, with no name or email. It includes the
+            answers a learner types to checkpoints, in their own words, because the record, and later a badge, link to
+            that evidence.
           </li>
-          )}
-          {final && (
-            <li>
-              Deleting your data revokes any badges you claimed, and a revoked badge stops verifying. We don't revoke badges
-              when a learner just goes idle.
-            </li>
-          )}
-          {FEATURES.senseiLearners && (
-            <li>
-              The server keeps a random session and an anonymous Sensei user with no name or email, and the learner can
-              delete both from the record menu.
-            </li>
-          )}
+          <li>It is kept in a separate store at {LRS_HOST}, owned by the same person, with no third-party analytics.</li>
+          <li>A learner who is idle for {RETENTION_DAYS} days is deleted.</li>
+          <li>
+            A learner can download their record at any time and delete it at any time from the record menu. Deleting
+            removes the statements, files, Sensei user and progress, and connected agents.
+          </li>
+          <li>
+            Deleting your data revokes any badges you claimed, and a revoked badge stops verifying. We don't revoke badges
+            when a learner just goes idle.
+          </li>
+          <li>
+            The server keeps a random session and an anonymous Sensei user with no name or email, and the learner can
+            delete both from the record menu.
+          </li>
           <li>What a learner types to the AI is sent to the model provider to get a reply.</li>
         </ul>
         <h3>Accessibility</h3>
@@ -387,9 +314,9 @@ export function Proposal() {
         <h3>Upkeep</h3>
         <ul>
           <li>
-            {FEATURES.wordpressContent
-              ? 'Lessons, checkpoints and planted bugs are authored in Sensei and exported to a committed snapshot, which is checked at build time, so a broken reference fails the build rather than the learner. Because the content is edited in wp-admin, the accuracy notes have to be updated in the same snapshot commit as any edit.'
-              : 'Lessons, checkpoints and planted bugs are plain YAML files, checked at build time, so a broken reference fails the build rather than the learner.'}
+            Lessons, checkpoints and planted bugs are authored in Sensei and exported to a committed snapshot, which is
+            checked at build time, so a broken reference fails the build rather than the learner. Because the content is
+            edited in wp-admin, the accuracy notes have to be updated in the same snapshot commit as any edit.
           </li>
           <li>
             Code checks are deterministic: text that must or mustn't be there, patterns, and values in JSON (
@@ -423,22 +350,13 @@ export function Proposal() {
             resets, and open models need more care. In testing, the model best at judging gave away a solution when asked,
             so the tutor runs on a different model (<Cite to="src-eval">the evaluation</Cite>).
           </li>
-          {FEATURES.senseiLearners ? (
-            <li>
-              <strong>An anonymous account, not a sign-up.</strong> Learners start with no form. The first recorded step
-              creates a Sensei user with a random ID and no email, and the learner can delete it. <em>The cost:</em> the
-              site now holds a server-side user for every learner who starts, which needs rate limits and a clean-up rule,
-              and progress still doesn't follow a learner between devices unless they move the file. An optional "keep my
-              progress" by email link is a possible next step, and isn't built.
-            </li>
-          ) : (
-            <li>
-              <strong>A record the learner keeps, instead of accounts.</strong> No sign-up, and no personal data held.{' '}
-              <em>The cost:</em> progress doesn't follow a learner between devices unless they move the file. Clearing browser
-              data loses it unless they saved it to a folder or downloaded it. Saving to a folder only works in Chromium
-              browsers.
-            </li>
-          )}
+          <li>
+            <strong>An anonymous account, not a sign-up.</strong> Learners start with no form. The first recorded step
+            creates a Sensei user with a random ID and no email, and the learner can delete it. <em>The cost:</em> the
+            site now holds a server-side user for every learner who starts, which needs rate limits and a clean-up rule,
+            and progress still doesn't follow a learner between devices unless they move the file. An optional "keep my
+            progress" by email link is a possible next step, and isn't built.
+          </li>
           <li>
             <strong>Planted bugs are written ahead of time, not generated live.</strong> The snippet is AI-written, and a
             course author plants one bug, so every learner gets the same reliable mistake and the checks for the fix can be
@@ -459,29 +377,19 @@ export function Proposal() {
             written in an unexpected way can fail until an author widens the check, and a pass shows the code has the right
             shape, not that it runs. The live Playground preview shows the result, but it doesn't grade it.
           </li>
-          {official && (
-            <li>
-              <strong>A separate record store.</strong> The official record is kept apart from Sensei and from the learner.
-              Only the course server writes it, so a browser, or an agent, can't make it say something the server didn't
-              decide. <em>The cost:</em> a second WordPress install to run, an outbox so that a slow store doesn't slow the
-              lesson, and Sensei lagging the store by a short while. A daily check compares the two and reports any
-              difference.
-            </li>
-          )}
-          {FEATURES.agentOnStandard ? (
-            <li>
-              <strong>Agents sign in, instead of holding a handle.</strong> An agent connects with MCP authorization, the
-              same standard sign-in other MCP servers use, and the learner approves it on a page that already knows who
-              they are. <em>The cost:</em> an authorization server to run, and not every MCP client supports the flow; the
-              Connect page says which ones passed. We don't fall back to a secret handle.
-            </li>
-          ) : (
           <li>
-            <strong>The record handle is the only key to an agent record.</strong> There are no logins for the relay, so
-            there's nothing personal to leak. <em>The cost:</em> anyone who has a learner's handle can read that record. The
-            relay is rate-limited, but the handle has to be kept private, like a password.
+            <strong>A separate record store.</strong> The official record is kept apart from Sensei and from the learner.
+            Only the course server writes it, so a browser, or an agent, can't make it say something the server didn't
+            decide. <em>The cost:</em> a second WordPress install to run, an outbox so that a slow store doesn't slow the
+            lesson, and Sensei lagging the store by a short while. A daily check compares the two and reports any
+            difference.
           </li>
-          )}
+          <li>
+            <strong>Agents sign in, instead of holding a handle.</strong> An agent connects with MCP authorization, the
+            same standard sign-in other MCP servers use, and the learner approves it on a page that already knows who
+            they are. <em>The cost:</em> an authorization server to run, and not every MCP client supports the flow; the
+            Connect page says which ones passed. We don't fall back to a secret handle.
+          </li>
         </ul>
       </Band>
 
@@ -492,7 +400,7 @@ export function Proposal() {
           Training Team and its contributors.
         </p>
         <ol class="prose__sources">
-          {sources().map((s) => (
+          {SOURCES.map((s) => (
             <li id={s.id} key={s.id} tabIndex={-1}>
               <a href={blob(s.file)}>
                 <code>{s.file}</code>

@@ -7,7 +7,6 @@ import { preloadCodeEditor } from '../components/LazyCodeEditor';
 import { CarryOverOffer } from '../components/CarryOverOffer';
 import { CompletedSummary } from '../components/CompletedSummary';
 import { RESTORED_EVENT, SaveWarning } from '../components/RecordPanel';
-import { FEATURES, phaseOn } from '../config';
 import { adoptPending, content, prefetchLatest } from '../content';
 import { getEventClient } from '../record/eventClient';
 import { peekRecordManager, useRecord } from '../record/useRecord';
@@ -36,13 +35,13 @@ export function Lesson() {
   }, []);
   // A newer course bundle is adopted when a lesson opens (a new id), never on a restart or restore of the open one.
   const openedId = useRef<string | null>(null);
-  if (FEATURES.wordpressContent && openedId.current !== params.lessonId) {
+  if (openedId.current !== params.lessonId) {
     openedId.current = params.lessonId;
     if (adoptPending()) peekRecordManager()?.setContent(content);
   }
   // Check for the next update in the background; it is adopted at the next lesson open.
   useEffect(() => {
-    if (FEATURES.wordpressContent) void prefetchLatest();
+    void prefetchLatest();
   }, [params.lessonId]);
   if (!has(content.lessons, params.lessonId)) return <NotFound />;
   const lesson = content.lessons[params.lessonId];
@@ -88,7 +87,7 @@ function LessonView({ lesson, onRestart }: { lesson: LessonT; onRestart: () => v
         manager.dispatch({ type: 'beatViewed', lessonId: lesson.id, beatIndex: 0 }).catch(() => {});
       }
       // AU session start for the course server; it never waits on the network.
-      if (FEATURES.serverEvents) getEventClient().lessonOpened(lesson.id);
+      getEventClient().lessonOpened(lesson.id);
     };
     manager.init().then(begin, begin);
     return () => {
@@ -233,14 +232,10 @@ function StudioLayout({ lesson, step, bugSolved, children }: { lesson: LessonT; 
       </a>
       <CourseBar lesson={lesson} narrow={narrow} />
       {/* Returning learners mostly land in the studio, so the carry-over offer shows here too, under the bar. */}
-      {phaseOn('officialRecord') ? (
-        <div class="studio-page__notices">
-          <SaveWarning />
-          <CarryOverOffer />
-        </div>
-      ) : (
+      <div class="studio-page__notices">
         <SaveWarning />
-      )}
+        <CarryOverOffer />
+      </div>
       <div class="studio">
         <div class="studio__pane studio__pane--outline" data-pane-id="outline" hidden={hide('outline')}>
           <Outline lesson={lesson} step={step} bugSolved={bugSolved} />

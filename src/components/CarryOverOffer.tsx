@@ -1,5 +1,4 @@
 import { useState } from 'preact/hooks';
-import { phaseOn } from '../config';
 import { useOfficialRecord } from '../record/official';
 import { ensureSession } from '../record/session';
 import { useRecord } from '../record/useRecord';
@@ -40,7 +39,7 @@ export const missingFromOfficial = (r: LearningRecord, official: OfficialRecord 
 
 /** Offers, once, to carry the old local record's progress into the official record. Nothing is sent until the learner agrees. */
 export function CarryOverOffer() {
-  return phaseOn('officialRecord') ? <Offer /> : null;
+  return <Offer />;
 }
 
 function Offer() {

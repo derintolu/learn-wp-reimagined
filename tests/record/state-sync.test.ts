@@ -1,16 +1,12 @@
 // @vitest-environment happy-dom
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import { FEATURES } from '../../src/config';
 import { content } from '../../src/content';
 import { STATE_DEBOUNCE_MS, fetchFilesState, notifyFileEdited, startStateSync, stateSyncMessage } from '../../src/record/stateSync';
 import { STATE_MAX_BYTES, STATE_TOO_BIG_MESSAGE, type FilesDoc, type ResumeDoc } from '../../src/shared/stateDoc';
 import { memoryManager } from '../components/helpers';
 import type { RecordManager } from '../../src/record/store';
-import { PHASES_OFF, phasesUpTo, restoreFlags, setFlags } from '../helpers/flags';
 
 vi.mock('../../src/record/session', () => ({ ensureSession: async () => ({ homePage: 'h', name: 'n' }) }));
-
-const flags = FEATURES as { officialRecord: boolean };
 const lessons = Object.keys(content.lessons);
 
 /** A course server holding the two State documents with ETags, as /api/state does. */
@@ -49,8 +45,6 @@ let stop: () => void;
 beforeEach(async () => {
   vi.useFakeTimers({ toFake: ['setTimeout', 'clearTimeout', 'Date'] });
   vi.setSystemTime(new Date('2026-10-28T10:00:00.000Z'));
-  setFlags(PHASES_OFF);
-  phasesUpTo('officialRecord');
   server = fakeServer();
   vi.stubGlobal('fetch', server.fetch);
   m = memoryManager(content);
@@ -59,7 +53,6 @@ beforeEach(async () => {
 });
 afterEach(() => {
   stop();
-  restoreFlags();
   vi.useRealTimers();
   vi.unstubAllGlobals();
 });
@@ -69,18 +62,9 @@ const edit = async (file: string, text: string, lessonId = lessons[0]) => {
   notifyFileEdited(file);
 };
 const settle = (ms: number) => vi.advanceTimersByTimeAsync(ms);
-const stateCalls = () => server.fetch.mock.calls.filter((c) => String(c[0]).startsWith('/api/state/'));
 const filesPuts = () => server.puts.filter((p) => p.kind === 'files');
 
 describe('startStateSync', () => {
-  it('does nothing with the flag off', async () => {
-    stop();
-    setFlags({ officialRecord: false });
-    stop = startStateSync(m);
-    await edit('a.css', 'x');
-    await settle(STATE_DEBOUNCE_MS * 3);
-    expect(stateCalls()).toHaveLength(0);
-  });
 
   it('sync waits 2 s after the last edit', async () => {
     expect(STATE_DEBOUNCE_MS).toBe(2000);
@@ -242,16 +226,12 @@ describe('startStateSync', () => {
 });
 
 describe('fetchFilesState', () => {
-  it('returns the stored files document, or null when there is none or the flag is off', async () => {
+  it('returns the stored files document, or null when there is none or it is unreadable', async () => {
     expect(await fetchFilesState()).toBeNull();
     server.docs.files = { files: { 'a.css': 'x' } };
     server.version.files = 1;
     expect(await fetchFilesState()).toEqual({ files: { 'a.css': 'x' } });
     server.docs.files = { files: 5 };
     expect(await fetchFilesState()).toBeNull();
-    setFlags({ officialRecord: false });
-    server.fetch.mockClear();
-    expect(await fetchFilesState()).toBeNull();
-    expect(stateCalls()).toHaveLength(0);
   });
 });

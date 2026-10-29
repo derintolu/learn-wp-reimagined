@@ -1,14 +1,11 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import { SERVER_FLAGS } from '../../functions/_lib/config';
-import { PHASES_OFF, restoreServerFlags, setServerFlags } from '../helpers/flags';
 import { createSqliteD1 } from '../../dev/sqliteD1';
 import { ensureSchema } from '../../functions/_lib/db';
 import type { Env } from '../../functions/_lib/env';
-import { POST as createSession } from '../../functions/api/session';
-import { SESSION_COOKIE } from '../../functions/_lib/session/session';
+import { createSession } from '../../functions/_lib/session/session';
 import { GET, PUT, STATE_MAX_BYTES } from '../../functions/api/state';
 import { lrsHealth } from '../../functions/_lib/record/registration';
-import { fakeLrs } from '../helpers/fakeLrs';
+import { LEDGER_ENV, fakeLrs } from '../helpers/fakeLrs';
 
 let env: Env;
 let lrs: ReturnType<typeof fakeLrs>;
@@ -17,17 +14,14 @@ const ctx = (kind = 'files') => ({ params: { kind }, env });
 const url = (kind = 'files') => `http://x/api/state/${kind}`;
 
 beforeEach(async () => {
-  setServerFlags({ ...PHASES_OFF, sessions: true, officialRecord: true });
-  env = { DB: createSqliteD1(), SESSION_KEY: 'test-session-key-not-a-secret', LRS_KEY: 'ck_test', LRS_SECRET: 'cs_test' };
+  env = { DB: createSqliteD1(), SESSION_KEY: 'test-session-key-not-a-secret', LRS_KEY: 'ck_test', LRS_SECRET: 'cs_test', ...LEDGER_ENV };
   await ensureSchema(env.DB);
   lrs = fakeLrs();
   vi.stubGlobal('fetch', lrs.fetch);
   lrsHealth.downUntil = 0;
-  const res = await createSession(new Request('http://x/api/session', { method: 'POST', headers: { 'cf-connecting-ip': '10.0.0.1' } }), ctx());
-  cookie = `${SESSION_COOKIE}=${res.headers.get('set-cookie')!.split(';')[0].split('=').slice(1).join('=')}`;
+  cookie = (await createSession(env, Date.now())).cookie.split(';')[0];
 });
 afterEach(() => {
-  restoreServerFlags();
   vi.unstubAllGlobals();
 });
 
@@ -37,13 +31,6 @@ const put = (body: unknown, headers: Record<string, string> = {}, kind = 'files'
 const doc = (files: Record<string, string>) => ({ files, times: Object.fromEntries(Object.keys(files).map((f) => [f, '2026-10-28T10:00:00.000Z'])) });
 
 describe('/api/state', () => {
-  it('answers 404 with the flag off', async () => {
-    SERVER_FLAGS.officialRecord = false;
-    expect((await get()).status).toBe(404);
-    expect((await put(doc({ a: '1' }))).status).toBe(404);
-    expect(lrs.calls).toHaveLength(0);
-  });
-
   it('404 for an unknown kind, 401 without a session', async () => {
     expect((await get('other')).status).toBe(404);
     expect((await get('files', null)).status).toBe(401);

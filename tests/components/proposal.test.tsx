@@ -1,24 +1,15 @@
 // @vitest-environment happy-dom
-import { afterEach, beforeEach, describe, expect, it } from 'vitest';
+import { afterEach, describe, expect, it } from 'vitest';
 import { existsSync, readFileSync } from 'node:fs';
 import { cleanup, render, screen } from '@testing-library/preact';
 import { Proposal } from '../../src/pages/Proposal';
-import { FEATURES, REPO_URL } from '../../src/config';
+import { REPO_URL } from '../../src/config';
 import { BACKEND_VIEW_PATH, COST_PER_1000_LEARNERS_USD, LRS_HOST, RETENTION_DAYS, SENSEI_VERSION } from '../../src/shared/course-meta';
 import { REVIEW_DISCLAIMER } from '../../src/studio/Feed';
 import { DAY_CAP_MICROS, MONTH_CAP_MICROS } from '../../functions/_lib/budget';
-import { MCP_TTL_MS } from '../../functions/_lib/mcp/recordStore';
-import { PHASES_OFF, phasesUpTo, restoreFlags, setFlags } from '../helpers/flags';
-import { SHADOW_COPY } from '../../src/pages/copy';
 
-// Every test starts from lessons on Sensei with sessions on and every later phase off (how config.ts ships
-// the flags is asserted once, in tests/config-defaults.test.ts); a test that needs another state sets it.
-beforeEach(() => {
-  setFlags({ wordpressContent: true, sessions: true, ...PHASES_OFF });
-});
 afterEach(() => {
   cleanup();
-  restoreFlags();
 });
 
 const SOURCE = readFileSync('src/pages/Proposal.tsx', 'utf8');
@@ -28,13 +19,14 @@ const SECTIONS = [
   'The gap',
   'What the demo proves',
   'A phased path onto Learn',
+  'The standard, the plugin and the record store',
   'How authored branching fits the content workflow',
   'Cost, privacy, accessibility and upkeep',
   'Design decisions',
 ];
 
 describe('/proposal', () => {
-  it('renders h1 and the six section headings in order', () => {
+  it('renders h1 and the seven section headings in order', () => {
     const { container } = render(<Proposal />);
     expect(screen.getByRole('heading', { level: 1 }).textContent).toBe('The proposal');
     const h2s = Array.from(container.querySelectorAll('h2')).map((h) => h.textContent);
@@ -79,7 +71,6 @@ describe('/proposal', () => {
     expect(t).toContain('roughly 20,000 learners');
     expect(t).toContain(`$${MONTH_CAP_MICROS / 1_000_000} a month`);
     expect(t).toContain(`$${DAY_CAP_MICROS / 1_000_000} a day`);
-    expect(t).toContain(`${MCP_TTL_MS / 86_400_000} days`);
   });
 
   it('credits the Training Team, states the disclaimers and links its sources', () => {
@@ -92,7 +83,7 @@ describe('/proposal', () => {
     expect(hrefs).toContain(REPO_URL);
     expect(hrefs).toContain('/how-it-works');
     expect(hrefs).toContain('/connect');
-    for (const f of ['docs/model-eval.md', 'functions/_lib/budget.ts', 'docs/record-format.md', 'functions/_lib/mcp/practiceStore.ts', 'scripts/build-content.ts']) {
+    for (const f of ['docs/model-eval.md', 'functions/_lib/budget.ts', 'docs/record-format.md', 'scripts/build-content.ts']) {
       expect(t).toContain(f);
     }
   });
@@ -140,9 +131,7 @@ describe('/proposal', () => {
   });
 });
 
-describe('/proposal with the Sensei content flag', () => {
-  const flags = FEATURES as { wordpressContent: boolean };
-  const view = () => render(<Proposal />);
+describe('/proposal: Sensei', () => {
   const hrefs = (c: Element) => Array.from(c.querySelectorAll('a')).map((a) => a.getAttribute('href'));
 
   it('pins the Sensei version and the block-theme backend view', () => {
@@ -150,30 +139,19 @@ describe('/proposal with the Sensei content flag', () => {
     expect(BACKEND_VIEW_PATH).toBe('/backend/block-theme');
   });
 
-  it('off: no Sensei backend copy and no backend-view link', () => {
-    flags.wordpressContent = false;
-    const { container } = view();
-    expect(text()).not.toContain('backend view');
-    expect(text()).not.toContain(SENSEI_VERSION);
-    expect(hrefs(container)).not.toContain(BACKEND_VIEW_PATH);
-    expect(text()).toContain('Lessons stay in Sensei, written and reviewed as they are now.');
-  });
-
-  it('on: links the backend view, and the new copy has no emoji', () => {
-    flags.wordpressContent = true;
-    const { container } = view();
+  it('links the backend view, and the copy has no emoji', () => {
+    const { container } = render(<Proposal />);
     expect(hrefs(container)).toContain(BACKEND_VIEW_PATH);
     expect(screen.getAllByRole('link', { name: /^the backend view/ }).length).toBeGreaterThan(0);
     expect(text()).not.toMatch(/\p{Extended_Pictographic}/u);
-    // An app route now: opens in the same tab through the router, so no target.
+    // An app route: opens in the same tab through the router, so no target.
     const link = container.querySelector(`a[href="${BACKEND_VIEW_PATH}"]`)!;
     expect(link.getAttribute('target')).toBeNull();
     expect(link.textContent).not.toContain('opens in a new tab');
   });
 
-  it('on: phase 1 says lessons live in Sensei, upkeep and sources follow the snapshot', () => {
-    flags.wordpressContent = true;
-    view();
+  it('phase 1 says lessons live in Sensei, upkeep and sources follow the snapshot', () => {
+    render(<Proposal />);
     const t = text();
     expect(t).toContain('Lessons live in Sensei, written and reviewed as they are now. In this concept they do: all 18 are stored in Sensei');
     expect(t).not.toContain('Lessons stay in Sensei');
@@ -186,164 +164,64 @@ describe('/proposal with the Sensei content flag', () => {
   });
 });
 
-const PRIVACY_SESSION = 'The server keeps only a random session, with no name or email, and the learner can delete it from the record menu.';
-
-describe('/proposal with sessions (phase 2)', () => {
-  it('on: the approved Privacy sentence between the record and the relay lines', () => {
-    setFlags({ sessions: true });
-    render(<Proposal />);
-    expect(text()).toContain(
-      `The record lives in the learner's browser, or in a folder they pick, and they can download or restore it at any time. ${PRIVACY_SESSION} The record isn't kept on a server unless they opt in to the relay below.`,
-    );
-  });
-
-  it('off: the sentence is absent', () => {
-    setFlags({ sessions: false });
-    render(<Proposal />);
-    expect(text()).not.toContain(PRIVACY_SESSION);
-    expect(text()).toContain("at any time. The record isn't kept on a server unless they opt in to the relay below.");
-  });
-
-  it('senseiLearners replaces it with the session-and-Sensei-user sentence', () => {
-    setFlags({ senseiLearners: true });
-    render(<Proposal />);
-    expect(text()).not.toContain(PRIVACY_SESSION);
-    expect(text()).toContain('The server keeps a random session and an anonymous Sensei user with no name or email');
-  });
-});
-
-describe('/proposal with the anonymous-accounts flag', () => {
-  const flags = FEATURES as { senseiLearners: boolean };
-
-  it('off: the keep-your-own-record decision, privacy line and phase 2 heading, unchanged', () => {
-    flags.senseiLearners = false;
-    render(<Proposal />);
-    const t = text();
-    expect(t).toContain('A record the learner keeps, instead of accounts. No sign-up, and no personal data held.');
-    expect(t).toContain('Phase 2: keep the record with a WordPress.org login');
-    expect(t).not.toContain('An anonymous account, not a sign-up.');
-    expect(t).not.toContain('anonymous Sensei user');
-    expect(t).toContain("Progress stays in the learner's browser, so no accounts are needed. If the AI is down, the lessons read exactly as they do today.");
-  });
-
-  it('on: the anonymous-user decision, privacy line and phase 2 copy, verbatim', () => {
-    flags.senseiLearners = true;
+describe('/proposal: accounts and privacy', () => {
+  it('the anonymous-user decision and privacy line, verbatim, and no browser-only or relay copy', () => {
     render(<Proposal />);
     const t = text();
     expect(t).toContain(
       "An anonymous account, not a sign-up. Learners start with no form. The first recorded step creates a Sensei user with a random ID and no email, and the learner can delete it. The cost: the site now holds a server-side user for every learner who starts, which needs rate limits and a clean-up rule, and progress still doesn't follow a learner between devices unless they move the file. An optional \"keep my progress\" by email link is a possible next step, and isn't built.",
     );
-    expect(t).not.toContain('instead of accounts');
-    expect(t).not.toContain('no accounts are needed');
-    expect(t).toContain('You get an anonymous account on the course server: a random id, no email and no password. Your progress record stays in your browser.');
-    expect(t).not.toContain("Progress stays in the learner's browser");
-    expect(t).toContain('If the AI is down, the lessons read exactly as they do today.');
+    expect(t).toContain('You get an anonymous account on the course server: a random id, no email and no password. If the AI is down, the lessons read exactly as they do today.');
     expect(t).toContain('The server keeps a random session and an anonymous Sensei user with no name or email, and the learner can delete both from the record menu.');
-    expect(t).toContain('Phase 2: keep the record, with or without a login');
-    expect(t).not.toContain('Phase 2: keep the record with a WordPress.org login');
-    expect(t).toContain("In this concept the learner already has an anonymous account that Sensei tracks. What's still open is only the harder step, linking it to a WordPress.org login.");
+    for (const gone of [
+      'instead of accounts',
+      'no accounts are needed',
+      "Progress stays in the learner's browser",
+      'Your progress record stays in your browser.',
+      "The record lives in the learner's browser",
+      "The record isn't kept on a server",
+      'The server keeps only a random session',
+      'opt in to a relay',
+      'a second server',
+      'Phase 2: keep the record',
+      'Once a learner is signed in',
+    ]) {
+      expect(t).not.toContain(gone);
+    }
     expect(t).not.toMatch(/\p{Extended_Pictographic}/u);
   });
-});
 
-describe('/proposal with the official-record flag', () => {
-  const flags = FEATURES as { officialRecord: boolean; senseiLearners: boolean; wordpressContent: boolean };
-  const allOn = () => {
-    flags.officialRecord = true;
-    setFlags({ lrsShadow: true });
-    flags.senseiLearners = true;
-    flags.wordpressContent = true;
-  };
-
-  it('off: phases 2 and 3, privacy and decisions unchanged', () => {
-    flags.officialRecord = false;
-    render(<Proposal />);
-    const t = text();
-    expect(t).toContain('Phase 2: keep the record with a WordPress.org login');
-    expect(t).toContain('Phase 3: Sensei progress');
-    expect(t).toContain('The record lives in the learner\'s browser, or in a folder they pick');
-    expect(t).not.toContain('A separate record store.');
-    expect(t).not.toContain(LRS_HOST);
-    expect(t).not.toContain(`${RETENTION_DAYS} days`);
+  it('takes its numbers from course-meta', () => {
+    expect(RETENTION_DAYS).toBe(180);
+    expect(LRS_HOST).toBe('lrs.sqwrlz.com');
   });
 
-  it('on: phases 2 and 3, privacy and the new decision, verbatim, with numbers from course-meta', () => {
-    allOn();
-    render(<Proposal />);
+  it('phases 2 and 3, privacy and the record-store decision, verbatim, with numbers from course-meta', () => {
+    const { container } = render(<Proposal />);
     const t = text();
     expect(t).toContain('Phase 2: the record in a store, not in the browser');
     expect(t).toContain('Phase 3: Sensei progress');
     expect(t).toContain("In this concept the learner's record is written by the course server to a separate learning record store, and read back into the studio.");
     expect(t).toContain('a record under an anonymous ID can\'t be rewritten, so linking it to a profile needs an agreed approach, such as a signed "linked" statement.');
+    expect(t).toContain('In this concept, finishing a lesson in the studio, or in an agent, marks it complete for that learner in Sensei');
     expect(t).toContain('with skipped lessons marked complete and recorded as "tested out". Sensei has no REST route for this, so the plugin calls Sensei\'s PHP from inside WordPress.');
-    expect(t).not.toContain('Phase 2: keep the record');
-    expect(t).not.toContain('Once a learner is signed in');
     expect(t).toContain('The official record is stored on our servers under a random ID, with no name or email. It includes the answers a learner types to checkpoints, in their own words, because the record, and later a badge, link to that evidence.');
     expect(t).toContain(`It is kept in a separate store at ${LRS_HOST}, owned by the same person, with no third-party analytics.`);
     expect(t).toContain(`A learner who is idle for ${RETENTION_DAYS} days is deleted.`);
     expect(t).toContain('A learner can download their record at any time and delete it at any time from the record menu. Deleting removes the statements, files, Sensei user and progress, and connected agents.');
-    expect(t).not.toContain("The record lives in the learner's browser");
     expect(t).toContain('What a learner types to the AI is sent to the model provider to get a reply.');
     expect(t).toContain('A separate record store. The official record is kept apart from Sensei and from the learner.');
     expect(t).toContain('A daily check compares the two and reports any difference.');
-    expect(t).not.toMatch(/\p{Extended_Pictographic}/u);
-  });
-
-  it('on: phase 1 stops saying the record stays in the browser, and the new sources are cited', () => {
-    allOn();
-    const { container } = render(<Proposal />);
-    expect(text()).not.toContain('Your progress record stays in your browser.');
     const hrefs = Array.from(container.querySelectorAll('.prose__sources a')).map((a) => a.getAttribute('href'));
     expect(hrefs).toContain('https://github.com/derintolu/learning-ledger');
     expect(hrefs.some((h) => h!.endsWith('functions/_lib/lrs'))).toBe(true);
   });
-
-  it('on with every earlier phase on: the browser-only decision and phase 1 line are gone', () => {
-    allOn();
-    render(<Proposal />);
-    const t = text();
-    expect(t).not.toContain('A record the learner keeps, instead of accounts');
-    expect(t).not.toContain("Progress stays in the learner's browser");
-    expect(t).not.toContain("The record lives in the learner's browser");
-    expect(t).toContain('You get an anonymous account on the course server: a random id, no email and no password. If the AI is down');
-  });
-
-  it.each([
-    ['wordpressContent', { officialRecord: true, senseiLearners: true, wordpressContent: false }],
-    ['senseiLearners', { officialRecord: true, senseiLearners: false, wordpressContent: true }],
-    ['both', { officialRecord: true, senseiLearners: false, wordpressContent: false }],
-  ])('on with %s off: renders as the earlier phases say, with no phase 6 copy', (_n, set) => {
-    const base = (() => {
-      Object.assign(flags, { ...set, officialRecord: false });
-      const r = render(<Proposal />);
-      const x = text();
-      r.unmount();
-      return x;
-    })();
-    Object.assign(flags, set);
-    render(<Proposal />);
-    expect(text()).toBe(base);
-    expect(text()).not.toContain(LRS_HOST);
-  });
 });
 
 describe('/proposal final rewrite (phase 8)', () => {
-  const flags = FEATURES as { officialRecord: boolean; senseiLearners: boolean; wordpressContent: boolean; badges: boolean; agentOnStandard: boolean };
-  const allOn = () => {
-    flags.officialRecord = true;
-    setFlags({ lrsShadow: true });
-    flags.senseiLearners = true;
-    flags.wordpressContent = true;
-    flags.badges = true;
-  };
-
   const REVOKED = 'Deleting your data revokes any badges you claimed, and a revoked badge stops verifying.';
 
-  it.each([
-    ['today', () => {}],
-    ['every flag on', () => { allOn(); flags.agentOnStandard = true; }],
-  ])('%s: every source listed is a file or folder that exists, and every Cite resolves to one', (_n, set) => {
-    set();
+  it('every source listed is a file or folder that exists, and every Cite resolves to one', () => {
     const { container } = render(<Proposal />);
     const items = Array.from(container.querySelectorAll('.prose__sources li'));
     expect(items.length).toBeGreaterThan(5);
@@ -355,17 +233,10 @@ describe('/proposal final rewrite (phase 8)', () => {
     for (const a of Array.from(container.querySelectorAll('a.prose__cite'))) expect(ids.has(a.getAttribute('href')!.slice(1)), a.textContent ?? '').toBe(true);
     expect(text()).not.toContain('vendor/learning-mcp');
     expect(text()).not.toContain('functions/_lib/mcp/recordStore.ts');
+    expect(text()).not.toContain('practiceStore');
   });
 
-  it('off: none of the phase 8 copy renders', () => {
-    setFlags({ officialRecord: true, lrsShadow: true, senseiLearners: true, badges: false });
-    render(<Proposal />);
-    const t = text();
-    for (const s of ['no longer only proposed', 'A standard, so the course', 'A plugin, so Sensei', 'Why the record store is separate', 'revokes any badges', 'plain hosting']) expect(t).not.toContain(s);
-  });
-
-  it('on: phases 1 to 3 shown as running, the three new sections, and the revoked-badge sentence', () => {
-    allOn();
+  it('phases 1 to 3 shown as running, the three new sections, and the revoked-badge sentence', () => {
     const { container } = render(<Proposal />);
     const t = text();
     expect(t).toContain('Phases 1 to 3 below are no longer only proposed: each is running in this concept, with a link to where you can see it.');
@@ -389,66 +260,11 @@ describe('/proposal final rewrite (phase 8)', () => {
     expect(t).not.toMatch(/\p{Extended_Pictographic}/u);
   });
 
-  it('on with an earlier phase off: no phase 8 copy', () => {
-    allOn();
-    flags.officialRecord = false;
-    render(<Proposal />);
-    expect(text()).not.toContain('no longer only proposed');
-    expect(text()).not.toContain(REVOKED);
-  });
-
-  it('agentOnStandard replaces the handle decision; off keeps it', () => {
-    flags.agentOnStandard = false;
-    render(<Proposal />);
-    expect(text()).toContain('The record handle is the only key to an agent record.');
-    cleanup();
-    flags.agentOnStandard = true;
+  it('agents sign in: no handle decision', () => {
     render(<Proposal />);
     const t = text();
     expect(t).not.toContain('The record handle is the only key to an agent record.');
     expect(t).toContain('Agents sign in, instead of holding a handle.');
     expect(t).toContain('We don\'t fall back to a secret handle.');
-  });
-});
-
-describe('/proposal with the LRS shadow (phase 5)', () => {
-  it('on: the approved sentence in Privacy, and no line that says the record is on no server', () => {
-    phasesUpTo('lrsShadow');
-    render(<Proposal />);
-    const t = text();
-    expect(t).toContain(SHADOW_COPY);
-    expect(t).not.toContain("The record isn't kept on a server");
-    expect(t).not.toContain('Your progress record stays in your browser.');
-  });
-
-  it('off: unchanged', () => {
-    setFlags({ senseiLearners: true, wordpressContent: true, lrsShadow: false });
-    render(<Proposal />);
-    const t = text();
-    expect(t).not.toContain(SHADOW_COPY);
-    expect(t).toContain("The record isn't kept on a server unless they opt in to the relay below.");
-    expect(t).toContain('Your progress record stays in your browser.');
-  });
-
-  it('officialRecord on: the official Privacy list replaces it', () => {
-    phasesUpTo('officialRecord');
-    render(<Proposal />);
-    expect(text()).not.toContain(SHADOW_COPY);
-    expect(text()).toContain('The official record is stored on our servers under a random ID');
-  });
-});
-
-describe('/proposal Sensei progress line and agents (I10)', () => {
-  it('officialRecord on, agentOnStandard off: finishing in the studio only', () => {
-    phasesUpTo('officialRecord');
-    setFlags({ agentOnStandard: false });
-    render(<Proposal />);
-    expect(text()).toContain('In this concept, finishing a lesson in the studio marks it complete for that learner in Sensei');
-    expect(text()).not.toContain('or in an agent');
-  });
-  it('agentOnStandard on: the approved "or in an agent" line', () => {
-    phasesUpTo('agentOnStandard');
-    render(<Proposal />);
-    expect(text()).toContain('In this concept, finishing a lesson in the studio, or in an agent, marks it complete for that learner in Sensei');
   });
 });

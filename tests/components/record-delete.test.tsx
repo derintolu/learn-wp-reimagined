@@ -2,15 +2,12 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { cleanup, fireEvent, render, screen, waitFor, within } from '@testing-library/preact';
 import { LocationProvider } from 'preact-iso';
-import { FEATURES } from '../../src/config';
 import { content } from '../../src/content';
 import { RecordPanel } from '../../src/components/RecordPanel';
 import { resetSession } from '../../src/record/session';
 import { useFileEdits } from '../../src/record/useFileEdits';
 import { getRecordManager, setRecordManager } from '../../src/record/useRecord';
 import { memoryManager } from './helpers';
-
-const flags = FEATURES as { sessions: boolean };
 const lessonId = Object.keys(content.lessons)[0];
 const FAILED = "We couldn't delete your data. Nothing was changed. Try again later.";
 
@@ -38,28 +35,19 @@ async function openPanel() {
 }
 
 beforeEach(async () => {
-  flags.sessions = true;
   resetSession();
   const m = memoryManager(content);
   setRecordManager(m);
-  flags.sessions = false;
   await m.dispatch({ type: 'lessonCompleted', lessonId });
   await m.settled();
-  flags.sessions = true;
 });
 afterEach(() => {
   cleanup();
-  flags.sessions = false;
   setRecordManager(null);
   vi.unstubAllGlobals();
 });
 
 describe('Delete my data', () => {
-  it('is not offered while sessions are off', async () => {
-    flags.sessions = false;
-    const { panel } = await openPanel();
-    expect(within(panel).queryByRole('button', { name: 'Delete my data' })).toBeNull();
-  });
 
   it('is keyboard operable and returns focus', async () => {
     stubDelete(200);

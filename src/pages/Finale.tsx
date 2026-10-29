@@ -3,7 +3,6 @@ import { content } from '../content';
 import { useRecord } from '../record/useRecord';
 import { pathZip, resolveFiles } from '../finale/themeZip';
 import { PLAYGROUND_URL_LIMIT, playgroundUrl, recordWithStateFiles } from '../finale/playground';
-import { phaseOn } from '../config';
 import { fetchFilesState } from '../record/stateSync';
 import type { FilesDoc } from '../shared/stateDoc';
 import { Bubble } from '../components/Bubble';
@@ -152,7 +151,7 @@ function FinaleFor({ pathId }: { pathId: PathId }) {
   const [remote, setRemote] = useState<FilesDoc | null>(null);
   const noLocalFiles = Object.keys(record.files).length === 0;
   useEffect(() => {
-    if (!phaseOn('officialRecord') || !noLocalFiles) return;
+    if (!noLocalFiles) return;
     let live = true;
     fetchFilesState().then((d) => live && setRemote(d), () => {});
     return () => {

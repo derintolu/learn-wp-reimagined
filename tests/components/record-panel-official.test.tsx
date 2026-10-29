@@ -2,14 +2,10 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { cleanup, fireEvent, render, screen, waitFor, within } from '@testing-library/preact';
 import { LocationProvider } from 'preact-iso';
-import { FEATURES } from '../../src/config';
 import { content } from '../../src/content';
 import { RecordPanel } from '../../src/components/RecordPanel';
 import { setRecordManager } from '../../src/record/useRecord';
 import { memoryManager } from './helpers';
-import { phasesUpTo, restoreFlags } from '../helpers/flags';
-
-const flags = FEATURES as { officialRecord: boolean; senseiLearners: boolean; wordpressContent: boolean };
 const ids = Object.keys(content.lessons);
 const official = { completed: [ids[0], ids[1]], testedOut: [ids[2]], carriedOver: [], branches: [], badges: [], asOf: '2026-01-01T00:00:00.000Z' };
 
@@ -55,13 +51,11 @@ async function openPanel() {
 }
 
 beforeEach(() => {
-  phasesUpTo('officialRecord');
   setRecordManager(memoryManager(content));
   stub();
 });
 afterEach(() => {
   cleanup();
-  restoreFlags();
   setRecordManager(null);
   vi.unstubAllGlobals();
 });
@@ -105,7 +99,6 @@ describe('the official record in the record panel', () => {
   });
 
   it('after Delete my data the official record and the Sensei panel are gone', async () => {
-    (FEATURES as { sessions: boolean }).sessions = true;
     try {
       const panel = await openPanel();
       await screen.findByText('2 lessons completed, 1 lesson tested out.');
@@ -120,7 +113,6 @@ describe('the official record in the record panel', () => {
       expect(screen.queryByText(/couldn't read your official record/)).toBeNull();
       expect(screen.queryByText('2 lessons completed, 1 lesson tested out.')).toBeNull();
     } finally {
-      (FEATURES as { sessions: boolean }).sessions = false;
     }
   });
 
@@ -173,10 +165,4 @@ describe('the official record in the record panel', () => {
     click.mockRestore();
   });
 
-  it('is unchanged with the phase off', async () => {
-    flags.officialRecord = false;
-    const panel = await openPanel();
-    expect(panel.textContent).not.toMatch(/Download my record|View in the LRS|What Sensei sees/);
-    expect(recordCalls).toBe(0);
-  });
 });

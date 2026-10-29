@@ -1,6 +1,4 @@
 import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
-import { SERVER_FLAGS } from '../../functions/_lib/config';
-import { PHASES_OFF, restoreServerFlags, setServerFlags } from '../helpers/flags';
 import { createSqliteD1 } from '../../dev/sqliteD1';
 import { buildContent } from '../../scripts/build-content';
 import { setContentForTests } from '../../functions/_lib/content';
@@ -27,17 +25,26 @@ const cookieOf = (res: Response) => res.headers.get('set-cookie')!.split(';')[0]
 const withCookie = (v: string, init: RequestInit = {}) =>
   new Request('http://x/api/session', { ...init, headers: { cookie: `${SESSION_COOKIE}=${v}`, ...(init.headers as object) } });
 const count = async () => (await db.prepare('SELECT COUNT(*) AS c FROM sessions').first<{ c: number }>())!.c;
+const SEED_HEX = '9d61b19deffd5a60ba844af492ec2cc44449c5697b326919703bac031cae7f60';
+const SIGNING = Buffer.from('302e020100300506032b657004220420' + SEED_HEX, 'hex').toString('base64');
 
 beforeEach(async () => {
-  setServerFlags(PHASES_OFF);
   setContentForTests(buildContent('tests/fixtures/content'));
   db = createSqliteD1();
-  env = { DB: db, SESSION_KEY: KEY };
+  // Every session gets a Sensei learner, and "Delete my data" erases in the LRS: both answered by the stub below.
+  env = { DB: db, SESSION_KEY: KEY, CONNECTOR_SIGNING_KEY: SIGNING, CONNECTOR_KEY_ID: 'kid1', LRS_KEY: 'a', LRS_SECRET: 'b' };
   await ensureSchema(db);
+  let next = 500;
+  vi.stubGlobal('fetch', async (url: string, init: RequestInit) => {
+    if (init?.method === 'POST' && /\/learners$/.test(url)) {
+      const id = next++;
+      return new Response(JSON.stringify({ user_id: id, actor: { objectType: 'Agent', account: { homePage: XAPI_BASE, name: `ledger-${id}` } } }), { status: 201 });
+    }
+    return new Response('{}', { status: 200 });
+  });
 });
 afterEach(() => {
-  restoreServerFlags();
-  SERVER_FLAGS.sessions = false;
+  vi.unstubAllGlobals();
 });
 
 describe('sessions', () => {
@@ -131,9 +138,7 @@ describe('sessions', () => {
     const text = JSON.stringify(await res.json());
     expect(text).toContain(actor);
     expect(text).not.toContain(BODY_LEARNER);
-    // no session: phase 1 while the flag is off, 401 when on, phase 1 again without a key
-    expect((await ev({}, BODY_LEARNER)).status).toBe(200);
-    SERVER_FLAGS.sessions = true;
+    // no session: 401, and the body learnerId again without a key
     const r401 = await ev({}, BODY_LEARNER);
     expect(r401.status).toBe(401);
     expect(((await r401.json()) as any).error.code).toBe('no-session');
@@ -153,8 +158,6 @@ describe('sessions', () => {
 });
 
 describe('sessions bound to Sensei learners', () => {
-  const SEED_HEX = '9d61b19deffd5a60ba844af492ec2cc44449c5697b326919703bac031cae7f60';
-  const SIGNING = Buffer.from('302e020100300506032b657004220420' + SEED_HEX, 'hex').toString('base64');
   const learner = (name = 'ledger-actor-1', id = 77, homePage = XAPI_BASE) =>
     new Response(JSON.stringify({ user_id: id, actor: { objectType: 'Agent', account: { homePage, name } } }), { status: 201 });
   let calls: Array<{ method: string; url: string }>;
@@ -167,8 +170,7 @@ describe('sessions bound to Sensei learners', () => {
   };
 
   beforeEach(() => {
-    SERVER_FLAGS.senseiLearners = true;
-    env = { DB: db, SESSION_KEY: KEY, CONNECTOR_SIGNING_KEY: SIGNING, CONNECTOR_KEY_ID: 'kid1' };
+    env = { DB: db, SESSION_KEY: KEY, CONNECTOR_SIGNING_KEY: SIGNING, CONNECTOR_KEY_ID: 'kid1', LRS_KEY: 'a', LRS_SECRET: 'b' };
   });
   afterEach(() => {
     vi.unstubAllGlobals();
@@ -217,26 +219,21 @@ describe('sessions bound to Sensei learners', () => {
     expect(await count()).toBe(0);
   });
 
-  it('flag off never calls the connector', async () => {
-    SERVER_FLAGS.senseiLearners = false;
-    stub(() => learner());
-    expect((await post()).status).toBe(200);
-    expect(calls).toHaveLength(0);
-    expect(await db.prepare('SELECT wp_user_id FROM sessions').first<any>()).toEqual({ wp_user_id: null });
-  });
+  const isNewLearner = (m: string, u: string) => m === 'POST' && /\/learners$/.test(u);
 
-  it('DELETE session deletes the WordPress learner', async () => {
-    stub((m) => (m === 'POST' ? learner() : new Response('{}', { status: 200 })));
+  it('DELETE session erases the learner in the LRS, then deletes the WordPress learner', async () => {
+    stub((m, u) => (isNewLearner(m, u) ? learner() : new Response('{}', { status: 200 })));
     const created = await post();
     const res = await del(withCookie(cookieOf(created), { method: 'DELETE' }), ctx());
     expect(await res.json()).toEqual({ deleted: true });
-    expect(calls.map((c) => c.method)).toEqual(['POST', 'DELETE']);
-    expect(calls[1].url).toMatch(/learners\/77$/);
+    expect(calls.map((c) => c.method)).toEqual(['POST', 'POST', 'DELETE']);
+    expect(calls[1].url).toMatch(/\/actors\/erase$/);
+    expect(calls[2].url).toMatch(/learners\/77$/);
     expect(await count()).toBe(0);
   });
 
   it('DELETE keeps the session when the learner cannot be deleted yet', async () => {
-    stub((m) => (m === 'POST' ? learner() : new Response('x', { status: 503 })));
+    stub((m, u) => (isNewLearner(m, u) ? learner() : /\/actors\/erase$/.test(u) ? new Response('{}', { status: 200 }) : new Response('x', { status: 503 })));
     const created = await post();
     const res = await del(withCookie(cookieOf(created), { method: 'DELETE' }), ctx());
     expect(res.status).toBe(503);
@@ -245,8 +242,6 @@ describe('sessions bound to Sensei learners', () => {
 });
 
 describe('a Sensei learner for sessions made before learners were on', () => {
-  const SEED_HEX = '9d61b19deffd5a60ba844af492ec2cc44449c5697b326919703bac031cae7f60';
-  const SIGNING = Buffer.from('302e020100300506032b657004220420' + SEED_HEX, 'hex').toString('base64');
   let calls: Array<{ method: string; url: string }>;
   let nextId: number;
   let down: boolean;
@@ -280,9 +275,11 @@ describe('a Sensei learner for sessions made before learners were on', () => {
       }
       return new Response('{}', { status: 200 });
     });
-    // A session minted before the flag existed: no wp_user_id.
+    // A session minted before Sensei learners were on: no wp_user_id, and an actor name of its own.
     const res = await post();
-    legacy = { cookie: cookieOf(res), actor: ((await res.json()) as any).actor.name };
+    legacy = { cookie: cookieOf(res), actor: crypto.randomUUID() };
+    await db.prepare('UPDATE sessions SET wp_user_id = NULL, actor_name = ?').bind(legacy.actor).run();
+    nextId = 100;
     await ensureOAuthSchema(db);
     await db
       .prepare("INSERT INTO oauth_tokens (token_hash, kind, family_id, client_id, actor_name, wp_user_id, registration, created, expires, used) VALUES ('t', 'refresh', 'f', 'c', ?, 0, '', 1, 2, 0)")
@@ -292,7 +289,6 @@ describe('a Sensei learner for sessions made before learners were on', () => {
       .prepare("INSERT INTO oauth_tokens (token_hash, kind, family_id, client_id, actor_name, wp_user_id, registration, created, expires, used) VALUES ('other', 'refresh', 'f2', 'c', 'someone-else', 0, '', 1, 2, 0)")
       .run();
     calls = [];
-    SERVER_FLAGS.senseiLearners = true;
   });
   afterEach(() => {
     enrolHealth.downUntil = 0;
@@ -344,12 +340,5 @@ describe('a Sensei learner for sessions made before learners were on', () => {
     await send(legacy.cookie);
     expect(await learnerRow()).toBe(100);
     log.mockRestore();
-  });
-
-  it('flag off makes no connector call', async () => {
-    SERVER_FLAGS.senseiLearners = false;
-    expect((await send(legacy.cookie)).status).toBe(200);
-    expect(calls).toHaveLength(0);
-    expect(await learnerRow()).toBeNull();
   });
 });

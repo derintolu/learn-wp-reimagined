@@ -2,7 +2,6 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { cleanup, fireEvent, render, screen, waitFor } from '@testing-library/preact';
 import { Consent, EXPIRED, LOAD_FAILED } from '../../src/pages/Consent';
-import { PHASES_OFF, restoreFlags, setFlags } from '../helpers/flags';
 
 const json = (body: unknown, status = 200) =>
   new Response(JSON.stringify(body), { status, headers: { 'content-type': 'application/json' } });
@@ -21,7 +20,6 @@ function mount(info: unknown = { clientName: 'Claude', redirectHost: 'claude.ai'
 }
 
 beforeEach(() => {
-  setFlags(PHASES_OFF);
   history.replaceState(null, '', '/consent?request=req-1');
   fetchMock = vi.fn();
   vi.stubGlobal('fetch', fetchMock);
@@ -29,7 +27,6 @@ beforeEach(() => {
 });
 afterEach(() => {
   cleanup();
-  restoreFlags();
   vi.unstubAllGlobals();
   vi.restoreAllMocks();
   history.replaceState(null, '', '/');
@@ -86,14 +83,7 @@ describe('Consent page', () => {
     expect(fetchMock).not.toHaveBeenCalled();
   });
 
-  it('agentOnStandard off (today): a server error still reads as expired', async () => {
-    setFlags({ agentOnStandard: false });
-    mount({ error: { code: 'internal' } }, 503);
-    expect(await screen.findByText(EXPIRED)).toBeTruthy();
-  });
-
-  it('agentOnStandard on: a server error or no answer is not "expired": it says try again, and Try again asks once more', async () => {
-    setFlags({ agentOnStandard: true });
+  it('a server error or no answer is not "expired": it says try again, and Try again asks once more', async () => {
     for (const fail of [() => json({ error: { code: 'internal' } }, 503), () => Promise.reject(new Error('offline'))]) {
       let n = 0;
       fetchMock.mockImplementation(async () => (++n === 1 ? fail() : json({ clientName: 'Claude', redirectHost: 'claude.ai', hasSession: true })));

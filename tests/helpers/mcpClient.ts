@@ -4,14 +4,9 @@ import type { Env, Handler } from '../../functions/_lib/env';
 export type Era = 'legacy' | 'modern';
 export type FetchFn = (req: Request) => Promise<Response>;
 
-export const TOOLS = [
-  'list_paths', 'start_placement', 'choose_placement', 'get_lesson', 'next_beat', 'check_code',
-  'submit_checkpoint', 'choose_branch', 'get_record', 'link_record', 'delete_record',
-];
-
 /**
  * An SDK client wired straight to a fetch handler (no network), after learning-mcp's test helpers. `token`
- * is sent as `Authorization: Bearer <token>` on every request (MCP authorization, SERVER_FLAGS.agentOnStandard).
+ * is sent as `Authorization: Bearer <token>` on every request (MCP authorization).
  */
 export async function connectMcp(fetchFn: FetchFn, era: Era, url = 'http://localhost/api/mcp', opts: { token?: string } = {}) {
   const transport = new StreamableHTTPClientTransport(new URL(url), {

@@ -159,15 +159,12 @@ export async function assemble(root: string): Promise<void> {
     cwd: root,
     stdio: 'inherit',
   });
-  // The MCP connector converts the content at runtime; fail the build here if it no longer fits learning-mcp
-  // or no longer loads as a course-xapi-mcp package.
+  // The MCP connector converts the content at runtime; fail the build here if it no longer loads as the
+  // course-xapi-mcp package the server teaches.
   // Imported late: the converter reads src/generated/content.json, which the step above just wrote.
   const { buildContent } = await import('./build-content.ts');
-  const { buildCourse } = await import('../functions/_lib/mcp/course.ts');
-  buildCourse(buildContent(join(root, 'content/snapshot')));
-  // And as the course-xapi-mcp package the standard's server loads (SERVER_FLAGS.mcpOnStandard).
-  const { buildStandardCourse } = await import('../functions/_lib/mcp/standardCourse.ts');
-  buildStandardCourse(buildContent(join(root, 'content/snapshot')));
+  const { buildAgentCourse } = await import('../functions/_lib/mcp/agentCourse.ts');
+  buildAgentCourse(buildContent(join(root, 'content/snapshot')));
   await viteBuild({ root, logLevel: 'warn' });
   const dist = join(root, 'dist');
   rmSync(join(dist, 'functions'), { recursive: true, force: true });

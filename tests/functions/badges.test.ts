@@ -1,6 +1,5 @@
 import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
-import { SERVER_FLAGS, LRS_API } from '../../functions/_lib/config';
-import { PHASES_OFF, restoreServerFlags, setServerFlags } from '../helpers/flags';
+import { LRS_API } from '../../functions/_lib/config';
 import { createSqliteD1 } from '../../dev/sqliteD1';
 import { buildContent } from '../../scripts/build-content';
 import { getContent, setContentForTests } from '../../functions/_lib/content';
@@ -12,6 +11,7 @@ import { cacheRegistration, createSession, readSession } from '../../functions/_
 import { auIdOf } from '../../functions/_lib/record/official';
 import { activityIds } from '../../vendor/course-xapi-mcp/core/constants';
 import { XAPI_BASE } from '../../src/shared/xapi';
+import { fakeLearners } from '../helpers/fakeLearners';
 
 const NOW = Date.UTC(2026, 9, 28, 12, 0, 0);
 const REG = '11111111-1111-4111-8111-111111111111';
@@ -31,13 +31,12 @@ const claim = (badge: unknown, cookieHeader: string | null = cookie) =>
   call(claimLink, cookieHeader, { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ badge }) });
 
 beforeEach(async () => {
-  setServerFlags({ ...PHASES_OFF, badges: true });
   setContentForTests(buildContent('tests/fixtures/content'));
   const db = createSqliteD1();
   await ensureSchema(db);
   await ensureRecordSchema(db);
   env = { DB: db, SESSION_KEY: 'k', LRS_KEY: 'ck', LRS_SECRET: 'cs' } as Env;
-  const made = await createSession(env, NOW);
+  const made = await createSession(env, NOW, fakeLearners());
   cookie = made.cookie.split(';')[0];
   actorName = made.session.actorName;
   await cacheRegistration(env, (await readSession(new Request('http://x', { headers: { cookie } }), env, NOW))!, REG);
@@ -62,16 +61,10 @@ beforeEach(async () => {
   );
 });
 afterEach(() => {
-  restoreServerFlags();
   vi.unstubAllGlobals();
 });
 
 describe('GET /api/badges', () => {
-  it('is 404 with the flag off', async () => {
-    SERVER_FLAGS.badges = false;
-    expect((await call(list, cookie)).status).toBe(404);
-  });
-
   it('needs a session', async () => {
     expect((await call(list, null)).status).toBe(401);
   });
@@ -119,11 +112,6 @@ describe('POST /api/badges/claim-link', () => {
   it('claim-link requires a session', async () => {
     expect((await claim(BADGE, null)).status).toBe(401);
     expect(minted).toHaveLength(0);
-  });
-
-  it('is 404 with the flag off', async () => {
-    SERVER_FLAGS.badges = false;
-    expect((await claim(BADGE)).status).toBe(404);
   });
 
   it('each call mints a new link', async () => {

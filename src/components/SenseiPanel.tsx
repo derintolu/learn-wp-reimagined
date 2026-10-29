@@ -7,11 +7,10 @@ interface Seen {
   completedLessons: string[];
   testedOutLessons: string[];
   completedCourses: string[];
-  certificateDownload: boolean;
 }
 type State = { kind: 'loading' } | { kind: 'down' } | { kind: 'none' } | { kind: 'ok'; seen: Seen };
 
-/** GET /api/sensei answers 401 when this session has no Sensei learner (for example one made before senseiLearners). */
+/** GET /api/sensei answers 401 when this session has no Sensei learner (for example one made before Sensei learners were on). */
 export const NO_SENSEI_ACCOUNT = 'No Sensei account yet.';
 class NoAccount extends Error {}
 
@@ -32,7 +31,6 @@ export function SenseiPanel() {
         const j = (await res.json()) as Record<string, unknown>;
         return { enrolled: list(j.enrolled), completedLessons: list(j.completedLessons), testedOutLessons: list(j.testedOutLessons),
           completedCourses: list(j.completedCourses),
-          certificateDownload: j.certificateDownload === true,
         };
       })
       .then(
@@ -89,17 +87,13 @@ export function SenseiPanel() {
       </p>
       <div data-slot="certificate">
         {state.kind === 'ok' &&
-          state.seen.completedCourses.map((id) =>
-            state.seen.certificateDownload ? (
-              <p key={id}>
-                <a href={`/api/sensei/certificate?path=${encodeURIComponent(id)}`} download>
-                  Download your certificate: {pathTitle(id)}
-                </a>
-              </p>
-            ) : (
-              <p key={id}>Sensei has issued your certificate.</p>
-            ),
-          )}
+          state.seen.completedCourses.map((id) => (
+            <p key={id}>
+              <a href={`/api/sensei/certificate?path=${encodeURIComponent(id)}`} download>
+                Download your certificate: {pathTitle(id)}
+              </a>
+            </p>
+          ))}
       </div>
     </section>
   );

@@ -85,13 +85,6 @@ describe('SenseiPanel', () => {
     expect(a.textContent).toContain('Build a block theme');
   });
 
-  it('says Sensei issued the certificate, with no link, when downloads are off', async () => {
-    withFetch({ ...DATA, completedCourses: ['block-theme'], certificates: ['block-theme'], certificateDownload: false });
-    const { container } = mount();
-    await waitFor(() => expect(container.querySelector('[data-slot="certificate"]')!.textContent).toContain('Sensei has issued your certificate.'));
-    expect(container.querySelector('[data-slot="certificate"] a')).toBeNull();
-  });
-
   it('shows nothing in the certificate slot before a course is complete', async () => {
     const { container } = mount();
     await waitFor(() => expect(screen.getByText('Lesson One')).toBeTruthy());

@@ -1,5 +1,4 @@
 import { useEffect, useRef, useState } from 'preact/hooks';
-import { FEATURES } from '../config';
 import { usePageTitle } from '../usePageTitle';
 import { clientId } from '../clientId';
 import '../styles/consent.css';
@@ -30,8 +29,7 @@ export function Consent() {
       return;
     }
     let live = true;
-    // Telling a failed read from an expired request ships with agentOnStandard; before it, both read as expired.
-    const failed: View = FEATURES.agentOnStandard ? { state: 'failed' } : { state: 'ended' };
+    const failed: View = { state: 'failed' };
     fetch(`/api/oauth/consent?request=${encodeURIComponent(id)}`, { credentials: 'same-origin' })
       .then(async (res) => {
         // 400 is the server's "this request has ended or expired"; anything else unexpected may pass on a retry.

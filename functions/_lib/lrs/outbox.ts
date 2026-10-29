@@ -3,7 +3,6 @@
 // (the first body wins, ruling R7) and a re-sent statement is the identical one.
 import type { Env } from '../env';
 import { ensureRecordSchema, isDuplicateKey } from '../db';
-import { SERVER_FLAGS } from '../config';
 import { invalidateRecordCache } from '../record/read';
 import { LrsClient, LrsError, LrsUnavailable } from './client';
 import type { XapiStatement } from '../../../vendor/course-xapi-mcp/core/xapi/types';
@@ -53,9 +52,7 @@ async function remove(env: Env, rows: Row[]): Promise<void> {
     .prepare(`DELETE FROM lrs_outbox WHERE statement_id IN (${rows.map(() => '?').join(', ')})`)
     .bind(...rows.map((r) => r.statement_id))
     .run();
-  if (SERVER_FLAGS.officialRecord) {
-    for (const a of new Set(rows.map((r) => r.actor_name))) if (a) await invalidateRecordCache(env, a);
-  }
+  for (const a of new Set(rows.map((r) => r.actor_name))) if (a) await invalidateRecordCache(env, a);
 }
 
 /** A statement the LRS refused: backed off, or dead-lettered once it has had DEAD_LETTER_AFTER attempts. */

@@ -1,5 +1,4 @@
 import { useCallback, useEffect, useState } from 'preact/hooks';
-import { phaseOn } from '../config';
 import { LRS_ORIGIN } from '../badges/badges';
 import type { OfficialRecord } from '../shared/official';
 
@@ -72,13 +71,13 @@ export const clearOfficial = (): void => {
 
 /**
  * The official record, re-read when the window regains focus. A read that fails clears what was held,
- * so an old record is never shown as current. Does nothing with the phase off.
+ * so an old record is never shown as current. Does nothing while `active` is false.
  */
 export function useOfficialRecord(active = true): { official: OfficialRecord | null; none: boolean; version: number; loading: boolean; refresh: () => void } {
   const [, force] = useState(0);
   const [tick, setTick] = useState(0);
   const refresh = useCallback(() => setTick((t) => t + 1), []);
-  const on = phaseOn('officialRecord') && active;
+  const on = active;
   useEffect(() => {
     const fn = () => force((n) => n + 1);
     listeners.add(fn);

@@ -1,6 +1,5 @@
 // "Delete my data" and the 180-day retention sweep (Task 39), plus the Sensei/LRS drift check.
 import type { Env } from '../env';
-import { SERVER_FLAGS } from '../config';
 import { ensureEnrolmentSchema, ensureRecordSchema } from '../db';
 import { LrsClient, LrsError, type Actor } from '../lrs/client';
 import { ConnectorClient, ConnectorError } from '../ledger/connector';
@@ -9,7 +8,7 @@ import { revokeAllForActor } from '../oauth/store';
 import { officialActor } from '../record/official';
 import { listShadowFacts } from '../record/shadow';
 import { deleteEnrolments } from './enrol';
-import { SESSION_IDLE_MS, cachedRegistration, deleteSession, type Session } from './session';
+import { SESSION_IDLE_MS, deleteSession, type Session } from './session';
 import { activityId } from '../../../src/shared/xapi';
 
 export interface DriftReport {
@@ -28,48 +27,28 @@ export const ERASE_BEFORE_LRS = ['lrs_outbox', 'au_sessions', 'official_pending'
 export const ERASE_AFTER_LRS = ['shadow_facts', 'official_outcomes', 'carry_overs', 'record_cache', 'record_cache_parts'] as const;
 
 /**
- * The learner's cached cmi5 registration, or null. The column exists only once ensureRecordSchema has run (an
- * LRS phase was on), so a missing column means the LRS has never been asked about this learner.
- */
-async function registrationIfAny(env: Env, s: Session): Promise<string | null> {
-  try {
-    return await cachedRegistration(env, s);
-  } catch (e) {
-    // SQLite "no such column", MySQL 1054 "Unknown column".
-    const err = e as { message?: unknown; code?: unknown; errno?: unknown } | null;
-    if (/no such column|unknown column|ER_BAD_FIELD_ERROR/i.test(`${String(err?.message ?? e)} ${String(err?.code ?? '')}`) || err?.errno === 1054) return null;
-    throw e;
-  }
-}
-
-/**
  * Erases one learner everywhere, in order: the LRS (actor and, in the LRS's listeners, badges), the Sensei learner,
  * the learner's OAuth codes and tokens, then the session row. The row goes last, so any step that throws leaves it
  * in place and the delete (or the next sweep) runs every step again. A learner already gone (404) counts as done.
- *
- * Each step runs while its flag is on and also after a rollback: the LRS step whenever the session holds a cmi5
- * registration (no statement or State document reaches the LRS without one), the Sensei step whenever the session
- * names a WordPress user. With the flags off and neither recorded, only the OAuth rows and the session row go.
+ * The Sensei step runs whenever the session names a WordPress user.
  *
  * Learning Ledger (c9b5915) ignores `revokeBadges` on POST /actors/erase and leaves badge rows to listeners of
  * `learning_ledger/actor_erased`, of which it registers none: an erase neither revokes nor deletes a badge. So the
  * retention sweep cannot revoke a claimed badge, and "Delete my data" does not revoke one either (an owner item
- * before SERVER_FLAGS.badges flips). The option is sent anyway, for when the LRS honours it.
+ * before badges shipped). The option is sent anyway, for when the LRS honours it.
  */
 export async function eraseLearner(env: Env, s: Session, opts: { revokeBadges: boolean }): Promise<void> {
-  if (SERVER_FLAGS.lrsShadow || (await registrationIfAny(env, s)) !== null) {
-    await ensureRecordSchema(env.DB);
-    for (const table of ERASE_BEFORE_LRS) {
-      await env.DB.prepare(`DELETE FROM ${table} WHERE actor_name = ?`).bind(s.actorName).run();
-    }
-    try {
-      await new LrsClient(env).eraseActor(lrsActor(s.actorName), opts);
-    } catch (e) {
-      if (!(e instanceof LrsError && e.status === 404)) throw e;
-    }
-    for (const table of ERASE_AFTER_LRS) {
-      await env.DB.prepare(`DELETE FROM ${table} WHERE actor_name = ?`).bind(s.actorName).run();
-    }
+  await ensureRecordSchema(env.DB);
+  for (const table of ERASE_BEFORE_LRS) {
+    await env.DB.prepare(`DELETE FROM ${table} WHERE actor_name = ?`).bind(s.actorName).run();
+  }
+  try {
+    await new LrsClient(env).eraseActor(lrsActor(s.actorName), opts);
+  } catch (e) {
+    if (!(e instanceof LrsError && e.status === 404)) throw e;
+  }
+  for (const table of ERASE_AFTER_LRS) {
+    await env.DB.prepare(`DELETE FROM ${table} WHERE actor_name = ?`).bind(s.actorName).run();
   }
   if (s.wpUserId != null) {
     try {
@@ -114,12 +93,11 @@ async function senseiLessons(env: Env, wpUserId: number, programId: string): Pro
 
 /**
  * For each learner with a learning fact today or yesterday (the cron runs once a day), compares the lessons the
- * LRS holds as completed or waived with Sensei's completed and tested-out lessons. Does nothing unless both the
- * LRS shadow and the Sensei learners are on. A learner who cannot be read this run is not counted as checked.
+ * LRS holds as completed or waived with Sensei's completed and tested-out lessons. A learner who cannot be read
+ * this run is not counted as checked.
  */
 export async function checkDrift(env: Env, now: number): Promise<DriftReport> {
   const report: DriftReport = { checked: 0, mismatched: [] };
-  if (!SERVER_FLAGS.lrsShadow || !SERVER_FLAGS.senseiLearners) return report;
   if (!env.LEDGER_PROGRAM_ID) return { ...report, status: 'not-configured' };
   const actors = new Set<string>();
   for (const day of [dayOf(now - 86_400_000), dayOf(now)]) for (const a of await listShadowFacts(env, day)) actors.add(a.actor);

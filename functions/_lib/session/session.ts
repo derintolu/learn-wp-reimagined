@@ -1,6 +1,5 @@
 import type { Env } from '../env';
 import { ensureOAuthSchema, ensureSchema } from '../db';
-import { SERVER_FLAGS } from '../config';
 import { ConnectorClient, ConnectorUnavailable } from '../ledger/connector';
 import { XAPI_BASE } from '../../../src/shared/xapi';
 import { ENROL_RETRY_MS, enrolHealth } from './enrol';
@@ -83,28 +82,26 @@ export async function readSession(req: Request, env: Env, now: number): Promise<
 export async function createSession(
   env: Env,
   now: number,
-  actorName?: string,
   connector: Pick<ConnectorClient, 'createLearner' | 'deleteLearner'> = new ConnectorClient(env),
-): Promise<{ session: Session; cookie: string; actor?: { homePage: string; name: string } }> {
+): Promise<{ session: Session; cookie: string; actor: { homePage: string; name: string } }> {
   if (!env.SESSION_KEY) throw new Error('SESSION_KEY is not set');
   await ensureSchema(env.DB);
   const value = b64url(crypto.getRandomValues(new Uint8Array(32)));
   const sidHash = await hashSid(env.SESSION_KEY, value);
-  // With senseiLearners on, nothing is recorded until a WordPress learner exists: ConnectorUnavailable
-  // propagates before any row is written.
-  const learner = SERVER_FLAGS.senseiLearners ? await connector.createLearner() : null;
+  // Nothing is recorded until a WordPress learner exists: ConnectorUnavailable propagates before any row is written.
+  const learner = await connector.createLearner();
   // Learning Ledger names the actor by WordPress home_url() and maps an actor back to its user only on that
   // homePage; every official statement and GET /api/session name XAPI_BASE. A WordPress whose `home` option is
   // another host would make two identities, so the learner is refused (and removed) until `home` is fixed.
-  if (learner && learner.actor.homePage !== XAPI_BASE) {
+  if (learner.actor.homePage !== XAPI_BASE) {
     console.error('sensei learner refused: the ledger actor homePage is not XAPI_BASE; set the WordPress home option');
     await connector.deleteLearner(learner.userId).catch(() => {});
     throw new ConnectorUnavailable('ledger actor homePage is not the site');
   }
   const session: Session = {
     sidHash,
-    actorName: learner ? learner.actor.name : (actorName ?? crypto.randomUUID()),
-    wpUserId: learner ? learner.userId : null,
+    actorName: learner.actor.name,
+    wpUserId: learner.userId,
     createdAt: now,
     touchedAt: now,
   };
@@ -114,14 +111,14 @@ export async function createSession(
       .bind(sidHash, session.actorName, session.wpUserId, now, now)
       .run();
   } catch (e) {
-    if (learner) await connector.deleteLearner(learner.userId).catch(() => {});
+    await connector.deleteLearner(learner.userId).catch(() => {});
     throw e;
   }
-  return { session, actor: learner?.actor, cookie: `${SESSION_COOKIE}=${value}; HttpOnly; Secure; SameSite=Lax; Path=/; Max-Age=${MAX_AGE_S}` };
+  return { session, actor: learner.actor, cookie: `${SESSION_COOKIE}=${value}; HttpOnly; Secure; SameSite=Lax; Path=/; Max-Age=${MAX_AGE_S}` };
 }
 
 /**
- * A session made before senseiLearners was on has no WordPress learner. With the flag on, make one on its first
+ * A session made before Sensei learners were on has no WordPress learner. Make one on its first
  * event and store it on the row together with the ledger's actor name for it (R38), as new sessions have. The conditional UPDATE lets only one of two concurrent
  * requests keep its learner: the loser deletes the one it made and reads the winner's. A connector failure
  * leaves the session without a learner (the event still succeeds) and backs off like enrolment does.
@@ -132,7 +129,7 @@ export async function ensureLearner(
   now: number,
   connector?: Pick<ConnectorClient, 'createLearner' | 'deleteLearner'>,
 ): Promise<number | null> {
-  if (!SERVER_FLAGS.senseiLearners || s.wpUserId != null) return s.wpUserId;
+  if (s.wpUserId != null) return s.wpUserId;
   if (now < enrolHealth.downUntil) return null;
   const c = connector ?? new ConnectorClient(env);
   let learner: { userId: number; actor: { homePage: string; name: string } };
@@ -160,7 +157,7 @@ export async function ensureLearner(
     .run();
   if (r.meta.changes === 1) {
     // OAuth grants made for this session carry the old actor name and no learner; rename them with it.
-    // (Other actor-keyed tables only fill once lrsShadow is on, which ships after senseiLearners.)
+    // (Other actor-keyed tables only filled once the LRS record was on, which shipped after Sensei learners.)
     // Best effort and never fails the event; the schema was ensured before the guarded UPDATE.
     for (const t of ['oauth_codes', 'oauth_tokens']) {
       for (let attempt = 0; attempt < 2; attempt++) {

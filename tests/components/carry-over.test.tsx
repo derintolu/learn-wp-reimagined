@@ -1,15 +1,11 @@
 // @vitest-environment happy-dom
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { cleanup, fireEvent, render, screen, waitFor } from '@testing-library/preact';
-import { FEATURES } from '../../src/config';
 import { content } from '../../src/content';
 import { CarryOverOffer } from '../../src/components/CarryOverOffer';
 import { resetSession } from '../../src/record/session';
 import { setRecordManager } from '../../src/record/useRecord';
 import { memoryManager } from './helpers';
-import { phasesUpTo, restoreFlags, setFlags } from '../helpers/flags';
-
-const flags = FEATURES as { sessions: boolean; officialRecord: boolean };
 const lessonId = Object.keys(content.lessons)[0];
 
 /** What /api/record answers: the official record's lessons, or a status (401 = no session yet). */
@@ -41,14 +37,11 @@ async function mount(withProgress: boolean) {
 beforeEach(() => {
   officialAnswer = {};
   stubFetch();
-  phasesUpTo('officialRecord');
-  flags.sessions = false;
   localStorage.clear();
   resetSession();
 });
 afterEach(() => {
   cleanup();
-  restoreFlags();
   setRecordManager(null);
   vi.unstubAllGlobals();
 });
@@ -59,14 +52,7 @@ describe('CarryOverOffer', () => {
     expect(screen.queryByRole('button', { name: 'Bring your progress over' })).toBeNull();
   });
 
-  it('offer hidden with the flag off', async () => {
-    setFlags({ officialRecord: false });
-    await mount(true);
-    expect(screen.queryByRole('button', { name: 'Bring your progress over' })).toBeNull();
-  });
-
   it('sends the old record on request, then stops offering', async () => {
-    flags.sessions = true;
     const f = stubFetch();
     await mount(true);
     fireEvent.click(await screen.findByRole('button', { name: 'Bring your progress over' }));
@@ -81,7 +67,6 @@ describe('CarryOverOffer', () => {
   });
 
   it('Not now hides it without sending anything', async () => {
-    flags.sessions = true;
     const f = stubFetch();
     await mount(true);
     fireEvent.click(await screen.findByRole('button', { name: 'Not now' }));
@@ -125,7 +110,6 @@ describe('CarryOverOffer', () => {
   });
 
   it('a failure keeps the offer and says nothing changed', async () => {
-    flags.sessions = true;
     stubFetch(503);
     await mount(true);
     fireEvent.click(await screen.findByRole('button', { name: 'Bring your progress over' }));

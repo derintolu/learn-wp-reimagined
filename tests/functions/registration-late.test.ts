@@ -2,8 +2,6 @@
 // registration (a State GET, then a PUT) cannot be ready within the shadow budget. The event still answers in
 // time, the LRS is not marked down, and no learning fact is lost.
 import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
-import { SERVER_FLAGS } from '../../functions/_lib/config';
-import { PHASES_OFF, restoreServerFlags, setServerFlags } from '../helpers/flags';
 import { createSqliteD1 } from '../../dev/sqliteD1';
 import { buildContent } from '../../scripts/build-content';
 import { setContentForTests } from '../../functions/_lib/content';
@@ -18,7 +16,7 @@ import { holdPending, listShadowFacts, replayPending } from '../../functions/_li
 import { eraseLearner } from '../../functions/_lib/session/lifecycle';
 import type { EventResult, ServerEvent } from '../../src/shared/events';
 import type { XapiStatement } from '../../vendor/course-xapi-mcp/core/xapi/types';
-import { fakeLrs } from '../helpers/fakeLrs';
+import { LEDGER_ENV, fakeLrs } from '../helpers/fakeLrs';
 
 const REG = '7d3c1a2b-4e5f-4a6b-8c7d-9e0f1a2b3c4d';
 const FREE = 'theme-json-basics';
@@ -78,11 +76,9 @@ function failHeldReadOnce() {
 const stateCalls = () => lrs.calls.filter((c) => c.url.includes('/activities/state')).length;
 
 beforeEach(async () => {
-  setServerFlags(PHASES_OFF);
-  SERVER_FLAGS.lrsShadow = true;
   setContentForTests(buildContent('tests/fixtures/content'));
   db = createSqliteD1();
-  env = { DB: db, SESSION_KEY: 'test-session-key-not-a-secret', LRS_KEY: 'ck_test', LRS_SECRET: 'cs_test', CRON_SECRET: CRON };
+  env = { DB: db, SESSION_KEY: 'test-session-key-not-a-secret', LRS_KEY: 'ck_test', LRS_SECRET: 'cs_test', ...LEDGER_ENV, CRON_SECRET: CRON };
   await ensureSchema(db);
   await ensureRecordSchema(db);
   lrs = fakeLrs();
@@ -92,7 +88,6 @@ beforeEach(async () => {
   waits = [];
 });
 afterEach(() => {
-  restoreServerFlags();
   vi.unstubAllGlobals();
   vi.restoreAllMocks();
 });

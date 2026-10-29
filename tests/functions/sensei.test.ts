@@ -1,7 +1,5 @@
 import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
 import { XAPI_BASE } from '../../src/shared/xapi';
-import { SERVER_FLAGS } from '../../functions/_lib/config';
-import { PHASES_OFF, restoreServerFlags, setServerFlags } from '../helpers/flags';
 import { createSqliteD1 } from '../../dev/sqliteD1';
 import { ensureSchema } from '../../functions/_lib/db';
 import type { Env } from '../../functions/_lib/env';
@@ -33,7 +31,6 @@ const get = (c?: string) => sensei(new Request('http://x/api/sensei', { headers:
 beforeEach(async () => {
   db = createSqliteD1();
   await ensureSchema(db);
-  setServerFlags({ ...PHASES_OFF, senseiLearners: true });
   env = {
     DB: db,
     SESSION_KEY: 'k',
@@ -50,7 +47,6 @@ beforeEach(async () => {
   });
 });
 afterEach(() => {
-  restoreServerFlags();
   vi.unstubAllGlobals();
 });
 
@@ -65,7 +61,6 @@ describe('GET /api/sensei', () => {
       testedOutLessons: ['three'],
       completedCourses: [],
       certificates: [],
-      certificateDownload: false,
     });
     expect(urls.at(-1)).toContain('/learners/77/progress?program=5');
   });
@@ -76,14 +71,6 @@ describe('GET /api/sensei', () => {
     const res = await get(c);
     expect(res.status).toBe(503);
     expect(((await res.json()) as any).error.code).toBe('connector-unavailable');
-  });
-
-  it('flag off answers 404 and never calls the connector', async () => {
-    const c = await cookie();
-    SERVER_FLAGS.senseiLearners = false;
-    const n = urls.length;
-    expect((await get(c)).status).toBe(404);
-    expect(urls.length).toBe(n);
   });
 
   it('no session gives 401', async () => {

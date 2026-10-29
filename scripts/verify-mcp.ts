@@ -1,57 +1,15 @@
-// Checks a running course connector with the official MCP SDK client.
+// Checks a running course connector with the official MCP SDK client, signed in the way an agent does.
 //
-//   npx tsx scripts/verify-mcp.ts <url> [legacy|modern] [--handle-file <path>] [--export <path>]
 //   npx tsx scripts/verify-mcp.ts <url> [legacy|modern] --oauth --cookie-file <path>
 //
-// --oauth signs in the way an agent does (SERVER_FLAGS.agentOnStandard): the 401's protected-resource metadata,
-// dynamic client registration, PKCE (S256), consent as the learner whose studio session cookie is in the file
-// (`lwr_sid=<value>`, or the bare value), the code exchange, then tools/list and get_status with the access token.
-// The grant is revoked at the end. Prints the server name, the tool names and the custody; never a token, code
-// or cookie.
-//
-// Extra request headers (for example an access token for a private space) are read from the JSON file
-// named by $MCP_HEADERS_FILE. Prints only the server name, the tool names and, with --handle-file, the
-// lesson the record continues at. Never prints header values or handles. Works with both servers /api/mcp
-// can be (SERVER_FLAGS.mcpOnStandard): the course-xapi-mcp reference server and today's learning-mcp one;
-// --export writes the practice copy (standard) or the learning-mcp record.
+// --oauth signs in: the 401's protected-resource metadata, dynamic client registration, PKCE (S256), consent as
+// the learner whose studio session cookie is in the file (`lwr_sid=<value>`, or the bare value), the code
+// exchange, then tools/list and get_status with the access token. The grant is revoked at the end. Prints the
+// server name, the tool names and the custody; never a token, code or cookie.
 import { createHash, randomBytes } from 'node:crypto';
-import { readFileSync, writeFileSync } from 'node:fs';
+import { readFileSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import { Client, StreamableHTTPClientTransport } from '@modelcontextprotocol/client';
-
-export async function verifyMcp(
-  url: string,
-  era: 'legacy' | 'modern',
-  headers: Record<string, string>,
-  opts: { handle?: string; exportTo?: string; fetch?: (url: string | URL, init?: RequestInit) => Promise<Response> } = {},
-): Promise<{ serverName: string; tools: string[]; lessonId?: string }> {
-  const transport = new StreamableHTTPClientTransport(new URL(url), { requestInit: { headers }, ...(opts.fetch ? { fetch: opts.fetch } : {}) });
-  const client = new Client(
-    { name: 'learn-wp-verify', version: '0.0.0' },
-    era === 'modern' ? { versionNegotiation: { mode: { pin: '2026-07-28' } } } : {},
-  );
-  await client.connect(transport);
-  try {
-    const tools = (await client.listTools()).tools.map((t) => t.name);
-    const out: { serverName: string; tools: string[]; lessonId?: string } = { serverName: client.getServerVersion()?.name ?? '', tools };
-    if (opts.handle) {
-      const call = async (name: string, args: Record<string, unknown>) => (await client.callTool({ name, arguments: args })) as any;
-      const start = await call('start_placement', { handle: opts.handle });
-      if (start.isError) throw new Error(`start_placement failed: ${start.structuredContent?.error}`);
-      const beat = await call('next_beat', { handle: opts.handle });
-      // The standard names a lesson by key, learning-mcp by id.
-      out.lessonId = beat.structuredContent?.lesson?.key ?? beat.structuredContent?.lesson?.id;
-      if (opts.exportTo) {
-        const rec = await call('get_record', { handle: opts.handle });
-        const copy = rec.content?.find((c: { type: string }) => c.type === 'resource')?.resource?.text;
-        writeFileSync(opts.exportTo, copy ?? JSON.stringify(rec.structuredContent.record, null, 2), { mode: 0o600 });
-      }
-    }
-    return out;
-  } finally {
-    await client.close();
-  }
-}
 
 type FetchLike = (url: string | URL, init?: RequestInit) => Promise<Response>;
 
@@ -175,23 +133,12 @@ if (process.argv[1] && fileURLToPath(import.meta.url) === process.argv[1]) {
   const oauth = args.includes('--oauth');
   if (oauth) args.splice(args.indexOf('--oauth'), 1);
   const cookieFile = flag('--cookie-file');
-  const handleFile = flag('--handle-file');
-  const exportTo = flag('--export');
   const [url, era = 'legacy'] = args;
-  if (!url || (era !== 'legacy' && era !== 'modern') || (oauth && !cookieFile)) {
-    throw new Error('usage: verify-mcp.ts <url> [legacy|modern] [--handle-file <path>] [--export <path>] | --oauth --cookie-file <path>');
+  if (!url || (era !== 'legacy' && era !== 'modern') || !oauth || !cookieFile) {
+    throw new Error('usage: verify-mcp.ts <url> [legacy|modern] --oauth --cookie-file <path>');
   }
-  if (oauth) {
-    const r = await verifyMcpOAuth(url, era, { cookie: readFileSync(cookieFile!, 'utf8') });
-    console.log(`server: ${r.serverName}`);
-    console.log(`tools (${r.tools.length}): ${r.tools.join(', ')}`);
-    console.log(`custody: ${String(r.custody)}, official: ${String(r.official)}`);
-    process.exit(0);
-  }
-  const headers = process.env.MCP_HEADERS_FILE ? (JSON.parse(readFileSync(process.env.MCP_HEADERS_FILE, 'utf8')) as Record<string, string>) : {};
-  const handle = handleFile ? readFileSync(handleFile, 'utf8').trim() : undefined;
-  const r = await verifyMcp(url, era, headers, { handle, exportTo });
+  const r = await verifyMcpOAuth(url, era, { cookie: readFileSync(cookieFile, 'utf8') });
   console.log(`server: ${r.serverName}`);
   console.log(`tools (${r.tools.length}): ${r.tools.join(', ')}`);
-  if (r.lessonId !== undefined) console.log(`continues at: ${r.lessonId}`);
+  console.log(`custody: ${String(r.custody)}, official: ${String(r.official)}`);
 }

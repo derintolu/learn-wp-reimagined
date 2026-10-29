@@ -1,7 +1,6 @@
 import { applyEvent, newRecord, parseRecord, type LearningRecord, type RecordEvent } from '../shared/record';
 import type { ContentBundle } from '../shared/types';
 import type { XapiStatement } from '../shared/xapi';
-import { FEATURES } from '../config';
 import { currentActor } from './session';
 import { bindLearnerId, getEventClient, type EventClient } from './eventClient';
 import type { EventResult, ServerEvent } from '../shared/events';
@@ -126,7 +125,6 @@ export class RecordManager {
     const local = this.current.statements.slice(before.statements.length);
     this.emit();
     await this.persist();
-    if (!FEATURES.serverEvents) return;
     if (e.type === 'beatViewed') {
       // Never waits for the network; the server hears about beats in a batch.
       this.client.queueBeat(e.lessonId, e.beatIndex);

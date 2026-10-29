@@ -1,7 +1,7 @@
 // Copies a pinned commit of the course-xapi-mcp standard (the reference packages in
 // github.com/derintolu/learning-mcp, Apache-2.0) into vendor/course-xapi-mcp. Vendored rather than a `github:`
-// dependency or a submodule for the same reasons as vendor/learning-mcp: a private npm-workspaces monorepo
-// installs only its root as a git dependency, and a private submodule would break public clones of this site.
+// dependency or a submodule: a private npm-workspaces monorepo installs only its root as a git dependency, and a
+// private submodule would break public clones of this site.
 //
 //   npx tsx scripts/vendor-course-xapi-mcp.ts <path-to-learning-mcp-checkout> <commit> [--packages core,validator,...]
 //

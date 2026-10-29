@@ -3,7 +3,7 @@ import { resolve } from 'node:path';
 import { buildContent } from '../../scripts/build-content';
 import { applyEvent, branchHistory, branchSkippedLessons, newRecord, parseRecord, type LearningRecord } from '../../src/shared/record';
 import { LEGACY_XAPI_BASES, XAPI_BASE, currentIri, currentStatement, VERBS } from '../../src/shared/xapi';
-import { COURSE_ACTIVITY_BASE, MCP_URL } from '../../src/shared/course-meta';
+import { MCP_URL } from '../../src/shared/course-meta';
 import { pastOutcome } from '../../src/components/CompletedSummary';
 
 const OLD = 'https://learn-wp-reimagined.space.fast';
@@ -16,7 +16,6 @@ describe('identity base (ruling: the course moved to learnwp.sqwrlz.com)', () =>
   it('builds statements, activity IRIs and the connector URL on the new base', () => {
     expect(XAPI_BASE).toBe(NEW);
     expect(MCP_URL).toBe(`${NEW}/api/mcp`);
-    expect(COURSE_ACTIVITY_BASE).toBe(`${NEW}/course`);
     expect(VERBS.branched.id).toBe(`${NEW}/xapi/verbs/branched`);
     expect(LEGACY_XAPI_BASES).toEqual([OLD]);
   });

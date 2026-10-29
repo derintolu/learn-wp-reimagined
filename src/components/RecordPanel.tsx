@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from 'preact/hooks';
 import { useLocation } from 'preact-iso';
 import { testedOutInWords, useBadges } from '../badges/badges';
-import { FEATURES, phaseOn } from '../config';
+import { FEATURES } from '../config';
 import { LRS_HOST } from '../shared/course-meta';
 import { content } from '../content';
 import { downloadRecord, readRecordFile } from '../record/fileTransfer';
@@ -15,7 +15,6 @@ import { useRecord } from '../record/useRecord';
 import type { LearningRecord } from '../shared/record';
 import { revokeAllAgents } from '../agent/client';
 import { AgentHandoff } from './AgentHandoff';
-import { ImportAgentProgress } from './ImportAgentProgress';
 import { SenseiPanel } from './SenseiPanel';
 
 /** Fired after a restore so an open lesson can pick up the restored place. */
@@ -42,26 +41,12 @@ export const LRS_FAILED = "We couldn't open the LRS right now. Try again later."
 
 export const DOWNLOAD_FAILED = "We couldn't download your record right now. Try again later.";
 
-/** Where the record and the learner's words go, for each flag state. Every sentence here must stay true with the flags as they are. */
-export const SHADOW_PANEL_COPY = 'While we test a separate record store, a copy of your steps, including the answers you type to checkpoints, is kept on a second server. "Delete my data" removes it.';
+/** Where the record and the learner's words go. */
 export const OFFICIAL_PANEL_COPY = `Your official record, including the answers you type to checkpoints, is kept on our servers, in the record store at ${LRS_HOST}.`;
 
 function recordBody(state: 'folder' | 'browser' | 'none'): string {
-  const official = phaseOn('officialRecord');
-  const shadow = phaseOn('lrsShadow');
-  if (official) {
-    const where = state === 'none' ? "This browser can't keep a working copy." : state === 'folder' ? 'Your record and lesson files are also written to the folder you picked, and this browser keeps a working copy.' : 'This browser keeps a working copy so lessons stay quick.';
-    return `${OFFICIAL_PANEL_COPY} ${where} Tutor messages go to the course server to be answered, and aren't stored.`;
-  }
-  const local =
-    state === 'none'
-      ? NOT_SAVED
-      : state === 'folder'
-        ? 'Your record and lesson files are written to the folder you picked, and kept in this browser too.'
-        : shadow
-          ? "Your progress stays on this device. Your answers and tutor messages go to the course server to be checked or answered. Tutor messages aren't stored."
-          : "Your progress stays on this device. Your answers and tutor messages go to the course server to be checked or answered, and aren't stored.";
-  return shadow ? `${local} ${SHADOW_PANEL_COPY}` : local;
+  const where = state === 'none' ? "This browser can't keep a working copy." : state === 'folder' ? 'Your record and lesson files are also written to the folder you picked, and this browser keeps a working copy.' : 'This browser keeps a working copy so lessons stay quick.';
+  return `${OFFICIAL_PANEL_COPY} ${where} Tutor messages go to the course server to be answered, and aren't stored.`;
 }
 
 const countOf = (n: number, what: string) => `${n} ${n === 1 ? 'lesson' : 'lessons'} ${what}`;
@@ -168,13 +153,12 @@ export function RecordPanel() {
   const [deleteFailed, setDeleteFailed] = useState(false);
   const confirmRef = useRef(false);
   const deleteBtnRef = useRef<HTMLButtonElement>(null);
-  const [view, setView] = useState<'main' | 'handoff' | 'import'>('main');
+  const [view, setView] = useState<'main' | 'handoff'>('main');
   const rootRef = useRef<HTMLDivElement>(null);
   const buttonRef = useRef<HTMLButtonElement>(null);
   const panelRef = useRef<HTMLDivElement>(null);
   const fileRef = useRef<HTMLInputElement>(null);
   const badges = useBadges(open);
-  const officialOn = phaseOn('officialRecord');
   const { official, none: nothingRecorded, version: officialVersion, loading: officialLoading, refresh: refreshOfficial } = useOfficialRecord(open);
   const folderOk = supportsFolder();
   const loc = useLocation() as ReturnType<typeof useLocation> | undefined;
@@ -190,7 +174,7 @@ export function RecordPanel() {
   const state: 'folder' | 'browser' | 'none' = folder ? 'folder' : persistent ? 'browser' : 'none';
   const attention = Boolean(notice || manager.folderError || syncMessage);
   const handoffLesson = open ? (lessonInPath() ?? record.current?.lessonId ?? null) : null;
-  const stateLabel = { folder: 'Saving to your folder', browser: 'Saved in this browser', none: 'Not saved' }[state];
+  const stateLabel = { folder: 'Saving to your folder', browser: 'Working copy in this browser', none: 'Not saved' }[state];
 
   useEffect(() => {
     if (!open) setView('main');
@@ -371,49 +355,47 @@ export function RecordPanel() {
           </p>
           <p class="record__body">{recordBody(state)}</p>
           <p class="record__summary">{summary(record)}</p>
-          {officialOn && (
-            <div class="record__official">
-              <p class="record__agent-title">Your official record</p>
-              {official ? (
-                <p class="record__summary">
-                  {countOf(official.completed.length, 'completed')}, {countOf(official.testedOut.length, 'tested out')}.
-                </p>
-              ) : (
-                <p class="record__summary" role="status">
-                  {officialLoading
-                    ? 'Reading your official record...'
-                    : nothingRecorded
-                      ? 'Nothing recorded yet.'
-                      : "We couldn't read your official record right now."}
-                </p>
-              )}
-              <div class="record__actions record__actions--stack">
-                {/* With no session there is nothing to download or view, and Sensei has no learner. */}
-                {!nothingRecorded && (
-                  <>
-                    <button type="button" class="button button--quiet" onClick={() => !busy && downloadMine()} aria-disabled={busy || undefined}>
-                      Download my record
-                    </button>
-                    <button type="button" class="button button--quiet" onClick={() => !busy && viewInLrs()} aria-disabled={busy || undefined}>
-                      View in the LRS
-                    </button>
-                  </>
-                )}
-                <button
-                  type="button"
-                  class="button button--quiet"
-                  onClick={() => !officialLoading && refreshOfficial()}
-                  aria-disabled={officialLoading || undefined}
-                >
-                  Refresh
-                </button>
-              </div>
-              <p class="visually-hidden" role="status" aria-live="polite">
-                {officialLoading ? 'Refreshing your official record.' : official ? 'Your official record is up to date.' : ''}
+          <div class="record__official">
+            <p class="record__agent-title">Your official record</p>
+            {official ? (
+              <p class="record__summary">
+                {countOf(official.completed.length, 'completed')}, {countOf(official.testedOut.length, 'tested out')}.
               </p>
-              {official && <SenseiPanel key={officialVersion} />}
+            ) : (
+              <p class="record__summary" role="status">
+                {officialLoading
+                  ? 'Reading your official record...'
+                  : nothingRecorded
+                    ? 'Nothing recorded yet.'
+                    : "We couldn't read your official record right now."}
+              </p>
+            )}
+            <div class="record__actions record__actions--stack">
+              {/* With no session there is nothing to download or view, and Sensei has no learner. */}
+              {!nothingRecorded && (
+                <>
+                  <button type="button" class="button button--quiet" onClick={() => !busy && downloadMine()} aria-disabled={busy || undefined}>
+                    Download my record
+                  </button>
+                  <button type="button" class="button button--quiet" onClick={() => !busy && viewInLrs()} aria-disabled={busy || undefined}>
+                    View in the LRS
+                  </button>
+                </>
+              )}
+              <button
+                type="button"
+                class="button button--quiet"
+                onClick={() => !officialLoading && refreshOfficial()}
+                aria-disabled={officialLoading || undefined}
+              >
+                Refresh
+              </button>
             </div>
-          )}
+            <p class="visually-hidden" role="status" aria-live="polite">
+              {officialLoading ? 'Refreshing your official record.' : official ? 'Your official record is up to date.' : ''}
+            </p>
+            {official && <SenseiPanel key={officialVersion} />}
+          </div>
           {badges && badges.length > 0 && (
             <div class="record__badges">
               <p class="record__agent-title">Your badges</p>
@@ -449,13 +431,7 @@ export function RecordPanel() {
                   Back
                 </button>
               </div>
-              {view === 'handoff' && handoffLesson && <AgentHandoff lessonId={handoffLesson} lessonTitle={titleOf(handoffLesson)} />}
-              {view === 'import' && (
-                <>
-                  <p class="record__confirm-q">Bring back your AI's progress</p>
-                  <ImportAgentProgress idPrefix="record-import" onDone={goToRestored} />
-                </>
-              )}
+              {view === 'handoff' && handoffLesson && <AgentHandoff lessonTitle={titleOf(handoffLesson)} />}
             </div>
           ) : pendingRestore ? (
             <div class="record__confirm" role="group" aria-labelledby="restore-q">
@@ -494,11 +470,9 @@ export function RecordPanel() {
               <button type="button" class="button button--quiet" onClick={() => fileRef.current?.click()} disabled={busy}>
                 Restore record
               </button>
-              {FEATURES.sessions && (
-                <button type="button" class="button button--quiet" ref={deleteBtnRef} onClick={openDelete}>
-                  Delete my data
-                </button>
-              )}
+              <button type="button" class="button button--quiet" ref={deleteBtnRef} onClick={openDelete}>
+                Delete my data
+              </button>
               {FEATURES.agent && (
                 <div class="record__agent record__actions record__actions--stack">
                   <p class="record__agent-title">Your own AI</p>
@@ -507,15 +481,9 @@ export function RecordPanel() {
                       Continue in your AI
                     </button>
                   )}
-                  {FEATURES.agentOnStandard ? (
-                    <button type="button" class="button button--quiet" onClick={disconnectAgents} disabled={busy}>
-                      Disconnect agents
-                    </button>
-                  ) : (
-                    <button type="button" class="button button--quiet" onClick={() => setView('import')}>
-                      Bring back your AI's progress
-                    </button>
-                  )}
+                  <button type="button" class="button button--quiet" onClick={disconnectAgents} disabled={busy}>
+                    Disconnect agents
+                  </button>
                 </div>
               )}
             </div>

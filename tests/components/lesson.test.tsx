@@ -38,8 +38,7 @@ vi.mock('../../src/ai/client', () => ({
 
 import { App } from '../../src/app';
 import { getStatus, judge, codeFeedback, tutorStream } from '../../src/ai/client';
-import { content, adoptPending, prefetchLatest } from '../../src/content';
-import { FEATURES } from '../../src/config';
+import { content, prefetchLatest } from '../../src/content';
 import type { ContentBundle } from '../../src/shared/types';
 import { setRecordManager } from '../../src/record/useRecord';
 import { setPlaygroundImporter } from '../../src/studio/previewClient';
@@ -48,7 +47,6 @@ import { resetSaveWarning, RESTORED_EVENT } from '../../src/components/RecordPan
 import { RecordManager, type RecordStore } from '../../src/record/store';
 import { applyEvent, newRecord, type LearningRecord } from '../../src/shared/record';
 import { memoryManager } from './helpers';
-import { PHASES_OFF, restoreFlags, setFlags } from '../helpers/flags';
 
 const status = vi.mocked(getStatus);
 const judgeMock = vi.mocked(judge);
@@ -106,7 +104,6 @@ async function typeInto(name: RegExp, text: string) {
 }
 
 beforeEach(() => {
-  setFlags(PHASES_OFF);
   setPlaygroundImporter(() => Promise.reject(new Error('no Playground in tests')));
   status.mockResolvedValue({ ai: 'off' });
   stream.mockRejectedValue(new Error('not set'));
@@ -114,7 +111,6 @@ beforeEach(() => {
 });
 afterEach(() => {
   cleanup();
-  restoreFlags();
   vi.clearAllMocks();
   setRecordManager(null);
   setPlaygroundImporter(null);
@@ -577,7 +573,8 @@ describe('Record panel', () => {
     await waitFor(() => expect(screen.queryByText("Your progress isn't being saved. Download it to keep it.")).toBeNull());
     // The menu still says so.
     const panel = await openPanel();
-    expect(panel.textContent).toContain("Your progress isn't being saved. Download it to keep it.");
+    expect(panel.textContent).toContain('Not saved');
+    expect(panel.textContent).toContain("This browser can't keep a working copy.");
     expect(document.activeElement).toBe(panel);
   });
 
@@ -598,7 +595,7 @@ describe('Record panel', () => {
     await act(() => m.init());
     m.notice = { kind: 'recovered-corrupt', message: 'Your saved record was damaged, so we kept a copy aside.' };
     const panel = await openPanel();
-    expect(panel.textContent).toContain('Saved in this browser');
+    expect(panel.textContent).toContain('Working copy in this browser');
     expect(panel.textContent).toContain('Your saved record was damaged, so we kept a copy aside.');
   });
 
@@ -793,7 +790,6 @@ describe('Fix round 1', () => {
 });
 
 describe('Course updates from WordPress', () => {
-  const flags = FEATURES as { wordpressContent: boolean };
   /** The current bundle with one lesson retitled, as if WordPress had a newer version. */
   const retitled = (id: string, title: string): ContentBundle => {
     const c = content as ContentBundle;
@@ -806,12 +802,10 @@ describe('Course updates from WordPress', () => {
     });
   };
   beforeEach(() => {
-    flags.wordpressContent = true;
     wp.pending = null;
     wp.current = null;
   });
   afterEach(() => {
-    flags.wordpressContent = false;
     wp.pending = null;
     wp.current = null;
   });
@@ -850,12 +844,4 @@ describe('Course updates from WordPress', () => {
     expect(vi.mocked(prefetchLatest)).toHaveBeenCalled();
   });
 
-  it('does nothing when the flag is off', async () => {
-    flags.wordpressContent = false;
-    use(managerWith(null));
-    open('/learn/theme-json-basics');
-    await screen.findByRole('heading', { level: 1 });
-    expect(vi.mocked(adoptPending)).not.toHaveBeenCalled();
-    expect(vi.mocked(prefetchLatest)).not.toHaveBeenCalled();
-  });
 });

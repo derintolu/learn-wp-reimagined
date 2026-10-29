@@ -1,7 +1,14 @@
 import type { D1Like } from './env';
 
+const relayDropped = new WeakSet<D1Like>();
+
 // Portable SQL: runs on SQLite (tests) and MySQL (Spacefast broker).
 export async function ensureSchema(db: D1Like): Promise<void> {
+  // One-time migration: the anonymous agent relay's records (mcp_records) went with the relay (Task 52).
+  if (!relayDropped.has(db)) {
+    await db.prepare('DROP TABLE IF EXISTS mcp_records').run();
+    relayDropped.add(db);
+  }
   await db
     .prepare('CREATE TABLE IF NOT EXISTS spend (period VARCHAR(10) PRIMARY KEY, usd_micros BIGINT)')
     .run();
@@ -78,8 +85,8 @@ export async function ensureCourseCacheSchema(db: D1Like): Promise<void> {
 const recordReady = new WeakSet<D1Like>();
 
 /**
- * The official-record tables (Task 30), kept out of ensureSchema so routes pay for them only with
- * SERVER_FLAGS.lrsShadow on. lrs_outbox is a queue of statements for the LRS (rows are deleted once stored);
+ * The official-record tables (Task 30), kept out of ensureSchema so routes pay for them only when they record.
+ * lrs_outbox is a queue of statements for the LRS (rows are deleted once stored);
  * au_sessions holds each learner's open cmi5 AU session; shadow_facts the learning facts decided per day;
  * official_outcomes the defined completed, passed and waived already sent, at most once per registration (keyed by it);
  * lrs_imports the course package ETags already imported. Also adds sessions.registration.

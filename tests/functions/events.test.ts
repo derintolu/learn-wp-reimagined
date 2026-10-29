@@ -1,5 +1,4 @@
 import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
-import { SERVER_FLAGS } from '../../functions/_lib/config';
 import { getContent } from '../../functions/_lib/content';
 import { createSqliteD1 } from '../../dev/sqliteD1';
 import { buildContent } from '../../scripts/build-content';
@@ -205,15 +204,6 @@ describe('POST /api/events', () => {
   const post = (body: unknown, env2: Env = env) =>
     events(new Request('http://x/api/events', { method: 'POST', body: typeof body === 'string' ? body : JSON.stringify(body) }), { params: {}, env: env2 });
 
-  it('503 disabled when the flag is off', async () => {
-    SERVER_FLAGS.serverEvents = false;
-    try {
-      expect((await post({ learnerId: LEARNER, events: [] })).status).toBe(503);
-    } finally {
-      SERVER_FLAGS.serverEvents = true;
-    }
-  });
-
   it('a database failure during decisions is a 5xx', async () => {
     const decisionId = await issue(FREE, 'skip');
     const flaky: Env = {
@@ -272,13 +262,11 @@ describe('Sensei enrolment on events', () => {
     return decideEvents(env, p.learnerId, p.events, NOW, { wpUserId, connector: { enrol } as any });
   };
   afterEach(() => {
-    SERVER_FLAGS.senseiLearners = false;
     enrolHealth.downUntil = 0;
   });
   const rows = async () => (await db.prepare('SELECT wp_user_id, course_key FROM enrolments').all<any>()).results;
 
   it('enrols once per path', async () => {
-    SERVER_FLAGS.senseiLearners = true;
     const enrol = vi.fn(async () => {});
     await run([placed('block-theme'), placed('block-theme')], enrol);
     expect(enrol).toHaveBeenCalledTimes(1);
@@ -287,14 +275,12 @@ describe('Sensei enrolment on events', () => {
   });
 
   it('enrols on the first event in a path, by the lesson path', async () => {
-    SERVER_FLAGS.senseiLearners = true;
     const enrol = vi.fn(async () => {});
     await run([{ eventId: eid(), type: 'beatViewed', lessonId: CODE, beatIndex: 0 }], enrol);
     expect(enrol).toHaveBeenCalledWith(9, getContent().lessons[CODE].pathId);
   });
 
   it('enrol failure does not fail the event and is retried on the next event in that path', async () => {
-    SERVER_FLAGS.senseiLearners = true;
     const enrol = vi.fn().mockRejectedValueOnce(new Error('down')).mockResolvedValue(undefined);
     const [r1] = (await run([placed('block-theme')], enrol)) as any[];
     expect(r1.ok).toBe(true);
@@ -306,7 +292,6 @@ describe('Sensei enrolment on events', () => {
   });
 
   it('a slow or down connector costs one enrol attempt per batch, then backs off for a minute', async () => {
-    SERVER_FLAGS.senseiLearners = true;
     const enrol = vi.fn(async () => {
       throw new ConnectorUnavailable('timeout');
     });
@@ -329,7 +314,6 @@ describe('Sensei enrolment on events', () => {
   });
 
   it('a refused enrolment is tried once per batch and path, and again on the next batch', async () => {
-    SERVER_FLAGS.senseiLearners = true;
     const enrol = vi.fn(async () => {
       throw new ConnectorError(403, 'refused');
     });
@@ -339,13 +323,9 @@ describe('Sensei enrolment on events', () => {
     expect(enrol).toHaveBeenCalledTimes(2);
   });
 
-  it('does nothing with the flag off or without a learner', async () => {
-    SERVER_FLAGS.senseiLearners = false;
+  it('does nothing without a learner', async () => {
     const enrol = vi.fn(async () => {});
-    await run([placed('block-theme')], enrol);
-    SERVER_FLAGS.senseiLearners = true;
     await run([placed('block-theme')], enrol, null);
     expect(enrol).not.toHaveBeenCalled();
-    SERVER_FLAGS.senseiLearners = false;
   });
 });

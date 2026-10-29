@@ -1,5 +1,4 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import { SERVER_FLAGS } from '../../functions/_lib/config';
 import { LEDGER_BASE, LRS_API, LRS_XAPI } from '../../functions/_lib/config';
 import { createSqliteD1 } from '../../dev/sqliteD1';
 import { ensureSchema, ensureRecordSchema, ensureOAuthSchema } from '../../functions/_lib/db';
@@ -26,7 +25,6 @@ let env: Env;
 let calls: { method: string; url: string; body: string }[];
 let answer: (method: string, url: string) => Response | undefined;
 
-const flags = { ...SERVER_FLAGS };
 beforeEach(async () => {
   db = createSqliteD1();
   env = {
@@ -52,11 +50,9 @@ beforeEach(async () => {
     calls.push({ method, url, body: String(init?.body ?? '') });
     return answer(method, url) ?? new Response('{}', { status: 200 });
   });
-  Object.assign(SERVER_FLAGS, { senseiLearners: true, lrsShadow: true });
 });
 afterEach(() => {
   vi.unstubAllGlobals();
-  Object.assign(SERVER_FLAGS, flags);
 });
 
 const addSession = async (name: string, wp: number | null, touched: number, sid = `sid-${name}`) => {
@@ -97,51 +93,12 @@ describe('eraseLearner', () => {
     expect((await db.prepare('SELECT COUNT(*) AS c FROM shadow_facts').first<{ c: number }>())!.c).toBe(0);
   });
 
-  it('with every flag off it touches only the session row', async () => {
-    Object.assign(SERVER_FLAGS, { senseiLearners: false, lrsShadow: false });
-    const s = await addSession('abc', null, NOW);
-    await eraseLearner(env, s, { revokeBadges: true });
-    expect(calls).toEqual([]);
-    expect(await count()).toBe(0);
-  });
-
   it('removes the cached official record', async () => {
     const s = await addSession('abc', null, NOW);
     await db.prepare('INSERT INTO record_cache (actor_name, body, at) VALUES (?, ?, ?)').bind('abc', '{}', NOW).run();
     await db.prepare('INSERT INTO record_cache (actor_name, body, at) VALUES (?, ?, ?)').bind('other', '{}', NOW).run();
     await eraseLearner(env, s, { revokeBadges: true });
     expect((await db.prepare('SELECT actor_name FROM record_cache').all<{ actor_name: string }>()).results).toEqual([{ actor_name: 'other' }]);
-  });
-
-  it('after an LRS flag rollback, still erases a learner the LRS has seen (a cached registration)', async () => {
-    Object.assign(SERVER_FLAGS, { senseiLearners: false, lrsShadow: false });
-    const s = await addSession('abc', null, NOW);
-    await db.prepare('UPDATE sessions SET registration = ? WHERE sid_hash = ?').bind('7d3c1a2b-4e5f-4a6b-8c7d-9e0f1a2b3c4d', s.sidHash).run();
-    await recordShadowFact(env, 'abc', { lessonId: 'x', kind: 'completed' }, NOW);
-    await eraseLearner(env, s, { revokeBadges: true });
-    expect(eraseCalls()).toHaveLength(1);
-    expect((await db.prepare('SELECT COUNT(*) AS c FROM shadow_facts').first<{ c: number }>())!.c).toBe(0);
-    expect(await count()).toBe(0);
-  });
-
-  it('after a Sensei flag rollback, still deletes a learner made in WordPress', async () => {
-    Object.assign(SERVER_FLAGS, { senseiLearners: false, lrsShadow: false });
-    const s = await addSession('abc', 77, NOW);
-    await eraseLearner(env, s, { revokeBadges: true });
-    expect(calls.map((c) => c.method + ' ' + c.url.replace(LEDGER_BASE, ''))).toEqual(['DELETE /course-server/learners/77']);
-    expect(await count()).toBe(0);
-  });
-
-  it('with the flags off and the record tables never made (today), touches only the session row', async () => {
-    Object.assign(SERVER_FLAGS, { senseiLearners: false, lrsShadow: false });
-    db = createSqliteD1();
-    env = { ...env, DB: db };
-    await ensureSchema(db);
-    const s = await addSession('abc', null, NOW);
-    await eraseLearner(env, s, { revokeBadges: true });
-    expect(calls).toEqual([]);
-    expect(await count()).toBe(0);
-    expect(await db.prepare("SELECT name FROM sqlite_master WHERE name = 'lrs_outbox'").first()).toBeNull();
   });
 
   it('every table keyed by actor_name is erased', () => {
@@ -313,11 +270,6 @@ describe('drift', () => {
     expect(calls.find((c) => c.url.includes('/progress'))!.url).toContain('program=9');
   });
 
-  it('checks nothing with the Sensei or LRS flag off', async () => {
-    SERVER_FLAGS.senseiLearners = false;
-    await recordShadowFact(env, 'abc', { lessonId: 'theme-json-basics', kind: 'completed' }, NOW);
-    expect((await sweep(env, NOW)).drift).toEqual({ checked: 0, mismatched: [] });
-  });
 });
 
 describe('routes', () => {
@@ -325,7 +277,25 @@ describe('routes', () => {
   it('/api/sweep needs the cron secret and returns the counts', async () => {
     expect((await sweepRoute(new Request('http://x/api/sweep'), { params: {}, env })).status).toBe(401);
     const res = await sweepRoute(new Request('http://x/api/sweep', auth('cron')), { params: {}, env });
-    expect(await res.json()).toMatchObject({ expired: 0, retained: 0, drift: { checked: 0, mismatched: [] } });
+    expect(await res.json()).toEqual({ expired: 0, retained: 0, drift: { checked: 0, mismatched: [] }, tokensExpired: 0 });
+  });
+
+  it('/api/sweep deletes expired OAuth tokens and keeps live ones', async () => {
+    await ensureOAuthSchema(db);
+    const now = Date.now();
+    const token = (hash: string, kind: string, expires: number) =>
+      db
+        .prepare("INSERT INTO oauth_tokens (token_hash, kind, family_id, client_id, actor_name, wp_user_id, registration, created, expires, used) VALUES (?, ?, 'f', 'c', 'abc', 1, 'r', 1, ?, 0)")
+        .bind(hash, kind, expires)
+        .run();
+    await token('old-access', 'access', now - 1000);
+    await token('old-refresh', 'refresh', now - 1000);
+    await token('live-access', 'access', now + 3_600_000);
+    await token('live-refresh', 'refresh', now + 30 * DAY);
+    const res = await sweepRoute(new Request('http://x/api/sweep', auth('cron')), { params: {}, env });
+    expect(await res.json()).toMatchObject({ tokensExpired: 2 });
+    const left = (await db.prepare('SELECT token_hash FROM oauth_tokens ORDER BY token_hash').all<{ token_hash: string }>()).results.map((r) => r.token_hash);
+    expect(left).toEqual(['live-access', 'live-refresh']);
   });
 
   it('/api/admin/drift needs the admin token and serves the stored report', async () => {

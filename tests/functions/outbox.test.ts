@@ -1,6 +1,4 @@
 import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
-import { SERVER_FLAGS } from '../../functions/_lib/config';
-import { PHASES_OFF, restoreServerFlags, setServerFlags } from '../helpers/flags';
 import { createSqliteD1 } from '../../dev/sqliteD1';
 import { buildContent } from '../../scripts/build-content';
 import { setContentForTests } from '../../functions/_lib/content';
@@ -15,7 +13,7 @@ import { auIdOf } from '../../functions/_lib/record/official';
 import { ADL_VERBS, CMI5, activityIds } from '../../vendor/course-xapi-mcp/core/constants';
 import { checkProfile } from '../../vendor/course-xapi-mcp/core/xapi/profile-check';
 import type { XapiStatement } from '../../vendor/course-xapi-mcp/core/xapi/types';
-import { fakeLrs } from '../helpers/fakeLrs';
+import { LEDGER_ENV, fakeLrs } from '../helpers/fakeLrs';
 
 const NOW = Date.UTC(2026, 9, 27, 12, 0, 0);
 const MIN = 60_000;
@@ -33,10 +31,9 @@ const rows = async () =>
   (await db.prepare('SELECT statement_id, body, attempts, next_at FROM lrs_outbox ORDER BY created, statement_id').all<{ statement_id: string; body: string; attempts: number; next_at: number }>()).results;
 
 beforeEach(async () => {
-  setServerFlags(PHASES_OFF);
   setContentForTests(buildContent('tests/fixtures/content'));
   db = createSqliteD1();
-  env = { DB: db, SESSION_KEY: 'test-session-key-not-a-secret', LRS_KEY: 'ck_test', LRS_SECRET: 'cs_test', CRON_SECRET: CRON };
+  env = { DB: db, SESSION_KEY: 'test-session-key-not-a-secret', LRS_KEY: 'ck_test', LRS_SECRET: 'cs_test', ...LEDGER_ENV, CRON_SECRET: CRON };
   await ensureSchema(db);
   await ensureRecordSchema(db);
   lrs = fakeLrs();
@@ -44,7 +41,6 @@ beforeEach(async () => {
   lrsHealth.downUntil = 0;
 });
 afterEach(() => {
-  restoreServerFlags();
   vi.unstubAllGlobals();
   vi.restoreAllMocks();
 });
@@ -174,7 +170,6 @@ describe('POST /api/events with the LRS in shadow', () => {
   const completed = { learnerId: '3f2b8c1e-5d4a-4e6f-8a9b-0c1d2e3f4a5b', events: [{ eventId: 'evt-00000001', type: 'lessonCompleted', lessonId: FREE }] };
 
   it('LRS down: the event still answers and the outbox keeps the row', async () => {
-    SERVER_FLAGS.lrsShadow = true;
     const cookie = await returningLearner();
     lrs.down = true;
     const res = await post(completed, cookie);
@@ -189,7 +184,6 @@ describe('POST /api/events with the LRS in shadow', () => {
   });
 
   it('a batch of several events is drained whole after deciding', async () => {
-    SERVER_FLAGS.lrsShadow = true;
     const cookie = await returningLearner();
     const res = await post(
       {
@@ -208,7 +202,6 @@ describe('POST /api/events with the LRS in shadow', () => {
   });
 
   it('a hanging LRS: a new learner is answered within the budget; late is not down, only the timeout is', async () => {
-    SERVER_FLAGS.lrsShadow = true;
     const { cookie } = await createSession(env, Date.now());
     const value = cookie.split(';')[0].split('=').slice(1).join('=');
     lrs.hang = true;
@@ -231,7 +224,6 @@ describe('POST /api/events with the LRS in shadow', () => {
   }, 10_000);
 
   it('a hanging LRS: a returning learner is answered within the budget and the rows stay queued', async () => {
-    SERVER_FLAGS.lrsShadow = true;
     const cookie = await returningLearner();
     lrs.hang = true;
     const t0 = Date.now();
@@ -242,7 +234,6 @@ describe('POST /api/events with the LRS in shadow', () => {
   });
 
   it('the same event retried after its statements were drained leaves no dead letters', async () => {
-    SERVER_FLAGS.lrsShadow = true;
     const log = vi.spyOn(console, 'error').mockImplementation(() => {});
     const cookie = await returningLearner();
     expect((await post(completed, cookie)).status).toBe(200);
@@ -263,7 +254,6 @@ describe('POST /api/events with the LRS in shadow', () => {
   });
 
   it('after the registration moves (restart_course), a lesson can be completed again in the new one', async () => {
-    SERVER_FLAGS.lrsShadow = true;
     const cookie = await returningLearner();
     expect((await post(completed, cookie)).status).toBe(200);
     // A second event completing the same lesson in the same registration sends no second completed.
@@ -278,7 +268,6 @@ describe('POST /api/events with the LRS in shadow', () => {
   });
 
   it('LRS up: the statements are posted after deciding and leave the outbox', async () => {
-    SERVER_FLAGS.lrsShadow = true;
     const cookie = await returningLearner();
     const res = await post(completed, cookie);
     expect(res.status).toBe(200);
@@ -298,7 +287,6 @@ describe('GET /api/lrs-drain', () => {
   });
 
   it('idle AU session is abandoned by the cron', async () => {
-    SERVER_FLAGS.lrsShadow = true;
     const { session } = await createSession(env, Date.now());
     await db.prepare('UPDATE sessions SET registration = ? WHERE sid_hash = ?').bind(REG, session.sidHash).run();
     const now = Date.now();
@@ -325,10 +313,4 @@ describe('GET /api/lrs-drain', () => {
     expect(left.results.map((r) => r.au_key)).toEqual(['patterns']);
   });
 
-  it('does nothing with the flag off', async () => {
-    SERVER_FLAGS.lrsShadow = false;
-    await enqueue(env, [stmt(1)], NOW);
-    expect(await (await get(`Bearer ${CRON}`)).json()).toEqual({ sent: 0, left: 0, abandoned: 0 });
-    expect(lrs.calls).toEqual([]);
-  });
 });

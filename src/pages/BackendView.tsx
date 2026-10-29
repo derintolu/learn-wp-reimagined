@@ -1,7 +1,6 @@
 import { useEffect, useRef, useState } from 'preact/hooks';
 import { useRoute } from 'preact-iso';
 import { content } from '../content';
-import { FEATURES } from '../config';
 import { Sticker } from '../components/Sticker';
 import { fetchCourse, fetchLesson, type SenseiCourse, type SenseiLesson } from '../backend/sensei';
 import { plainText, sanitizeHtml } from '../backend/sanitize';
@@ -31,7 +30,7 @@ function Banner({ what, studioLabel, studioHref }: { what: 'course' | 'lesson'; 
 export function BackendView() {
   const { params } = useRoute();
   const { pathId, lessonId } = params;
-  const path = FEATURES.wordpressContent && has(content.paths, pathId) ? content.paths[pathId as keyof typeof content.paths] : null;
+  const path = has(content.paths, pathId) ? content.paths[pathId as keyof typeof content.paths] : null;
   const valid = !!path && (lessonId === undefined || path.lessons.includes(lessonId));
   const at = `${pathId}/${lessonId ?? ''}`;
   const [state, setState] = useState<State>(null);

@@ -1,4 +1,4 @@
-// The course /api/mcp teaches with SERVER_FLAGS.agentOnStandard: the full (authoring) package built from the
+// The course /api/mcp teaches: the full (authoring) package built from the
 // course the server serves now (the course cache, Task 19, or the baked bundle) by bundleToPackage (Task 15),
 // loaded with the standard's own loader. The authoring flavour holds the bug explanations, fix checks and
 // reference solution; the reference server keeps them from the agent until the rules allow. Its badge issuer names

@@ -1,5 +1,4 @@
 import type { ContentBundle } from './shared/types';
-import { FEATURES } from './config';
 import generated from './generated/content.json';
 
 /** Where the course content comes from. */
@@ -44,7 +43,7 @@ export const wordpressSource: CourseSource = {
   },
 };
 
-let source: CourseSource = FEATURES.wordpressContent ? wordpressSource : bundledSource;
+let source: CourseSource = wordpressSource;
 let adoptedEtag: string | null = null;
 let pending: { bundle: ContentBundle; etag: string } | null = null;
 let checking: Promise<void> | null = null;

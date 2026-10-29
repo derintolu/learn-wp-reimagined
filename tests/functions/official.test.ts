@@ -1,6 +1,4 @@
 import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
-import { SERVER_FLAGS } from '../../functions/_lib/config';
-import { PHASES_OFF, restoreServerFlags, setServerFlags } from '../helpers/flags';
 import { createSqliteD1 } from '../../dev/sqliteD1';
 import { buildContent } from '../../scripts/build-content';
 import { getContent, setContentForTests } from '../../functions/_lib/content';
@@ -19,7 +17,7 @@ import type { ContentBundle } from '../../src/shared/types';
 import { ADL_VERBS, CMI5, CXM_EXT, STATE_IDS, activityIds } from '../../vendor/course-xapi-mcp/core/constants';
 import { checkProfile } from '../../vendor/course-xapi-mcp/core/xapi/profile-check';
 import type { XapiStatement } from '../../vendor/course-xapi-mcp/core/xapi/types';
-import { fakeLrs } from '../helpers/fakeLrs';
+import { LEDGER_ENV, fakeLrs } from '../helpers/fakeLrs';
 
 const NOW = Date.UTC(2026, 9, 27, 12, 0, 0);
 const DAY = '2026-10-27';
@@ -59,17 +57,15 @@ const outbox = async () =>
   );
 
 beforeEach(async () => {
-  setServerFlags(PHASES_OFF);
   setContentForTests(buildContent('tests/fixtures/content'));
   db = createSqliteD1();
-  env = { DB: db, SESSION_KEY: 'test-session-key-not-a-secret', LRS_KEY: 'ck_test', LRS_SECRET: 'cs_test' };
+  env = { DB: db, SESSION_KEY: 'test-session-key-not-a-secret', LRS_KEY: 'ck_test', LRS_SECRET: 'cs_test', ...LEDGER_ENV };
   await ensureSchema(db);
   lrs = fakeLrs();
   vi.stubGlobal('fetch', lrs.fetch);
   lrsHealth.downUntil = 0;
 });
 afterEach(() => {
-  restoreServerFlags();
   vi.unstubAllGlobals();
   vi.restoreAllMocks();
 });
@@ -182,18 +178,7 @@ describe('registration', () => {
 });
 
 describe('decide with the LRS in shadow', () => {
-  it('flag off: no outbox, no shadow facts, no LRS calls', async () => {
-    SERVER_FLAGS.lrsShadow = false;
-    const { session } = await createSession(env, NOW);
-    const [r] = (await decide(session, [{ eventId: eid(), type: 'lessonCompleted', lessonId: FREE }])) as any[];
-    expect(r.ok).toBe(true);
-    expect(lrs.calls).toEqual([]);
-    const tables = await db.prepare("SELECT name FROM sqlite_master WHERE type = 'table' AND name IN ('lrs_outbox', 'shadow_facts')").all();
-    expect(tables.results).toEqual([]);
-  });
-
   it('builds, queues and records the official statements, and the studio still gets phase 1', async () => {
-    SERVER_FLAGS.lrsShadow = true;
     const { session } = await createSession(env, NOW);
     const [opened, completed] = (await decide(session, [
       { eventId: eid(), type: 'lessonOpened', lessonId: FREE },
@@ -208,7 +193,6 @@ describe('decide with the LRS in shadow', () => {
   });
 
   it('the same event twice gives one set of official statements', async () => {
-    SERVER_FLAGS.lrsShadow = true;
     const { session } = await createSession(env, NOW);
     const ev = { eventId: eid(), type: 'checkpointAnswered', lessonId: FREE, response: 'my answer', outcome: 'advance' };
     await decide(session, [ev]);
@@ -221,7 +205,6 @@ describe('decide with the LRS in shadow', () => {
   });
 
   it('a second lessonCompleted for the same lesson sends no second completed', async () => {
-    SERVER_FLAGS.lrsShadow = true;
     const { session } = await createSession(env, NOW);
     await decide(session, [{ eventId: eid(), type: 'lessonCompleted', lessonId: FREE }]);
     await decide(session, [{ eventId: eid(), type: 'lessonCompleted', lessonId: FREE }], NOW + 1_000);
@@ -229,7 +212,6 @@ describe('decide with the LRS in shadow', () => {
   });
 
   it('opening another lesson terminates the open session; lessonLeft terminates its own', async () => {
-    SERVER_FLAGS.lrsShadow = true;
     const { session } = await createSession(env, NOW);
     await decide(session, [
       { eventId: eid(), type: 'lessonOpened', lessonId: FREE },
@@ -245,7 +227,6 @@ describe('decide with the LRS in shadow', () => {
   });
 
   it('records shadow facts for placement, waivers, branches and caught bugs', async () => {
-    SERVER_FLAGS.lrsShadow = true;
     const { session } = await createSession(env, NOW);
     await decide(session, [
       { eventId: eid(), type: 'placed', placement: { pathId: 'block-theme', startLessonId: 'templates-and-parts', skip: [FREE], reason: 'Knows theme.json.' } },
@@ -266,9 +247,7 @@ describe('decide with the LRS in shadow', () => {
   });
 
   it('with Sensei enrolment on too: both run, and a slow enrolment does not eat the shadow budget', async () => {
-    SERVER_FLAGS.lrsShadow = true;
     const { session } = await createSession(env, NOW);
-    SERVER_FLAGS.senseiLearners = true;
     try {
       const enrol = vi.fn(() => new Promise<void>((resolve) => setTimeout(resolve, 900)));
       const p = parseEvents({ learnerId: '3f2b8c1e-5d4a-4e6f-8a9b-0c1d2e3f4a5b', events: [{ eventId: eid(), type: 'lessonCompleted', lessonId: FREE }] });
@@ -278,19 +257,16 @@ describe('decide with the LRS in shadow', () => {
       expect(enrol).toHaveBeenCalledWith(9, 'block-theme');
       expect((await outbox()).map(verbOf)).toEqual(['launched', 'initialized', 'completed']);
     } finally {
-      SERVER_FLAGS.senseiLearners = false;
     }
   });
 
   it('no session: nothing official is recorded', async () => {
-    SERVER_FLAGS.lrsShadow = true;
     const [r] = (await decide(null, [{ eventId: eid(), type: 'lessonCompleted', lessonId: FREE }])) as any[];
     expect(r.ok).toBe(true);
     expect(lrs.calls).toEqual([]);
   });
 
   it('an unreachable LRS with no known registration still answers the event, and is not asked again at once', async () => {
-    SERVER_FLAGS.lrsShadow = true;
     lrs.down = true;
     const log = vi.spyOn(console, 'error').mockImplementation(() => {});
     const { session } = await createSession(env, NOW);
@@ -305,7 +281,6 @@ describe('decide with the LRS in shadow', () => {
   });
 
   it('a placement never waives a lesson already satisfied', async () => {
-    SERVER_FLAGS.lrsShadow = true;
     const { session } = await createSession(env, NOW);
     await decide(session, [
       { eventId: eid(), type: 'checkpointAnswered', lessonId: FREE, response: 'r', outcome: 'advance' },
@@ -317,7 +292,6 @@ describe('decide with the LRS in shadow', () => {
   });
 
   it('a skip branch never waives a jumped lesson already satisfied', async () => {
-    SERVER_FLAGS.lrsShadow = true;
     getContent().lessons[FREE].checkpoint!.branches.find((b) => b.outcome === 'skip')!.to = 'patterns';
     const { session } = await createSession(env, NOW);
     const decisionId = crypto.randomUUID();
@@ -334,7 +308,6 @@ describe('decide with the LRS in shadow', () => {
   });
 
   it('a lesson completed but not yet passed is still waived, as the standard does', async () => {
-    SERVER_FLAGS.lrsShadow = true;
     const { session } = await createSession(env, NOW);
     await decide(session, [
       { eventId: eid(), type: 'lessonCompleted', lessonId: FREE },
@@ -346,7 +319,6 @@ describe('decide with the LRS in shadow', () => {
 
 describe('importCourseOnNewVersion', () => {
   it('a new course version is imported into the LRS once', async () => {
-    SERVER_FLAGS.lrsShadow = true;
     const v1 = new Uint8Array([1, 2, 3]);
     const v2 = new Uint8Array([4, 5]);
     await importCourseOnNewVersion(env, v1, '"1-2-3"');
@@ -354,11 +326,5 @@ describe('importCourseOnNewVersion', () => {
     expect(lrs.imports).toEqual(['"1-2-3"']);
     await importCourseOnNewVersion(env, v2, '"4-5"');
     expect(lrs.imports).toEqual(['"1-2-3"', '"4-5"']);
-  });
-
-  it('does nothing with the flag off', async () => {
-    SERVER_FLAGS.lrsShadow = false;
-    await importCourseOnNewVersion(env, new Uint8Array([1]), '"1"');
-    expect(lrs.calls).toEqual([]);
   });
 });

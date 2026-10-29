@@ -9,7 +9,6 @@ import { resolveBranch, validatePlacement } from '../../../src/shared/engine';
 import { statementsForEvent } from '../../../src/shared/statements';
 import type { RecordEvent } from '../../../src/shared/record';
 import type { EventResult, ServerEvent } from '../../../src/shared/events';
-import { SERVER_FLAGS } from '../config';
 import { ensureEnrolled } from '../session/enrol';
 import type { ConnectorClient } from '../ledger/connector';
 import type { Lesson, PathId } from '../../../src/shared/types';
@@ -128,8 +127,8 @@ export interface DecideOptions {
 }
 
 /**
- * Decides every event independently; one bad event never sinks the batch. With a session and
- * SERVER_FLAGS.lrsShadow on, the official statements are then built and queued for the LRS (never failing the batch).
+ * Decides every event independently; one bad event never sinks the batch. With a session, the official
+ * statements are then built and queued for the LRS (never failing the batch).
  */
 export async function decideEvents(env: Env, actorName: string, events: ServerEvent[], now: number, opts: DecideOptions = {}): Promise<EventResult[]> {
   const out: EventResult[] = [];
@@ -139,12 +138,12 @@ export async function decideEvents(env: Env, actorName: string, events: ServerEv
     // Validation failures are returned as results above; infrastructure errors propagate so the client retries.
     const r = await decideOne(env, actorName, e, now);
     out.push(r);
-    if (r.ok && SERVER_FLAGS.senseiLearners && opts.wpUserId != null) {
+    if (r.ok && opts.wpUserId != null) {
       const path = pathOf(e);
       if (path && !enrolFailed.has(path) && !(await ensureEnrolled(env, opts.wpUserId, path, opts.connector, now))) enrolFailed.add(path);
     }
   }
-  if (SERVER_FLAGS.lrsShadow && opts.session) await recordOfficial(env, opts.session, events, out, now, opts.handlerCtx);
-  if (SERVER_FLAGS.officialRecord && out.some((r) => r.ok)) await invalidateRecordCache(env, actorName);
+  if (opts.session) await recordOfficial(env, opts.session, events, out, now, opts.handlerCtx);
+  if (out.some((r) => r.ok)) await invalidateRecordCache(env, actorName);
   return out;
 }

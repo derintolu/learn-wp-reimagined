@@ -1,34 +1,30 @@
 import { build } from 'esbuild';
-import { afterEach, beforeEach, describe, expect, it } from 'vitest';
+import { beforeEach, describe, expect, it } from 'vitest';
 import { createSqliteD1 } from '../../dev/sqliteD1';
 import { handleMcp } from '../../functions/_lib/mcp/handler';
-import { MCP_LIMITS, TOO_LARGE, TOO_MANY, inspectMcpBody, mcpHandleKey } from '../../functions/_lib/mcp/gate';
-import { practiceForm } from '../../functions/_lib/mcp/handles';
+import { MCP_LIMITS, TOO_LARGE, TOO_MANY, gateMcp, inspectMcpBody, mcpTokenKey } from '../../functions/_lib/mcp/gate';
+import { ensureSchema } from '../../functions/_lib/db';
 import type { D1Like, Env } from '../../functions/_lib/env';
-import { newHandle } from '../../vendor/learning-mcp/core/index.ts';
 import { vendorShimsEsbuild } from '../../scripts/vendor-shims';
-import { PHASES_OFF, restoreServerFlags, setServerFlags } from '../helpers/flags';
-
-// Each loop test makes 60 to 121 sequential MCP requests (about 1 s alone); under parallel load that is several times slower.
-const LOOP_TIMEOUT = 60_000;
 
 let db: D1Like;
 let env: Env;
 let t: number;
 
-beforeEach(() => {
-  // Today's practice connector: the gate before agentOnStandard's sign-in.
-  setServerFlags(PHASES_OFF);
+beforeEach(async () => {
   db = createSqliteD1();
   env = { DB: db } as Env;
   t = Date.parse('2026-10-20T12:00:00Z');
-});
-afterEach(() => {
-  restoreServerFlags();
+  // handleMcp ensures the schema; the gate alone expects it.
+  await ensureSchema(db);
 });
 
-/** Sends one JSON-RPC body and reads the whole response (the SDK streams it, so the tool runs while it is read). */
-async function rpc(body: unknown): Promise<{ status: number; json(): Promise<unknown>; text: string }> {
+const HASH = 'a'.repeat(64);
+const legacyHandle = () => 'lr_' + 'x'.repeat(32);
+const practiceHandle = () => 'cxp_' + 'y'.repeat(32);
+
+/** Sends one JSON-RPC body through /api/mcp and reads the whole response. */
+async function rpc(body: unknown): Promise<{ status: number; json(): Promise<unknown> }> {
   const r = await handleMcp(
     new Request('http://localhost/api/mcp', {
       method: 'POST',
@@ -39,94 +35,66 @@ async function rpc(body: unknown): Promise<{ status: number; json(): Promise<unk
     { now: () => t },
   );
   const text = await r.text();
-  return { status: r.status, text, json: async () => JSON.parse(text) };
+  return { status: r.status, json: async () => JSON.parse(text) };
 }
 const toolCall = (id: number, name: string, args: Record<string, unknown>) => ({ jsonrpc: '2.0', id, method: 'tools/call', params: { name, arguments: args } });
+const gate = (body: unknown, tokenHash?: string) =>
+  gateMcp(new Request('http://localhost/api/mcp', { method: 'POST', body: JSON.stringify(body) }), env, t, tokenHash ? { tokenHash } : {});
 
 describe('MCP gate', () => {
   it('a body over 1 MiB gets 413 as a JSON-RPC error', async () => {
-    const r = await rpc(toolCall(1, 'link_record', { record: 'x'.repeat(4_000_000) }));
+    const r = await rpc(toolCall(1, 'get_status', { note: 'x'.repeat(4_000_000) }));
     expect(r.status).toBe(413);
     expect(await r.json()).toEqual({ jsonrpc: '2.0', id: null, error: { code: -32600, message: TOO_LARGE } });
   });
 
-  it('the 121st call on one handle in 10 minutes gets 429; another handle still works', async () => {
-    const h = newHandle();
-    for (let i = 0; i < MCP_LIMITS.perHandle.limit; i++) expect((await rpc(toolCall(i, 'get_record', { handle: h }))).status).toBe(200);
-    const r = await rpc(toolCall(999, 'get_record', { handle: h }));
-    expect(r.status).toBe(429);
-    expect(await r.json()).toEqual({ jsonrpc: '2.0', id: 999, error: { code: -32000, message: TOO_MANY } });
-    expect((await rpc(toolCall(1, 'get_record', { handle: newHandle() }))).status).toBe(200);
-    t += MCP_LIMITS.perHandle.windowMs;
-    expect((await rpc(toolCall(1, 'get_record', { handle: h }))).status).toBe(200);
-  }, LOOP_TIMEOUT);
-
-  it('the 61st record creation gets 429', async () => {
-    for (let i = 0; i < MCP_LIMITS.create.limit; i++) expect((await rpc(toolCall(i, 'start_placement', {}))).status).toBe(200);
-    expect((await rpc(toolCall(61, 'start_placement', {}))).status).toBe(429);
-    expect((await rpc(toolCall(62, 'link_record', { record: '{}' }))).status).toBe(429);
-    const rows = await db.prepare('SELECT COUNT(*) AS n FROM mcp_records').first<{ n: number }>();
-    expect(Number(rows!.n)).toBe(MCP_LIMITS.create.limit);
-  }, LOOP_TIMEOUT);
-
   it('the global ceiling holds', async () => {
-    await db.prepare('CREATE TABLE IF NOT EXISTS hits (k VARCHAR(80) PRIMARY KEY, window_start BIGINT, n INT)').run();
     await db.prepare('INSERT INTO hits (k, window_start, n) VALUES (?, ?, ?)').bind('mcp:g', t, MCP_LIMITS.global.limit).run();
-    expect((await rpc(toolCall(1, 'list_paths', {}))).status).toBe(429);
+    const r = await rpc(toolCall(7, 'get_status', {}));
+    expect(r.status).toBe(429);
+    expect(await r.json()).toEqual({ jsonrpc: '2.0', id: 7, error: { code: -32000, message: TOO_MANY } });
   });
 
-  it('MCP traffic never touches the AI buckets', async () => {
-    for (let i = 0; i < 50; i++) await rpc(toolCall(i, i % 2 ? 'list_paths' : 'get_record', { handle: newHandle() }));
-    const { results } = await db.prepare('SELECT k FROM hits').all<{ k: string }>();
-    expect(results.length).toBeGreaterThan(1);
-    for (const { k } of results) expect(k.startsWith('mcp:')).toBe(true);
-  }, LOOP_TIMEOUT);
+  it('a batch is charged per call to the token: the 121st call in 10 minutes gets 429', async () => {
+    const batch = (n: number) => Array.from({ length: n }, (_, i) => toolCall(i, 'get_status', {}));
+    expect((await gate(batch(100), HASH)).ok).toBe(true);
+    expect((await gate(batch(20), HASH)).ok).toBe(true);
+    expect((await gate(batch(1), HASH)).ok).toBe(false);
+    const g = await db.prepare("SELECT n FROM hits WHERE k = 'mcp:g'").first<{ n: number }>();
+    expect(Number(g!.n)).toBe(121);
+    t += MCP_LIMITS.perToken.windowMs;
+    expect((await gate(batch(1), HASH)).ok).toBe(true);
+  });
 
-  it('inspectMcpBody finds handles and creations in a batch and ignores invalid JSON', () => {
-    const a = newHandle();
-    const b = newHandle();
+  it('without a token only the global bucket is charged, and MCP traffic never touches the AI buckets', async () => {
+    for (let i = 0; i < 5; i++) await gate(toolCall(i, 'start_placement', { handle: legacyHandle() }));
+    await gate(toolCall(9, 'get_status', {}), HASH);
+    const keys = (await db.prepare('SELECT k FROM hits ORDER BY k').all<{ k: string }>()).results.map((r) => r.k);
+    expect(keys).toEqual(['mcp:g', mcpTokenKey(HASH)]);
+  });
+
+  it('inspectMcpBody finds the record handles of the retired connector in a batch and ignores invalid JSON', () => {
+    const a = legacyHandle();
+    const b = practiceHandle();
     expect(
       inspectMcpBody(
         JSON.stringify([
           toolCall(1, 'next_beat', { handle: a }),
-          toolCall(2, 'get_record', { handle: a }),
+          toolCall(2, 'get_record', { handle: b }),
           toolCall(3, 'start_placement', {}),
-          toolCall(4, 'start_placement', { handle: b }),
-          toolCall(5, 'link_record', { record: '{}' }),
           { jsonrpc: '2.0', method: 'notifications/initialized' },
         ]),
       ),
-    ).toEqual({ messages: 6, handles: [a, a, b], creates: 2, ids: [1, 2, 3, 4, 5] });
-    expect(inspectMcpBody('{nope')).toEqual({ messages: 1, handles: [], creates: 0, ids: [] });
+    ).toEqual({ messages: 4, handles: [a, b], ids: [1, 2, 3] });
+    expect(inspectMcpBody('{nope')).toEqual({ messages: 1, handles: [], ids: [] });
     expect(inspectMcpBody(JSON.stringify(toolCall(1, 'get_record', { handle: 'not-a-handle' }))).handles).toEqual([]);
   });
-
-  it('counts practice handles and resume_practice too; both forms of one handle share its bucket', async () => {
-    const legacy = newHandle();
-    const practice = practiceForm(legacy);
-    expect(practice).toMatch(/^cxp_[A-Za-z0-9_-]{32}$/);
-    expect(
-      inspectMcpBody(JSON.stringify([toolCall(1, 'next_beat', { handle: practice }), toolCall(2, 'resume_practice', { record: '{}' }), toolCall(3, 'start_placement', {})])),
-    ).toEqual({ messages: 3, handles: [practice], creates: 2, ids: [1, 2, 3] });
-    expect(await mcpHandleKey(practice)).toBe(await mcpHandleKey(legacy));
-    expect(await mcpHandleKey(newHandle())).not.toBe(await mcpHandleKey(legacy));
-  });
-
-  it('a batch is charged per call: 121 calls on one handle in batches get 429', async () => {
-    const h = newHandle();
-    const batch = (n: number) => Array.from({ length: n }, (_, i) => toolCall(i, 'get_record', { handle: h }));
-    expect((await rpc(batch(100))).status).toBe(200);
-    expect((await rpc(batch(20))).status).toBe(200);
-    expect((await rpc(batch(1))).status).toBe(429);
-    const g = await db.prepare("SELECT n FROM hits WHERE k = 'mcp:g'").first<{ n: number }>();
-    expect(Number(g!.n)).toBe(121);
-  }, LOOP_TIMEOUT);
 });
 
 describe('no AI on the MCP path', () => {
-  it('bundles no AI, budget, prompt or provider module', async () => {
+  it('bundles no AI, budget, prompt or provider module, and no learning-mcp server', async () => {
     const r = await build({
-      entryPoints: ['functions/api/mcp.ts', 'functions/api/mcp-sweep.ts', 'functions/api/agent/handoff.ts', 'functions/api/agent/record.ts', 'functions/api/agent/delete.ts'],
+      entryPoints: ['functions/api/mcp.ts'],
       bundle: true,
       write: false,
       metafile: true,
@@ -139,8 +107,8 @@ describe('no AI on the MCP path', () => {
       plugins: [vendorShimsEsbuild()],
     });
     const inputs = Object.keys(r.metafile!.inputs);
-    expect(inputs.some((i) => i.includes('vendor/learning-mcp/server/server.ts'))).toBe(true);
     expect(inputs.some((i) => i.includes('vendor/course-xapi-mcp/server/server.ts'))).toBe(true);
+    expect(inputs.some((i) => i.includes('vendor/learning-mcp/'))).toBe(false);
     expect(inputs.filter((i) => /functions\/_lib\/(ai|budget|prompts)\.ts|functions\/_lib\/providers\//.test(i))).toEqual([]);
   });
 });

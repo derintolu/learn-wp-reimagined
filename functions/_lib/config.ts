@@ -40,27 +40,6 @@ export const PRICES: Record<string, { inPerM: number; outPerM: number }> = {
   'claude-sonnet-5-5': { inPerM: 2, outPerM: 10 },
 };
 
-/**
- * Server-side behaviour switches. Rollback = set to false and republish.
- * mcpOnStandard: /api/mcp and /api/agent/* on the course-xapi-mcp reference server with practice custody
- * (Task 45a); off serves today's learning-mcp server. Handles issued by either keep resolving on the standard.
- * senseiCertificates: offers the Sensei certificate PDF download (Task 50); off because G0 probe 4b never reached a rendered certificate.
- * senseiLearners: each session is a headless Sensei learner made through the Learning Ledger connector (Task 25).
- * lrsShadow: the course server also builds the official cmi5 statements and queues them for the LRS (Task 30);
- * off writes no outbox rows and makes no LRS calls.
- * officialRecord: the official record is the learner's record (phase 6); today it gates /api/carry-over (Task 37), which answers 404 when off.
- * wordpressContent: the course comes from the Learning Ledger package (Task 19), cached and revalidated every 5 minutes;
- * off serves the baked bundle and never calls the connector.
- * badges: /api/badges lists the learner's path badges and mints a claim link on the LRS (Task 49); off answers 404.
- * officialRecord: /api/record, /api/record/export and /api/record/view-link read the learner's official record from the LRS (Task 34);
- * off answers 404 and nothing calls the LRS.
- * officialRecord: the learner's files and resume position are State documents on the LRS (/api/state, Task 35); off answers 404.
- * agentOnStandard: /api/mcp needs an OAuth access token (Task 43) and keeps the record in the LRS (option 2,
- * author-lrs custody, Task 45b): agent calls are decided and recorded as the studio's events are. Off, /api/mcp
- * is the practice connector above (mcpOnStandard), unchanged.
- */
-export const SERVER_FLAGS = { serverEvents: true, sessions: true, mcpOnStandard: true, senseiLearners: true, lrsShadow: true, wordpressContent: true, senseiCertificates: true, badges: true, officialRecord: true, agentOnStandard: true };
-
 /** Learning Ledger REST base (the plugin's learning-ledger/v1 namespace on the WordPress site). */
 export const LEDGER_BASE = 'https://learnwp.sqwrlz.com/wp-json/learning-ledger/v1';
 // Learning Ledger derives the program key from the last segment of the course IRI (R45).

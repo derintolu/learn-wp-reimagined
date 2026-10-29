@@ -1,15 +1,13 @@
 // Course cache (Task 19): the course package lives in WordPress (Learning Ledger); this keeps the last good copy in
-// course_cache and revalidates it with If-None-Match at most every 5 minutes. With SERVER_FLAGS.wordpressContent
-// off nothing here touches the connector or the database.
+// course_cache and revalidates it with If-None-Match at most every 5 minutes.
 import type { Env } from '../env';
-import { PROGRAM_KEY, SERVER_FLAGS } from '../config';
+import { PROGRAM_KEY } from '../config';
 import { ensureCourseCacheSchema } from '../db';
 import { deleteOtherParts, readParts, splitUtf8, writeParts, type PartsTable } from '../blobParts';
 import { getContent, setCurrentContent } from '../content';
 import { ConnectorClient, ConnectorError, ConnectorUnavailable } from '../ledger/connector';
 import { courseImportPending, importCourseOnNewVersion } from '../lrs/import';
 import { buildAgentCourse } from '../mcp/agentCourse';
-import { buildStandardCourse } from '../mcp/standardCourse';
 import { packageToBundle } from '../../../src/shared/package';
 import { readZip } from '../../../vendor/course-xapi-mcp/core/package/index.ts';
 import type { ContentBundle } from '../../../src/shared/types';
@@ -30,7 +28,7 @@ export function onNewVersion(fn: NewVersionHook): () => void {
   };
 }
 
-// Task 30 (R21): imports each new version into the LRS; it does nothing while SERVER_FLAGS.lrsShadow is off.
+// Task 30 (R21): imports each new version into the LRS.
 onNewVersion((zip, etag, env) => importCourseOnNewVersion(env, zip, etag));
 
 let loadedEtag: string | null = null;
@@ -77,8 +75,8 @@ class PackageError extends Error {
 }
 
 /**
- * The bundle in a package, checked to build both MCP course models (the practice connector's and the agent's), so
- * a package that loads but does not convert never replaces the last good copy. Every failure is a PackageError.
+ * The bundle in a package, checked to build the MCP course model, so a package that loads but does not convert
+ * never replaces the last good copy. Every failure is a PackageError.
  */
 function decodePackage(zip: Uint8Array): ContentBundle {
   try {
@@ -86,7 +84,6 @@ function decodePackage(zip: Uint8Array): ContentBundle {
     if ('code' in files && typeof files.code === 'string') throw new Error(files.code);
     const dec = new TextDecoder();
     const bundle = packageToBundle(Object.fromEntries(Object.entries(files as Record<string, Uint8Array>).map(([k, v]) => [k, dec.decode(v)])));
-    buildStandardCourse(bundle);
     buildAgentCourse(bundle);
     return bundle;
   } catch (e) {
@@ -128,7 +125,6 @@ export async function refreshContent(
   now = Date.now(),
   opts: { force?: boolean } = {},
 ): Promise<{ etag: string; version: number; changed: boolean }> {
-  if (!SERVER_FLAGS.wordpressContent) return { etag: bakedEtag(), version: 0, changed: false };
   // A broken database costs one attempt per window, like a down connector.
   if (!opts.force && dbFailedAt && now - dbFailedAt < COURSE_REVALIDATE_MS) return memory();
   const stage = { name: 'schema' };
@@ -161,8 +157,8 @@ async function refresh(
   }
   // No cached copy and the last attempt failed: do not try again until the window passes (one 3 s try per window).
   if (!row && !opts.force && failedAt && now - failedAt < COURSE_REVALIDATE_MS) return memory();
-  // Hooks are pending for a version whose hooks failed, and for one cached while lrsShadow was off and never
-  // imported into the LRS (the flag flipped after wordpressContent, ruling R30).
+  // Hooks are pending for a version whose hooks failed, and for one cached before the LRS import ran and never
+  // imported into the LRS.
   stage.name = 'hooks_pending';
   const hooksPending = !!row && (Number(row.hooks_done) === 0 || (await courseImportPending(env, row.etag)));
   const unusable = !!row && unusableEtag === row.etag;
@@ -235,10 +231,9 @@ async function refresh(
 
 /**
  * For routes that read the course: loads the current copy into this isolate (refreshContent) so every route sees
- * the same course. With SERVER_FLAGS.wordpressContent off it returns at once, touching nothing.
+ * the same course.
  */
 export async function loadCurrentCourse(env: Env): Promise<void> {
-  if (!SERVER_FLAGS.wordpressContent) return;
   await refreshContent(env);
 }
 

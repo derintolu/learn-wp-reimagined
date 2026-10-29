@@ -1,4 +1,3 @@
-import { phaseOn } from '../config';
 import { content } from '../content';
 import { useOfficialRecord } from '../record/official';
 import { useRecord } from '../record/useRecord';
@@ -31,7 +30,7 @@ function Section({ state, label, tag }: { state: State; label: string; tag?: str
 export function Outline({ lesson, step, bugSolved }: { lesson: Lesson; step: number; bugSolved: boolean }) {
   const { record } = useRecord();
   const { official } = useOfficialRecord();
-  const testedOut = new Set(phaseOn('officialRecord') ? (official?.testedOut ?? []) : []);
+  const testedOut = new Set(official?.testedOut ?? []);
   const path = content.paths[lesson.pathId];
   const lessons = path.lessons.filter((id) => has(content.lessons, id)).map((id) => content.lessons[id]);
   const minutes = lessons.reduce((s, l) => s + l.minutes, 0);

@@ -7,7 +7,7 @@ import { loadCurrentCourse } from '../../_lib/course/cache';
 import { LrsClient, LrsError, LrsUnavailable, type Actor } from '../../_lib/lrs/client';
 import { officialActor } from '../../_lib/record/official';
 import { factsOf, listShadowFacts, type LearningFact } from '../../_lib/record/shadow';
-import type { XapiStatement } from '../../../vendor/learning-mcp/core/index.ts';
+import type { XapiStatement } from '../../../vendor/course-xapi-mcp/core/xapi/types.ts';
 
 function safeEqual(a: string, b: string): boolean {
   const x = new TextEncoder().encode(a);

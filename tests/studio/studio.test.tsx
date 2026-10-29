@@ -18,7 +18,6 @@ vi.mock('../../src/ai/client', () => ({
 }));
 
 import { App } from '../../src/app';
-import { FEATURES } from '../../src/config';
 import { clearOfficial } from '../../src/record/official';
 import { getStatus, codeFeedback, tutorStream } from '../../src/ai/client';
 import { content } from '../../src/content';
@@ -29,7 +28,6 @@ import { resetSaveWarning } from '../../src/components/RecordPanel';
 import { resetAiStatusForTests } from '../../src/ai/useAiStatus';
 import { RecordManager, type RecordStore } from '../../src/record/store';
 import { applyEvent, branchHistory, newRecord, type LearningRecord } from '../../src/shared/record';
-import { PHASES_OFF, phasesUpTo, restoreFlags, setFlags } from '../helpers/flags';
 
 const PLACED = { pathId: 'block-theme' as const, startLessonId: 'theme-json-basics', skip: [], reason: 'Picked.' };
 
@@ -87,7 +85,6 @@ function stubMedia(narrow: boolean) {
 const outline = () => screen.findByRole('navigation', { name: 'Course outline' });
 
 beforeEach(() => {
-  setFlags(PHASES_OFF);
   setPlaygroundImporter(() => Promise.reject(new Error('no Playground in tests')));
   vi.mocked(getStatus).mockResolvedValue({ ai: 'off' });
   vi.mocked(tutorStream).mockRejectedValue(new Error('off'));
@@ -95,7 +92,6 @@ beforeEach(() => {
 });
 afterEach(() => {
   cleanup();
-  restoreFlags();
   vi.clearAllMocks();
   vi.unstubAllGlobals();
   setRecordManager(null);
@@ -467,8 +463,6 @@ describe('Smooth scrolling', () => {
 
 describe('Studio outline, official record', () => {
   it('outline marks tested-out lessons with visible text, not colour alone', async () => {
-    const flags = FEATURES as { officialRecord: boolean; senseiLearners: boolean; wordpressContent: boolean };
-    phasesUpTo('officialRecord');
     try {
       vi.stubGlobal(
         'fetch',
@@ -486,11 +480,9 @@ describe('Studio outline, official record', () => {
       act(() => clearOfficial());
       await waitFor(() => expect(within(nav).queryByText('Tested out')).toBeNull());
     } finally {
-      restoreFlags();
     }
   });
   it('offers to carry over a completion the official record lacks, under the course bar', async () => {
-    phasesUpTo('officialRecord');
     try {
       vi.stubGlobal(
         'fetch',
@@ -505,15 +497,7 @@ describe('Studio outline, official record', () => {
       const offer = await screen.findByRole('region', { name: 'Bring your progress over' });
       expect(offer.closest('.studio-page__notices')?.parentElement).toBe(container.querySelector('.studio-page'));
     } finally {
-      restoreFlags();
     }
   });
 
-  it('with the phase off the studio has no notices wrapper', async () => {
-    setFlags({ officialRecord: false });
-    use(at('templates-and-parts', 0, { completedLessons: ['theme-json-basics'] }));
-    const { container } = open('/learn/templates-and-parts');
-    await outline();
-    expect(container.querySelector('.studio-page__notices')).toBeNull();
-  });
 });

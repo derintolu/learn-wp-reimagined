@@ -2,7 +2,7 @@ import { mkdirSync, mkdtempSync, readFileSync, readdirSync, rmSync, statSync, wr
 import { tmpdir } from 'node:os';
 import { dirname, join, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { afterEach, describe, expect, it } from 'vitest';
+import { afterEach, describe, expect, it, vi } from 'vitest';
 import {
   FUNCTIONS_BUNDLE_LIMIT,
   assertBundleFits,
@@ -13,8 +13,12 @@ import {
   routeModules,
 } from '../../scripts/assemble';
 import { getContent } from '../../functions/_lib/content';
+import { ensureOAuthSchema } from '../../functions/_lib/db';
+import { issueTokens } from '../../functions/_lib/oauth/store';
+import { createSession } from '../../functions/_lib/session/session';
 import { connectMcp } from '../helpers/mcpClient';
-import { PHASES_OFF } from '../helpers/flags';
+import { fakeLearners } from '../helpers/fakeLearners';
+import { LEDGER_ENV, fakeLrs } from '../helpers/fakeLrs';
 
 const API = fileURLToPath(new URL('../../functions/api', import.meta.url));
 
@@ -26,7 +30,19 @@ const tmp = () => {
 };
 afterEach(() => {
   for (const d of dirs.splice(0)) rmSync(d, { recursive: true, force: true });
+  vi.unstubAllGlobals();
 });
+
+/** A learner signed in to the connector: their session and an access token, written to `env.DB` as the server would. */
+async function signedIn() {
+  const { createSqliteD1 } = await import('../../dev/sqliteD1');
+  const env = { DB: createSqliteD1(), SESSION_KEY: 'k'.repeat(32), LRS_KEY: 'ck_test', LRS_SECRET: 'cs_test', ...LEDGER_ENV };
+  vi.stubGlobal('fetch', fakeLrs().fetch);
+  const { session } = await createSession(env, Date.now(), fakeLearners());
+  await ensureOAuthSchema(env.DB);
+  const { accessToken } = await issueTokens(env, { actorName: session.actorName, wpUserId: session.wpUserId ?? 0, registration: '' }, 'c'.repeat(32), crypto.randomUUID(), Date.now());
+  return { env, token: accessToken };
+}
 
 /** Every .js file under `dir`, at any depth, chunks included. */
 const allJs = (dir: string): string[] =>
@@ -34,22 +50,6 @@ const allJs = (dir: string): string[] =>
     const full = join(dir, name);
     return statSync(full).isDirectory() ? allJs(full) : name.endsWith('.js') ? [full] : [];
   });
-
-/**
- * The bundle carries its own copy of SERVER_FLAGS, which a test cannot reach at run time: set `flags` in the
- * emitted code before importing it, so a test does not depend on how functions/_lib/config.ts ships them.
- */
-const setBundledServerFlags = (dir: string, flags: Record<string, boolean>) => {
-  const holders = allJs(dir).filter((f) => /\bvar SERVER_FLAGS = \{/.test(readFileSync(f, 'utf8')));
-  expect(holders).toHaveLength(1);
-  const code = readFileSync(holders[0], 'utf8').replace(/\bvar SERVER_FLAGS = \{[^}]*\}/, (literal) =>
-    Object.entries(flags).reduce((l, [k, v]) => {
-      expect(l, k).toMatch(new RegExp(`\\b${k}: (true|false)`));
-      return l.replace(new RegExp(`\\b${k}: (true|false)`), `${k}: ${v}`);
-    }, literal),
-  );
-  writeFileSync(holders[0], code);
-};
 
 /** The module specifiers a built ESM file imports. */
 const importsOf = (code: string): string[] => [...code.matchAll(/^\s*import\s[^;]*?from\s*["']([^"']+)["']/gm)].map((m) => m[1]);
@@ -149,24 +149,25 @@ describe('the MCP connector bundle', () => {
     for (const f of allJs(out)) expect(readFileSync(f, 'utf8'), f).not.toMatch(/from\s*["']node:/);
   });
 
-  it('the bundled connector serves tools/list when imported as a module', async () => {
+  it('the bundled connector serves tools/list when imported as a module, signed in', async () => {
     const out = tmp();
     const files = await bundleFunctions(API, out);
-    // Today's practice connector: no sign-in (agentOnStandard off).
-    setBundledServerFlags(out, PHASES_OFF);
     const mod = await import(files.find((f) => f.endsWith('/mcp.js'))!);
-    const { createSqliteD1 } = await import('../../dev/sqliteD1');
-    const res: Response = await mod.POST(
-      new Request('http://localhost/api/mcp', {
-        method: 'POST',
-        headers: { 'content-type': 'application/json', accept: 'application/json, text/event-stream', 'mcp-protocol-version': '2025-06-18' },
-        body: JSON.stringify({ jsonrpc: '2.0', id: 1, method: 'tools/list', params: {} }),
-      }),
-      { params: {}, env: { DB: createSqliteD1() } },
-    );
+    const { env, token } = await signedIn();
+    const list = (headers: Record<string, string>): Promise<Response> =>
+      mod.POST(
+        new Request('http://localhost/api/mcp', {
+          method: 'POST',
+          headers: { 'content-type': 'application/json', accept: 'application/json, text/event-stream', 'mcp-protocol-version': '2025-06-18', ...headers },
+          body: JSON.stringify({ jsonrpc: '2.0', id: 1, method: 'tools/list', params: {} }),
+        }),
+        { params: {}, env },
+      );
+    expect((await list({})).status).toBe(401);
+    const res = await list({ authorization: `Bearer ${token}` });
     expect(res.status).toBe(200);
     const text = await res.text();
-    for (const t of ['get_status', 'start_placement', 'next_beat', 'reveal_bug', 'delete_practice_record']) expect(text).toContain(`"${t}"`);
+    for (const t of ['get_status', 'start_placement', 'next_beat', 'reveal_bug']) expect(text).toContain(`"${t}"`);
   });
 
   it('carries the reference server without its Node-only parts: no Directory stores, private files or badge signing', async () => {
@@ -183,22 +184,18 @@ describe('the MCP connector bundle', () => {
   it('the bundled connector runs a code checkpoint with its regex checks (the web shims, not Node)', async () => {
     const out = tmp();
     const files = await bundleFunctions(API, out);
-    // Today's practice connector: no sign-in (agentOnStandard off).
-    setBundledServerFlags(out, PHASES_OFF);
     const mod = await import(files.find((f) => f.endsWith('/mcp.js'))!);
-    const { createSqliteD1 } = await import('../../dev/sqliteD1');
-    const env = { DB: createSqliteD1() };
-    const { client, call } = await connectMcp((req) => mod.POST(req, { params: {}, env }), 'modern');
+    const { env, token } = await signedIn();
+    const { client, call } = await connectMcp((req) => mod.POST(req, { params: {}, env }), 'modern', 'http://localhost/api/mcp', { token });
     try {
-      const handle = (await call('start_placement')).data.handle as string;
-      expect(handle).toMatch(/^cxp_/);
-      await call('choose_placement', { handle, pathKey: 'block-theme', startLessonKey: 'bt-style-css-and-theme-json', skip: ['bt-what-is-a-block-theme'], reason: 'x' });
-      let r = await call('next_beat', { handle });
-      for (let i = 0; i < 20 && r.data.step === 'beat'; i++) r = await call('next_beat', r.data.beat.question ? { handle, learner_reply: 'Yes.' } : { handle });
+      expect((await call('start_placement')).isError).toBe(false);
+      await call('choose_placement', { pathKey: 'block-theme', startLessonKey: 'bt-style-css-and-theme-json', skip: ['bt-what-is-a-block-theme'], reason: 'x' });
+      let r = await call('next_beat');
+      for (let i = 0; i < 20 && r.data.step === 'beat'; i++) r = await call('next_beat', r.data.beat.question ? { learner_reply: 'Yes.' } : {});
       expect(r.data.step).toBe('checkpoint');
-      const bad = await call('check_code', { handle, file: 'theme.json', content: '{}' });
+      const bad = await call('check_code', { file: 'theme.json', content: '{}' });
       expect(bad.data.passed).toBe(false);
-      const good = await call('check_code', { handle, file: 'theme.json', content: getContent().paths['block-theme'].finalFiles!['theme.json'] });
+      const good = await call('check_code', { file: 'theme.json', content: getContent().paths['block-theme'].finalFiles!['theme.json'] });
       expect(good.data).toMatchObject({ passed: true });
       expect(good.data.checks.every((c: { passed: boolean }) => c.passed)).toBe(true);
     } finally {

@@ -9,7 +9,6 @@ import { deleteMyDataDetailed, ensureSession, resetSession } from '../../src/rec
 import { STATE_DEBOUNCE_MS, notifyFileEdited, startStateSync, stateSyncMessage } from '../../src/record/stateSync';
 import { setRecordManager } from '../../src/record/useRecord';
 import { memoryManager } from '../components/helpers';
-import { phasesUpTo, restoreFlags, setFlags } from '../helpers/flags';
 
 const ACTOR = { homePage: 'https://learnwp.sqwrlz.com', name: 'old-actor' };
 const lessons = Object.keys(content.lessons);
@@ -18,7 +17,6 @@ let stateStatus = 200;
 
 beforeEach(() => {
   vi.useFakeTimers({ toFake: ['setTimeout', 'clearTimeout'] });
-  phasesUpTo('officialRecord');
   resetSession();
   calls = [];
   stateStatus = 200;
@@ -43,7 +41,6 @@ beforeEach(() => {
 });
 afterEach(() => {
   cleanup();
-  restoreFlags();
   resetSession();
   setRecordManager(null);
   vi.useRealTimers();
@@ -93,7 +90,6 @@ describe('Delete my data with State sync running', () => {
 
 describe('Delete my data and the badges', () => {
   it('badges shown before the delete are cleared', async () => {
-    setFlags({ badges: true });
     setRecordManager(memoryManager(content));
     vi.useRealTimers();
     const { result } = renderHook(() => useBadges(true));

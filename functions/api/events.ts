@@ -4,7 +4,6 @@ import { clientKey, readJsonCapped } from '../_lib/guards';
 import { guarded } from '../_lib/ai';
 import { ensureSchema } from '../_lib/db';
 import { rateLimit } from '../_lib/ratelimit';
-import { SERVER_FLAGS } from '../_lib/config';
 import { ensureLearner, readSession } from '../_lib/session/session';
 import { refreshContent } from '../_lib/course/cache';
 import { decideEvents } from '../_lib/events/decide';
@@ -13,7 +12,6 @@ import { EVENTS_MAX_BYTES, parseEvents } from '../../src/shared/events';
 export const POST: Handler = (req, ctx) =>
   guarded(async () => {
     const { env } = ctx;
-    if (!SERVER_FLAGS.serverEvents) return error(503, 'disabled', 'Server events are switched off.');
     await ensureSchema(env.DB);
     await refreshContent(env);
     const now = Date.now();
@@ -22,7 +20,7 @@ export const POST: Handler = (req, ctx) =>
     }
     const body = await readJsonCapped<unknown>(req, EVENTS_MAX_BYTES);
     const session = await readSession(req, env, now);
-    if (!session && SERVER_FLAGS.sessions && env.SESSION_KEY) {
+    if (!session && env.SESSION_KEY) {
       return error(401, 'no-session', 'Start a session first.');
     }
     // The session names the actor; the body learnerId is ignored (a placeholder satisfies the parser).

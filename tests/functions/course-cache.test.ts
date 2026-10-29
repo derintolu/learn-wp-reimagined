@@ -1,10 +1,8 @@
 import { importCourseOnNewVersion } from '../../functions/_lib/lrs/import';
-import { getStandardCourse } from '../../functions/_lib/mcp/standardCourse';
+import { getAgentCourse } from '../../functions/_lib/mcp/agentCourse';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { zipSync } from 'fflate';
 import { createSqliteD1 } from '../../dev/sqliteD1';
-import { SERVER_FLAGS } from '../../functions/_lib/config';
-import { PHASES_OFF, restoreServerFlags, setServerFlags } from '../helpers/flags';
 import { buildContent } from '../../scripts/build-content';
 import { bundleToPackage } from '../../src/shared/package';
 import { getContent, setContentForTests, setCurrentContent } from '../../functions/_lib/content';
@@ -17,16 +15,32 @@ import { POST as mcpPing } from '../../functions/api/mcp/content-changed';
 import type { Env } from '../../functions/_lib/env';
 import { ensureRecordSchema } from '../../functions/_lib/db';
 import { handleMcp } from '../../functions/_lib/mcp/handler';
-import { POST as agentRecord } from '../../functions/api/agent/record';
 import { GET as recordGet } from '../../functions/api/record';
 import { GET as badgesGet } from '../../functions/api/badges';
 import { GET as adminShadow } from '../../functions/api/admin/shadow';
 import generated from '../../src/generated/content.json';
 
+// The import records the ETag as imported, as the real one does once the LRS has the package.
 vi.mock('../../functions/_lib/lrs/import', async (actual) => ({
   ...(await actual<typeof import('../../functions/_lib/lrs/import')>()),
-  importCourseOnNewVersion: vi.fn(async () => {}),
+  importCourseOnNewVersion: vi.fn(async (env: Env, _zip: Uint8Array, etag: string) => {
+    await ensureRecordSchema(env.DB);
+    await env.DB.prepare('INSERT INTO lrs_imports (etag, imported) VALUES (?, ?)').bind(etag, 0).run();
+  }),
 }));
+
+// A course the MCP server cannot build: the standard's loader takes an empty lesson title, so this stands in for
+// a package that loads but does not build.
+vi.mock('../../functions/_lib/mcp/agentCourse', async (actual) => {
+  const mod = await actual<typeof import('../../functions/_lib/mcp/agentCourse')>();
+  return {
+    ...mod,
+    buildAgentCourse: (b: Parameters<typeof mod.buildAgentCourse>[0]) => {
+      if (Object.values(b.lessons).some((l) => l.title === '')) throw new Error('course package: a lesson has no title');
+      return mod.buildAgentCourse(b);
+    },
+  };
+});
 
 const SEED_HEX = '9d61b19deffd5a60ba844af492ec2cc44449c5697b326919703bac031cae7f60';
 const KEY = Buffer.from('302e020100300506032b657004220420' + SEED_HEX, 'hex').toString('base64');
@@ -43,7 +57,6 @@ const send200 = (etag: string, version: number, b = bundle) =>
   fetchMock.mockImplementationOnce(async () => new Response(zipOf(b), { status: 200, headers: { ETag: etag, 'X-Package-Version': String(version) } }));
 
 beforeEach(() => {
-  setServerFlags({ ...PHASES_OFF, wordpressContent: true });
   env = { DB: createSqliteD1(), CONNECTOR_SIGNING_KEY: KEY, CONNECTOR_KEY_ID: 'kid1', CONNECTOR_PING_PUBLIC_KEY: PUBLIC_B64 } as Env;
   fetchMock = vi.fn();
   vi.stubGlobal('fetch', fetchMock);
@@ -53,21 +66,12 @@ beforeEach(() => {
   resetCourseCacheForTests();
 });
 afterEach(() => {
-  restoreServerFlags();
   vi.unstubAllGlobals();
   vi.restoreAllMocks();
   setCurrentContent(null);
 });
 
 describe('refreshContent', () => {
-  it('is a no-op that never calls the connector while the flag is off', async () => {
-    SERVER_FLAGS.wordpressContent = false;
-    const r = await refreshContent(env, T0);
-    expect(r.changed).toBe(false);
-    expect(r.etag).toMatch(/^"baked-/);
-    expect(fetchMock).not.toHaveBeenCalled();
-  });
-
   it('serves the cached copy for 5 minutes without calling the connector', async () => {
     send200('"e1"', 1);
     expect(await refreshContent(env, T0)).toEqual({ etag: '"e1"', version: 1, changed: true });
@@ -233,26 +237,26 @@ describe('failures and hooks', () => {
     off();
   });
 
-  it('MCP course models follow a refreshed bundle', async () => {
+  it('the MCP course model follows a refreshed bundle', async () => {
     send200('"e1"', 1);
     await refreshContent(env, T0);
-    const first = getStandardCourse();
-    expect(getStandardCourse()).toBe(first);
+    const first = getAgentCourse();
+    expect(getAgentCourse()).toBe(first);
     send200('"e2"', 2);
     await refreshContent(env, T0 + 1, { force: true });
-    expect(getStandardCourse()).not.toBe(first);
+    expect(getAgentCourse()).not.toBe(first);
   });
 });
 
-describe('import into the LRS when lrsShadow flips after wordpressContent (R30 order)', () => {
-  it('a cache filled with lrsShadow off imports on the first refresh after it flips on', async () => {
+describe('import into the LRS of a cached version never imported', () => {
+  it('a cached version not yet in the LRS is fetched in full again and imported', async () => {
     const imp = vi.mocked(importCourseOnNewVersion);
     imp.mockClear();
+    imp.mockImplementationOnce(async () => {});
     send200('"e1"', 1);
     await refreshContent(env, T0);
-    // The hook ran (and did nothing, the flag being off), so the version counts as done.
+    // The hook ran but imported nothing, so the version counts as done but is not in lrs_imports.
     expect(imp).toHaveBeenCalledTimes(1);
-    SERVER_FLAGS.lrsShadow = true;
     await ensureRecordSchema(env.DB);
     // Not yet imported: the full package is fetched again, without If-None-Match, so the hook has the zip.
     send200('"e1"', 1);
@@ -261,8 +265,7 @@ describe('import into the LRS when lrsShadow flips after wordpressContent (R30 o
     expect((init.headers as Record<string, string>)['If-None-Match']).toBeUndefined();
     expect(imp).toHaveBeenCalledTimes(2);
     expect(imp).toHaveBeenLastCalledWith(env, expect.any(Uint8Array), '"e1"');
-    // Once lrs_imports holds the ETag, revalidation goes back to If-None-Match.
-    await env.DB.prepare('INSERT INTO lrs_imports (etag, imported) VALUES (?, ?)').bind('"e1"', T0).run();
+    // Once lrs_imports holds the ETag (the second import wrote it), revalidation goes back to If-None-Match.
     fetchMock.mockImplementationOnce(async () => new Response(null, { status: 304 }));
     await refreshContent(env, T0 + 2 * COURSE_REVALIDATE_MS);
     expect(((fetchMock.mock.calls[2]![1] as RequestInit).headers as Record<string, string>)['If-None-Match']).toBe('"e1"');
@@ -282,7 +285,7 @@ describe('a package that loads but does not build the course', () => {
     await refreshContent(env, T0);
     send200('"e2"', 2, broken());
     expect(await refreshContent(env, T0 + COURSE_REVALIDATE_MS)).toEqual({ etag: '"e1"', version: 1, changed: false });
-    expect(() => getStandardCourse()).not.toThrow();
+    expect(() => getAgentCourse()).not.toThrow();
     expect(Object.values(getContent().lessons)[0]!.title).not.toBe('');
     // Backed off for the window, like a connector failure.
     await refreshContent(env, T0 + COURSE_REVALIDATE_MS + 1000);
@@ -390,21 +393,13 @@ describe('every route that reads the course loads the current copy first', () =>
     expect(lessonsNow()).toEqual(wp);
   });
 
-  it('/api/agent/*', async () => {
-    await coldIsolate();
-    await agentRecord(new Request('http://x/api/agent/record', { method: 'POST', body: '{}' }), { params: {}, env });
-    expect(lessonsNow()).toEqual(wp);
-  });
-
   it('/api/record', async () => {
-    SERVER_FLAGS.officialRecord = true;
     await coldIsolate();
     await recordGet(new Request('http://x/api/record'), { params: {}, env });
     expect(lessonsNow()).toEqual(wp);
   });
 
   it('/api/badges', async () => {
-    SERVER_FLAGS.badges = true;
     await coldIsolate();
     await badgesGet(new Request('http://x/api/badges'), { params: {}, env });
     expect(lessonsNow()).toEqual(wp);
@@ -416,18 +411,6 @@ describe('every route that reads the course loads the current copy first', () =>
     expect(lessonsNow()).toEqual(wp);
   });
 
-  it('with wordpressContent off none of them touches the connector or the database cache', async () => {
-    SERVER_FLAGS.wordpressContent = false;
-    SERVER_FLAGS.badges = true;
-    SERVER_FLAGS.officialRecord = true;
-    await handleMcp(new Request('http://x/api/mcp', { method: 'GET' }), env);
-    await agentRecord(new Request('http://x/api/agent/record', { method: 'POST', body: '{}' }), { params: {}, env });
-    await recordGet(new Request('http://x/api/record'), { params: {}, env });
-    await badgesGet(new Request('http://x/api/badges'), { params: {}, env });
-    await adminShadow(new Request('http://x/api/admin/shadow?day=2026-10-28', { headers: { authorization: 'Bearer adm' } }), { params: {}, env: { ...env, ADMIN_TOKEN: 'adm' } });
-    expect(fetchMock).not.toHaveBeenCalled();
-    expect(await env.DB.prepare("SELECT name FROM sqlite_master WHERE name = 'course_cache'").first()).toBeNull();
-  });
 });
 
 describe('GET /api/course', () => {
