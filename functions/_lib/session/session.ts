@@ -121,7 +121,8 @@ export async function createSession(
  * A session made before Sensei learners were on has no WordPress learner. Make one on its first
  * event and store it on the row together with the ledger's actor name for it (R38), as new sessions have. The conditional UPDATE lets only one of two concurrent
  * requests keep its learner: the loser deletes the one it made and reads the winner's. A connector failure
- * leaves the session without a learner (the event still succeeds) and backs off like enrolment does.
+ * leaves the session without a learner (the event still succeeds, with nothing official recorded) and backs off
+ * like enrolment does.
  */
 export async function ensureLearner(
   env: Env,
@@ -157,7 +158,8 @@ export async function ensureLearner(
     .run();
   if (r.meta.changes === 1) {
     // OAuth grants made for this session carry the old actor name and no learner; rename them with it.
-    // (Other actor-keyed tables only filled once the LRS record was on, which shipped after Sensei learners.)
+    // (The official record's actor-keyed tables hold nothing for the old name: decideEvents records nothing
+    // official while a session has no learner.)
     // Best effort and never fails the event; the schema was ensured before the guarded UPDATE.
     for (const t of ['oauth_codes', 'oauth_tokens']) {
       for (let attempt = 0; attempt < 2; attempt++) {

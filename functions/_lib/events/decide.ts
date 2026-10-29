@@ -127,8 +127,8 @@ export interface DecideOptions {
 }
 
 /**
- * Decides every event independently; one bad event never sinks the batch. With a session, the official
- * statements are then built and queued for the LRS (never failing the batch).
+ * Decides every event independently; one bad event never sinks the batch. With a session that has a Sensei
+ * learner, the official statements are then built and queued for the LRS (never failing the batch).
  */
 export async function decideEvents(env: Env, actorName: string, events: ServerEvent[], now: number, opts: DecideOptions = {}): Promise<EventResult[]> {
   const out: EventResult[] = [];
@@ -143,7 +143,10 @@ export async function decideEvents(env: Env, actorName: string, events: ServerEv
       if (path && !enrolFailed.has(path) && !(await ensureEnrolled(env, opts.wpUserId, path, opts.connector, now))) enrolFailed.add(path);
     }
   }
-  if (opts.session) await recordOfficial(env, opts.session, events, out, now, opts.handlerCtx);
+  // Nothing official until the session has a Sensei learner (Task 25): a session made before learners were on
+  // keeps its own actor name until ensureLearner adopts the ledger's, and statements under the old name would
+  // outlive the delete and the retention sweep, which erase the adopted actor.
+  if (opts.session && opts.session.wpUserId != null) await recordOfficial(env, opts.session, events, out, now, opts.handlerCtx);
   if (out.some((r) => r.ok)) await invalidateRecordCache(env, actorName);
   return out;
 }

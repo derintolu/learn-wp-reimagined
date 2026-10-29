@@ -2,7 +2,7 @@ import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
 import { createSqliteD1 } from '../../dev/sqliteD1';
 import { buildContent } from '../../scripts/build-content';
 import { setContentForTests } from '../../functions/_lib/content';
-import { ensureOAuthSchema, ensureSchema } from '../../functions/_lib/db';
+import { ensureOAuthSchema, ensureRecordSchema, ensureSchema } from '../../functions/_lib/db';
 import type { Env } from '../../functions/_lib/env';
 import { POST as create, GET as read, DELETE as del } from '../../functions/api/session';
 import { POST as events } from '../../functions/api/events';
@@ -339,6 +339,19 @@ describe('a Sensei learner for sessions made before learners were on', () => {
     enrolHealth.downUntil = Date.now() - 1;
     await send(legacy.cookie);
     expect(await learnerRow()).toBe(100);
+    log.mockRestore();
+  });
+
+  it('records nothing official under the old actor while the session has no learner', async () => {
+    down = true;
+    const log = vi.spyOn(console, 'error').mockImplementation(() => {});
+    expect((await send(legacy.cookie)).status).toBe(200);
+    expect(await learnerRow()).toBeNull();
+    await ensureRecordSchema(db);
+    for (const t of ['official_pending', 'official_pending_parts', 'lrs_outbox', 'au_sessions', 'shadow_facts', 'official_outcomes']) {
+      const n = await db.prepare(`SELECT COUNT(*) AS c FROM ${t} WHERE actor_name = ?`).bind(legacy.actor).first<{ c: number }>();
+      expect([t, n!.c]).toEqual([t, 0]);
+    }
     log.mockRestore();
   });
 });
