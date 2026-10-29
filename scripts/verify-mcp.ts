@@ -1,11 +1,16 @@
 // Checks a running course connector with the official MCP SDK client, signed in the way an agent does.
 //
-//   npx tsx scripts/verify-mcp.ts <url> [legacy|modern] --oauth --cookie-file <path>
+//   npx tsx scripts/verify-mcp.ts <url> [legacy|modern] --oauth --cookie-file <path> [--complete-lesson <lessonId>]
 //
 // --oauth signs in: the 401's protected-resource metadata, dynamic client registration, PKCE (S256), consent as
 // the learner whose studio session cookie is in the file (`lwr_sid=<value>`, or the bare value), the code
 // exchange, then tools/list and get_status with the access token. The grant is revoked at the end. Prints the
 // server name, the tool names and the custody; never a token, code or cookie.
+//
+// --complete-lesson <lessonId> then finishes that lesson as the agent: get_lesson, start_placement and
+// choose_placement at the lesson, next_beat (with a reply for each question) until the lesson is complete, then
+// get_record, and prints whether the official record shows it completed. It refuses a lesson with a checkpoint
+// or a planted bug (an agent would need the learner's answers for those), before any placement is made.
 import { createHash, randomBytes } from 'node:crypto';
 import { readFileSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
@@ -16,6 +21,49 @@ type FetchLike = (url: string | URL, init?: RequestInit) => Promise<Response>;
 const b64url = (b: Buffer) => b.toString('base64url');
 /** A loopback redirect URI: nothing listens there, because the consent call returns the redirect as data. */
 export const OAUTH_REDIRECT = 'http://127.0.0.1:8976/callback';
+
+type ToolOut = { isError?: boolean; structuredContent?: Record<string, any> };
+/** The lesson-completion run's result: the lesson, how many beats it took, and what the official record says. */
+export interface LessonRun {
+  lessonId: string;
+  beats: number;
+  completed: boolean;
+}
+
+/** Drives the course tools to finish `lessonId` with no checkpoint and no planted bug, then reads the record. */
+async function completeLesson(mcp: Client, lessonId: string): Promise<LessonRun> {
+  const call = async (name: string, args: Record<string, unknown> = {}) => {
+    const r = (await mcp.callTool({ name, arguments: args })) as ToolOut;
+    const sc = r.structuredContent ?? {};
+    if (r.isError || sc.ok === false) throw new Error(`${name} failed: ${String(sc.error ?? 'no reason given')}`);
+    return sc;
+  };
+  const lesson = await call('get_lesson', { lessonKey: lessonId });
+  const needs = [lesson.checkpoint ? 'a checkpoint' : '', lesson.has_planted_bug ? 'has a planted bug' : ''].filter(Boolean);
+  if (needs.length > 0) throw new Error(`${lessonId} needs ${needs.join(' and ')}; pick a lesson without either to finish it unattended`);
+  const pathKey = String(lesson.lesson?.pathKey ?? '');
+
+  await call('start_placement');
+  await call('choose_placement', { pathKey, startLessonKey: lessonId, skip: [], reason: 'Verification run: finishing this one lesson.' });
+  let beats = 0;
+  let reply: string | undefined;
+  for (let i = 0; i < (lesson.beats?.length ?? 0) + 3; i++) {
+    const step = await call('next_beat', reply === undefined ? {} : { learner_reply: reply });
+    reply = undefined;
+    if (step.step === 'beat') {
+      beats += 1;
+      if (step.beat?.question) reply = 'Verification run: acknowledged.';
+    } else if (step.step === 'lesson-complete' || step.step === 'path-complete') {
+      break;
+    } else {
+      throw new Error(`${lessonId} stopped at a ${String(step.step)} step; this check cannot answer it`);
+    }
+  }
+  const record = await call('get_record');
+  const statements: any[] = record.record?.statements ?? [];
+  const completed = statements.some((s) => String(s.verb?.id ?? '').endsWith('/completed') && String(s.object?.id ?? '').endsWith(`/lessons/${lessonId}/au`));
+  return { lessonId, beats, completed };
+}
 
 async function readJson(res: Response, what: string): Promise<any> {
   if (!res.ok) throw new Error(`${what} failed (HTTP ${res.status})`);
@@ -29,8 +77,8 @@ async function readJson(res: Response, what: string): Promise<any> {
 export async function verifyMcpOAuth(
   url: string,
   era: 'legacy' | 'modern',
-  opts: { cookie: string; fetch?: FetchLike },
-): Promise<{ serverName: string; tools: string[]; custody: unknown; official: unknown }> {
+  opts: { cookie: string; fetch?: FetchLike; completeLesson?: string },
+): Promise<{ serverName: string; tools: string[]; custody: unknown; official: unknown; lesson?: LessonRun }> {
   const f: FetchLike = opts.fetch ?? fetch;
   const session = opts.cookie.includes('=') ? opts.cookie.trim() : `lwr_sid=${opts.cookie.trim()}`;
 
@@ -114,7 +162,8 @@ export async function verifyMcpOAuth(
       const tools = (await mcp.listTools()).tools.map((t) => t.name);
       const status = (await mcp.callTool({ name: 'get_status', arguments: {} })) as { isError?: boolean; structuredContent?: Record<string, unknown> };
       if (status.isError) throw new Error(`get_status failed: ${String(status.structuredContent?.error ?? '')}`);
-      return { serverName: mcp.getServerVersion()?.name ?? '', tools, custody: status.structuredContent?.custody, official: status.structuredContent?.official };
+      const lesson = opts.completeLesson ? await completeLesson(mcp, opts.completeLesson) : undefined;
+      return { serverName: mcp.getServerVersion()?.name ?? '', tools, custody: status.structuredContent?.custody, official: status.structuredContent?.official, ...(lesson ? { lesson } : {}) };
     } finally {
       await mcp.close();
     }
@@ -133,12 +182,15 @@ if (process.argv[1] && fileURLToPath(import.meta.url) === process.argv[1]) {
   const oauth = args.includes('--oauth');
   if (oauth) args.splice(args.indexOf('--oauth'), 1);
   const cookieFile = flag('--cookie-file');
+  const completeLessonId = flag('--complete-lesson');
   const [url, era = 'legacy'] = args;
   if (!url || (era !== 'legacy' && era !== 'modern') || !oauth || !cookieFile) {
-    throw new Error('usage: verify-mcp.ts <url> [legacy|modern] --oauth --cookie-file <path>');
+    throw new Error('usage: verify-mcp.ts <url> [legacy|modern] --oauth --cookie-file <path> [--complete-lesson <lessonId>]');
   }
-  const r = await verifyMcpOAuth(url, era, { cookie: readFileSync(cookieFile, 'utf8') });
+  const r = await verifyMcpOAuth(url, era, { cookie: readFileSync(cookieFile, 'utf8'), ...(completeLessonId ? { completeLesson: completeLessonId } : {}) });
   console.log(`server: ${r.serverName}`);
   console.log(`tools (${r.tools.length}): ${r.tools.join(', ')}`);
   console.log(`custody: ${String(r.custody)}, official: ${String(r.official)}`);
+  if (r.lesson) console.log(`lesson ${r.lesson.lessonId}: ${r.lesson.beats} beats, ${r.lesson.completed ? 'completed' : 'NOT completed'} in the official record`);
+  if (completeLessonId && !r.lesson?.completed) process.exitCode = 1;
 }
