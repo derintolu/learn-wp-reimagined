@@ -15,6 +15,11 @@ describe('Home', () => {
     expect(body(container)).not.toMatch(/paste your record|random record handle|with no sign.?in/i);
     expect(container.querySelector('a[href="/connect#import"]')).toBeNull();
   });
+  it('the lede says the AI and the site share one record, not one you bring back', () => {
+    const lede = body(render(<Home />).container.querySelector('.lede')!);
+    expect(lede).toContain('your progress is kept in the same record whether you learn there or here.');
+    expect(lede).not.toContain('bring back');
+  });
   it('does not promise the files in the AI', () => {
     const t = body(render(<Home />).container);
     expect(t).toContain('Your AI picks up at that lesson.');

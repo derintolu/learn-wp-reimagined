@@ -1,4 +1,4 @@
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it, vi } from 'vitest';
 import { createSqliteD1 } from '../../dev/sqliteD1';
 import { ensureSchema } from '../../functions/_lib/db';
 import type { D1Like } from '../../functions/_lib/env';
@@ -23,5 +23,27 @@ describe('ensureSchema: the relay table goes (Task 52)', () => {
     await ensureSchema(spy);
     await ensureSchema(spy);
     expect(seen.filter((s) => s.startsWith('DROP TABLE')).length).toBe(1);
+  });
+
+  it('a refused drop is logged, marked done for this isolate, and never fails ensureSchema', async () => {
+    const db = createSqliteD1();
+    let drops = 0;
+    const refusing: D1Like = {
+      ...db,
+      prepare: (sql: string) => {
+        if (sql.startsWith('DROP TABLE')) {
+          drops++;
+          return { ...db.prepare('SELECT 1'), run: async () => { throw new Error('DROP command denied to user'); } } as ReturnType<D1Like['prepare']>;
+        }
+        return db.prepare(sql);
+      },
+    } as D1Like;
+    const log = vi.spyOn(console, 'error').mockImplementation(() => {});
+    await expect(ensureSchema(refusing)).resolves.toBeUndefined();
+    expect(await tableExists(db, 'sessions')).toBe(true);
+    expect(log).toHaveBeenCalledWith('mcp_records drop failed', 'DROP command denied to user');
+    await ensureSchema(refusing);
+    expect(drops).toBe(1);
+    log.mockRestore();
   });
 });

@@ -177,9 +177,17 @@ describe('/how-it-works', () => {
     }
     const ids = Array.from(container.querySelectorAll('[id]')).map((e) => e.id);
     expect(new Set(ids).size).toBe(ids.length);
-    for (const s of ['MCP', 'xAPI statements', 'cmi5 launch', 'Open Badges 3.0', 'only thing that writes', 'not wired in yet']) {
+    for (const s of ['MCP', 'xAPI statements', 'cmi5 launch', 'Open Badges 3.0', 'only thing that writes', 'except the cmi5 launch, which is built but not wired in yet']) {
       expect(DIAGRAM_LABEL).toContain(s);
     }
+    expect(DIAGRAM_LABEL).not.toContain('Today only your AI and the course server run');
+    // Only the cmi5 launch is drawn dashed; every box is solid.
+    for (const svg of svgs) {
+      expect(svg.querySelectorAll('.dg-box--next')).toHaveLength(0);
+      expect(Array.from(svg.querySelectorAll('.dg-line--next')).filter((el) => !el.closest('.dg-legend'))).toHaveLength(1);
+    }
+    expect(figure.querySelector('figcaption')!.textContent).not.toContain('moving to');
+    expect(figure.querySelector('figcaption')!.textContent).toContain('The dashed cmi5 launch is');
   });
 
   it('gives each component one status label, matching what runs here today', () => {
@@ -204,6 +212,7 @@ describe('/how-it-works', () => {
     expect(text()).toContain(MCP_URL);
     expect(MCP_URL).toBe('https://learnwp.sqwrlz.com/api/mcp');
     expect(text()).not.toContain("isn't installed");
+    expect(Object.values(STATUS)).not.toContain('Installed, not connected yet');
     expect(text()).toContain('The LRS and the Sensei connector are installed and running here, on two installs, and so is badge signing.');
     expect(text()).toContain('The course server writes every learning record here, and nothing else does.');
     expect(text()).not.toContain('Record handles');
@@ -238,7 +247,7 @@ describe('/how-it-works', () => {
     const { container } = render(<HowItWorks />);
     const steps = Array.from(container.querySelectorAll('.how-flow > li'));
     expect(steps).toHaveLength(6);
-    expect(steps.map((s) => s.querySelector('.status')!.textContent)).toEqual([STATUS.next, STATUS.live, STATUS.live, STATUS.live, STATUS.next, STATUS.next]);
+    expect(steps.map((s) => s.querySelector('.status')!.textContent)).toEqual([STATUS.live, STATUS.live, STATUS.live, STATUS.live, STATUS.live, STATUS.live]);
     const flow = container.querySelector('.how-flow')!.textContent!;
     for (const tool of ['get_status', 'get_lesson', 'next_beat', 'check_code', 'submit_checkpoint', 'choose_branch']) expect(flow).toContain(tool);
   });

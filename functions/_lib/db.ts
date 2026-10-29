@@ -4,10 +4,15 @@ const relayDropped = new WeakSet<D1Like>();
 
 // Portable SQL: runs on SQLite (tests) and MySQL (Spacefast broker).
 export async function ensureSchema(db: D1Like): Promise<void> {
-  // One-time migration: the anonymous agent relay's records (mcp_records) went with the relay (Task 52).
+  // One-time migration: the anonymous agent relay's records (mcp_records) went with the relay (Task 52). Best
+  // effort: a refused drop is logged and not retried in this isolate, and never fails the route.
   if (!relayDropped.has(db)) {
-    await db.prepare('DROP TABLE IF EXISTS mcp_records').run();
     relayDropped.add(db);
+    try {
+      await db.prepare('DROP TABLE IF EXISTS mcp_records').run();
+    } catch (e) {
+      console.error('mcp_records drop failed', String((e as { message?: unknown })?.message ?? e));
+    }
   }
   await db
     .prepare('CREATE TABLE IF NOT EXISTS spend (period VARCHAR(10) PRIMARY KEY, usd_micros BIGINT)')

@@ -30,7 +30,6 @@ beforeEach(() => {
       if (url === '/api/session' && method === 'DELETE') return new Response(JSON.stringify({ deleted: true }), { status: 200 });
       if (url.startsWith('/api/state/')) return new Response(JSON.stringify({ doc: null, etag: null }), { status: stateStatus });
       if (url === '/api/badges') return new Response(JSON.stringify([{ id: 'b1', pathId: 'block-theme', name: 'B', status: 'pending', testedOut: 0 }]), { status: 200 });
-      if (url === '/api/agent/handoff') return new Response(JSON.stringify({ handle: `lr_${calls.length}`, mcpUrl: 'https://x/mcp', prompt: 'p' }), { status: 200 });
       if (url === '/api/events') {
         const events = JSON.parse(String(init.body)).events as { eventId: string }[];
         return new Response(JSON.stringify({ results: events.map((e) => ({ eventId: e.eventId, ok: true, statements: [] })) }), { status: 200 });

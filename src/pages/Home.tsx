@@ -21,7 +21,7 @@ export function Home() {
             </h1>
             <p class="lede">
               Connect this course to ChatGPT, Claude or another MCP client. Your AI teaches the lessons, the course server
-              checks your code, and your progress is kept as a record you can bring back here.
+              checks your code, and your progress is kept in the same record whether you learn there or here.
             </p>
             <div class="hero__actions">
               <a class="button" href="/connect">Connect your AI</a>

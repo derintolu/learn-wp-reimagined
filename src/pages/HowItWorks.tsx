@@ -28,7 +28,6 @@ export const STATUS = {
   public: 'Public, not running here',
   progress: 'In progress',
   idle: 'Running, not wired in',
-  installed: 'Installed, not connected yet',
   next: 'Next',
 } as const;
 type StatusKind = keyof typeof STATUS;
@@ -196,7 +195,7 @@ export function HowItWorks() {
   const steps: { title: string; status: StatusKind; body: ComponentChildren }[] = [
     {
       title: 'Connect',
-      status: 'next',
+      status: 'live',
       body: (
         <>
           You add <code>{MCP_URL}</code> to your AI and sign in once through MCP authorization. Your AI calls{' '}
@@ -240,7 +239,7 @@ export function HowItWorks() {
     },
     {
       title: 'Write the record',
-      status: 'next',
+      status: 'live',
       body: (
         <>
           The course server builds each xAPI statement itself and sends it to the LRS straight away. It's the only writer,
@@ -250,7 +249,7 @@ export function HowItWorks() {
     },
     {
       title: 'Sensei catches up',
-      status: 'next',
+      status: 'live',
       body: (
         <>
           The LRS tells the connector over a signed webhook, with a catch-up poll as backup, and the connector marks the

@@ -2,7 +2,8 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { cleanup, fireEvent, render, screen } from '@testing-library/preact';
 import { content } from '../../src/content';
-import { OFFICIAL_PANEL_COPY, RecordPanel } from '../../src/components/RecordPanel';
+import { NOT_SAVED, NO_WORKING_COPY, OFFICIAL_PANEL_COPY, RecordPanel, SaveWarning, resetSaveWarning } from '../../src/components/RecordPanel';
+import { ensureSession, resetSession } from '../../src/record/session';
 import { setRecordManager } from '../../src/record/useRecord';
 import { LRS_HOST } from '../../src/shared/course-meta';
 import { RecordManager } from '../../src/record/store';
@@ -16,6 +17,8 @@ beforeEach(() => {
 });
 afterEach(() => {
   cleanup();
+  resetSession();
+  resetSaveWarning();
   setRecordManager(null);
   vi.unstubAllGlobals();
 });
@@ -51,5 +54,36 @@ describe('record panel privacy line', () => {
     body();
     expect(document.querySelector('.record__state')!.textContent).toBe('Working copy in this browser');
     expect(document.body.textContent).not.toContain('Saved in this browser');
+  });
+});
+
+describe('a browser that keeps nothing (private window, blocked storage)', () => {
+  const noStorage = () => setRecordManager(memoryManagerFor());
+  const withSession = async () => {
+    vi.stubGlobal('fetch', vi.fn(async () => new Response(JSON.stringify({ actor: { homePage: 'https://learnwp.sqwrlz.com', name: 'a1' } }), { status: 200 })));
+    expect(await ensureSession({ create: false })).not.toBeNull();
+  };
+
+  it('with no session yet: "Not saved", and the warning says nothing is being saved', () => {
+    noStorage();
+    render(<SaveWarning />);
+    expect(screen.getByText(NOT_SAVED)).toBeTruthy();
+    cleanup();
+    render(<RecordPanel />);
+    expect(screen.getByRole('button', { name: /record/i }).textContent).toContain('Not saved');
+  });
+
+  it('with a session: the official record is on our servers, only the working copy is missing', async () => {
+    noStorage();
+    await withSession();
+    render(<SaveWarning />);
+    expect(screen.getByText(NO_WORKING_COPY)).toBeTruthy();
+    expect(screen.queryByText(NOT_SAVED)).toBeNull();
+    cleanup();
+    render(<RecordPanel />);
+    const button = screen.getByRole('button', { name: /record/i });
+    expect(button.textContent).not.toContain('Not saved');
+    fireEvent.click(button);
+    expect(document.querySelector('.record__state')!.textContent).toBe('No working copy in this browser');
   });
 });

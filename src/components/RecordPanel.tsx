@@ -6,7 +6,7 @@ import { LRS_HOST } from '../shared/course-meta';
 import { content } from '../content';
 import { downloadRecord, readRecordFile } from '../record/fileTransfer';
 import { supportsFolder } from '../record/folderStore';
-import { deleteMyDataDetailed } from '../record/session';
+import { currentActor, deleteMyDataDetailed } from '../record/session';
 import { stateSyncMessage, subscribeStateSync } from '../record/stateSync';
 import type { AttachResult } from '../record/store';
 import { cancelPendingEdits, flushPendingEdits } from '../record/useFileEdits';
@@ -20,7 +20,10 @@ import { SenseiPanel } from './SenseiPanel';
 /** Fired after a restore so an open lesson can pick up the restored place. */
 export const RESTORED_EVENT = 'learn:record-restored';
 
+/** No browser storage and no session yet: nothing is kept anywhere. */
 export const NOT_SAVED = "Your progress isn't being saved. Download it to keep it.";
+/** No browser storage, but a session: the official record is on the server; only the working copy is missing. */
+export const NO_WORKING_COPY = "This browser can't keep a working copy, but your official record is kept on our servers. Download your record to keep a copy.";
 
 const ATTACH_COPY: Record<AttachResult, string> = {
   wrote: 'Saving to your folder from now on',
@@ -174,7 +177,9 @@ export function RecordPanel() {
   const state: 'folder' | 'browser' | 'none' = folder ? 'folder' : persistent ? 'browser' : 'none';
   const attention = Boolean(notice || manager.folderError || syncMessage);
   const handoffLesson = open ? (lessonInPath() ?? record.current?.lessonId ?? null) : null;
-  const stateLabel = { folder: 'Saving to your folder', browser: 'Working copy in this browser', none: 'Not saved' }[state];
+  // With a session the official record is on the server, so a browser that keeps nothing still has a saved record.
+  const onServer = currentActor() !== null;
+  const stateLabel = { folder: 'Saving to your folder', browser: 'Working copy in this browser', none: onServer ? 'No working copy in this browser' : 'Not saved' }[state];
 
   useEffect(() => {
     if (!open) setView('main');
@@ -338,7 +343,7 @@ export function RecordPanel() {
         {state === 'none' || attention ? (
           <>
             <span class="visually-hidden">Your record: </span>
-            <span>{state === 'none' ? 'Not saved' : 'Check your record'}</span>
+            <span>{state === 'none' && !onServer ? 'Not saved' : 'Check your record'}</span>
           </>
         ) : (
           <>
@@ -531,7 +536,7 @@ export function SaveWarning() {
   if (hidden || (persistent && !notice)) return null;
   return (
     <div class="save-warning" role="status">
-      <p class="save-warning__text">{persistent ? notice!.message : NOT_SAVED}</p>
+      <p class="save-warning__text">{persistent ? notice!.message : currentActor() ? NO_WORKING_COPY : NOT_SAVED}</p>
       <div class="save-warning__actions">
         <button type="button" class="button" onClick={() => downloadRecord(manager.record)}>
           Download record

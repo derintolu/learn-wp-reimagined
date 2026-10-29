@@ -23,7 +23,6 @@ export interface BadgeSummary {
   testedOut: number;
 }
 
-export const notFound = () => error(404, 'not-found', 'Not found.');
 export const needSession = () => error(401, 'no-session', 'Start a session first.');
 export const lrsDown = () => error(503, 'lrs-unavailable', 'Badges are unavailable right now. Please try again shortly.');
 
