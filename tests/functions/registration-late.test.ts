@@ -63,6 +63,18 @@ const pendingCount = async () =>
   Number((await db.prepare('SELECT COUNT(*) AS n FROM official_pending_parts').first<{ n: number }>())!.n);
 const cron = () => lrsDrain(new Request('http://x/api/lrs-drain', { headers: { authorization: `Bearer ${CRON}` } }), { params: {}, env });
 const ok = (e: { eventId: string }): EventResult => ({ eventId: e.eventId, ok: true, statements: [] });
+/** The next read of a learner's held rows fails, as a database outage would. */
+function failHeldReadOnce() {
+  const prepare = db.prepare.bind(db);
+  let failed = false;
+  vi.spyOn(db, 'prepare').mockImplementation((sql: string) => {
+    if (!failed && sql.startsWith('SELECT item, now FROM official_pending')) {
+      failed = true;
+      throw new Error('database unavailable');
+    }
+    return prepare(sql);
+  });
+}
 const stateCalls = () => lrs.calls.filter((c) => c.url.includes('/activities/state')).length;
 
 beforeEach(async () => {
@@ -238,14 +250,45 @@ describe('a slow first registration', () => {
     const log = vi.spyOn(console, 'error').mockImplementation(() => {});
     const { session, cookie } = await learner();
     await db.prepare('UPDATE sessions SET registration = ? WHERE sid_hash = ?').bind(REG, session.sidHash).run();
-    // A held row that cannot be read back: the replay throws.
-    await db.prepare('INSERT INTO official_pending (actor_name, item, now) VALUES (?, ?, ?)').bind(session.actorName, '0', 0).run();
-    await db.prepare('INSERT INTO official_pending_parts (actor_name, item, seq, part) VALUES (?, ?, ?, ?)').bind(session.actorName, '0', 0, '{not json').run();
+    await holdPending(env, session.actorName, [opened] as ServerEvent[], [ok(opened)], Date.now() - 5000);
+    failHeldReadOnce();
     expect((await post([completed], cookie, false)).res.status).toBe(200);
-    expect(log).toHaveBeenCalledWith('official record failed', 'SyntaxError', expect.any(String));
+    expect(log).toHaveBeenCalledWith('official record failed', 'Error', 'database unavailable');
     const items = (await db.prepare('SELECT item FROM official_pending ORDER BY item').all<{ item: string }>()).results.map((r) => r.item);
     expect(items).toHaveLength(2);
+    expect(items[0]).toContain(opened.eventId);
     expect(items[1]).toContain(completed.eventId);
+  });
+
+  it('an unreadable held row is dropped and logged, and the next held row still replays', async () => {
+    lrs.delayMs = 0;
+    const log = vi.spyOn(console, 'error').mockImplementation(() => {});
+    const { session } = await learner();
+    const t = Date.now() - 5000;
+    await holdPending(env, session.actorName, [opened, completed] as ServerEvent[], [ok(opened), ok(completed)], t);
+    const [first] = (await db.prepare('SELECT item FROM official_pending ORDER BY item').all<{ item: string }>()).results;
+    await db.prepare('UPDATE official_pending_parts SET part = ? WHERE item = ?').bind('{not json', first.item).run();
+    expect(await replayPending(env, session, REG)).toBe(true);
+    expect(log).toHaveBeenCalledWith('official record dropped an unreadable held event', opened.eventId);
+    expect((await outbox()).map(verbOf)).toEqual(['launched', 'initialized', 'completed']);
+    expect(await pendingCount()).toBe(0);
+  });
+
+  it('the cron still replays the others and drains when one learner replay throws', async () => {
+    lrs.delayMs = 0;
+    const log = vi.spyOn(console, 'error').mockImplementation(() => {});
+    const a = await learner();
+    const b = await learner();
+    await holdPending(env, a.session.actorName, [opened] as ServerEvent[], [ok(opened)], Date.now() - 5000);
+    await holdPending(env, b.session.actorName, [opened] as ServerEvent[], [ok(opened)], Date.now() - 5000);
+    failHeldReadOnce();
+    const res = await cron();
+    expect(res.status).toBe(200);
+    expect(await res.json()).toMatchObject({ replayed: 1, sent: 2, left: 0 });
+    expect(log).toHaveBeenCalledWith('official replay failed', 'Error', 'database unavailable');
+    expect(lrs.statements.map(verbOf)).toEqual(['launched', 'initialized']);
+    // The learner whose replay failed is still held, for the next run.
+    expect((await db.prepare('SELECT COUNT(DISTINCT actor_name) AS n FROM official_pending').first<{ n: number }>())!.n).toBe(1);
   });
 
   it('a dropped held event is logged with its eventId', async () => {

@@ -239,6 +239,19 @@ export async function holdPending(env: Env, actorName: string, events: ServerEve
   }
 }
 
+/** A held row's event and result, or null when it cannot be read back (it would block the learner's replays). */
+function parseHeld(body: string): { e: ServerEvent; r: Ok } | null {
+  try {
+    const v = JSON.parse(body) as { e?: ServerEvent; r?: Ok } | null;
+    return v && typeof v.e?.eventId === 'string' && v.r?.ok === true ? { e: v.e, r: v.r } : null;
+  } catch {
+    return null;
+  }
+}
+
+/** The eventId an item names (`now-pos-eventId`), or 'unknown'. */
+const eventIdOf = (item: string) => item.split('-').slice(2).join('-') || 'unknown';
+
 /** False when the course has changed since the event was decided, so that it no longer names what it did. */
 function stillBuildable(bundle: ContentBundle, e: ServerEvent): boolean {
   if (e.type === 'placed') return true; // buildOfficial validates the placement itself
@@ -276,8 +289,10 @@ export async function replayPending(env: Env, session: Session, registration: st
         queued = 0;
       }
       const body = await readParts(env.DB, PENDING_PARTS, actorName, p.item);
-      if (body !== null) {
-        const { e, r } = JSON.parse(body) as { e: ServerEvent; r: Ok };
+      const held = body === null ? null : parseHeld(body);
+      if (body !== null && !held) console.error('official record dropped an unreadable held event', eventIdOf(p.item));
+      if (held) {
+        const { e, r } = held;
         if (stillBuildable(ctx.bundle, e)) queued += await recordOne(env, ctx, actorName, e, r, now, queued);
         else console.error('official record dropped a held event the course no longer has', e.type, e.eventId);
       }
@@ -333,12 +348,17 @@ export async function replayHeld(env: Env, until: number): Promise<number> {
       } catch (e) {
         if (e instanceof LrsUnavailable) lrsDown = true;
         else if (e instanceof LrsError) console.error('official replay skipped: no registration', e.message);
-        else throw e;
+        else console.error('official replay failed', (e as Error)?.name, (e as Error)?.message);
         continue;
       }
     }
-    await replayPending(env, session, registration, until);
-    replayed++;
+    try {
+      await replayPending(env, session, registration, until);
+      replayed++;
+    } catch (e) {
+      // One learner's failure never halts the run: their rows stay for the next one.
+      console.error('official replay failed', (e as Error)?.name, (e as Error)?.message);
+    }
   }
   return replayed;
 }
