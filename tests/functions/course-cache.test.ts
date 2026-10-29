@@ -565,4 +565,33 @@ describe('the cached body is stored in parts under the broker limit', () => {
     const { results } = await env.DB.prepare('SELECT DISTINCT etag FROM course_cache_parts').all<{ etag: string }>();
     expect(results.map((r) => r.etag)).toEqual(['"e2"']);
   });
+
+  it('an unchanged-etag refetch (hooks pending) performs no part writes', async () => {
+    const hook = vi.fn(async () => { throw new Error('hook down'); });
+    const off = onNewVersion(hook);
+    send200('"e1"', 1);
+    await refreshContent(env, T0);
+    off();
+    const real = env.DB;
+    const writes: string[] = [];
+    env = { ...env, DB: { prepare: (q: string) => { if (/course_cache_parts/.test(q) && !/^(SELECT|CREATE)/.test(q)) writes.push(q); return real.prepare(q); } } as unknown as Env['DB'] };
+    send200('"e1"', 1);
+    await refreshContent(env, T0 + 1, { force: true });
+    expect(writes).toEqual([]);
+    expect((await real.prepare('SELECT COUNT(*) AS n FROM course_cache_parts').first<{ n: number }>())!.n).toBeGreaterThan(0);
+  });
+
+  it('a failed cleanup of old parts is logged and the hooks still run', async () => {
+    const hook = vi.fn(async () => {});
+    const off = onNewVersion(hook);
+    send200('"e1"', 1);
+    await refreshContent(env, T0);
+    const real = env.DB;
+    env = { ...env, DB: { prepare: (q: string) => (/^DELETE FROM course_cache_parts WHERE course_id = \? AND etag <>/.test(q) ? { bind: () => ({ run: async () => { throw new Error('cleanup down'); } }) } : real.prepare(q)) } as unknown as Env['DB'] };
+    send200('"e2"', 2);
+    expect((await refreshContent(env, T0 + 1, { force: true })).etag).toBe('"e2"');
+    off();
+    expect(hook).toHaveBeenCalledTimes(2);
+    expect(console.error).toHaveBeenCalledWith('course cache db error', 'cleanup', 'cleanup down');
+  });
 });

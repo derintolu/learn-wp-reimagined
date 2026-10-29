@@ -4,6 +4,7 @@
 import type { Env } from '../env';
 import { PROGRAM_KEY, SERVER_FLAGS } from '../config';
 import { ensureCourseCacheSchema } from '../db';
+import { deleteOtherParts, readParts, splitUtf8, writeParts, type PartsTable } from '../blobParts';
 import { getContent, setCurrentContent } from '../content';
 import { ConnectorClient, ConnectorError, ConnectorUnavailable } from '../ledger/connector';
 import { courseImportPending, importCourseOnNewVersion } from '../lrs/import';
@@ -44,30 +45,10 @@ export function bakedEtag(): string {
   return (baked = `"baked-${h.toString(16)}"`);
 }
 
-/** The most UTF-8 bytes in one stored part: the broker refuses an operation over 65,536 bytes, and the INSERT carries more. */
-export const COURSE_PART_BYTES = 48_000;
+const PARTS: PartsTable = { table: 'course_cache_parts', keyCol: 'course_id', verCol: 'etag' };
 
-/** Splits s at character boundaries into parts of at most maxBytes UTF-8 bytes each; the parts join back to s. */
-export function splitUtf8(s: string, maxBytes: number): string[] {
-  if (maxBytes < 4) throw new RangeError('maxBytes must be at least 4');
-  const parts: string[] = [];
-  let start = 0;
-  let bytes = 0;
-  let i = 0;
-  while (i < s.length) {
-    const cp = s.codePointAt(i)!;
-    const w = cp < 0x80 ? 1 : cp < 0x800 ? 2 : cp < 0x10000 ? 3 : 4;
-    if (bytes + w > maxBytes) {
-      parts.push(s.slice(start, i));
-      start = i;
-      bytes = 0;
-    }
-    bytes += w;
-    i += cp > 0xffff ? 2 : 1;
-  }
-  if (start < s.length || parts.length === 0) parts.push(s.slice(start));
-  return parts;
-}
+/** Re-exported for the tests. */
+export { splitUtf8 };
 
 // The etag whose parts were missing or unreadable: the next refresh fetches that version in full to write them again.
 let unusableEtag: string | null = null;
@@ -75,29 +56,16 @@ let unusableEtag: string | null = null;
 /** Loads the cached bundle into memory when it is not the one already loaded (the parts are read only then). */
 async function use(env: Env, row: Row): Promise<void> {
   if (loadedEtag === row.etag) return;
-  const { results } = await env.DB.prepare('SELECT part FROM course_cache_parts WHERE course_id = ? AND etag = ? ORDER BY seq')
-    .bind(PROGRAM_KEY, row.etag)
-    .all<{ part: string }>();
+  const text = await readParts(env.DB, PARTS, PROGRAM_KEY, row.etag);
   try {
-    if (!results.length) throw new Error('no stored parts');
-    setCurrentContent(JSON.parse(results.map((r) => r.part).join('')) as ContentBundle);
+    if (text === null) throw new Error('no stored parts');
+    setCurrentContent(JSON.parse(text) as ContentBundle);
   } catch (e) {
     unusableEtag = row.etag;
     throw new Error(`unusable cached body: ${short(e)}`);
   }
   loadedEtag = row.etag;
   loadedVersion = Number(row.version);
-}
-
-/** Writes the body as parts for etag. Parts of any other etag are removed only after the course_cache row has moved on. */
-async function writeParts(env: Env, etag: string, body: string): Promise<void> {
-  await env.DB.prepare('DELETE FROM course_cache_parts WHERE course_id = ? AND etag = ?').bind(PROGRAM_KEY, etag).run();
-  const parts = splitUtf8(body, COURSE_PART_BYTES);
-  for (let seq = 0; seq < parts.length; seq++) {
-    await env.DB.prepare('INSERT INTO course_cache_parts (course_id, etag, seq, part) VALUES (?, ?, ?, ?)')
-      .bind(PROGRAM_KEY, etag, seq, parts[seq])
-      .run();
-  }
 }
 
 /** A package that cannot be served: it does not decode, or the course it holds does not build. */
@@ -219,7 +187,8 @@ async function refresh(
     loadedVersion = res.version;
     stage.name = row ? 'update' : 'insert';
     // Parts first, then the row that points at them, then the old parts: a reader never sees a half-written body.
-    await writeParts(env, res.etag, body);
+    // An unchanged etag already has readable parts: they are rewritten only to repair an unusable copy, in place.
+    if (changed || unusable) await writeParts(env.DB, PARTS, PROGRAM_KEY, res.etag, body, changed);
     if (row) {
       await env.DB.prepare('UPDATE course_cache SET etag = ?, version = ?, fetched = ?, hooks_done = ? WHERE course_id = ?')
         .bind(res.etag, res.version, now, changed ? 0 : Number(row.hooks_done), PROGRAM_KEY)
@@ -230,7 +199,15 @@ async function refresh(
         .run();
     }
     unusableEtag = null;
-    await env.DB.prepare('DELETE FROM course_cache_parts WHERE course_id = ? AND etag <> ?').bind(PROGRAM_KEY, res.etag).run();
+    if (changed) {
+      stage.name = 'cleanup';
+      try {
+        await deleteOtherParts(env.DB, PARTS, PROGRAM_KEY, res.etag);
+      } catch (e) {
+        // Only orphaned parts are left behind; the next new version removes them.
+        console.error('course cache db error', stage.name, short(e));
+      }
+    }
     failedAt = 0;
     if (changed || hooksPending) {
       if (await runHooks(env, res.zip, res.etag)) {

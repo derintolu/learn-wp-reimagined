@@ -104,7 +104,12 @@ export async function ensureRecordSchema(db: D1Like): Promise<void> {
     .run();
   await db.prepare('CREATE TABLE IF NOT EXISTS carry_overs (actor_name VARCHAR(64) PRIMARY KEY, created BIGINT)').run();
   await db.prepare('CREATE TABLE IF NOT EXISTS lrs_imports (etag VARCHAR(200) PRIMARY KEY, imported BIGINT)').run();
+  // record_cache is the pointer (at names the version); the projection itself is in record_cache_parts, since it can pass
+  // the broker's 64 KiB operation limit. record_cache.body is no longer written.
   await db.prepare('CREATE TABLE IF NOT EXISTS record_cache (actor_name VARCHAR(64) PRIMARY KEY, body TEXT, at BIGINT)').run();
+  await db
+    .prepare('CREATE TABLE IF NOT EXISTS record_cache_parts (actor_name VARCHAR(64), at BIGINT, seq INT, part MEDIUMTEXT, PRIMARY KEY (actor_name, at, seq))')
+    .run();
   await ensureSchema(db);
   try {
     await db.prepare('ALTER TABLE sessions ADD COLUMN registration VARCHAR(36) NULL').run();

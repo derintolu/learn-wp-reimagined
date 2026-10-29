@@ -2,6 +2,7 @@
 // the cached projection, and the invalidation every decided event triggers.
 import type { Env } from '../env';
 import { ensureRecordSchema } from '../db';
+import { deleteOtherParts, readParts, writeParts, type PartsTable } from '../blobParts';
 import { LrsClient, type Actor } from '../lrs/client';
 import type { Session } from '../session/session';
 import { getRegistration } from './registration';
@@ -16,16 +17,30 @@ export const RECORD_CACHE_TTL_MS = 60_000;
 /** A learner's statements fit well under this; the cap only stops a paging loop that never ends. */
 const MAX_PAGES = 50;
 
+const PARTS: PartsTable = { table: 'record_cache_parts', keyCol: 'actor_name', verCol: 'at' };
+
+/** The cached projection while fresh. A missing or unparseable body is a cache miss: the record is read from the LRS again. */
 export async function readCachedRecord(env: Env, actorName: string, now = Date.now()): Promise<string | null> {
   await ensureRecordSchema(env.DB);
-  const row = await env.DB.prepare('SELECT body, at FROM record_cache WHERE actor_name = ?').bind(actorName).first<{ body: string; at: number | string }>();
-  return row && now - Number(row.at) < RECORD_CACHE_TTL_MS ? row.body : null;
+  const row = await env.DB.prepare('SELECT at FROM record_cache WHERE actor_name = ?').bind(actorName).first<{ at: number | string }>();
+  if (!row || now - Number(row.at) >= RECORD_CACHE_TTL_MS) return null;
+  try {
+    const body = await readParts(env.DB, PARTS, actorName, Number(row.at));
+    if (body === null) return null;
+    JSON.parse(body);
+    return body;
+  } catch {
+    return null;
+  }
 }
 
+/** Parts first, then the pointer row, then the parts of earlier versions: a reader never sees a half-written body. */
 export async function writeCachedRecord(env: Env, actorName: string, body: string, now: number): Promise<void> {
   await ensureRecordSchema(env.DB);
+  await writeParts(env.DB, PARTS, actorName, now, body, true);
   await env.DB.prepare('DELETE FROM record_cache WHERE actor_name = ?').bind(actorName).run();
-  await env.DB.prepare('INSERT INTO record_cache (actor_name, body, at) VALUES (?, ?, ?)').bind(actorName, body, now).run();
+  await env.DB.prepare('INSERT INTO record_cache (actor_name, at) VALUES (?, ?)').bind(actorName, now).run();
+  await deleteOtherParts(env.DB, PARTS, actorName, now);
 }
 
 /** Called after events are decided; never fails the batch. */
@@ -33,6 +48,7 @@ export async function invalidateRecordCache(env: Env, actorName: string): Promis
   try {
     await ensureRecordSchema(env.DB);
     await env.DB.prepare('DELETE FROM record_cache WHERE actor_name = ?').bind(actorName).run();
+    await deleteOtherParts(env.DB, PARTS, actorName);
   } catch (e) {
     console.error('record cache invalidation failed', (e as Error)?.message);
   }
