@@ -136,6 +136,13 @@ async function count(env: Env): Promise<number> {
 
 type WaitUntil = (p: Promise<unknown>) => void;
 
+/** The handler context's waitUntil, feature-detected on `ctx.ctx` or the context itself (ruling R22), or null. */
+export function waitUntilOf(handlerCtx: unknown): WaitUntil | null {
+  const c = handlerCtx as { ctx?: { waitUntil?: WaitUntil }; waitUntil?: WaitUntil } | null;
+  const host = typeof c?.ctx?.waitUntil === 'function' ? c.ctx : typeof c?.waitUntil === 'function' ? c : null;
+  return host ? (p) => host.waitUntil!(p) : null;
+}
+
 /**
  * Drains after a request has been decided. When the handler context offers waitUntil (feature-detected on
  * `ctx.ctx` or the context itself, ruling R22) the drain runs after the response with a full budget;
@@ -143,13 +150,12 @@ type WaitUntil = (p: Promise<unknown>) => void;
  * A failure is logged, never thrown: the rows stay for the cron.
  */
 export async function drainAfterDecide(handlerCtx: unknown, env: Env, now: number, deadline: number): Promise<void> {
-  const c = handlerCtx as { ctx?: { waitUntil?: WaitUntil }; waitUntil?: WaitUntil } | null;
-  const host = typeof c?.ctx?.waitUntil === 'function' ? c.ctx : typeof c?.waitUntil === 'function' ? c : null;
-  const budget = host ? INLINE_DRAIN_BUDGET_MS : Math.max(0, deadline - Date.now());
+  const waitUntil = waitUntilOf(handlerCtx);
+  const budget = waitUntil ? INLINE_DRAIN_BUDGET_MS : Math.max(0, deadline - Date.now());
   const run = drain(env, now, budget).catch((e) => {
     console.error('lrs drain failed', (e as Error)?.name, (e as Error)?.message);
   });
-  if (host) return host.waitUntil!(run);
+  if (waitUntil) return waitUntil(run);
   let timer: ReturnType<typeof setTimeout> | undefined;
   await Promise.race([run, new Promise<void>((resolve) => (timer = setTimeout(resolve, budget)))]);
   clearTimeout(timer);

@@ -2,7 +2,8 @@ import { LRS_API, LRS_XAPI } from '../../functions/_lib/config';
 
 /**
  * An in-memory stand-in for Learning Ledger's LRS, installed as the global fetch. `down` answers every call 503;
- * `hang` never answers (the call ends only when the client's timeout aborts it); `rejectIds` answers 400 to a
+ * `hang` never answers (the call ends only when the client's timeout aborts it); `delayMs` answers each call that
+ * long after it is made (the live LRS takes about 500-700 ms); `rejectIds` answers 400 to a
  * POST holding one of those statement ids and to a PUT of one; `limited` answers every call 429 (rate limited).
  * As Learning Ledger does, a statement whose id is already stored is skipped when identical and answered 409 when
  * different (a POST then stores nothing). A statements GET returns the stored ones, by agent.
@@ -11,6 +12,7 @@ export function fakeLrs() {
   const lrs = {
     down: false,
     hang: false,
+    delayMs: 0,
     limited: false,
     rejectIds: new Set<string>(),
     statements: [] as any[],
@@ -24,6 +26,7 @@ export function fakeLrs() {
       const url = String(input instanceof Request ? input.url : input);
       const method = init?.method ?? 'GET';
       lrs.calls.push({ method, url });
+      if (lrs.delayMs > 0) await new Promise((resolve) => setTimeout(resolve, lrs.delayMs));
       if (lrs.down) return new Response(null, { status: 503 });
       if (lrs.limited) return new Response(null, { status: 429, headers: { 'Retry-After': '1' } });
       if (lrs.hang) {

@@ -4,7 +4,8 @@
 import type { Env } from '../env';
 import { ensureRecordSchema, isDuplicateKey } from '../db';
 import { getContent } from '../content';
-import { INLINE_DRAIN_BUDGET_MS, drainAfterDecide, enqueue } from '../lrs/outbox';
+import { INLINE_DRAIN_BUDGET_MS, drain, drainAfterDecide, enqueue, waitUntilOf } from '../lrs/outbox';
+import { readParts, writeParts, type PartsTable } from '../blobParts';
 import type { Session } from '../session/session';
 import type { EventResult, ServerEvent } from '../../../src/shared/events';
 import type { ContentBundle } from '../../../src/shared/types';
@@ -199,12 +200,100 @@ async function officialFor(
   return out;
 }
 
+type Ok = Extract<EventResult, { ok: true }>;
+type OfficialCtx = { actor: Actor; registration: string; bundle: ContentBundle };
+
+/** Builds and queues one event's official statements and records their facts; the number queued. */
+async function recordOne(env: Env, ctx: OfficialCtx, actorName: string, e: ServerEvent, r: Ok, now: number, seq: number): Promise<number> {
+  const sent = await officialFor(env, ctx, actorName, e, r, now, seq);
+  for (const fact of factsOf(sent, ctx.bundle)) await recordShadowFact(env, actorName, fact, now);
+  return sent.length;
+}
+
+const PENDING_PARTS: PartsTable = { table: 'official_pending_parts', keyCol: 'actor_name', verCol: 'item' };
+/** Held events read per query (small rows, far under the operation limit). */
+const PENDING_PAGE = 50;
+/** Orders held events: decision time, then place in the batch; the eventId keeps two batches of one ms apart. */
+const itemOf = (now: number, pos: number, eventId: string) => `${String(now).padStart(15, '0')}-${String(pos).padStart(3, '0')}-${eventId}`;
+const hasKey = (o: object, k: string) => Object.prototype.hasOwnProperty.call(o, k);
+
+/**
+ * Holds a batch's decided events until the learner has a registration (ruling R52): one row per event, its event
+ * and result in parts (an event can pass the 64 KiB operation limit). Holding the same event of the same decision
+ * again changes nothing.
+ */
+export async function holdPending(env: Env, actorName: string, events: ServerEvent[], results: EventResult[], now: number): Promise<void> {
+  await ensureRecordSchema(env.DB);
+  for (const [i, e] of events.entries()) {
+    const r = results[i];
+    if (!r?.ok) continue;
+    const item = itemOf(now, i, e.eventId);
+    // The phase 1 statements are the studio's; the official ones are built from the event and its decision.
+    await writeParts(env.DB, PENDING_PARTS, actorName, item, JSON.stringify({ e, r: { ...r, statements: [] } }), false);
+    try {
+      await env.DB.prepare('INSERT INTO official_pending (actor_name, item, now) VALUES (?, ?, ?)').bind(actorName, item, now).run();
+    } catch (err) {
+      if (!isDuplicateKey(err)) throw err;
+    }
+  }
+}
+
+/** False when the course has changed since the event was decided, so that it no longer names what it did. */
+function stillBuildable(bundle: ContentBundle, e: ServerEvent): boolean {
+  if (e.type === 'placed') return true; // buildOfficial validates the placement itself
+  if (!hasKey(bundle.lessons, e.lessonId)) return false;
+  const lesson = bundle.lessons[e.lessonId];
+  if (e.type === 'beatViewed') return e.beatIndex < lesson.beats.length;
+  if (e.type === 'checkpointAnswered') return !!lesson.checkpoint;
+  return true;
+}
+
+/**
+ * Records the learner's held events, oldest first, each at its own decision time, so its statement ids and
+ * timestamps are the ones it would have had (R7): queued, facts recorded, then the row dropped. Stops between
+ * two held batches once `until` has passed; true when nothing is left. Two replays at once, or one stopped
+ * before dropping a row, queue the same statements again, which is a no-op.
+ */
+export async function replayPending(env: Env, session: Session, registration: string, until = Infinity): Promise<boolean> {
+  await ensureRecordSchema(env.DB);
+  const actorName = session.actorName;
+  const ctx: OfficialCtx = { actor: officialActor(actorName), registration, bundle: getContent() };
+  let batchNow: number | undefined;
+  let queued = 0;
+  for (;;) {
+    const { results: page } = await env.DB
+      // A literal LIMIT: some MySQL drivers quote a bound LIMIT value.
+      .prepare(`SELECT item, now FROM official_pending WHERE actor_name = ? ORDER BY item LIMIT ${PENDING_PAGE}`)
+      .bind(actorName)
+      .all<{ item: string; now: number | string }>();
+    if (page.length === 0) return true;
+    for (const p of page) {
+      const now = Number(p.now);
+      if (now !== batchNow) {
+        if (Date.now() >= until) return false;
+        batchNow = now;
+        queued = 0;
+      }
+      const body = await readParts(env.DB, PENDING_PARTS, actorName, p.item);
+      if (body !== null) {
+        const { e, r } = JSON.parse(body) as { e: ServerEvent; r: Ok };
+        if (stillBuildable(ctx.bundle, e)) queued += await recordOne(env, ctx, actorName, e, r, now, queued);
+        else console.error('official record dropped a held event the course no longer has', e.type);
+      }
+      await env.DB.prepare('DELETE FROM official_pending WHERE actor_name = ? AND item = ?').bind(actorName, p.item).run();
+      await env.DB.prepare('DELETE FROM official_pending_parts WHERE actor_name = ? AND item = ?').bind(actorName, p.item).run();
+    }
+  }
+}
+
 /**
  * Builds, queues and records the official statements for a decided batch, then, given the handler context,
- * drains the outbox. The registration lookup and the drain share one INLINE_DRAIN_BUDGET_MS budget that starts
- * here, after deciding (ruling R22). Without a registration (the LRS slow or unreachable for a learner it has
- * not seen yet) nothing official is recorded for this batch. Any failure is logged; the studio's answer never
- * depends on this.
+ * drains the outbox. The registration lookup, the replay of held events and the drain share one
+ * INLINE_DRAIN_BUDGET_MS budget that starts here, after deciding (ruling R22). Events held earlier go first.
+ * Without a registration in time (a new learner, the LRS slow or unreachable), or with held events left at the
+ * deadline, the batch is held too (ruling R52); a lookup still running is then kept alive with waitUntil, where
+ * one is offered, and the held events are recorded and drained once it answers. Otherwise the next batch
+ * replays them. Any failure is logged; the studio's answer never depends on this.
  */
 export async function recordOfficial(
   env: Env,
@@ -215,24 +304,42 @@ export async function recordOfficial(
   handlerCtx?: unknown,
 ): Promise<void> {
   const deadline = Date.now() + INLINE_DRAIN_BUDGET_MS;
+  let later: Promise<string | null> | undefined;
   try {
     await ensureRecordSchema(env.DB);
-    const registration = await registrationWithin(env, session, deadline);
-    if (registration) {
-      const bundle = getContent();
-      const ctx = { actor: officialActor(session.actorName), registration, bundle };
+    const found = await registrationWithin(env, session, deadline);
+    const registration = found.registration;
+    if (registration && (await replayPending(env, session, registration, deadline))) {
+      const ctx: OfficialCtx = { actor: officialActor(session.actorName), registration, bundle: getContent() };
       let queued = 0;
       for (const [i, e] of events.entries()) {
         const r = results[i];
         if (!r?.ok) continue;
         // Queue times stay distinct across the batch, so the drain sends in decision order.
-        const sent = await officialFor(env, ctx, session.actorName, e, r, now, queued);
-        queued += sent.length;
-        for (const fact of factsOf(sent, bundle)) await recordShadowFact(env, session.actorName, fact, now);
+        queued += await recordOne(env, ctx, session.actorName, e, r, now, queued);
       }
+    } else {
+      await holdPending(env, session.actorName, events, results, now);
+      later = registration ? Promise.resolve(registration) : found.later;
     }
   } catch (e) {
     console.error('official record failed', (e as Error)?.name, (e as Error)?.message);
+  }
+  const waitUntil = waitUntilOf(handlerCtx);
+  if (later && waitUntil) {
+    return waitUntil(
+      (async () => {
+        try {
+          const registration = await later;
+          if (registration) await replayPending(env, session, registration);
+        } catch (e) {
+          console.error('official record failed', (e as Error)?.name, (e as Error)?.message);
+        }
+        // Not while the LRS is known to be down: the cron retries the rows.
+        if (Date.now() < lrsHealth.downUntil) return;
+        await drain(env, now, INLINE_DRAIN_BUDGET_MS).catch((e) => console.error('lrs drain failed', (e as Error)?.name, (e as Error)?.message));
+      })(),
+    );
   }
   // Not while the LRS is known to be down: the cron retries the rows.
   if (handlerCtx !== undefined && Date.now() >= lrsHealth.downUntil) await drainAfterDecide(handlerCtx, env, now, deadline);

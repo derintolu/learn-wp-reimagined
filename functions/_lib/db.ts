@@ -110,6 +110,14 @@ export async function ensureRecordSchema(db: D1Like): Promise<void> {
   await db
     .prepare('CREATE TABLE IF NOT EXISTS record_cache_parts (actor_name VARCHAR(64), at BIGINT, seq INT, part MEDIUMTEXT, PRIMARY KEY (actor_name, at, seq))')
     .run();
+  // Decided events held until the learner has a registration (ruling R52): official_pending names them, in order
+  // (item), and official_pending_parts holds each one's event and result, in parts under the 64 KiB operation limit.
+  await db
+    .prepare('CREATE TABLE IF NOT EXISTS official_pending (actor_name VARCHAR(64), item VARCHAR(100), now BIGINT, PRIMARY KEY (actor_name, item))')
+    .run();
+  await db
+    .prepare('CREATE TABLE IF NOT EXISTS official_pending_parts (actor_name VARCHAR(64), item VARCHAR(100), seq INT, part MEDIUMTEXT, PRIMARY KEY (actor_name, item, seq))')
+    .run();
   await ensureSchema(db);
   try {
     await db.prepare('ALTER TABLE sessions ADD COLUMN registration VARCHAR(36) NULL').run();

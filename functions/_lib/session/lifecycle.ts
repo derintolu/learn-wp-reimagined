@@ -22,8 +22,8 @@ export interface DriftReport {
 /** Leaves headroom under the function time limit; learners left over wait for the next run. */
 export const SWEEP_BUDGET_MS = 20_000;
 
-/** Actor-keyed rows removed before the LRS erase, so a drain cannot re-create the actor after it. */
-export const ERASE_BEFORE_LRS = ['lrs_outbox', 'au_sessions'] as const;
+/** Actor-keyed rows removed before the LRS erase, so a drain or a replay cannot re-create the actor after it. */
+export const ERASE_BEFORE_LRS = ['lrs_outbox', 'au_sessions', 'official_pending', 'official_pending_parts'] as const;
 /** Actor-keyed rows removed after the LRS erase. A new actor_name table must be listed here (lifecycle test). */
 export const ERASE_AFTER_LRS = ['shadow_facts', 'official_outcomes', 'carry_overs', 'record_cache', 'record_cache_parts'] as const;
 

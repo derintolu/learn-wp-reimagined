@@ -207,7 +207,7 @@ describe('POST /api/events with the LRS in shadow', () => {
     expect(await rows()).toEqual([]);
   });
 
-  it('a hanging LRS: a new learner is answered within the budget, and the LRS is not asked again at once', async () => {
+  it('a hanging LRS: a new learner is answered within the budget; late is not down, only the timeout is', async () => {
     SERVER_FLAGS.lrsShadow = true;
     const { cookie } = await createSession(env, Date.now());
     const value = cookie.split(';')[0].split('=').slice(1).join('=');
@@ -218,12 +218,17 @@ describe('POST /api/events with the LRS in shadow', () => {
     expect(res.status).toBe(200);
     expect(((await res.json()) as any).results[0]).toMatchObject({ ok: true });
     expect(await rows()).toEqual([]);
+    // Late (ruling R52): the next event asks again, within its own budget.
+    expect(lrsHealth.downUntil).toBe(0);
     const calls = lrs.calls.length;
     const t1 = Date.now();
     expect((await post(completed, value)).status).toBe(200);
-    expect(Date.now() - t1).toBeLessThan(300);
-    expect(lrs.calls.length).toBe(calls);
-  });
+    expect(Date.now() - t1).toBeLessThan(INLINE_DRAIN_BUDGET_MS + 400);
+    expect(lrs.calls.length).toBeGreaterThan(calls);
+    // The client's 3 s timeout is an outage: once both lookups have given up, the LRS is not asked again at once.
+    await new Promise((resolve) => setTimeout(resolve, Math.max(0, t1 + 3300 - Date.now())));
+    expect(lrsHealth.downUntil).toBeGreaterThan(Date.now());
+  }, 10_000);
 
   it('a hanging LRS: a returning learner is answered within the budget and the rows stay queued', async () => {
     SERVER_FLAGS.lrsShadow = true;
