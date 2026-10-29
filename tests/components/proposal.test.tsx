@@ -1,15 +1,29 @@
 // @vitest-environment happy-dom
-import { afterEach, describe, expect, it } from 'vitest';
+import { afterEach, describe, expect, it, vi } from 'vitest';
 import { existsSync, readFileSync } from 'node:fs';
 import { cleanup, render, screen } from '@testing-library/preact';
 import { Proposal } from '../../src/pages/Proposal';
-import { REPO_URL } from '../../src/config';
+import { BADGES_NOT_ISSUED, REPO_URL } from '../../src/config';
 import { BACKEND_VIEW_PATH, COST_PER_1000_LEARNERS_USD, LRS_HOST, RETENTION_DAYS, SENSEI_VERSION } from '../../src/shared/course-meta';
 import { REVIEW_DISCLAIMER } from '../../src/studio/Feed';
 import { DAY_CAP_MICROS, MONTH_CAP_MICROS } from '../../functions/_lib/budget';
 
 afterEach(() => {
   cleanup();
+  flags.badgesIssuing = true;
+});
+
+// BADGES_ISSUING (ruling R57) is read through a getter, so a test can flip it; it starts on so the approved copy is
+// what the other tests read.
+const flags = vi.hoisted(() => ({ badgesIssuing: true }));
+vi.mock('../../src/config', async (importOriginal) => {
+  const real = await importOriginal<typeof import('../../src/config')>();
+  return {
+    ...real,
+    get BADGES_ISSUING() {
+      return flags.badgesIssuing;
+    },
+  };
 });
 
 const SOURCE = readFileSync('src/pages/Proposal.tsx', 'utf8');
@@ -266,5 +280,19 @@ describe('/proposal final rewrite (phase 8)', () => {
     expect(t).not.toContain('The record handle is the only key to an agent record.');
     expect(t).toContain('Agents sign in, instead of holding a handle.');
     expect(t).toContain('We don\'t fall back to a secret handle.');
+  });
+});
+
+describe('/proposal: badges before the LRS issues them (R57)', () => {
+  it('with issuing off, the Learning Ledger paragraph says badges are not issued yet', () => {
+    flags.badgesIssuing = false;
+    render(<Proposal />);
+    expect(text()).toContain(`In this concept it runs in both roles, on two installs. ${BADGES_NOT_ISSUED} Other LMS integrations`);
+  });
+
+  it('with issuing on, the approved copy', () => {
+    render(<Proposal />);
+    expect(text()).toContain('In this concept it runs in both roles, on two installs. Other LMS integrations');
+    expect(text()).not.toContain(BADGES_NOT_ISSUED);
   });
 });

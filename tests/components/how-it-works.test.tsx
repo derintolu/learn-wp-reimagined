@@ -1,10 +1,10 @@
 // @vitest-environment happy-dom
-import { afterEach, describe, expect, it } from 'vitest';
+import { afterEach, describe, expect, it, vi } from 'vitest';
 import { existsSync, readFileSync } from 'node:fs';
 import { cleanup, render, screen } from '@testing-library/preact';
 import { HowItWorks, LEDGER_REPO_URL, SPEC, SPEC_REPO_URL, STATUS } from '../../src/pages/HowItWorks';
 import { DIAGRAM_LABEL } from '../../src/pages/HowItWorksDiagram';
-import { REPO_URL } from '../../src/config';
+import { BADGES_NOT_ISSUED, REPO_URL } from '../../src/config';
 import { BACKEND_VIEW_PATH, COST_PER_1000_LEARNERS_USD, LRS_HOST, MCP_URL, RETENTION_DAYS, SENSEI_VERSION } from '../../src/shared/course-meta';
 import { REVIEW_DISCLAIMER } from '../../src/studio/Feed';
 import { ROUTES } from '../../functions/_lib/config';
@@ -14,6 +14,20 @@ import { DEFAULTS } from '../../vendor/course-xapi-mcp/core/constants.ts';
 
 afterEach(() => {
   cleanup();
+  flags.badgesIssuing = true;
+});
+
+// BADGES_ISSUING (ruling R57) is read through a getter, so a test can flip it; it starts on so the approved copy is
+// what the other tests read.
+const flags = vi.hoisted(() => ({ badgesIssuing: true }));
+vi.mock('../../src/config', async (importOriginal) => {
+  const real = await importOriginal<typeof import('../../src/config')>();
+  return {
+    ...real,
+    get BADGES_ISSUING() {
+      return flags.badgesIssuing;
+    },
+  };
 });
 
 const text = () => (document.querySelector('.how-page')?.textContent ?? '').replace(/\s+/g, ' ');
@@ -370,7 +384,7 @@ describe('/how-it-works: where your record lives', () => {
       'Progress that reaches Sensei. When you finish a lesson, or skip one by showing you already know it, the record store tells Sensei, which marks the lesson complete. A skipped lesson is marked complete in Sensei and shown as "tested out" in your record menu and in the "What Sensei sees" panel. Sensei\'s own reports only say "Complete". We aim for Sensei to catch up within 30 seconds and have set 90 seconds as the limit; both are targets we are measuring, not a promise.',
     );
     expect(t).toContain(
-      `Where your record lives. It lives on our servers under a random ID, in two places: the record store at ${LRS_HOST}, and the Sensei user that tracks your lessons. It holds your steps, the answers you typed to checkpoints in your own words, and the files you edited, because those are what resuming and a future badge need. It holds no email unless you add one, which isn't built yet. A learner with no activity for ${RETENTION_DAYS} days is deleted, and "Delete my data" in the record menu deletes it at once: your steps and files in the record store, your Sensei user and its progress, and any connected agents. "Download my record" gives you a copy first. There is no third-party analytics.`,
+      `Where your record lives. It lives on our servers under a random ID, in two places: the record store at ${LRS_HOST}, and the Sensei user that tracks your lessons. It holds your steps, the answers you typed to checkpoints in your own words, and the files you edited, because those are what resuming and a future badge need. It holds no email: the only email is one you may give on the record store's claim page when you claim a badge, and the badge holds it only as a hash. A learner with no activity for ${RETENTION_DAYS} days is deleted, and "Delete my data" in the record menu deletes it at once: your steps and files in the record store, your Sensei user and its progress, and any connected agents. "Download my record" gives you a copy first. There is no third-party analytics.`,
     );
     expect(t).toContain("This Sensei is the prototype's own, so your progress here doesn't count on Learn.");
     expect(t).not.toMatch(/\p{Extended_Pictographic}/u);
@@ -425,5 +439,49 @@ describe('/how-it-works: agent copy', () => {
     expect(t).not.toContain('new records every');
     expect(card(container, 'author-lrs')).toContain('The agent path here uses this option');
     expect(card(container, 'practice')).not.toContain('works much like this');
+  });
+});
+
+describe('/how-it-works: what runs today', () => {
+  it('says every step of the lesson flow runs here now, with no wired-up-later line', () => {
+    render(<HowItWorks />);
+    const t = text();
+    expect(t).toContain("The path one lesson takes in your AI. Every step runs on this site today: this site's course server (the course-xapi-mcp reference server), the LRS and Sensei.");
+    expect(t).not.toContain('once the backend is wired up');
+    expect(t).not.toContain('Steps 2 to 4');
+    expect(t).not.toContain("which isn't built yet");
+  });
+});
+
+describe('/how-it-works: badges before the LRS issues them (R57)', () => {
+  const badgesCard = (c: Element) => Array.from(c.querySelectorAll('.how-parts__list li')).find((li) => li.querySelector('strong')!.textContent === 'Badges')!;
+
+  it('ships with issuing off, and the flag names the LRS command that turns it on', async () => {
+    const real = await vi.importActual<typeof import('../../src/config')>('../../src/config');
+    expect(real.BADGES_ISSUING).toBe(false);
+    expect(readFileSync('src/config.ts', 'utf8')).toContain('learning-ledger client update course-server --trusted');
+    expect(BADGES_NOT_ISSUED).toBe('Badges are switched on but not issued yet.');
+  });
+
+  it('with issuing off, says so plainly wherever badges are promised', () => {
+    flags.badgesIssuing = false;
+    const { container } = render(<HowItWorks />);
+    const t = text();
+    const flow = container.querySelector('.how-flow')!.textContent!.replace(/\s+/g, ' ');
+    expect(flow).toContain(`The target is within 90 seconds at p95. ${BADGES_NOT_ISSUED}`);
+    expect(t).not.toContain('the LRS has a badge for you to claim');
+    expect(badgesCard(container).textContent).toContain(BADGES_NOT_ISSUED);
+    expect(t).toContain(`The badge does not carry your random ID. ${BADGES_NOT_ISSUED}`);
+    const figure = container.querySelector('figure.how-diagram')!;
+    expect(figure.querySelector('figcaption')!.textContent!.replace(/\s+/g, ' ')).toContain(`the LRS signs your badges. ${BADGES_NOT_ISSUED}`);
+    for (const svg of Array.from(figure.querySelectorAll('svg'))) expect(svg.getAttribute('aria-label')).toBe(`${DIAGRAM_LABEL} ${BADGES_NOT_ISSUED}`);
+  });
+
+  it('with issuing on, the approved copy and no not-issued sentence', () => {
+    const { container } = render(<HowItWorks />);
+    const t = text();
+    expect(t).toContain('When you finish a path, the LRS has a badge for you to claim.');
+    expect(t).not.toContain(BADGES_NOT_ISSUED);
+    expect(badgesCard(container).textContent).not.toContain(BADGES_NOT_ISSUED);
   });
 });

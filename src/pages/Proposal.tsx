@@ -23,7 +23,7 @@
  */
 import type { ComponentChildren } from 'preact';
 import { Swipe } from '../components/Swipe';
-import { REPO_URL } from '../config';
+import { BADGES_ISSUING, BADGES_NOT_ISSUED, REPO_URL } from '../config';
 import { BACKEND_VIEW_PATH, COST_PER_1000_LEARNERS_USD, LRS_HOST, RETENTION_DAYS } from '../shared/course-meta';
 import { usePageTitle } from '../usePageTitle';
 
@@ -222,8 +222,8 @@ export function Proposal() {
           is a WordPress plugin with two roles that can run on the same or different installs: a record store (an xAPI
           endpoint with badge issuing), and a connector that applies the store's records to an LMS. It has a built-in
           Sensei integration, and puts the checkpoints and planted bugs in lessons as blocks. In this concept it runs in
-          both roles, on two installs. Other LMS integrations are on its roadmap and aren't built. Nothing in Sensei is
-          patched.
+          both roles, on two installs.{!BADGES_ISSUING && ` ${BADGES_NOT_ISSUED}`} Other LMS integrations are on its
+          roadmap and aren't built. Nothing in Sensei is patched.
         </p>
         <p>
           <strong>Why the record store is separate.</strong> A record store takes many small writes. The recommended

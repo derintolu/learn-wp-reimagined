@@ -1,7 +1,7 @@
 import type { ComponentChildren } from 'preact';
 import { Sticker } from '../components/Sticker';
 import { Swipe } from '../components/Swipe';
-import { REPO_URL } from '../config';
+import { BADGES_ISSUING, BADGES_NOT_ISSUED, REPO_URL } from '../config';
 import { BACKEND_VIEW_PATH, COST_PER_1000_LEARNERS_USD, LRS_HOST, MCP_URL, RETENTION_DAYS, SENSEI_VERSION } from '../shared/course-meta';
 import { usePageTitle } from '../usePageTitle';
 import { BackendDiagram } from './HowItWorksDiagram';
@@ -158,6 +158,7 @@ export function HowItWorks() {
       body: (
         <>
           Open Badges 3.0, signed by the LRS as <code>did:web:{LRS_HOST}</code> and claimed from the studio.
+          {!BADGES_ISSUING && ` ${BADGES_NOT_ISSUED}`}
         </>
       ),
     },
@@ -252,8 +253,8 @@ export function HowItWorks() {
       body: (
         <>
           The LRS tells the connector over a signed webhook, with a catch-up poll as backup, and the connector marks the
-          lesson complete in Sensei. The target is within 90 seconds at p95. When you finish a path, the LRS has a badge
-          for you to claim.
+          lesson complete in Sensei. The target is within 90 seconds at p95.
+          {BADGES_ISSUING ? ' When you finish a path, the LRS has a badge for you to claim.' : ` ${BADGES_NOT_ISSUED}`}
         </>
       ),
     },
@@ -456,8 +457,8 @@ export function HowItWorks() {
         }
       >
         <p>
-          The path one lesson takes in your AI once the backend is wired up. Steps 2 to 4 run on this site today, on
-          the course-xapi-mcp reference server.
+          The path one lesson takes in your AI. Every step runs on this site today: this site's course server (the
+          course-xapi-mcp reference server), the LRS and Sensei.
         </p>
       </Band>
 
@@ -506,7 +507,8 @@ export function HowItWorks() {
           <strong>Where your record lives.</strong> It lives on our servers under a random ID, in two places: the record
           store at {LRS_HOST}, and the Sensei user that tracks your lessons. It holds your steps, the answers you typed to
           checkpoints in your own words, and the files you edited, because those are what resuming and a future badge need.
-          It holds no email unless you add one, which isn't built yet. A learner with no activity for {RETENTION_DAYS} days
+          It holds no email: the only email is one you may give on the record store's claim page when you claim a badge,
+          and the badge holds it only as a hash. A learner with no activity for {RETENTION_DAYS} days
           is deleted, and "Delete my data" in the record menu deletes it at once: your steps and files in the record
           store, your Sensei user and its progress, and any connected agents. "Download my record" gives you a copy first.
           There is no third-party analytics.
@@ -518,6 +520,7 @@ export function HowItWorks() {
           store as "Learn WordPress, reimagined". You claim it from the studio, add an email or a wallet on the store's
           claim page, and download or share it. Lessons you tested out count toward the badge, and the badge says how
           many. Lessons carried over from an older local record never count. The badge does not carry your random ID.
+          {!BADGES_ISSUING && ` ${BADGES_NOT_ISSUED}`}
         </p>
         <p>
           <strong>A Sensei certificate.</strong> When a path's course is complete, Sensei LMS Certificates issues

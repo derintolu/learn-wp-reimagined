@@ -5,12 +5,17 @@
  * launch is built but not wired in, and blue marks the one write path for learning facts.
  */
 
+import { BADGES_ISSUING, BADGES_NOT_ISSUED } from '../config';
+
 export const DIAGRAM_LABEL =
   'The backend. You chat with your own AI. Your AI talks to the course server over MCP. The course server writes xAPI ' +
   'statements to the LRS, Learning Ledger at lrs.sqwrlz.com, and is the only thing that writes to it. The LRS sends ' +
   'results to Sensei LMS through a signed webhook and a catch-up poll. Sensei can launch a lesson on the course server ' +
   'with a cmi5 launch. The LRS signs Open Badges 3.0 credentials, which you claim. All of this runs here today ' +
   'except the cmi5 launch, which is built but not wired in yet.';
+
+/** The drawings' label: DIAGRAM_LABEL, and while the LRS issues no badges (R57), the sentence that says so. */
+const diagramLabel = () => (BADGES_ISSUING ? DIAGRAM_LABEL : `${DIAGRAM_LABEL} ${BADGES_NOT_ISSUED}`);
 
 function Heads({ id }: { id: string }) {
   return (
@@ -61,7 +66,7 @@ function Wide() {
   const h = 104;
   const mid = y + h / 2;
   return (
-    <svg class="how-diagram__wide" viewBox="0 0 960 404" role="img" aria-label={DIAGRAM_LABEL} focusable="false">
+    <svg class="how-diagram__wide" viewBox="0 0 960 404" role="img" aria-label={diagramLabel()} focusable="false">
       <Heads id={id} />
       <You cx={82} cy={58} />
       <line x1="82" y1="80" x2="82" y2="146" class="dg-line" marker-start={ink} marker-end={ink} />
@@ -115,7 +120,7 @@ function Tall() {
   const h = 88;
   const ys = [96, 252, 408, 564];
   return (
-    <svg class="how-diagram__tall" viewBox="0 0 360 712" role="img" aria-label={DIAGRAM_LABEL} focusable="false">
+    <svg class="how-diagram__tall" viewBox="0 0 360 712" role="img" aria-label={diagramLabel()} focusable="false">
       <Heads id={id} />
       <You cx={180} cy={26} />
       <line x1="180" y1="48" x2="180" y2="92" class="dg-line" marker-start={ink} marker-end={ink} />
@@ -163,7 +168,8 @@ export function BackendDiagram() {
       <Tall />
       <figcaption>
         The backend this site runs. The solid parts run today: your AI talks to this site's course server over MCP, the
-        course server writes to the LRS, the LRS tells Sensei, and the LRS signs your badges. The dashed cmi5 launch is
+        course server writes to the LRS, the LRS tells Sensei, and the LRS signs your badges.
+        {!BADGES_ISSUING && ` ${BADGES_NOT_ISSUED}`} The dashed cmi5 launch is
         built but not connected yet. Blue is the only path learning facts take, from the course server to the LRS to
         Sensei, never the other way.
       </figcaption>

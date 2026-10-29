@@ -8,6 +8,21 @@ import { RecordPanel } from '../../src/components/RecordPanel';
 import { CompletedSummary } from '../../src/components/CompletedSummary';
 import { setRecordManager } from '../../src/record/useRecord';
 import { memoryManager } from './helpers';
+import { BADGES_NOT_ISSUED } from '../../src/config';
+
+// BADGES_ISSUING (ruling R57) is read through a getter, so a test can flip it; it starts on so the approved copy is
+// what the other tests read.
+const flags = vi.hoisted(() => ({ badgesIssuing: true }));
+vi.mock('../../src/config', async (importOriginal) => {
+  const real = await importOriginal<typeof import('../../src/config')>();
+  return {
+    ...real,
+    get BADGES_ISSUING() {
+      return flags.badgesIssuing;
+    },
+  };
+});
+
 const ID = '33333333-3333-4333-8333-333333333333';
 const lesson = Object.values(content.lessons)[0];
 const badge = (over: object = {}) => ({ id: ID, pathId: lesson.pathId, name: 'Block themes', status: 'pending', testedOut: 3, ...over });
@@ -34,6 +49,7 @@ beforeEach(() => {
   history.replaceState(null, '', `/badges/claim?badge=${ID}`);
 });
 afterEach(() => {
+  flags.badgesIssuing = true;
   cleanup();
   setRecordManager(null);
   vi.unstubAllGlobals();
@@ -95,6 +111,22 @@ describe('badge claim page', () => {
     history.replaceState(null, '', '/badges/claim?badge=zzz');
     render(<BadgeClaim />);
     await screen.findByText(/couldn't find that badge/);
+  });
+
+  it('with issuing off (R57), the empty state says badges are not being issued yet', async () => {
+    flags.badgesIssuing = false;
+    list = [];
+    render(<BadgeClaim />);
+    const p = await screen.findByText(new RegExp(BADGES_NOT_ISSUED));
+    expect(p.textContent).toBe(`${BADGES_NOT_ISSUED} There is no badge to claim until they are.`);
+    expect(document.body.textContent).not.toContain('Finish a path');
+  });
+
+  it('with issuing on, the empty state sends the learner to finish a path', async () => {
+    list = [];
+    render(<BadgeClaim />);
+    await screen.findByText(/couldn't find that badge on your record. Finish a path/);
+    expect(document.body.textContent).not.toContain(BADGES_NOT_ISSUED);
   });
 
 });

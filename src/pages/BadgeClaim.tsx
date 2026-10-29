@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from 'preact/hooks';
 import { fetchBadges, mintClaimUrl, type BadgeSummary } from '../badges/badges';
+import { BADGES_ISSUING, BADGES_NOT_ISSUED } from '../config';
 import { usePageTitle } from '../usePageTitle';
 import '../styles/consent.css';
 
@@ -70,7 +71,11 @@ export function BadgeClaim() {
           <h1 id="claim-title" class="consent__title" tabIndex={-1} ref={heading}>
             Claim your badge
           </h1>
-          <p>We couldn't find that badge on your record. Finish a path, then open your record menu to find it.</p>
+          {BADGES_ISSUING ? (
+            <p>We couldn't find that badge on your record. Finish a path, then open your record menu to find it.</p>
+          ) : (
+            <p>{BADGES_NOT_ISSUED} There is no badge to claim until they are.</p>
+          )}
         </div>
       </section>
     );
