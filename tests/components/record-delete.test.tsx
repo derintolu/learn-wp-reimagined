@@ -4,18 +4,21 @@ import { cleanup, fireEvent, render, screen, waitFor, within } from '@testing-li
 import { LocationProvider } from 'preact-iso';
 import { content } from '../../src/content';
 import { RecordPanel } from '../../src/components/RecordPanel';
-import { resetSession } from '../../src/record/session';
+import { DELETE_RECHECK_MS, resetSession } from '../../src/record/session';
 import { useFileEdits } from '../../src/record/useFileEdits';
 import { getRecordManager, setRecordManager } from '../../src/record/useRecord';
 import { memoryManager } from './helpers';
 const lessonId = Object.keys(content.lessons)[0];
 const FAILED = "We couldn't delete your data. Nothing was changed. Try again later.";
+const UNCONFIRMED = "We couldn't confirm that your data was deleted. Some of it may already be gone. Try Delete my data again.";
 
 const BROWSER_FAILED = "Your data was deleted on this site, but this browser's copy couldn't be cleared. Close this tab's site data to finish.";
 
 function stubDelete(status: number) {
   const f = vi.fn(async (url: string, init: RequestInit = {}) => {
-    if (url === '/api/session' && init.method === 'DELETE') return new Response(JSON.stringify(status === 200 ? { deleted: true } : { error: { code: 'x' } }), { status });
+    if (url === '/api/session' && init.method === 'DELETE') {
+      return new Response(JSON.stringify(status === 200 ? { deleted: true } : { error: { code: 'x' } }), { status, headers: { 'content-type': 'application/json; charset=utf-8' } });
+    }
     return new Response(JSON.stringify({ actor: null }), { status: 200 });
   });
   vi.stubGlobal('fetch', f);
@@ -103,6 +106,38 @@ describe('Delete my data', () => {
     expect(msg.closest('[role="status"]')).toBeTruthy();
     expect(screen.getByRole('alertdialog')).toBeTruthy();
     expect(getRecordManager().record.statements.length).toBeGreaterThan(0);
+  });
+
+  it('a delete with no answer never claims nothing was changed: it looks, and says what it found', async () => {
+    const actor = { homePage: 'https://learnwp.sqwrlz.com', name: 'learner-1' };
+    let gone = false;
+    vi.stubGlobal(
+      'fetch',
+      vi.fn(async (url: string, init: RequestInit = {}) => {
+        if (url === '/api/session' && init.method === 'DELETE') throw new DOMException('aborted', 'AbortError');
+        return new Response(JSON.stringify({ actor: url === '/api/session' && !gone ? actor : null }), { status: 200 });
+      }),
+    );
+    const { panel } = await openPanel();
+    fireEvent.click(within(panel).getByRole('button', { name: 'Delete my data' }));
+    const dlg = await screen.findByRole('alertdialog');
+    vi.useFakeTimers();
+    fireEvent.click(within(dlg).getByRole('button', { name: 'Delete' }));
+    await vi.advanceTimersByTimeAsync(DELETE_RECHECK_MS.reduce((a, b) => a + b, 0));
+    vi.useRealTimers();
+    expect(await within(dlg).findByText(UNCONFIRMED)).toBeTruthy();
+    expect(within(dlg).queryByText(FAILED)).toBeNull();
+    expect(getRecordManager().record.statements.length).toBeGreaterThan(0);
+
+    // Tried again, and this time the server finished after the answer was lost: the session is gone.
+    gone = true;
+    vi.useFakeTimers();
+    fireEvent.click(within(dlg).getByRole('button', { name: 'Delete' }));
+    await vi.advanceTimersByTimeAsync(DELETE_RECHECK_MS[0]);
+    vi.useRealTimers();
+    await waitFor(() => expect(screen.queryByRole('alertdialog')).toBeNull());
+    expect(within(panel).getByText('Your data is deleted.')).toBeTruthy();
+    expect(getRecordManager().record.statements).toHaveLength(0);
   });
 
   it('after a failed delete Tab stays inside and Escape closes as Keep it', async () => {

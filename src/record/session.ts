@@ -122,16 +122,38 @@ export function forgetSession(): void {
 /** For tests. */
 export const resetSession = forgetSession;
 
-export type DeleteResult = 'deleted' | 'failed' | 'browser-failed';
+export type DeleteResult = 'deleted' | 'failed' | 'unconfirmed' | 'browser-failed';
+
+/** Waits between looks at the session after a delete that got no answer: the server may still be deleting. */
+export const DELETE_RECHECK_MS = [1500, 3000, 5000] as const;
+
+/**
+ * True once the server no longer has the session. The server removes the session row last, after every other
+ * step, so a session that is gone is a delete that finished.
+ */
+async function sessionGone(): Promise<boolean> {
+  for (const ms of DELETE_RECHECK_MS) {
+    await new Promise((resolve) => setTimeout(resolve, ms));
+    if ((await readActor(await call('GET'))) === null) return true;
+  }
+  return false;
+}
+
+/** No answer from the route: a timeout, no network, or a gateway page from the host in front of it. */
+const unanswered = (res: Response | null) => !res || (res.status >= 500 && !(res.headers.get('content-type') ?? '').includes('application/json'));
 
 /**
  * Delete the learner's data: the server first, and only when it confirms, the record in this
- * browser and any events still waiting to be sent. 'failed' means nothing was changed;
- * 'browser-failed' means the server delete stands but this browser's copy could not be cleared.
+ * browser and any events still waiting to be sent. 'failed' means the server answered that it could not delete
+ * (the session stays, so Delete can be tried again); 'unconfirmed' means no answer came and the session is still
+ * there, so some of the data may already be gone; 'browser-failed' means the server delete stands but this
+ * browser's copy could not be cleared. A delete that got no answer but whose session is gone counts as deleted.
  */
 export async function deleteMyDataDetailed(): Promise<DeleteResult> {
   const res = await call('DELETE');
-  if (!res || !res.ok) return 'failed';
+  if (unanswered(res)) {
+    if (!(await sessionGone())) return 'unconfirmed';
+  } else if (!res!.ok) return 'failed';
   // Before the session is forgotten and the record reset, so nothing queued for the old learner mints a new session.
   resetStateSync();
   forgetSession();

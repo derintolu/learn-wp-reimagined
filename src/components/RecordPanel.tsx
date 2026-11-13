@@ -36,6 +36,7 @@ export const AGENTS_DISCONNECTED = 'Your agents are disconnected. They will ask 
 export const DISCONNECT_FAILED = "We couldn't disconnect your agents. Nothing was changed. Try again later.";
 
 export const DELETE_FAILED = "We couldn't delete your data. Nothing was changed. Try again later.";
+export const DELETE_UNCONFIRMED = "We couldn't confirm that your data was deleted. Some of it may already be gone. Try Delete my data again.";
 
 export const BROWSER_NOT_CLEARED =
   "Your data was deleted on this site, but this browser's copy couldn't be cleared. Close this tab's site data to finish.";
@@ -77,7 +78,7 @@ function lessonInPath(): string | null {
 }
 
 /** Asks before deleting. Escape and "Keep it" close it; Tab stays inside while it is open. */
-function DeleteDialog({ onKeep, onDelete, busy, failed }: { onKeep: () => void; onDelete: () => void; busy: boolean; failed: boolean }) {
+function DeleteDialog({ onKeep, onDelete, busy, failed }: { onKeep: () => void; onDelete: () => void; busy: boolean; failed: false | 'failed' | 'unconfirmed' }) {
   const ref = useRef<HTMLDivElement>(null);
   const keepRef = useRef<HTMLButtonElement>(null);
   useEffect(() => {
@@ -123,7 +124,7 @@ function DeleteDialog({ onKeep, onDelete, busy, failed }: { onKeep: () => void; 
           This deletes your progress on this site and in this browser. It can't be undone.
         </p>
         <div role="status" class="record-confirm__msg">
-          {failed && <p class="record__msg-text record__msg-text--error">{DELETE_FAILED}</p>}
+          {failed && <p class="record__msg-text record__msg-text--error">{failed === 'unconfirmed' ? DELETE_UNCONFIRMED : DELETE_FAILED}</p>}
         </div>
         <div class="record__actions">
           <button type="button" class="button button--quiet" ref={keepRef} onClick={() => !busy && onKeep()} aria-disabled={busy || undefined}>
@@ -153,7 +154,7 @@ export function RecordPanel() {
   const [msg, setMsg] = useState<Msg | null>(null);
   const [busy, setBusy] = useState(false);
   const [confirmDelete, setConfirmDelete] = useState(false);
-  const [deleteFailed, setDeleteFailed] = useState(false);
+  const [deleteFailed, setDeleteFailed] = useState<false | 'failed' | 'unconfirmed'>(false);
   const confirmRef = useRef(false);
   const deleteBtnRef = useRef<HTMLButtonElement>(null);
   const [view, setView] = useState<'main' | 'handoff'>('main');
@@ -257,8 +258,8 @@ export function RecordPanel() {
     setDeleteFailed(false);
     try {
       const result = await deleteMyDataDetailed();
-      if (result === 'failed') {
-        setDeleteFailed(true);
+      if (result === 'failed' || result === 'unconfirmed') {
+        setDeleteFailed(result);
         return;
       }
       setMsg(result === 'deleted' ? { tone: 'ok', text: 'Your data is deleted.' } : { tone: 'error', text: BROWSER_NOT_CLEARED });

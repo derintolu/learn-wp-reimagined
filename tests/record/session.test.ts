@@ -2,7 +2,7 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { content } from '../../src/content';
 import { EventClient } from '../../src/record/eventClient';
-import { deleteMyData, deleteMyDataDetailed, currentActor, ensureSession, forgetSession, resetSession } from '../../src/record/session';
+import { DELETE_RECHECK_MS, deleteMyData, deleteMyDataDetailed, currentActor, ensureSession, forgetSession, resetSession } from '../../src/record/session';
 import { RecordManager, type RecordStore } from '../../src/record/store';
 import { setRecordManager } from '../../src/record/useRecord';
 import type { LearningRecord } from '../../src/shared/record';
@@ -24,7 +24,7 @@ function stubFetch(routes: Record<string, Handler>) {
     }),
   );
 }
-const json = (body: unknown, status = 200) => new Response(JSON.stringify(body), { status });
+const json = (body: unknown, status = 200, headers?: Record<string, string>) => new Response(JSON.stringify(body), { status, headers });
 const count = (method: string, url = '/api/session') => calls.filter((c) => c.method === method && c.url === url).length;
 
 function memStore(): RecordStore & { saved: LearningRecord | null } {
@@ -179,12 +179,59 @@ describe('deleteMyData', () => {
   it('leaves the record alone when the server fails', async () => {
     const { m } = await recorded();
     const before = m.record;
-    stubFetch({ 'DELETE /api/session': async () => json({ error: { code: 'x' } }, 500) });
-    expect(await deleteMyData()).toBe(false);
+    stubFetch({ 'DELETE /api/session': async () => json({ error: { code: 'x' } }, 500, { 'content-type': 'application/json' }) });
+    expect(await deleteMyDataDetailed()).toBe('failed');
+    // The route answered: its session is still there, so there is nothing to look up.
+    expect(count('GET')).toBe(0);
     expect(m.record).toBe(before);
-    vi.stubGlobal('fetch', vi.fn(async () => { throw new Error('offline'); }));
-    expect(await deleteMyData()).toBe(false);
-    expect(m.record).toBe(before);
+    vi.useFakeTimers();
+    try {
+      vi.stubGlobal('fetch', vi.fn(async () => { throw new Error('offline'); }));
+      const p = deleteMyData();
+      await vi.advanceTimersByTimeAsync(DELETE_RECHECK_MS.reduce((a, b) => a + b, 0));
+      expect(await p).toBe(false);
+      expect(m.record).toBe(before);
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  it('a delete with no answer looks at the session: gone means deleted', async () => {
+    const { m } = await recorded();
+    vi.useFakeTimers();
+    try {
+      stubFetch({
+        'DELETE /api/session': async () => { throw new DOMException('aborted', 'AbortError'); },
+        'GET /api/session': async () => json(count('GET') < 2 ? { actor: ACTOR } : { actor: null }),
+      });
+      const p = deleteMyDataDetailed();
+      await vi.advanceTimersByTimeAsync(DELETE_RECHECK_MS[0] + DELETE_RECHECK_MS[1]);
+      expect(await p).toBe('deleted');
+      expect(count('GET')).toBe(2);
+      expect(m.record.statements).toHaveLength(0);
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  it('a delete with no answer whose session stays is unconfirmed, and the record stays', async () => {
+    const { m } = await recorded();
+    const before = m.record;
+    vi.useFakeTimers();
+    try {
+      // A gateway page from the host in front of the route is no answer either.
+      stubFetch({
+        'DELETE /api/session': async () => new Response('<h1>504 Gateway Time-out</h1>', { status: 504, headers: { 'content-type': 'text/html' } }),
+        'GET /api/session': async () => json({ actor: ACTOR }),
+      });
+      const p = deleteMyDataDetailed();
+      await vi.advanceTimersByTimeAsync(DELETE_RECHECK_MS.reduce((a, b) => a + b, 0));
+      expect(await p).toBe('unconfirmed');
+      expect(count('GET')).toBe(DELETE_RECHECK_MS.length);
+      expect(m.record).toBe(before);
+    } finally {
+      vi.useRealTimers();
+    }
   });
 
   it('reports a browser failure after the server delete succeeded', async () => {
