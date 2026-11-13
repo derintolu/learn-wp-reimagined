@@ -1,7 +1,7 @@
 // @vitest-environment happy-dom
 // @vitest-environment-options {"settings": {"enableIframePageLoading": true}}
 import { afterEach, describe, expect, it, vi } from 'vitest';
-import { cleanup, render, screen, within } from '@testing-library/preact';
+import { cleanup, fireEvent, render, screen, within } from '@testing-library/preact';
 import { Header } from '../../src/components/Header';
 import { Footer } from '../../src/components/Footer';
 import { CapNotice } from '../../src/components/CapNotice';
@@ -43,6 +43,21 @@ describe('Header', () => {
     expect(blog.getAttribute('href')).toBe('/blog');
     // /blog is an app route now, so the client router should handle it.
     expect(blog.hasAttribute('target')).toBe(false);
+  });
+
+  it('has a Menu button that opens and closes the links, for narrow screens', () => {
+    render(<Header />);
+    const nav = screen.getByRole('navigation', { name: 'Main' });
+    const menu = within(nav).getByRole('button', { name: 'Menu' });
+    const list = nav.querySelector('ul')!;
+    expect(menu.getAttribute('aria-controls')).toBe(list.id);
+    expect(menu.getAttribute('aria-expanded')).toBe('false');
+    fireEvent.click(menu);
+    expect(menu.getAttribute('aria-expanded')).toBe('true');
+    expect(list.classList.contains('is-open')).toBe(true);
+    fireEvent.keyDown(list, { key: 'Escape' });
+    expect(menu.getAttribute('aria-expanded')).toBe('false');
+    expect(document.activeElement).toBe(menu);
   });
 });
 

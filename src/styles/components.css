@@ -109,19 +109,51 @@
   white-space: nowrap;
 }
 .site-nav a:hover { color: var(--wp-blue-light); text-decoration: underline; }
+.site-nav__toggle { display: none; }
 @media (max-width: 560px) {
   .wordmark { font-size: 1.22rem; }
-  .site-nav .nav-optional { display: none; }
 }
 @media (max-width: 400px) {
   .brand { flex-wrap: wrap; row-gap: 0.4rem; }
 }
-/* Below these widths the links would run under the wordmark and sticker. */
+/* Below this width the links would run under the wordmark and sticker, so they open from a Menu button. */
 @media (max-width: 880px) {
-  .site-nav .nav-optional { display: none; }
-}
-@media (max-width: 640px) {
+  .site-nav { position: relative; }
+  .site-nav__toggle {
+    display: inline-flex;
+    align-items: center;
+    min-height: 2.5rem;
+    padding: 0.4rem 0.85rem;
+    border: 1px solid var(--rule-dark);
+    border-radius: 999px;
+    background: transparent;
+    color: var(--on-dark);
+    font: 500 var(--step--1) / 1.2 var(--font-ui);
+    cursor: pointer;
+  }
+  .site-nav__toggle:hover,
+  .site-nav__toggle[aria-expanded='true'] { border-color: var(--on-dark-muted); }
   .site-nav ul { display: none; }
+  .site-nav ul.is-open {
+    display: flex;
+    flex-direction: column;
+    gap: 0;
+    position: absolute;
+    z-index: 60;
+    right: 0;
+    top: calc(100% + 0.6rem);
+    min-width: 12rem;
+    padding: 0.4rem 0;
+    border: 1px solid var(--rule-dark);
+    border-radius: 0.75rem;
+    background: var(--charcoal);
+    box-shadow: var(--shadow-popover);
+  }
+  .site-nav ul.is-open a {
+    display: block;
+    padding: 0.65rem 1rem;
+    font-size: var(--step-0);
+  }
 }
 
 /* ---------- Sticker ---------- */

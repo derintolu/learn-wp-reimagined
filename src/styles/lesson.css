@@ -554,8 +554,16 @@
 .record-confirm__msg .record__msg-text { margin: 0 0 1rem; }
 @media (max-width: 480px) {
   .record__button { padding-inline: 0.7rem; }
-  /* Room for the wordmark and the record menu; the wordmark already leads home to the paths. */
-  .site-nav li:not(.nav-optional) { display: none; }
+  /* Room for the wordmark and the Menu button: as in the studio, the record button keeps its dot and its words stay for screen readers. */
+  .site-nav .record__button { min-width: 2.5rem; justify-content: center; }
+  .site-nav .record__button > span:not(.record__dot):not(.visually-hidden) {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    overflow: hidden;
+    clip: rect(0 0 0 0);
+    white-space: nowrap;
+  }
 }
 
 @media (prefers-reduced-motion: reduce) {
