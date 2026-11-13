@@ -203,11 +203,18 @@ export function RecordPanel() {
     const onDown = (e: Event) => {
       if (rootRef.current && !rootRef.current.contains(e.target as Node)) setOpen(false);
     };
+    // Tabbing past the panel closes it: left open, it would cover the control that now has focus.
+    const onFocus = (e: FocusEvent) => {
+      if (confirmRef.current) return;
+      if (rootRef.current && !rootRef.current.contains(e.target as Node)) setOpen(false);
+    };
     document.addEventListener('keydown', onKey);
     document.addEventListener('pointerdown', onDown);
+    document.addEventListener('focusin', onFocus);
     return () => {
       document.removeEventListener('keydown', onKey);
       document.removeEventListener('pointerdown', onDown);
+      document.removeEventListener('focusin', onFocus);
     };
   }, [open]);
 

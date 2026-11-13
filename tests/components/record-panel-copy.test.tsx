@@ -1,6 +1,6 @@
 // @vitest-environment happy-dom
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import { cleanup, fireEvent, render, screen } from '@testing-library/preact';
+import { act, cleanup, fireEvent, render, screen } from '@testing-library/preact';
 import { content } from '../../src/content';
 import { NOT_SAVED, NO_WORKING_COPY, OFFICIAL_PANEL_COPY, RecordPanel, SaveWarning, resetSaveWarning } from '../../src/components/RecordPanel';
 import { ensureSession, resetSession } from '../../src/record/session';
@@ -85,5 +85,23 @@ describe('a browser that keeps nothing (private window, blocked storage)', () =>
     expect(button.textContent).not.toContain('Not saved');
     fireEvent.click(button);
     expect(document.querySelector('.record__state')!.textContent).toBe('No working copy in this browser');
+  });
+});
+
+describe('record panel focus', () => {
+  it('closes when keyboard focus moves past it, so it never hides the focused control', async () => {
+    render(
+      <>
+        <RecordPanel />
+        <button type="button">After</button>
+      </>,
+    );
+    const toggle = screen.getByRole('button', { name: /record/i });
+    fireEvent.click(toggle);
+    expect(toggle.getAttribute('aria-expanded')).toBe('true');
+    await act(async () => {});
+    const after = screen.getByRole('button', { name: 'After' });
+    await act(async () => after.focus());
+    expect(toggle.getAttribute('aria-expanded')).toBe('false');
   });
 });
