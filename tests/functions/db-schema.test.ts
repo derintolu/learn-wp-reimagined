@@ -1,6 +1,6 @@
 import { describe, expect, it, vi } from 'vitest';
 import { createSqliteD1 } from '../../dev/sqliteD1';
-import { ensureSchema } from '../../functions/_lib/db';
+import { ensureEnrolmentSchema, ensureSchema } from '../../functions/_lib/db';
 import type { D1Like } from '../../functions/_lib/env';
 
 const tableExists = async (db: D1Like, name: string) => !!(await db.prepare("SELECT name FROM sqlite_master WHERE type = 'table' AND name = ?").bind(name).first());
@@ -23,6 +23,37 @@ describe('ensureSchema: the relay table goes (Task 52)', () => {
     await ensureSchema(spy);
     await ensureSchema(spy);
     expect(seen.filter((s) => s.startsWith('DROP TABLE')).length).toBe(1);
+  });
+
+  it('creates its tables once per database: later calls make no round trip', async () => {
+    const db = createSqliteD1();
+    const seen: string[] = [];
+    const spy: D1Like = { ...db, prepare: (sql: string) => (seen.push(sql), db.prepare(sql)) } as D1Like;
+    await ensureSchema(spy);
+    const first = seen.length;
+    expect(first).toBeGreaterThan(0);
+    await ensureSchema(spy);
+    await ensureEnrolmentSchema(spy);
+    const withEnrolments = seen.length;
+    await ensureEnrolmentSchema(spy);
+    expect(seen.length).toBe(withEnrolments);
+    expect(withEnrolments).toBe(first + 1);
+  });
+
+  it('a failed create is tried again on the next call', async () => {
+    const db = createSqliteD1();
+    let fail = true;
+    const flaky: D1Like = {
+      ...db,
+      prepare: (sql: string) =>
+        fail && sql.includes('TABLE IF NOT EXISTS sessions')
+          ? ({ ...db.prepare('SELECT 1'), run: async () => { throw new Error('broker down'); } } as ReturnType<D1Like['prepare']>)
+          : db.prepare(sql),
+    } as D1Like;
+    await expect(ensureSchema(flaky)).rejects.toThrow('broker down');
+    fail = false;
+    await ensureSchema(flaky);
+    expect(await tableExists(db, 'sessions')).toBe(true);
   });
 
   it('a refused drop is logged, marked done for this isolate, and never fails ensureSchema', async () => {

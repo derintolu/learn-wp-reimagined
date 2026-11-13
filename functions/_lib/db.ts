@@ -1,9 +1,13 @@
 import type { D1Like } from './env';
 
 const relayDropped = new WeakSet<D1Like>();
+const schemaReady = new WeakSet<D1Like>();
 
 // Portable SQL: runs on SQLite (tests) and MySQL (Spacefast broker).
+// Once per database in this isolate: every broker operation is a round trip of about 200 ms, and nearly every
+// route calls this, some twice (the route and readSession).
 export async function ensureSchema(db: D1Like): Promise<void> {
+  if (schemaReady.has(db)) return;
   // One-time migration: the anonymous agent relay's records (mcp_records) went with the relay (Task 52). Best
   // effort: a refused drop is logged and not retried in this isolate, and never fails the route.
   if (!relayDropped.has(db)) {
@@ -32,6 +36,7 @@ export async function ensureSchema(db: D1Like): Promise<void> {
       'CREATE TABLE IF NOT EXISTS sessions (sid_hash VARCHAR(64) PRIMARY KEY, actor_name VARCHAR(64), wp_user_id BIGINT NULL, created BIGINT, touched BIGINT)',
     )
     .run();
+  schemaReady.add(db);
 }
 
 /**
@@ -58,13 +63,17 @@ export async function ensureOAuthSchema(db: D1Like): Promise<void> {
     .run();
 }
 
-/** Sensei enrolments made for session learners (Task 25); one row per learner and path. */
+const enrolmentReady = new WeakSet<D1Like>();
+
+/** Sensei enrolments made for session learners (Task 25); one row per learner and path. Once per database in this isolate. */
 export async function ensureEnrolmentSchema(db: D1Like): Promise<void> {
+  if (enrolmentReady.has(db)) return;
   await db
     .prepare(
       'CREATE TABLE IF NOT EXISTS enrolments (wp_user_id BIGINT, course_key VARCHAR(64), created BIGINT, PRIMARY KEY (wp_user_id, course_key))',
     )
     .run();
+  enrolmentReady.add(db);
 }
 
 const courseCacheReady = new WeakSet<D1Like>();
