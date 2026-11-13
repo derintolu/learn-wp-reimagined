@@ -8,6 +8,7 @@ import {
   clientId,
   resetClientIdForTests,
   JSON_TIMEOUT_MS,
+  STATUS_RETRY_MS,
   STATUS_TIMEOUT_MS,
   STREAM_STALL_MS,
 } from '../../src/ai/client';
@@ -77,6 +78,34 @@ describe('ai client', () => {
     stubFetch(json({ ai: 'on' }));
     expect(await getStatus()).toEqual({ ai: 'on' });
     vi.stubGlobal('fetch', vi.fn().mockRejectedValue(new Error('x')));
+    expect(await getStatus()).toEqual({ ai: 'off', reason: 'not-configured' });
+  });
+
+  it('getStatus asks again after a 429 and never reads one as switched off', async () => {
+    vi.useFakeTimers();
+    try {
+      const html429 = () => new Response('<h1>429 Too Many Requests</h1>', { status: 429, headers: { 'content-type': 'text/html' } });
+      let f = vi.fn().mockResolvedValueOnce(html429()).mockResolvedValueOnce(json({ ai: 'capped', reason: 'day-cap' }));
+      vi.stubGlobal('fetch', f);
+      const p = getStatus();
+      await vi.advanceTimersByTimeAsync(STATUS_RETRY_MS[0]);
+      expect(await p).toEqual({ ai: 'capped', reason: 'day-cap' });
+      expect(f).toHaveBeenCalledTimes(2);
+
+      f = vi.fn(async () => html429());
+      vi.stubGlobal('fetch', f);
+      const q = getStatus();
+      await vi.advanceTimersByTimeAsync(STATUS_RETRY_MS[0] + STATUS_RETRY_MS[1]);
+      expect(await q).toEqual({ ai: 'on' });
+      expect(f).toHaveBeenCalledTimes(1 + STATUS_RETRY_MS.length);
+      expect(STATUS_RETRY_MS[0] + STATUS_RETRY_MS[1]).toBeLessThan(STATUS_TIMEOUT_MS);
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  it('getStatus still reads other failures as off', async () => {
+    stubFetch(json({ error: { code: 'server-error' } }, 500));
     expect(await getStatus()).toEqual({ ai: 'off', reason: 'not-configured' });
   });
 

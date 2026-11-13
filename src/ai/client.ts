@@ -86,12 +86,42 @@ async function call<T>(url: string, body: unknown, signal?: AbortSignal): Promis
   }
 }
 
+/** Waits before asking for the status again after a 429, within STATUS_TIMEOUT_MS. */
+export const STATUS_RETRY_MS = [400, 1200] as const;
+
+const pause = (ms: number, signal: AbortSignal) =>
+  new Promise<void>((resolve, reject) => {
+    if (signal.aborted) return reject(new Error('aborted'));
+    const timer = setTimeout(() => {
+      signal.removeEventListener('abort', stop);
+      resolve();
+    }, ms);
+    const stop = () => {
+      clearTimeout(timer);
+      reject(new Error('aborted'));
+    };
+    signal.addEventListener('abort', stop, { once: true });
+  });
+
+/**
+ * The tutor's status. A 429 is the host limiting how many requests one visitor has open at once (it answers before
+ * the route runs), not the tutor being off: asked again after STATUS_RETRY_MS, and if still refused the tutor is taken
+ * as on, so its own calls report a cap or an outage if there is one.
+ */
 export async function getStatus(signal?: AbortSignal): Promise<{ ai: 'on' | 'capped' | 'off'; reason?: string }> {
   const t = withTimeout(STATUS_TIMEOUT_MS, signal);
   try {
-    const res = await fetch('/api/status', { headers: apiHeaders(false), signal: t.signal });
-    if (!res.ok) throw new Error('status');
-    return await res.json();
+    for (let attempt = 0; ; attempt++) {
+      const res = await fetch('/api/status', { headers: apiHeaders(false), signal: t.signal });
+      if (res.status === 429) {
+        await res.body?.cancel().catch(() => {});
+        if (attempt >= STATUS_RETRY_MS.length) return { ai: 'on' };
+        await pause(STATUS_RETRY_MS[attempt], t.signal);
+        continue;
+      }
+      if (!res.ok) throw new Error('status');
+      return await res.json();
+    }
   } catch {
     return { ai: 'off', reason: t.timedOut() ? 'timeout' : 'not-configured' };
   } finally {
