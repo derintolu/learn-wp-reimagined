@@ -18,11 +18,11 @@ export const CURSOR_SNIPPET = JSON.stringify({ mcpServers: { 'learn-wp-reimagine
 
 // Steps written from each vendor's documented flow, checked 2026-10-20; the sign-in steps are NOT yet checked
 // against each vendor: re-check them, and on launch day (plan B readiness checklist): connector menus move often.
-//  - Claude: https://support.claude.com/en/articles/11175166-getting-started-with-custom-connectors-using-remote-mcp
+//  - Claude: https://support.claude.com/en/articles/11175166-get-started-with-custom-connectors-using-remote-mcp
 //  - ChatGPT: https://help.openai.com/en/articles/12584461-developer-mode-apps-and-full-mcp-connectors-in-chatgpt-beta
 //    (sources disagree on which plans allow write tools; learning-mcp open question 7)
 //  - Claude Code: https://code.claude.com/docs/en/mcp
-//  - Cursor: https://cursor.com/docs/context/mcp
+//  - Cursor: https://cursor.com/docs/mcp
 // The server asks the agent to sign in, so no step chooses "no authentication".
 export const CLIENT_SETUPS: ClientSetup[] = [
   {
@@ -36,7 +36,7 @@ export const CLIENT_SETUPS: ClientSetup[] = [
       'Leave the advanced settings as they are, then Add.',
       'In a new chat, turn the connector on and ask Claude to teach you the course. Sign in when Claude asks.',
     ],
-    docsUrl: 'https://support.claude.com/en/articles/11175166-getting-started-with-custom-connectors-using-remote-mcp',
+    docsUrl: 'https://support.claude.com/en/articles/11175166-get-started-with-custom-connectors-using-remote-mcp',
   },
   {
     id: 'chatgpt',
@@ -67,7 +67,7 @@ export const CLIENT_SETUPS: ClientSetup[] = [
       'Open the chat, sign in when Cursor asks, and ask it to teach you the course.',
     ],
     snippet: CURSOR_SNIPPET,
-    docsUrl: 'https://cursor.com/docs/context/mcp',
+    docsUrl: 'https://cursor.com/docs/mcp',
   },
   {
     id: 'other',
