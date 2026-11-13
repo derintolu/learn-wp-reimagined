@@ -1,7 +1,7 @@
 // @vitest-environment happy-dom
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { cleanup, fireEvent, render, screen, waitFor } from '@testing-library/preact';
-import { Consent, EXPIRED, LOAD_FAILED } from '../../src/pages/Consent';
+import { Consent, EXPIRED, LOAD_FAILED, NO_REQUEST } from '../../src/pages/Consent';
 
 const json = (body: unknown, status = 200) =>
   new Response(JSON.stringify(body), { status, headers: { 'content-type': 'application/json' } });
@@ -76,10 +76,12 @@ describe('Consent page', () => {
     expect(screen.queryByRole('button')).toBeNull();
   });
 
-  it('a missing request id shows the expired message without calling the server', async () => {
+  it('a missing request id says there is no request, points to Connect, and calls no server', async () => {
     history.replaceState(null, '', '/consent');
     mount();
-    expect(await screen.findByText(EXPIRED)).toBeTruthy();
+    expect(await screen.findByText(NO_REQUEST)).toBeTruthy();
+    expect(screen.queryByText(EXPIRED)).toBeNull();
+    expect(screen.getByRole('link', { name: 'Connect your AI' }).getAttribute('href')).toBe('/connect');
     expect(fetchMock).not.toHaveBeenCalled();
   });
 

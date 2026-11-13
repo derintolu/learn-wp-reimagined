@@ -76,6 +76,9 @@ export function BadgeClaim() {
           ) : (
             <p>{BADGES_NOT_ISSUED} There is no badge to claim until they are.</p>
           )}
+          <p>
+            <a href="/#paths">See the paths</a>
+          </p>
         </div>
       </section>
     );

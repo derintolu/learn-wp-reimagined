@@ -4,12 +4,14 @@ import { clientId } from '../clientId';
 import '../styles/consent.css';
 
 export const EXPIRED = 'This sign-in request has expired. Start again from your agent.';
+/** /consent opened without a request: nothing has expired, there was nothing to sign in to. */
+export const NO_REQUEST = "There's no sign-in request here. Agents send you to this page when they connect.";
 const TRY_AGAIN = 'That did not go through. Try again.';
 /** The request could not be read (a server error or no answer), which is not the same as expired. */
 export const LOAD_FAILED = "We couldn't load this sign-in request. Try again.";
 
 type Ask = { clientName: string | null; redirectHost: string };
-type View = { state: 'loading' } | { state: 'ended' } | { state: 'failed' } | { state: 'ready'; ask: Ask };
+type View = { state: 'loading' } | { state: 'none' } | { state: 'ended' } | { state: 'failed' } | { state: 'ready'; ask: Ask };
 
 const requestId = () => new URLSearchParams(window.location.search).get('request');
 
@@ -25,7 +27,7 @@ export function Consent() {
 
   useEffect(() => {
     if (!id) {
-      setView({ state: 'ended' });
+      setView({ state: 'none' });
       return;
     }
     let live = true;
@@ -110,14 +112,17 @@ export function Consent() {
     );
   }
 
-  if (view.state === 'ended') {
+  if (view.state === 'ended' || view.state === 'none') {
     return (
       <section class="band band--light consent" aria-labelledby="consent-title">
         <div class="wrap consent__wrap">
           <h1 id="consent-title" class="consent__title" tabIndex={-1} ref={heading}>
             Sign-in request
           </h1>
-          <p>{EXPIRED}</p>
+          <p>{view.state === 'none' ? NO_REQUEST : EXPIRED}</p>
+          <p>
+            <a href="/connect">Connect your AI</a>
+          </p>
         </div>
       </section>
     );
