@@ -27,6 +27,21 @@ describe('rateLimit', () => {
     expect(rs.filter(Boolean).length).toBe(30);
   });
 
+  it('an allowed call inside the window is one round trip', async () => {
+    const real = await fresh();
+    const seen: string[] = [];
+    const db = { prepare: (sql: string) => (seen.push(sql), real.prepare(sql)) };
+    expect(await rateLimit(db, 'ip', 1_000, 3)).toBe(true);
+    seen.length = 0;
+    expect(await rateLimit(db, 'ip', 2_000, 3)).toBe(true);
+    expect(seen).toHaveLength(1);
+    expect(await rateLimit(db, 'ip', 3_000, 3)).toBe(true);
+    expect(await rateLimit(db, 'ip', 4_000, 3)).toBe(false);
+    // The window that started at 1 000 ends at 601 000: the next call starts a new one.
+    expect(await rateLimit(db, 'ip', 600_999, 3)).toBe(false);
+    expect(await rateLimit(db, 'ip', 601_000, 3)).toBe(true);
+  });
+
   it('handles keys longer than the column', async () => {
     const db = await fresh();
     expect(await rateLimit(db, 'x'.repeat(500), 1)).toBe(true);

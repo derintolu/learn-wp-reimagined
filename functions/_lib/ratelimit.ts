@@ -4,6 +4,7 @@ import { isDuplicateKey } from './db';
 /**
  * Fixed-window limiter. Every state change is a conditional UPDATE checked via
  * meta.changes, so concurrent callers cannot exceed `limit` per window.
+ * A call within the window and under the limit is one UPDATE; only a new key, a new window or a refusal reads the row.
  */
 export async function rateLimit(
   db: D1Like,
@@ -13,6 +14,12 @@ export async function rateLimit(
   windowMs = 600_000,
 ): Promise<boolean> {
   const k = key.slice(0, 80);
+  // The usual case, a key inside its window and under the limit, in one round trip (about 200 ms through the broker).
+  const hit = await db
+    .prepare('UPDATE hits SET n = n + 1 WHERE k = ? AND window_start > ? AND n < ?')
+    .bind(k, now - windowMs, limit)
+    .run();
+  if (hit.meta.changes === 1) return true;
   for (let attempt = 0; attempt < 5; attempt++) {
     const row = await db
       .prepare('SELECT window_start, n FROM hits WHERE k = ?')
