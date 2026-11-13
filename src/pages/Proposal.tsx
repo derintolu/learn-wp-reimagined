@@ -181,7 +181,7 @@ export function Proposal() {
           {' You get an anonymous account on the course server: a random id, no email and no password.'}{' '}
           If the AI is down,
           the lessons read exactly as they do today.
-          {" The tutor and placement are running in this concept. What isn't shown is Sensei progress (phase 3 below) and the Training Team's review of these lessons."}
+          {" The tutor and placement are running in this concept. What isn't shown is the Training Team's review of these lessons."}
         </p>
         <p>
           See it: start the placement chat, then read the same lesson on <a href={BACKEND_VIEW_PATH}>the backend view</a>,
@@ -387,8 +387,8 @@ export function Proposal() {
           <li>
             <strong>Agents sign in, instead of holding a handle.</strong> An agent connects with MCP authorization, the
             same standard sign-in other MCP servers use, and the learner approves it on a page that already knows who
-            they are. <em>The cost:</em> an authorization server to run, and not every MCP client supports the flow; the
-            Connect page says which ones passed. We don't fall back to a secret handle.
+            they are. <em>The cost:</em> an authorization server to run, and not every MCP client supports the flow, and it
+            hasn't been tried inside each one yet. We don't fall back to a secret handle.
           </li>
         </ul>
       </Band>

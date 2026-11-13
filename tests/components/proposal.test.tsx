@@ -169,7 +169,7 @@ describe('/proposal: Sensei', () => {
     const t = text();
     expect(t).toContain('Lessons live in Sensei, written and reviewed as they are now. In this concept they do: all 18 are stored in Sensei');
     expect(t).not.toContain('Lessons stay in Sensei');
-    expect(t).toContain("The tutor and placement are running in this concept. What isn't shown is Sensei progress (phase 3 below) and the Training Team's review of these lessons.");
+    expect(t).toContain("The tutor and placement are running in this concept. What isn't shown is the Training Team's review of these lessons.");
     expect(t).toContain('authored in Sensei and exported to a committed snapshot');
     expect(t).not.toContain('are plain YAML files');
     expect(t).toContain('as pulled from Sensei.');
