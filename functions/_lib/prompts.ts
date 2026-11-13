@@ -38,7 +38,7 @@ export function placementPrompt(c: ContentBundle): string {
         ]
       : []),
     'Reply with JSON only: {"reply": string, "done": boolean, "placement"?: {"pathId": string, "startLessonId": string, "skip": string[], "reason": string}}.',
-    'Include "placement" only when done is true. "skip" may only list lessons that come before startLessonId. "reason" is one sentence under 300 characters.',
+    'Include "placement" only when done is true. "skip" may only list lessons that come before startLessonId. "reason" is one sentence under 300 characters, spoken to the learner as "you" (e.g. "You\'ve built sites before, so you can skip the tour."), never "the user".',
   ].join('\n\n');
 }
 
