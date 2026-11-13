@@ -57,6 +57,21 @@ describe('LazyCodeEditor', () => {
     expect(onChange).toHaveBeenCalledWith('xb{}');
   });
 
+  it.each(['page.html', 'plugin.php'])('typing ">" after a tag in %s adds no closing tag (learners write their own)', async (file) => {
+    const { CodeEditor: Real } = await import('../../src/components/CodeEditor');
+    const { EditorView } = await import('@codemirror/view');
+    render(<Real file={file} value="" onChange={() => {}} />);
+    const view = EditorView.findFromDOM(document.querySelector('.cm-editor') as HTMLElement)!;
+    view.dispatch({ changes: { from: 0, insert: '<p' }, selection: { anchor: 2 } });
+    const typed = (text: string) => {
+      const { from, to } = view.state.selection.main;
+      const insert = () => view.state.update({ changes: { from, to, insert: text }, selection: { anchor: from + text.length } });
+      if (!view.state.facet(EditorView.inputHandler).some((h) => h(view, from, to, text, insert))) view.dispatch(insert());
+    };
+    typed('>');
+    expect(view.state.doc.toString()).toBe('<p>');
+  });
+
   it('a stale echo of its own typing, landing after newer keys, does not overwrite them', async () => {
     const { CodeEditor: Real } = await import('../../src/components/CodeEditor');
     const { EditorView } = await import('@codemirror/view');

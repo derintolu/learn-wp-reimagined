@@ -12,7 +12,10 @@ import { php } from '@codemirror/lang-php';
 /** Marks a change that came in through the `value` prop, so it isn't echoed back through onChange. */
 const external = Annotation.define<boolean>();
 
-/** The language mode for a file, picked by its extension. */
+/**
+ * The language mode for a file, picked by its extension. HTML (and PHP's HTML) doesn't auto-close tags:
+ * learners type their own closers, and an automatic one left behind piles up as `</p></h2>`.
+ */
 export function languageFor(file: string): Extension {
   const ext = file.toLowerCase().split('.').pop();
   switch (ext) {
@@ -22,9 +25,11 @@ export function languageFor(file: string): Extension {
       return css();
     case 'html':
     case 'htm':
-      return html();
-    case 'php':
-      return php();
+      return html({ autoCloseTags: false });
+    case 'php': {
+      const base = html({ autoCloseTags: false, matchClosingTags: false });
+      return [php({ baseLanguage: base.language }), base.support];
+    }
     default:
       return [];
   }
