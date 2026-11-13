@@ -384,8 +384,9 @@ export function RecordPanel() {
               </p>
             )}
             <div class="record__actions record__actions--stack">
-              {/* With no session there is nothing to download or view, and Sensei has no learner. */}
-              {!nothingRecorded && (
+              {/* With no session there is nothing to download or view, and Sensei has no learner. Until the first read
+                  answers, that isn't known yet: showing them then would flash buttons that may vanish. */}
+              {!nothingRecorded && (official || !officialLoading) && (
                 <>
                   <button type="button" class="button button--quiet" onClick={() => !busy && downloadMine()} aria-disabled={busy || undefined}>
                     Download my record
