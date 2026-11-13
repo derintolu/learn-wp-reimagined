@@ -1,6 +1,6 @@
 import { describe, expect, it, vi } from 'vitest';
 import { createSqliteD1 } from '../../dev/sqliteD1';
-import { ensureEnrolmentSchema, ensureSchema } from '../../functions/_lib/db';
+import { ensureEnrolmentSchema, ensureOAuthSchema, ensureSchema } from '../../functions/_lib/db';
 import type { D1Like } from '../../functions/_lib/env';
 
 const tableExists = async (db: D1Like, name: string) => !!(await db.prepare("SELECT name FROM sqlite_master WHERE type = 'table' AND name = ?").bind(name).first());
@@ -38,6 +38,18 @@ describe('ensureSchema: the relay table goes (Task 52)', () => {
     await ensureEnrolmentSchema(spy);
     expect(seen.length).toBe(withEnrolments);
     expect(withEnrolments).toBe(first + 1);
+  });
+
+  it('creates the OAuth tables once per database', async () => {
+    const db = createSqliteD1();
+    const seen: string[] = [];
+    const spy: D1Like = { ...db, prepare: (sql: string) => (seen.push(sql), db.prepare(sql)) } as D1Like;
+    await ensureOAuthSchema(spy);
+    const first = seen.length;
+    await ensureOAuthSchema(spy);
+    expect(first).toBe(3);
+    expect(seen).toHaveLength(first);
+    expect(await tableExists(db, 'oauth_tokens')).toBe(true);
   });
 
   it('a failed create is tried again on the next call', async () => {
