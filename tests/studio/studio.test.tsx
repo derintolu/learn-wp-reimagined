@@ -199,6 +199,8 @@ describe('Studio', () => {
       { from: 'theme-json-basics', to: 'theme-json-basics', outcome: 'review' },
       { from: 'theme-json-basics', to: 'templates-and-parts', outcome: 'skip' },
     ]);
+    // A branch taken on another path stays in that path's outline.
+    r = applyEvent(r, { type: 'checkpointAnswered', lessonId: 'ln-what-is-wordpress', response: 'z', outcome: 'advance', to: 'ln-posts-and-pages' }, content);
     use(r);
     open('/learn/templates-and-parts');
     nav = await outline();

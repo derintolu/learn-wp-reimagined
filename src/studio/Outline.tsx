@@ -44,7 +44,10 @@ export function Outline({ lesson, step, bugSolved }: { lesson: Lesson; step: num
   const bugState: State = finished || (step >= n && bugSolved) ? 'done' : step >= n ? 'current' : 'upcoming';
   const cpState: State = finished ? 'done' : step >= n && (!lesson.bug || bugSolved) ? 'current' : 'upcoming';
 
-  const history = branchHistory(record).filter((b) => has(content.lessons, b.from) && has(content.lessons, b.to));
+  // Only this path's branches: each path's outline tells its own story.
+  const history = branchHistory(record).filter(
+    (b) => has(content.lessons, b.from) && has(content.lessons, b.to) && content.lessons[b.from].pathId === lesson.pathId,
+  );
   const numberOf = (id: string) => content.paths[content.lessons[id].pathId].lessons.indexOf(id) + 1;
 
   return (
