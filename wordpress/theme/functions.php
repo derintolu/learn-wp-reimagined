@@ -43,3 +43,26 @@ add_filter(
 		return str_replace( 'data-lwr-blog-link', 'data-lwr-blog-link aria-current="' . $current . '"', $content );
 	}
 );
+
+/**
+ * Author archives are not part of this site: the blog lives in the app at /blog. Send them there, and keep
+ * user URLs out of the public sitemap.
+ */
+add_action(
+	'template_redirect',
+	static function () {
+		if ( is_author() ) {
+			wp_safe_redirect( home_url( '/blog' ), 301 );
+			exit;
+		}
+	}
+);
+
+add_filter(
+	'wp_sitemaps_add_provider',
+	static function ( $provider, $name ) {
+		return 'users' === $name ? false : $provider;
+	},
+	10,
+	2
+);
