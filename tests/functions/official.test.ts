@@ -226,6 +226,48 @@ describe('decide with the LRS in shadow', () => {
     expect((await db.prepare('SELECT COUNT(*) AS c FROM au_sessions').first<{ c: number }>())!.c).toBe(0);
   });
 
+  it('one batch reads the AU sessions once and moves a session once', async () => {
+    const { session } = await createSession(env, NOW);
+    await decide(session, [{ eventId: eid(), type: 'lessonOpened', lessonId: FREE }]);
+    const seen: string[] = [];
+    const real = env.DB;
+    env = { ...env, DB: { prepare: (sql: string) => (seen.push(sql), real.prepare(sql)) } };
+    await decide(session, Array.from({ length: 10 }, () => ({ eventId: eid(), type: 'beatViewed', lessonId: FREE, beatIndex: 0 })), NOW + 1_000);
+    expect(seen.filter((s) => s.startsWith('SELECT au_key')).length).toBe(1);
+    expect(seen.filter((s) => s.startsWith('UPDATE au_sessions')).length).toBe(1);
+    expect((await outbox()).length).toBe(12);
+    expect(await db.prepare('SELECT au_key, last FROM au_sessions').all()).toMatchObject({ results: [{ au_key: FREE, last: NOW + 1_000 }] });
+  });
+
+  it('a batch records what the same events, decided one at a time at that moment, would', async () => {
+    const events = [
+      { eventId: eid(), type: 'lessonOpened', lessonId: FREE },
+      { eventId: eid(), type: 'beatViewed', lessonId: FREE, beatIndex: 0 },
+      { eventId: eid(), type: 'lessonOpened', lessonId: 'templates-and-parts' },
+      { eventId: eid(), type: 'beatViewed', lessonId: 'templates-and-parts', beatIndex: 0 },
+      { eventId: eid(), type: 'lessonLeft', lessonId: 'templates-and-parts' },
+      { eventId: eid(), type: 'beatViewed', lessonId: FREE, beatIndex: 0 },
+      { eventId: eid(), type: 'checkpointAnswered', lessonId: FREE, response: 'r', outcome: 'advance' },
+      { eventId: eid(), type: 'lessonCompleted', lessonId: FREE },
+      { eventId: eid(), type: 'placed', placement: { pathId: 'block-theme', startLessonId: 'patterns', skip: ['templates-and-parts'], reason: 'r' } },
+      { eventId: eid(), type: 'beatViewed', lessonId: 'patterns', beatIndex: 0 },
+    ];
+    const run = async (batches: unknown[][]) => {
+      db = createSqliteD1();
+      env = { ...env, DB: db };
+      await ensureSchema(db);
+      const { session } = await createSession(env, NOW);
+      for (const b of batches) await decide(session, b, NOW);
+      const { registration } = (await db.prepare('SELECT registration FROM sessions').first<{ registration: string }>())!;
+      const norm = (x: unknown) => JSON.stringify(x).split(session.actorName).join('ACTOR').split(registration).join('REG');
+      const rows = (await db.prepare('SELECT au_key, session_id, started, last FROM au_sessions ORDER BY au_key').all()).results;
+      return { statements: (await outbox()).map(norm).sort(), rows: norm(rows) };
+    };
+    const batched = await run([events]);
+    expect(batched.statements.length).toBeGreaterThan(10);
+    expect(batched).toEqual(await run(events.map((e) => [e])));
+  });
+
   it('records shadow facts for placement, waivers, branches and caught bugs', async () => {
     const { session } = await createSession(env, NOW);
     await decide(session, [

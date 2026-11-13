@@ -158,6 +158,14 @@ function planSession(rows: AuRow[], auKey: string, sessionId: string, now: numbe
 
 const toSession = (r: AuRow, now: number, isNew: boolean): AuSession => ({ auKey: r.au_key, sessionId: r.session_id, started: r.started, last: now, isNew });
 
+/**
+ * A batch's copy of the learner's AU session rows, kept equal to what this batch wrote, so a batch reads them once
+ * (each broker operation is a round trip of about 200 ms). `rows` null means read them again.
+ */
+export type AuRowsCache = { rows: AuRow[] | null };
+
+const sameRow = (a: AuRow, b: AuRow) => a.au_key === b.au_key && a.session_id === b.session_id;
+
 async function officialFor(
   env: Env,
   ctx: { actor: Actor; registration: string; bundle: ContentBundle },
@@ -166,10 +174,12 @@ async function officialFor(
   r: Extract<EventResult, { ok: true }>,
   now: number,
   seq: number,
+  cache?: AuRowsCache,
 ): Promise<XapiStatement[]> {
   const auKey = e.type === 'placed' ? PLACEMENT_AU_KEY : e.lessonId;
   const closing = e.type === 'lessonLeft';
-  const plan = planSession(await listAuSessions(env, actorName), auKey, await sessionIdFor(e.eventId), now, closing);
+  const rows = cache?.rows ?? (await listAuSessions(env, actorName));
+  const plan = planSession(rows, auKey, await sessionIdFor(e.eventId), now, closing);
 
   const out: XapiStatement[] = [];
   for (const row of plan.abandon) out.push(await abandonedStatement(ctx, row));
@@ -181,23 +191,40 @@ async function officialFor(
   }
   // Queue first, then move the session rows: a retry after a failure in between plans the same statements.
   await enqueue(env, out, now, seq);
-  for (const row of [...plan.abandon, ...plan.end]) await deleteAuSession(env, actorName, row);
+  // Until the rows below are written, the cache is unknown: a failure leaves it to be read again.
+  if (cache) cache.rows = null;
+  const gone = [...plan.abandon, ...plan.end];
+  for (const row of gone) await deleteAuSession(env, actorName, row);
+  let next = rows.filter((row) => !gone.some((g) => sameRow(g, row)));
   if (plan.session && !closing) {
     if (e.type === 'placed') {
-      if (!plan.open) await deleteAuSession(env, actorName, { au_key: auKey, session_id: plan.session.sessionId, started: 0, last: 0 });
+      if (!plan.open) {
+        const placement: AuRow = { au_key: auKey, session_id: plan.session.sessionId, started: 0, last: 0 };
+        await deleteAuSession(env, actorName, placement);
+        next = next.filter((row) => !sameRow(row, placement));
+      }
     } else if (plan.open) {
       try {
         await env.DB
           .prepare('INSERT INTO au_sessions (actor_name, au_key, session_id, started, last) VALUES (?, ?, ?, ?, ?)')
           .bind(actorName, auKey, plan.session.sessionId, now, now)
           .run();
+        next.push({ au_key: auKey, session_id: plan.session.sessionId, started: now, last: now });
       } catch (err) {
         if (!isDuplicateKey(err)) throw err;
+        // Another request opened this session: its row is not the one planned here, so read the rows again.
+        return out;
       }
     } else {
-      await env.DB.prepare('UPDATE au_sessions SET last = ? WHERE actor_name = ? AND au_key = ?').bind(now, actorName, auKey).run();
+      const row = next.find((x) => x.au_key === auKey);
+      // An earlier event of this batch already moved it to this time.
+      if (row?.last !== now) {
+        await env.DB.prepare('UPDATE au_sessions SET last = ? WHERE actor_name = ? AND au_key = ?').bind(now, actorName, auKey).run();
+      }
+      next = next.map((x) => (x.au_key === auKey ? { ...x, last: now } : x));
     }
   }
+  if (cache) cache.rows = next;
   return out;
 }
 
@@ -205,8 +232,8 @@ type Ok = Extract<EventResult, { ok: true }>;
 type OfficialCtx = { actor: Actor; registration: string; bundle: ContentBundle };
 
 /** Builds and queues one event's official statements and records their facts; the number queued. */
-async function recordOne(env: Env, ctx: OfficialCtx, actorName: string, e: ServerEvent, r: Ok, now: number, seq: number): Promise<number> {
-  const sent = await officialFor(env, ctx, actorName, e, r, now, seq);
+async function recordOne(env: Env, ctx: OfficialCtx, actorName: string, e: ServerEvent, r: Ok, now: number, seq: number, cache?: AuRowsCache): Promise<number> {
+  const sent = await officialFor(env, ctx, actorName, e, r, now, seq, cache);
   for (const fact of factsOf(sent, ctx.bundle)) await recordShadowFact(env, actorName, fact, now);
   return sent.length;
 }
@@ -390,11 +417,13 @@ export async function recordOfficial(
     if (registration && (await replayPending(env, session, registration, deadline))) {
       const ctx: OfficialCtx = { actor: officialActor(session.actorName), registration, bundle: getContent() };
       let queued = 0;
+      // The batch reads the learner's AU sessions once; every event in it shares one decision time.
+      const cache: AuRowsCache = { rows: null };
       for (const [i, e] of events.entries()) {
         const r = results[i];
         if (!r?.ok) continue;
         // Queue times stay distinct across the batch, so the drain sends in decision order.
-        queued += await recordOne(env, ctx, session.actorName, e, r, now, queued);
+        queued += await recordOne(env, ctx, session.actorName, e, r, now, queued, cache);
       }
       kept = true;
     } else {
