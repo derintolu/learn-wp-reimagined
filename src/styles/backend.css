@@ -18,6 +18,10 @@
 .backend-status { font: 500 var(--step-0) / 1.5 var(--font-ui); color: var(--ink-muted); }
 .backend-status--down { color: var(--ink); padding: 1rem; background: var(--surface-muted); border-left: 4px solid var(--wp-blue); }
 .backend-body { overflow-wrap: anywhere; }
+/* Each part of a lesson comes from Sensei as a top-level div (the sanitiser drops its class); keep them apart. */
+.backend-body > div + div { margin-top: 2em; padding-top: 2em; border-top: 1px solid var(--rule); }
+/* The title takes focus on load so screen readers start there; like main, it is not a control and gets no ring. */
+.backend-title:focus { outline: none; }
 .backend-body img { max-width: 100%; height: auto; }
 .backend-body pre { overflow-x: auto; max-width: 100%; }
 .backend-body table { display: block; overflow-x: auto; max-width: 100%; }
