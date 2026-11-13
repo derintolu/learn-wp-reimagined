@@ -132,15 +132,19 @@ export interface DecideOptions {
  */
 export async function decideEvents(env: Env, actorName: string, events: ServerEvent[], now: number, opts: DecideOptions = {}): Promise<EventResult[]> {
   const out: EventResult[] = [];
-  // Paths whose enrolment failed in this batch: not tried again until the next request.
-  const enrolFailed = new Set<PathId>();
+  // Paths whose enrolment was settled in this batch, enrolled or failed: each costs database round trips, so one
+  // check per path and batch (a failed one is tried again on the next request).
+  const enrolChecked = new Set<PathId>();
   for (const e of events) {
     // Validation failures are returned as results above; infrastructure errors propagate so the client retries.
     const r = await decideOne(env, actorName, e, now);
     out.push(r);
     if (r.ok && opts.wpUserId != null) {
       const path = pathOf(e);
-      if (path && !enrolFailed.has(path) && !(await ensureEnrolled(env, opts.wpUserId, path, opts.connector, now))) enrolFailed.add(path);
+      if (path && !enrolChecked.has(path)) {
+        enrolChecked.add(path);
+        await ensureEnrolled(env, opts.wpUserId, path, opts.connector, now);
+      }
     }
   }
   // Nothing official until the session has a Sensei learner (Task 25): a session made before learners were on

@@ -323,6 +323,19 @@ describe('Sensei enrolment on events', () => {
     expect(enrol).toHaveBeenCalledTimes(2);
   });
 
+  it('reads the enrolment once per path in a batch, not once per event', async () => {
+    const enrol = vi.fn(async () => {});
+    await run([placed('block-theme')], enrol);
+    const lessons = getContent().paths['block-theme'].lessons;
+    const seen: string[] = [];
+    const counting = { ...env, DB: { prepare: (sql: string) => (seen.push(sql), db.prepare(sql)) } } as any;
+    const p = parseEvents({ learnerId: LEARNER, events: Array.from({ length: 10 }, () => ({ eventId: eid(), type: 'beatViewed', lessonId: lessons[0], beatIndex: 0 })) });
+    if (!p.ok) throw new Error(p.error);
+    await decideEvents(counting, p.learnerId, p.events, NOW, { wpUserId: 9, connector: { enrol } as any });
+    expect(seen.filter((s) => s.includes('FROM enrolments')).length).toBe(1);
+    expect(enrol).toHaveBeenCalledTimes(1);
+  });
+
   it('does nothing without a learner', async () => {
     const enrol = vi.fn(async () => {});
     await run([placed('block-theme')], enrol, null);
