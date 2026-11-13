@@ -154,7 +154,7 @@ export function HowItWorks() {
     },
     {
       name: 'Badges',
-      status: 'live',
+      status: BADGES_ISSUING ? 'live' : 'progress',
       body: (
         <>
           Open Badges 3.0, signed by the LRS as <code>did:web:{LRS_HOST}</code> and claimed from the studio.

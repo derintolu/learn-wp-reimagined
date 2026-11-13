@@ -471,6 +471,8 @@ describe('/how-it-works: badges before the LRS issues them (R57)', () => {
     expect(flow).toContain(`The target is within 90 seconds at p95. ${BADGES_NOT_ISSUED}`);
     expect(t).not.toContain('the LRS has a badge for you to claim');
     expect(badgesCard(container).textContent).toContain(BADGES_NOT_ISSUED);
+    expect(badgesCard(container).textContent).toContain('In progress');
+    expect(badgesCard(container).textContent).not.toContain('Live here');
     expect(t).toContain(`The badge does not carry your random ID. ${BADGES_NOT_ISSUED}`);
     const figure = container.querySelector('figure.how-diagram')!;
     expect(figure.querySelector('figcaption')!.textContent!.replace(/\s+/g, ' ')).toContain(`the LRS signs your badges. ${BADGES_NOT_ISSUED}`);
@@ -488,5 +490,6 @@ describe('/how-it-works: badges before the LRS issues them (R57)', () => {
     expect(t).not.toContain('set up to issue');
     expect(t).not.toContain(BADGES_NOT_ISSUED);
     expect(badgesCard(container).textContent).not.toContain(BADGES_NOT_ISSUED);
+    expect(badgesCard(container).textContent).toContain('Live here');
   });
 });
