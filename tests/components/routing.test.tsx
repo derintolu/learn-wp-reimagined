@@ -79,6 +79,17 @@ describe('routing', () => {
     expect(document.querySelector('footer')).toBeTruthy();
   });
 
+  it('after a link in the page swaps the page, focus goes to main, not body', async () => {
+    history.replaceState(null, '', '/');
+    render(<App />);
+    await screen.findByRole('heading', { level: 1 });
+    const link = document.querySelector<HTMLAnchorElement>('main a[href="/path/block-theme"]')!;
+    link.focus();
+    fireEvent.click(link);
+    expect((await screen.findByRole('heading', { level: 1 })).textContent).toBe('Block theme developer');
+    await waitFor(() => expect(document.activeElement).toBe(document.getElementById('main')));
+  });
+
   it('passes the route param through to the page', async () => {
     history.replaceState(null, '', '/learn/templates-and-parts');
     render(<App />);

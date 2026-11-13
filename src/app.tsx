@@ -1,5 +1,5 @@
 import type { FunctionComponent } from 'preact';
-import { useEffect } from 'preact/hooks';
+import { useEffect, useRef } from 'preact/hooks';
 import { LocationProvider, Route, Router, useLocation } from 'preact-iso';
 import { Header } from './components/Header';
 import { Footer } from './components/Footer';
@@ -49,6 +49,29 @@ function HashTarget() {
   return null;
 }
 
+/**
+ * A link inside the page that swaps the page takes its focused element with it, and the next Tab
+ * would start from the top of the document. Put focus on the new page's main instead. A page that
+ * placed focus itself, or a link that survives the swap (the header), keeps it.
+ */
+function RouteFocus() {
+  const { url } = useLocation();
+  const first = useRef(true);
+  useEffect(() => {
+    if (first.current) {
+      first.current = false;
+      return;
+    }
+    const id = requestAnimationFrame(() => {
+      const active = document.activeElement;
+      if (active && active !== document.body && active.isConnected) return;
+      document.getElementById('main')?.focus({ preventScroll: true });
+    });
+    return () => cancelAnimationFrame(id);
+  }, [url]);
+  return null;
+}
+
 export function App() {
   return (
     <ErrorBoundary>
@@ -63,6 +86,7 @@ function Shell() {
   return (
     <LocationProvider>
       <HashTarget />
+      <RouteFocus />
       <Frame />
     </LocationProvider>
   );
