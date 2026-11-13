@@ -61,3 +61,7 @@ pre.copy-field__value { white-space: pre; overflow-wrap: normal; overflow-x: aut
 .carry-over { display: grid; gap: 0.5rem; padding: 0.9rem var(--gutter); background: var(--tint); border-bottom: 1px solid var(--rule); }
 .carry-over__title { margin: 0; font-weight: 600; color: var(--ink); }
 .carry-over__text { margin: 0; max-width: var(--measure); color: var(--ink-muted); }
+/* On a phone a code block wraps instead of hiding its end off the edge (copying still gets the exact text). */
+@media (max-width: 560px) {
+  pre.copy-field__value { white-space: pre-wrap; overflow-wrap: anywhere; }
+}
