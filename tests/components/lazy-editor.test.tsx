@@ -56,4 +56,19 @@ describe('LazyCodeEditor', () => {
     view.dispatch({ changes: { from: 0, insert: 'x' } });
     expect(onChange).toHaveBeenCalledWith('xb{}');
   });
+
+  it('a stale echo of its own typing, landing after newer keys, does not overwrite them', async () => {
+    const { CodeEditor: Real } = await import('../../src/components/CodeEditor');
+    const { EditorView } = await import('@codemirror/view');
+    const onChange = vi.fn();
+    const { rerender } = render(<Real file="a.css" value="" onChange={onChange} />);
+    const view = EditorView.findFromDOM(document.querySelector('.cm-editor') as HTMLElement)!;
+    view.dispatch({ changes: { from: 0, insert: 'a' } });
+    view.dispatch({ changes: { from: 1, insert: 'b' } });
+    view.dispatch({ changes: { from: 2, insert: 'c' } });
+    // The parent re-renders with "ab" only after "c" was typed.
+    rerender(<Real file="a.css" value="ab" onChange={onChange} />);
+    await new Promise((r) => setTimeout(r, 20));
+    expect(view.state.doc.toString()).toBe('abc');
+  });
 });

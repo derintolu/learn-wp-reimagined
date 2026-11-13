@@ -62,6 +62,9 @@ export function CodeEditor({
   const view = useRef<EditorView | null>(null);
   const change = useRef(onChange);
   change.current = onChange;
+  // Texts this editor has sent out since the last outside value. A `value` in here is an echo of the
+  // learner's own typing, possibly stale by the time the effect runs, so it must not replace the doc.
+  const sent = useRef(new Set<string>());
 
   useEffect(() => {
     if (!host.current) return;
@@ -86,7 +89,11 @@ export function CodeEditor({
             ...(readOnly ? { 'aria-readonly': 'true' } : {}),
           }),
           EditorView.updateListener.of((u) => {
-            if (u.docChanged && !u.transactions.some((tr) => tr.annotation(external))) change.current(u.state.doc.toString());
+            if (u.docChanged && !u.transactions.some((tr) => tr.annotation(external))) {
+              const text = u.state.doc.toString();
+              sent.current.add(text);
+              change.current(text);
+            }
           }),
         ],
       }),
@@ -104,7 +111,9 @@ export function CodeEditor({
   // It isn't echoed to onChange: a stale value landing after newer typing would otherwise ping-pong forever.
   useEffect(() => {
     const v = view.current;
-    if (v && v.state.doc.toString() !== value) {
+    if (!v || sent.current.has(value)) return;
+    sent.current.clear();
+    if (v.state.doc.toString() !== value) {
       v.dispatch({ changes: { from: 0, to: v.state.doc.length, insert: value }, annotations: external.of(true) });
     }
   }, [value]);
