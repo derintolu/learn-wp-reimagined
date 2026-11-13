@@ -88,10 +88,11 @@ export async function reserve(
     if (s.day > DAY_CAP_MICROS) return { ok: false, reason: 'day-cap' };
     return { ok: true, reservation: { micros: 0, month, day } };
   }
-  await ensureRow(db, month);
-  await ensureRow(db, day);
-  if (!(await tryAdd(db, month, cost, MONTH_CAP_MICROS))) return { ok: false, reason: 'month-cap' };
-  if (!(await tryAdd(db, day, cost, DAY_CAP_MICROS))) {
+  // The rows usually exist: charge first, and create a row (then charge again) only when the charge matched nothing.
+  // Each broker operation is a round trip of about 200 ms.
+  const charge = async (period: string, cap: number) => (await tryAdd(db, period, cost, cap)) || (await ensureRow(db, period), await tryAdd(db, period, cost, cap));
+  if (!(await charge(month, MONTH_CAP_MICROS))) return { ok: false, reason: 'month-cap' };
+  if (!(await charge(day, DAY_CAP_MICROS))) {
     await add(db, month, -cost);
     return { ok: false, reason: 'day-cap' };
   }
@@ -113,8 +114,11 @@ export async function settle(
   const delta = actual - reservation.micros;
   if (delta === 0) return;
   const { month, day } = reservation;
-  await ensureRow(db, month);
-  await ensureRow(db, day);
+  // A charged reservation made both rows; only a free one may find them missing.
+  if (reservation.micros === 0) {
+    await ensureRow(db, month);
+    await ensureRow(db, day);
+  }
   await add(db, month, delta);
   await add(db, day, delta);
 }

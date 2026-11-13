@@ -117,6 +117,24 @@ describe('budget', () => {
     expect(await get(db, '2026-10-19')).toBe(2000);
   });
 
+  it('once the rows exist, a reserve and its settle are two round trips each', async () => {
+    const real = await fresh();
+    const seen: string[] = [];
+    const db = { prepare: (sql: string) => (seen.push(sql), real.prepare(sql)) };
+    const first = await reserve(db, MODEL, 1000, 1800, NOW);
+    if (!first.ok) throw new Error('expected ok');
+    await settle(db, first.reservation, MODEL, { inputTokens: 500, outputTokens: 100 });
+    seen.length = 0;
+    const r = await reserve(db, MODEL, 1000, 1800, NOW);
+    if (!r.ok) throw new Error('expected ok');
+    expect(seen).toHaveLength(2);
+    seen.length = 0;
+    await settle(db, r.reservation, MODEL, { inputTokens: 500, outputTokens: 100 });
+    expect(seen).toHaveLength(2);
+    expect(await get(real, '2026-10')).toBe(4000);
+    expect(await get(real, '2026-10-19')).toBe(4000);
+  });
+
   it('settle with unknown model keeps the reservation charged', async () => {
     const db = await fresh();
     await seed(db, '2026-10', 5);
