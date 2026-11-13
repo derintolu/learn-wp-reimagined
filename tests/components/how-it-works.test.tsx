@@ -255,7 +255,7 @@ describe('/how-it-works', () => {
     expect(t).toContain('loads only when that LMS is active');
     expect(t).toContain('It imports any cmi5 package');
     expect(t).toContain("its Sensei lesson is marked complete");
-    expect(t).toContain('LifterLMS, Tutor LMS and LearnPress come next, in that order');
+    expect(t).toContain('LifterLMS, Tutor LMS and LearnPress connect through the same interface, and their integrations are in the public repo. This site runs only the Sensei one.');
     expect(t).toContain("CATAPULT cmi5 test suite is wired in as a release gate and hasn't been run yet");
     expect(t).toContain('eddsa-rdfc-2022');
     expect(t).toContain('did:web:lrs.sqwrlz.com');

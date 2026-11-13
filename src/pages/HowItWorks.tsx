@@ -421,8 +421,8 @@ export function HowItWorks() {
 
         <h3>More LMSs</h3>
         <p>
-          LifterLMS, Tutor LMS and LearnPress come next, in that order, through the same interface. None of them is in the
-          public repo yet.
+          LifterLMS, Tutor LMS and LearnPress connect through the same interface, and their integrations are in the public
+          repo. This site runs only the Sensei one.
         </p>
 
         <h3>Badge signing</h3>
@@ -555,7 +555,7 @@ export function HowItWorks() {
           </li>
           <li>
             <strong>It isn't connected to Learn.</strong>{' '}
-            {"This is not learn.wordpress.org. The Sensei here is the prototype's own install, with the prototype's own lessons, so nothing you do counts toward anything on Learn. This Sensei is the prototype's own, so your progress here doesn't count on Learn. The backend view, read from Sensei, is not the learner experience."}
+            {"This is not learn.wordpress.org. This Sensei is the prototype's own, so your progress here doesn't count on Learn. The backend view, read from Sensei, is not the learner experience."}
           </li>
           <li>
             <strong>The badges are unofficial too.</strong> The badges are issued by this prototype, not by WordPress.org,
