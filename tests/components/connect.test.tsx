@@ -46,7 +46,7 @@ describe('/connect', () => {
     render(<Connect />);
     expect(CLAUDE_CODE_COMMAND).toBe(`claude mcp add --transport http learn-wp-reimagined ${MCP_URL}`);
     expect(screen.getByText(CLAUDE_CODE_COMMAND)).toBeTruthy();
-    fireEvent.click(screen.getByRole('button', { name: 'Copy connector url' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Copy Connector URL' }));
     await waitFor(() => expect(writeText).toHaveBeenCalledWith(MCP_URL));
   });
 

@@ -439,7 +439,7 @@ describe('Home', () => {
     expect(items[1].textContent).toContain('custom connector and sign in when your agent asks');
     expect(items[2].textContent).toContain('ask it to teach you the course');
     expect(within(steps).getByText(MCP_URL)).toBeTruthy();
-    fireEvent.click(within(steps).getByRole('button', { name: 'Copy connector url' }));
+    fireEvent.click(within(steps).getByRole('button', { name: 'Copy Connector URL' }));
     await waitFor(() => expect(writeText).toHaveBeenCalledWith(MCP_URL));
     expect(within(steps).getByRole('link', { name: /Setup for Claude, ChatGPT/ }).getAttribute('href')).toBe('/connect');
   });

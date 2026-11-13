@@ -16,7 +16,7 @@ export function CopyField({ label, value, multiline = false }: { label: string; 
       <span class="copy-field__label">{label}</span>
       <div class="copy-field__row">
         {multiline ? <pre class="copy-field__value">{value}</pre> : <code class="copy-field__value">{value}</code>}
-        <button type="button" class="button button--quiet copy-field__button" onClick={copy} aria-label={`Copy ${label.toLowerCase()}`}>
+        <button type="button" class="button button--quiet copy-field__button" onClick={copy} aria-label={`Copy ${label}`}>
           {state === 'copied' ? 'Copied' : 'Copy'}
         </button>
       </div>
