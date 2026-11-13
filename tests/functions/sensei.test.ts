@@ -1,7 +1,7 @@
 import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
 import { XAPI_BASE } from '../../src/shared/xapi';
 import { createSqliteD1 } from '../../dev/sqliteD1';
-import { ensureSchema } from '../../functions/_lib/db';
+import { ensureEnrolmentSchema, ensureSchema } from '../../functions/_lib/db';
 import type { Env } from '../../functions/_lib/env';
 import { POST as create } from '../../functions/api/session';
 import { GET as sensei } from '../../functions/api/sensei';
@@ -53,6 +53,8 @@ afterEach(() => {
 describe('GET /api/sensei', () => {
   it('returns the learner progress with lessons mapped to studio ids', async () => {
     const c = await cookie();
+    await ensureEnrolmentSchema(db);
+    await db.prepare('INSERT INTO enrolments (wp_user_id, course_key, created) VALUES (?, ?, ?)').bind(77, 'block-theme', 1).run();
     const res = await get(c);
     expect(res.status).toBe(200);
     expect(await res.json()).toEqual({
@@ -63,6 +65,13 @@ describe('GET /api/sensei', () => {
       certificates: [],
     });
     expect(urls.at(-1)).toContain('/learners/77/progress?program=5');
+  });
+
+  it('lists as enrolled only the courses this server enrolled the learner in, not every course in the program', async () => {
+    const c = await cookie();
+    const res = await get(c);
+    expect(res.status).toBe(200);
+    expect(((await res.json()) as { enrolled: string[] }).enrolled).toEqual([]);
   });
 
   it('connector down gives 503 connector-unavailable', async () => {
