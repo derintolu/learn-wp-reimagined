@@ -137,6 +137,15 @@
 .live-preview[data-status='live'] .live-preview__status::before { background: var(--live); }
 .live-preview[data-status='failed'] .live-preview__status::before { background: var(--danger); }
 .live-preview__status a { color: var(--wp-blue-light); }
+.live-preview__retry {
+  padding: 0;
+  border: 0;
+  background: none;
+  font: inherit;
+  color: var(--wp-blue-light);
+  text-decoration: underline;
+  cursor: pointer;
+}
 .live-preview__frame { display: block; width: 100%; height: 100%; border: 0; }
 .live-preview__frame[hidden] { display: none; }
 

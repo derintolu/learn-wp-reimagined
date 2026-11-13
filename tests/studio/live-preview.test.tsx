@@ -70,6 +70,22 @@ describe('live preview', () => {
     expect(link.target).toBe('_blank');
   });
 
+  it('"Try again" after a failed boot starts Playground again in place', async () => {
+    const { client } = fake();
+    let fail = true;
+    setPlaygroundImporter(async () => {
+      if (fail) throw new Error('hiccup');
+      return { startPlaygroundWeb: vi.fn(async () => client) } as never;
+    });
+    const onReady = vi.fn();
+    render(<LivePreview files={files} preview={PV} landing="/" onReady={onReady} />);
+    const retry = await screen.findByRole('button', { name: 'Try again' });
+    fail = false;
+    await act(async () => retry.click());
+    expect(await screen.findByText('Live: your theme in WordPress Playground')).toBeTruthy();
+    expect(onReady).toHaveBeenCalledTimes(1);
+  });
+
   it("the fallback link boots a plugin on the known main file and opens on the lesson's page", async () => {
     setPlaygroundImporter(async () => {
       throw new Error('offline');

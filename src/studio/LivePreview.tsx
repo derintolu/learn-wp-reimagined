@@ -32,6 +32,8 @@ export function LivePreview({
   const failed = useRef(onFailed);
   failed.current = onFailed;
   const [status, setStatus] = useState<Status>('booting');
+  // Playground sometimes fails to start for reasons on its side; each attempt boots a fresh iframe.
+  const [attempt, setAttempt] = useState(0);
 
   useEffect(() => {
     const ctl = new AbortController();
@@ -48,7 +50,7 @@ export function LivePreview({
       failed.current?.();
     });
     return () => ctl.abort();
-  }, []);
+  }, [attempt]);
 
   return (
     <div class="live-preview" data-status={status}>
@@ -58,13 +60,24 @@ export function LivePreview({
         {status === 'failed' && (
           <>
             Couldn't start WordPress here.{' '}
+            <button
+              type="button"
+              class="live-preview__retry"
+              onClick={() => {
+                setStatus('booting');
+                setAttempt((n) => n + 1);
+              }}
+            >
+              Try again
+            </button>{' '}
+            or{' '}
             <a href={playgroundUrl(files, preview, { landing, known, login: preview.kind === 'site' })} target="_blank" rel="noopener noreferrer">
               Open in Playground
             </a>
           </>
         )}
       </p>
-      <iframe ref={frame} class="live-preview__frame" title={`Live preview of your ${buildNoun(preview)}`} hidden={status === 'failed'} />
+      <iframe key={attempt} ref={frame} class="live-preview__frame" title={`Live preview of your ${buildNoun(preview)}`} hidden={status === 'failed'} />
     </div>
   );
 }
